@@ -222,5 +222,74 @@ void main() {
         expect(fetched, isNull);
       },
     );
+
+    test(
+      'when sending a heartbeat with a valid token then the machine is '
+      'marked online and lastSeenAt is refreshed',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        await endpoints.machine.heartbeat(sessionBuilder, registration.token);
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.status, MachineStatus.online);
+        expect(fetched.lastSeenAt, isNotNull);
+      },
+    );
+
+    test(
+      'when sending a heartbeat with an unknown token then it throws '
+      'InvalidTokenException',
+      () async {
+        await expectLater(
+          endpoints.machine.heartbeat(sessionBuilder, 'not-a-real-token'),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
+
+    test(
+      'when deregistering with a valid token then the machine is marked '
+      'offline and the token is revoked',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        await endpoints.machine.heartbeat(sessionBuilder, registration.token);
+
+        await endpoints.machine.deregister(
+          sessionBuilder,
+          registration.token,
+        );
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.status, MachineStatus.offline);
+        await expectLater(
+          endpoints.machine.heartbeat(sessionBuilder, registration.token),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
+
+    test(
+      'when deregistering with an unknown token then it throws '
+      'InvalidTokenException',
+      () async {
+        await expectLater(
+          endpoints.machine.deregister(sessionBuilder, 'not-a-real-token'),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
   });
 }

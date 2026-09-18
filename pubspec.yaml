@@ -8,4 +8,5 @@ workspace:
   - roundtable_client
   - roundtable_server
   - roundtable_flutter
+  - roundtable_agent_runner
 

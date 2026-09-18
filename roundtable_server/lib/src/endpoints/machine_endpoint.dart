@@ -44,6 +44,50 @@ class MachineEndpoint extends Endpoint {
     return Machine.db.updateRow(session, machine);
   }
 
+  /// Called periodically by the agent-runner daemon on a registered
+  /// machine. Marks the machine online and refreshes [Machine.lastSeenAt].
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine (unknown, or revoked via [deregister]).
+  Future<void> heartbeat(Session session, String token) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(
+        status: MachineStatus.online,
+        lastSeenAt: DateTime.now().toUtc(),
+      ),
+    );
+  }
+
+  /// Called by the uninstall script as a deliberate deregistration, so the
+  /// server doesn't have to wait for the heartbeat timeout to notice the
+  /// machine is gone (design doc §6.8). Marks the machine offline and clears
+  /// [Machine.tokenHash] so the raw token can never match again.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> deregister(Session session, String token) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(status: MachineStatus.offline, tokenHash: null),
+    );
+  }
+
+  Future<Machine> _findByToken(Session session, String token) async {
+    final machine = await Machine.db.findFirstRow(
+      session,
+      where: (t) => t.tokenHash.equals(_hashToken(token)),
+    );
+    if (machine == null) {
+      throw InvalidTokenException(
+        message: 'Unknown or revoked registration token',
+      );
+    }
+    return machine;
+  }
+
   Future<void> delete(Session session, int id) async {
     var machine = await Machine.db.findById(session, id);
     if (machine == null) {

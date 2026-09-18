@@ -20,6 +20,8 @@ machine:
   - get:
   - list:
   - update:
+  - heartbeat:
+  - deregister:
   - delete:
 project:
   - create:

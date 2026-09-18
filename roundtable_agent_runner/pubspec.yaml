@@ -1,14 +1,16 @@
 name: roundtable_agent_runner
-description: A sample command-line application.
+description: Outbound daemon that registers a machine with the roundtable server and reports a heartbeat. Installed as the agent-runner systemd service (see scripts/install-agent.sh).
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+publish_to: none
 
 environment:
-  sdk: ^3.13.3
+  sdk: ^3.12.2
 
-# Add regular dependencies here.
+resolution: workspace
+
 dependencies:
-  path: ^1.9.0
+  roundtable_client:
+    path: ../roundtable_client
 
 dev_dependencies:
   lints: ^6.0.0

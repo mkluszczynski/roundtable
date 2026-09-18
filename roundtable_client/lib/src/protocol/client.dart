@@ -346,6 +346,30 @@ class EndpointMachine extends _isc.EndpointRef {
         {'machine': machine},
       );
 
+  /// Called periodically by the agent-runner daemon on a registered
+  /// machine. Marks the machine online and refreshes [Machine.lastSeenAt].
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine (unknown, or revoked via [deregister]).
+  _ida.Future<void> heartbeat(String token) => caller.callServerEndpoint<void>(
+    'machine',
+    'heartbeat',
+    {'token': token},
+  );
+
+  /// Called by the uninstall script as a deliberate deregistration, so the
+  /// server doesn't have to wait for the heartbeat timeout to notice the
+  /// machine is gone (design doc §6.8). Marks the machine offline and clears
+  /// [Machine.tokenHash] so the raw token can never match again.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> deregister(String token) => caller.callServerEndpoint<void>(
+    'machine',
+    'deregister',
+    {'token': token},
+  );
+
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'machine',
     'delete',

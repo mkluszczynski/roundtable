@@ -457,6 +457,44 @@ class Endpoints extends _is.EndpointDispatch {
                     params['machine'],
                   ),
         ),
+        'heartbeat': _is.MethodConnector(
+          name: 'heartbeat',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).heartbeat(
+                    session,
+                    params['token'],
+                  ),
+        ),
+        'deregister': _is.MethodConnector(
+          name: 'deregister',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .deregister(
+                    session,
+                    params['token'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {

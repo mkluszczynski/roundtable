@@ -27,6 +27,7 @@ import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'greetings/greeting.dart' as _izw8z7ou;
+import 'invalid_token_exception.dart' as _isgtss3z;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
 import 'machine_metric.dart' as _ixivwx7g;
@@ -46,6 +47,7 @@ export 'agent_role.dart';
 export 'agent_status.dart';
 export 'deletion_blocked_exception.dart';
 export 'greetings/greeting.dart';
+export 'invalid_token_exception.dart';
 export 'log_source.dart';
 export 'machine.dart';
 export 'machine_metric.dart';
@@ -687,6 +689,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _izw8z7ou.Greeting) {
       return _izw8z7ou.Greeting.fromJson(data) as T;
     }
+    if (t == _isgtss3z.InvalidTokenException) {
+      return _isgtss3z.InvalidTokenException.fromJson(data) as T;
+    }
     if (t == _ilj2nbps.LogSource) {
       return _ilj2nbps.LogSource.fromJson(data) as T;
     }
@@ -747,6 +752,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_izw8z7ou.Greeting?>()) {
       return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_isgtss3z.InvalidTokenException?>()) {
+      return (data != null
+              ? _isgtss3z.InvalidTokenException.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _is.getType<_ilj2nbps.LogSource?>()) {
       return (data != null ? _ilj2nbps.LogSource.fromJson(data) : null) as T;
@@ -910,6 +921,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i69bozh7.AgentStatus => 'AgentStatus',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _izw8z7ou.Greeting => 'Greeting',
+      _isgtss3z.InvalidTokenException => 'InvalidTokenException',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
       _ixivwx7g.MachineMetric => 'MachineMetric',
@@ -950,6 +962,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'DeletionBlockedException';
       case _izw8z7ou.Greeting():
         return 'Greeting';
+      case _isgtss3z.InvalidTokenException():
+        return 'InvalidTokenException';
       case _ilj2nbps.LogSource():
         return 'LogSource';
       case _i0hti3f2.Machine():
@@ -1020,6 +1034,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'Greeting') {
       return deserialize<_izw8z7ou.Greeting>(data['data']);
+    }
+    if (dataClassName == 'InvalidTokenException') {
+      return deserialize<_isgtss3z.InvalidTokenException>(data['data']);
     }
     if (dataClassName == 'LogSource') {
       return deserialize<_ilj2nbps.LogSource>(data['data']);
