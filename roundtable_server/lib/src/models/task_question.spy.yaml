@@ -1,0 +1,11 @@
+### A clarifying question raised by the agent during plan mode (AskUserQuestion), awaiting an answer
+### from the dev.
+class: TaskQuestion
+table: task_question
+fields:
+  task: Task?, relation(name=task_questions)
+  question: String
+  options: List<String>
+  answer: String?
+  answeredAt: DateTime?
+  createdAt: DateTime, default=now

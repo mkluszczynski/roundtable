@@ -1,0 +1,5 @@
+### Whether a machine's daemon is currently connected and sending a heartbeat.
+enum: MachineStatus
+values:
+  - offline
+  - online

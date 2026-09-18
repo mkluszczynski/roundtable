@@ -1,0 +1,5 @@
+### Whether a task log entry came from the agent's subprocess output or the daemon/server itself.
+enum: LogSource
+values:
+  - agent
+  - system

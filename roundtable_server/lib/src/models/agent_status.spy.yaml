@@ -1,0 +1,8 @@
+### Deliberately no "offline" — that follows from Machine.status, we don't duplicate it on the agent.
+### waitingForResponse is a purely cosmetic distinction from busy — the agent doesn't pick up another
+### task in either state anyway (one task per agent in the MVP).
+enum: AgentStatus
+values:
+  - idle
+  - waitingForResponse
+  - busy

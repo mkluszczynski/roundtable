@@ -1,0 +1,47 @@
+/* AUTOMATICALLY GENERATED CODE DO NOT MODIFY */
+/*   To generate run: "serverpod generate"    */
+
+// ignore_for_file: implementation_imports
+// ignore_for_file: library_private_types_in_public_api
+// ignore_for_file: non_constant_identifier_names
+// ignore_for_file: public_member_api_docs
+// ignore_for_file: type_literal_in_constant_pattern
+// ignore_for_file: use_super_parameters
+// ignore_for_file: invalid_use_of_internal_member
+
+// ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:serverpod_client/serverpod_client.dart' as _isc;
+
+/// Claude Code effort level to pass along for an agent's runs.
+enum AgentEffort implements _isc.SerializableModel {
+  low,
+  medium,
+  high,
+  xhigh,
+  max;
+
+  static AgentEffort fromJson(String name) {
+    switch (name) {
+      case 'low':
+        return AgentEffort.low;
+      case 'medium':
+        return AgentEffort.medium;
+      case 'high':
+        return AgentEffort.high;
+      case 'xhigh':
+        return AgentEffort.xhigh;
+      case 'max':
+        return AgentEffort.max;
+      default:
+        throw ArgumentError(
+          'Value "$name" cannot be converted to "AgentEffort"',
+        );
+    }
+  }
+
+  @override
+  String toJson() => name;
+
+  @override
+  String toString() => name;
+}

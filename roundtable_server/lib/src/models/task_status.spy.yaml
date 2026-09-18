@@ -1,0 +1,16 @@
+### The lifecycle of a single task, from creation to a terminal state.
+enum: TaskStatus
+values:
+  - queued
+  - cloning
+  ### skipped entirely when Task.skipPlanning = true
+  - planning
+  ### task is waiting for an answer to a plan-mode question (AskUserQuestion)
+  - waitingForAnswer
+  ### plan ready, waiting for the dev to approve or give feedback (ExitPlanMode)
+  - planReady
+  - running
+  - awaitingReview
+  - done
+  - failed
+  - cancelled

@@ -1,0 +1,5 @@
+### native = MVP (git worktree per task). docker = Should/Could, schema ready, implementation deferred.
+enum: AgentExecutionMode
+values:
+  - native
+  - docker

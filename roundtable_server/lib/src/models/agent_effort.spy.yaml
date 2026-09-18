@@ -1,0 +1,8 @@
+### Claude Code effort level to pass along for an agent's runs.
+enum: AgentEffort
+values:
+  - low
+  - medium
+  - high
+  - xhigh
+  - max
