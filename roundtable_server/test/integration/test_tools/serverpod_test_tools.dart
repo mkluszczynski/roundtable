@@ -19,6 +19,8 @@ import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
 import 'package:roundtable_server/src/generated/greetings/greeting.dart'
     as _iob7x90u;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
+import 'package:roundtable_server/src/generated/machine_registration.dart'
+    as _i1b54xmb;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -702,7 +704,7 @@ class _MachineEndpoint {
 
   final _is.SerializationManager _serializationManager;
 
-  _ida.Future<_ilqrziin.Machine> create(
+  _ida.Future<_i1b54xmb.MachineRegistration> register(
     _ist.TestSessionBuilder sessionBuilder,
     String name,
   ) async {
@@ -710,13 +712,13 @@ class _MachineEndpoint {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
             endpoint: 'machine',
-            method: 'create',
+            method: 'register',
           );
       try {
         var _localCallContext = await _endpointDispatch.getMethodCallContext(
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'machine',
-          methodName: 'create',
+          methodName: 'register',
           parameters: _ist.testObjectToJson({'name': name}),
           serializationManager: _serializationManager,
         );
@@ -725,7 +727,7 @@ class _MachineEndpoint {
                   _localUniqueSession,
                   _localCallContext.arguments,
                 )
-                as _ida.Future<_ilqrziin.Machine>);
+                as _ida.Future<_i1b54xmb.MachineRegistration>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

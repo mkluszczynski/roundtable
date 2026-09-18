@@ -390,8 +390,8 @@ class Endpoints extends _is.EndpointDispatch {
       name: 'machine',
       endpoint: endpoints['machine']!,
       methodConnectors: {
-        'create': _is.MethodConnector(
-          name: 'create',
+        'register': _is.MethodConnector(
+          name: 'register',
           params: {
             'name': _is.ParameterDescription(
               name: 'name',
@@ -404,7 +404,7 @@ class Endpoints extends _is.EndpointDispatch {
                 _is.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).create(
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).register(
                     session,
                     params['name'],
                   ),

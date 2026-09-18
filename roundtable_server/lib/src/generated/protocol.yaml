@@ -16,7 +16,7 @@ agent:
   - update:
   - delete:
 machine:
-  - create:
+  - register:
   - get:
   - list:
   - update:

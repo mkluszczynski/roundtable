@@ -30,6 +30,7 @@ import 'greetings/greeting.dart' as _izw8z7ou;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
 import 'machine_metric.dart' as _ixivwx7g;
+import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'project.dart' as _ifiazq2p;
 import 'task.dart' as _iwn6t6fs;
@@ -48,6 +49,7 @@ export 'greetings/greeting.dart';
 export 'log_source.dart';
 export 'machine.dart';
 export 'machine_metric.dart';
+export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'project.dart';
 export 'task.dart';
@@ -694,6 +696,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _ixivwx7g.MachineMetric) {
       return _ixivwx7g.MachineMetric.fromJson(data) as T;
     }
+    if (t == _in7daleg.MachineRegistration) {
+      return _in7daleg.MachineRegistration.fromJson(data) as T;
+    }
     if (t == _i6yugb3s.MachineStatus) {
       return _i6yugb3s.MachineStatus.fromJson(data) as T;
     }
@@ -751,6 +756,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_ixivwx7g.MachineMetric?>()) {
       return (data != null ? _ixivwx7g.MachineMetric.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_in7daleg.MachineRegistration?>()) {
+      return (data != null
+              ? _in7daleg.MachineRegistration.fromJson(data)
+              : null)
           as T;
     }
     if (t == _is.getType<_i6yugb3s.MachineStatus?>()) {
@@ -902,6 +913,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
       _ixivwx7g.MachineMetric => 'MachineMetric',
+      _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _ifiazq2p.Project => 'Project',
       _iwn6t6fs.Task => 'Task',
@@ -944,6 +956,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'Machine';
       case _ixivwx7g.MachineMetric():
         return 'MachineMetric';
+      case _in7daleg.MachineRegistration():
+        return 'MachineRegistration';
       case _i6yugb3s.MachineStatus():
         return 'MachineStatus';
       case _ifiazq2p.Project():
@@ -1015,6 +1029,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'MachineMetric') {
       return deserialize<_ixivwx7g.MachineMetric>(data['data']);
+    }
+    if (dataClassName == 'MachineRegistration') {
+      return deserialize<_in7daleg.MachineRegistration>(data['data']);
     }
     if (dataClassName == 'MachineStatus') {
       return deserialize<_i6yugb3s.MachineStatus>(data['data']);

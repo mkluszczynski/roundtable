@@ -1,12 +1,35 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
-/// CRUD for [Machine]. Deletion is blocked while the machine is `online`, or
-/// while any of its agents has a non-terminal task (design doc §5, §6.8).
+/// Generates a cryptographically secure, high-entropy registration token.
+String _generateRegistrationToken() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+  return base64UrlEncode(bytes).replaceAll('=', '');
+}
+
+/// Hashes a raw token for storage; only the hash is ever persisted.
+String _hashToken(String token) {
+  return sha256.convert(utf8.encode(token)).toString();
+}
+
+/// Registration and CRUD for [Machine]. Deletion is blocked while the machine
+/// is `online`, or while any of its agents has a non-terminal task (design
+/// doc §5, §6.8).
 class MachineEndpoint extends Endpoint {
-  Future<Machine> create(Session session, String name) async {
-    return Machine.db.insertRow(session, Machine(name: name));
+  Future<MachineRegistration> register(Session session, String name) async {
+    final token = _generateRegistrationToken();
+    final machine = await Machine.db.insertRow(
+      session,
+      Machine(name: name, tokenHash: _hashToken(token)),
+    );
+    return MachineRegistration(machine: machine, token: token);
   }
 
   Future<Machine?> get(Session session, int id) async {

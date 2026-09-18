@@ -18,6 +18,8 @@ import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/machine_registration.dart'
+    as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
@@ -306,8 +308,9 @@ class EndpointAgent extends _isc.EndpointRef {
   );
 }
 
-/// CRUD for [Machine]. Deletion is blocked while the machine is `online`, or
-/// while any of its agents has a non-terminal task (design doc §5, §6.8).
+/// Registration and CRUD for [Machine]. Deletion is blocked while the machine
+/// is `online`, or while any of its agents has a non-terminal task (design
+/// doc §5, §6.8).
 /// {@category Endpoint}
 class EndpointMachine extends _isc.EndpointRef {
   EndpointMachine(_isc.EndpointCaller caller) : super(caller);
@@ -315,10 +318,10 @@ class EndpointMachine extends _isc.EndpointRef {
   @override
   String get name => 'machine';
 
-  _ida.Future<_iwz93qz1.Machine> create(String name) =>
-      caller.callServerEndpoint<_iwz93qz1.Machine>(
+  _ida.Future<_i80z6wcv.MachineRegistration> register(String name) =>
+      caller.callServerEndpoint<_i80z6wcv.MachineRegistration>(
         'machine',
-        'create',
+        'register',
         {'name': name},
       );
 

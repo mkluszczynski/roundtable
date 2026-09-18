@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
 
@@ -6,59 +9,119 @@ import 'test_tools/serverpod_test_tools.dart';
 void main() {
   withServerpod('Given Machine endpoint', (sessionBuilder, endpoints) {
     test(
-      'when creating a machine then it is persisted as offline',
+      'when registering a machine then it is persisted as offline',
       () async {
-        final machine = await endpoints.machine.create(sessionBuilder, 'VPS');
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
 
-        expect(machine.id, isNotNull);
-        expect(machine.name, 'VPS');
-        expect(machine.status, MachineStatus.offline);
+        expect(registration.machine.id, isNotNull);
+        expect(registration.machine.name, 'VPS');
+        expect(registration.machine.status, MachineStatus.offline);
+      },
+    );
+
+    test(
+      'when registering a machine then a token is returned and the stored '
+      'hash matches it',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        expect(registration.token, isNotEmpty);
+        expect(
+          sha256.convert(utf8.encode(registration.token)).toString(),
+          registration.machine.tokenHash,
+        );
+      },
+    );
+
+    test(
+      'when registering a machine then the raw token itself is never '
+      'persisted as tokenHash',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        expect(registration.machine.tokenHash, isNot(registration.token));
+      },
+    );
+
+    test(
+      'when registering two machines then they get different tokens and '
+      'hashes',
+      () async {
+        final first = await endpoints.machine.register(sessionBuilder, 'VPS');
+        final second = await endpoints.machine.register(
+          sessionBuilder,
+          'Laptop',
+        );
+
+        expect(first.token, isNot(second.token));
+        expect(first.machine.tokenHash, isNot(second.machine.tokenHash));
       },
     );
 
     test('when getting a machine by id then it is returned', () async {
-      final created = await endpoints.machine.create(sessionBuilder, 'VPS');
+      final created = await endpoints.machine.register(sessionBuilder, 'VPS');
 
-      final fetched = await endpoints.machine.get(sessionBuilder, created.id!);
+      final fetched = await endpoints.machine.get(
+        sessionBuilder,
+        created.machine.id!,
+      );
 
       expect(fetched, isNotNull);
-      expect(fetched!.id, created.id);
+      expect(fetched!.id, created.machine.id);
     });
 
     test(
       'when listing machines then all created machines are included',
       () async {
-        final first = await endpoints.machine.create(sessionBuilder, 'VPS');
-        final second = await endpoints.machine.create(sessionBuilder, 'Laptop');
+        final first = await endpoints.machine.register(sessionBuilder, 'VPS');
+        final second = await endpoints.machine.register(
+          sessionBuilder,
+          'Laptop',
+        );
 
         final machines = await endpoints.machine.list(sessionBuilder);
 
-        expect(machines.map((m) => m.id), containsAll([first.id, second.id]));
+        expect(
+          machines.map((m) => m.id),
+          containsAll([first.machine.id, second.machine.id]),
+        );
       },
     );
 
     test('when updating a machine then the change is persisted', () async {
-      final created = await endpoints.machine.create(sessionBuilder, 'VPS');
+      final created = await endpoints.machine.register(sessionBuilder, 'VPS');
 
       await endpoints.machine.update(
         sessionBuilder,
-        created.copyWith(name: 'Renamed'),
+        created.machine.copyWith(name: 'Renamed'),
       );
 
-      final fetched = await endpoints.machine.get(sessionBuilder, created.id!);
+      final fetched = await endpoints.machine.get(
+        sessionBuilder,
+        created.machine.id!,
+      );
       expect(fetched!.name, 'Renamed');
     });
 
     test(
       'when deleting an offline machine with no tasks then it is removed',
       () async {
-        final created = await endpoints.machine.create(sessionBuilder, 'VPS');
+        final created = await endpoints.machine.register(sessionBuilder, 'VPS');
 
-        await endpoints.machine.delete(sessionBuilder, created.id!);
+        await endpoints.machine.delete(sessionBuilder, created.machine.id!);
 
         final fetched = await endpoints.machine.get(
           sessionBuilder,
-          created.id!,
+          created.machine.id!,
         );
         expect(fetched, isNull);
       },
