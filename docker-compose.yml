@@ -1,0 +1,69 @@
+# Runs the roundtable_server backend (built from its Dockerfile) together
+# with the Postgres database it needs. `redis.enabled` is false in every
+# config/*.yaml, so no Redis service is included.
+#
+# Setup: copy .env.example to .env and set ROUNDTABLE_DB_PASSWORD to the same
+# value as `production.database` in roundtable_server/config/passwords.yaml
+# (that file is gitignored and must already exist locally, e.g. from
+# `serverpod start`).
+#
+# Usage: docker compose up --build
+#
+# The server applies pending migrations on first boot (SERVERPOD_APPLY_MIGRATIONS)
+# and is reachable from the host at http://localhost:8080 (API),
+# http://localhost:8081 (Insights) and http://localhost:8082 (web).
+services:
+  postgres:
+    image: ghcr.io/serverpod/postgres:16
+    restart: unless-stopped
+    environment:
+      # Matches config/production.yaml `database.user`/`database.name`, so
+      # no SERVERPOD_DATABASE_USER/_NAME overrides are needed. The password
+      # must match `production.database` in config/passwords.yaml, which is
+      # baked into the server image at build time but never committed.
+      POSTGRES_USER: postgres
+      POSTGRES_DB: serverpod
+      POSTGRES_PASSWORD: ${ROUNDTABLE_DB_PASSWORD:?Set ROUNDTABLE_DB_PASSWORD in .env to match roundtable_server/config/passwords.yaml's production.database value}
+    volumes:
+      - roundtable_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  roundtable_server:
+    build:
+      context: .
+      dockerfile: roundtable_server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Point the baked-in production config at the `postgres` service
+      # instead of the cloud placeholder host, and skip SSL for the local
+      # Postgres container.
+      SERVERPOD_DATABASE_HOST: postgres
+      SERVERPOD_DATABASE_PORT: "5432"
+      SERVERPOD_DATABASE_REQUIRE_SSL: "false"
+      # Apply any pending migrations (including the one from the last
+      # commit) automatically on first boot.
+      SERVERPOD_APPLY_MIGRATIONS: "true"
+      # Advertise host-reachable URLs instead of the cloud placeholder hosts.
+      SERVERPOD_API_SERVER_PUBLIC_HOST: localhost
+      SERVERPOD_API_SERVER_PUBLIC_PORT: "8080"
+      SERVERPOD_API_SERVER_PUBLIC_SCHEME: http
+      SERVERPOD_INSIGHTS_SERVER_PUBLIC_HOST: localhost
+      SERVERPOD_INSIGHTS_SERVER_PUBLIC_PORT: "8081"
+      SERVERPOD_INSIGHTS_SERVER_PUBLIC_SCHEME: http
+      SERVERPOD_WEB_SERVER_PUBLIC_HOST: localhost
+      SERVERPOD_WEB_SERVER_PUBLIC_PORT: "8082"
+      SERVERPOD_WEB_SERVER_PUBLIC_SCHEME: http
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "8082:8082"
+
+volumes:
+  roundtable_postgres_data:
