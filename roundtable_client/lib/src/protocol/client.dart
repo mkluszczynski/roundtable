@@ -12,8 +12,13 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _ida;
 import 'package:http/http.dart' as _i85jenna;
+import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
+import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
+import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
+import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -246,6 +251,158 @@ class EndpointJwtRefresh extends _iacc.EndpointRefreshJwtTokens {
       );
 }
 
+/// CRUD for [Agent]. Deletion is blocked while the agent has a non-terminal
+/// task (design doc §5, §6.8).
+/// {@category Endpoint}
+class EndpointAgent extends _isc.EndpointRef {
+  EndpointAgent(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'agent';
+
+  _ida.Future<_ikth53tp.Agent> create(
+    String name,
+    int machineId, {
+    required _i7934w80.AgentRole role,
+    String? defaultModel,
+    _izylr20v.AgentEffort? defaultEffort,
+  }) => caller.callServerEndpoint<_ikth53tp.Agent>(
+    'agent',
+    'create',
+    {
+      'name': name,
+      'machineId': machineId,
+      'role': role,
+      'defaultModel': defaultModel,
+      'defaultEffort': defaultEffort,
+    },
+  );
+
+  _ida.Future<_ikth53tp.Agent?> get(int id) =>
+      caller.callServerEndpoint<_ikth53tp.Agent?>(
+        'agent',
+        'get',
+        {'id': id},
+      );
+
+  _ida.Future<List<_ikth53tp.Agent>> list() =>
+      caller.callServerEndpoint<List<_ikth53tp.Agent>>(
+        'agent',
+        'list',
+        {},
+      );
+
+  _ida.Future<_ikth53tp.Agent> update(_ikth53tp.Agent agent) =>
+      caller.callServerEndpoint<_ikth53tp.Agent>(
+        'agent',
+        'update',
+        {'agent': agent},
+      );
+
+  _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
+    'agent',
+    'delete',
+    {'id': id},
+  );
+}
+
+/// CRUD for [Machine]. Deletion is blocked while the machine is `online`, or
+/// while any of its agents has a non-terminal task (design doc §5, §6.8).
+/// {@category Endpoint}
+class EndpointMachine extends _isc.EndpointRef {
+  EndpointMachine(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'machine';
+
+  _ida.Future<_iwz93qz1.Machine> create(String name) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine>(
+        'machine',
+        'create',
+        {'name': name},
+      );
+
+  _ida.Future<_iwz93qz1.Machine?> get(int id) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine?>(
+        'machine',
+        'get',
+        {'id': id},
+      );
+
+  _ida.Future<List<_iwz93qz1.Machine>> list() =>
+      caller.callServerEndpoint<List<_iwz93qz1.Machine>>(
+        'machine',
+        'list',
+        {},
+      );
+
+  _ida.Future<_iwz93qz1.Machine> update(_iwz93qz1.Machine machine) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine>(
+        'machine',
+        'update',
+        {'machine': machine},
+      );
+
+  _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
+    'machine',
+    'delete',
+    {'id': id},
+  );
+}
+
+/// Basic CRUD for [Project]. No deletion guards apply here — see
+/// [MachineEndpoint] and [AgentEndpoint] for the entities that have them.
+/// {@category Endpoint}
+class EndpointProject extends _isc.EndpointRef {
+  EndpointProject(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'project';
+
+  _ida.Future<_i76mncv2.Project> create(
+    String name,
+    String repoUrl, {
+    String? repoAccessToken,
+    String? dockerImage,
+  }) => caller.callServerEndpoint<_i76mncv2.Project>(
+    'project',
+    'create',
+    {
+      'name': name,
+      'repoUrl': repoUrl,
+      'repoAccessToken': repoAccessToken,
+      'dockerImage': dockerImage,
+    },
+  );
+
+  _ida.Future<_i76mncv2.Project?> get(int id) =>
+      caller.callServerEndpoint<_i76mncv2.Project?>(
+        'project',
+        'get',
+        {'id': id},
+      );
+
+  _ida.Future<List<_i76mncv2.Project>> list() =>
+      caller.callServerEndpoint<List<_i76mncv2.Project>>(
+        'project',
+        'list',
+        {},
+      );
+
+  _ida.Future<_i76mncv2.Project> update(_i76mncv2.Project project) =>
+      caller.callServerEndpoint<_i76mncv2.Project>(
+        'project',
+        'update',
+        {'project': project},
+      );
+
+  _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
+    'project',
+    'delete',
+    {'id': id},
+  );
+}
+
 /// This is an example endpoint that returns a greeting message through
 /// its [hello] method.
 /// {@category Endpoint}
@@ -304,6 +461,9 @@ class Client extends _isc.ServerpodClientShared {
        ) {
     emailIdp = EndpointEmailIdp(this);
     jwtRefresh = EndpointJwtRefresh(this);
+    agent = EndpointAgent(this);
+    machine = EndpointMachine(this);
+    project = EndpointProject(this);
     greeting = EndpointGreeting(this);
     modules = Modules(this);
   }
@@ -311,6 +471,12 @@ class Client extends _isc.ServerpodClientShared {
   late final EndpointEmailIdp emailIdp;
 
   late final EndpointJwtRefresh jwtRefresh;
+
+  late final EndpointAgent agent;
+
+  late final EndpointMachine machine;
+
+  late final EndpointProject project;
 
   late final EndpointGreeting greeting;
 
@@ -320,6 +486,9 @@ class Client extends _isc.ServerpodClientShared {
   Map<String, _isc.EndpointRef> get endpointRefLookup => {
     'emailIdp': emailIdp,
     'jwtRefresh': jwtRefresh,
+    'agent': agent,
+    'machine': machine,
+    'project': project,
     'greeting': greeting,
   };
 

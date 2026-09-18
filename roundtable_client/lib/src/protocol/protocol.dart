@@ -11,6 +11,9 @@
 // ignore_for_file: dead_code, unnecessary_type_check
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
+import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -21,6 +24,7 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
+import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'greetings/greeting.dart' as _izw8z7ou;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
@@ -38,6 +42,7 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role.dart';
 export 'agent_status.dart';
+export 'deletion_blocked_exception.dart';
 export 'greetings/greeting.dart';
 export 'log_source.dart';
 export 'machine.dart';
@@ -101,6 +106,9 @@ class Protocol extends _isc.SerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _i8k4gzq0.DeletionBlockedException) {
+      return _i8k4gzq0.DeletionBlockedException.fromJson(data) as T;
+    }
     if (t == _izw8z7ou.Greeting) {
       return _izw8z7ou.Greeting.fromJson(data) as T;
     }
@@ -152,6 +160,12 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _isc.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_i8k4gzq0.DeletionBlockedException?>()) {
+      return (data != null
+              ? _i8k4gzq0.DeletionBlockedException.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _isc.getType<_izw8z7ou.Greeting?>()) {
       return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
@@ -275,6 +289,22 @@ class Protocol extends _isc.SerializationManager {
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
+    if (t == List<_ikth53tp.Agent>) {
+      return (data as List).map((e) => deserialize<_ikth53tp.Agent>(e)).toList()
+          as T;
+    }
+    if (t == List<_iwz93qz1.Machine>) {
+      return (data as List)
+              .map((e) => deserialize<_iwz93qz1.Machine>(e))
+              .toList()
+          as T;
+    }
+    if (t == List<_i76mncv2.Project>) {
+      return (data as List)
+              .map((e) => deserialize<_i76mncv2.Project>(e))
+              .toList()
+          as T;
+    }
     try {
       return _iaic.Protocol().deserialize<T>(data, t);
     } on _isc.DeserializationTypeNotFoundException catch (_) {}
@@ -291,6 +321,7 @@ class Protocol extends _isc.SerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _idfmm35v.AgentRole => 'AgentRole',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _izw8z7ou.Greeting => 'Greeting',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
@@ -327,6 +358,8 @@ class Protocol extends _isc.SerializationManager {
         return 'AgentRole';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _i8k4gzq0.DeletionBlockedException():
+        return 'DeletionBlockedException';
       case _izw8z7ou.Greeting():
         return 'Greeting';
       case _ilj2nbps.LogSource():
@@ -387,6 +420,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
+    }
+    if (dataClassName == 'DeletionBlockedException') {
+      return deserialize<_i8k4gzq0.DeletionBlockedException>(data['data']);
     }
     if (dataClassName == 'Greeting') {
       return deserialize<_izw8z7ou.Greeting>(data['data']);

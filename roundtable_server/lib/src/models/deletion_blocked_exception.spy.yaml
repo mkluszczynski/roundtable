@@ -1,0 +1,5 @@
+### Thrown when deleting a Machine or Agent is blocked by a guard condition
+### (non-terminal tasks, or an online machine).
+exception: DeletionBlockedException
+fields:
+  message: String

@@ -138,6 +138,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   int? agentId;
 
   /// Optional — this opens the door to task queueing without a schema change.
+  /// onDelete=SetNull: deleting an agent (once its non-terminal tasks are
+  /// gone) keeps its terminal/historical tasks around, just unassigned.
   _ijo8h3v4.Agent? agent;
 
   /// The task prompt given by the dev.
@@ -551,6 +553,8 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnInt agentId;
 
   /// Optional — this opens the door to task queueing without a schema change.
+  /// onDelete=SetNull: deleting an agent (once its non-terminal tasks are
+  /// gone) keeps its terminal/historical tasks around, just unassigned.
   _ijo8h3v4.AgentTable? _agent;
 
   /// The task prompt given by the dev.

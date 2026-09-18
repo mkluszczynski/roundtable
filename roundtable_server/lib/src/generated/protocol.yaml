@@ -9,5 +9,23 @@ emailIdp:
   - hasAccount:
 jwtRefresh:
   - refreshAccessToken:
+agent:
+  - create:
+  - get:
+  - list:
+  - update:
+  - delete:
+machine:
+  - create:
+  - get:
+  - list:
+  - update:
+  - delete:
+project:
+  - create:
+  - get:
+  - list:
+  - update:
+  - delete:
 greeting:
   - hello:

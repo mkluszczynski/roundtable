@@ -11,6 +11,9 @@
 // ignore_for_file: dead_code, unnecessary_type_check
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
+import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
+import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:serverpod/protocol.dart' as _isp;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -22,6 +25,7 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
+import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'greetings/greeting.dart' as _izw8z7ou;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
@@ -39,6 +43,7 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role.dart';
 export 'agent_status.dart';
+export 'deletion_blocked_exception.dart';
 export 'greetings/greeting.dart';
 export 'log_source.dart';
 export 'machine.dart';
@@ -445,7 +450,7 @@ class Protocol extends _is.DatabaseSerializationManager {
           referenceTableSchema: 'public',
           referenceColumns: ['id'],
           onUpdate: _isp.ForeignKeyAction.noAction,
-          onDelete: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.setNull,
           matchType: null,
         ),
       ],
@@ -674,6 +679,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _i8k4gzq0.DeletionBlockedException) {
+      return _i8k4gzq0.DeletionBlockedException.fromJson(data) as T;
+    }
     if (t == _izw8z7ou.Greeting) {
       return _izw8z7ou.Greeting.fromJson(data) as T;
     }
@@ -725,6 +733,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_i8k4gzq0.DeletionBlockedException?>()) {
+      return (data != null
+              ? _i8k4gzq0.DeletionBlockedException.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _is.getType<_izw8z7ou.Greeting?>()) {
       return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
@@ -848,6 +862,22 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
+    if (t == List<_iaucj7w0.Agent>) {
+      return (data as List).map((e) => deserialize<_iaucj7w0.Agent>(e)).toList()
+          as T;
+    }
+    if (t == List<_ilqrziin.Machine>) {
+      return (data as List)
+              .map((e) => deserialize<_ilqrziin.Machine>(e))
+              .toList()
+          as T;
+    }
+    if (t == List<_ii35q81x.Project>) {
+      return (data as List)
+              .map((e) => deserialize<_ii35q81x.Project>(e))
+              .toList()
+          as T;
+    }
     try {
       return _iais.Protocol().deserialize<T>(data, t);
     } on _is.DeserializationTypeNotFoundException catch (_) {}
@@ -867,6 +897,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _idfmm35v.AgentRole => 'AgentRole',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _izw8z7ou.Greeting => 'Greeting',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
@@ -903,6 +934,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'AgentRole';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _i8k4gzq0.DeletionBlockedException():
+        return 'DeletionBlockedException';
       case _izw8z7ou.Greeting():
         return 'Greeting';
       case _ilj2nbps.LogSource():
@@ -967,6 +1000,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
+    }
+    if (dataClassName == 'DeletionBlockedException') {
+      return deserialize<_i8k4gzq0.DeletionBlockedException>(data['data']);
     }
     if (dataClassName == 'Greeting') {
       return deserialize<_izw8z7ou.Greeting>(data['data']);

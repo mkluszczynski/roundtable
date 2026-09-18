@@ -4,7 +4,9 @@ table: task
 fields:
   project: Project?, relation(name=project_tasks)
   ### Optional — this opens the door to task queueing without a schema change.
-  agent: Agent?, relation(name=agent_tasks, optional)
+  ### onDelete=SetNull: deleting an agent (once its non-terminal tasks are
+  ### gone) keeps its terminal/historical tasks around, just unassigned.
+  agent: Agent?, relation(name=agent_tasks, optional, onDelete=SetNull)
   ### The task prompt given by the dev.
   prompt: String
   ### Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.

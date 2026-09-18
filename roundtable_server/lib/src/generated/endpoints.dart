@@ -10,6 +10,11 @@
 // ignore_for_file: invalid_use_of_internal_member
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
+import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
+import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
+import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
+import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _iacs;
@@ -17,6 +22,9 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
     as _iais;
 import '../auth/email_idp_endpoint.dart' as _iuc1hd5t;
 import '../auth/jwt_refresh_endpoint.dart' as _inwq3ztq;
+import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
+import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
+import '../endpoints/project_endpoint.dart' as _iemg8ri2;
 import '../greetings/greeting_endpoint.dart' as _il624ik7;
 
 class Endpoints extends _is.EndpointDispatch {
@@ -33,6 +41,24 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'jwtRefresh',
+          null,
+        ),
+      'agent': _ik1xrao3.AgentEndpoint()
+        ..initialize(
+          server,
+          'agent',
+          null,
+        ),
+      'machine': _ij6wllr0.MachineEndpoint()
+        ..initialize(
+          server,
+          'machine',
+          null,
+        ),
+      'project': _iemg8ri2.ProjectEndpoint()
+        ..initialize(
+          server,
+          'project',
           null,
         ),
       'greeting': _il624ik7.GreetingEndpoint()
@@ -245,6 +271,320 @@ class Endpoints extends _is.EndpointDispatch {
                         session,
                         refreshToken: params['refreshToken'],
                       ),
+        ),
+      },
+    );
+    connectors['agent'] = _is.EndpointConnector(
+      name: 'agent',
+      endpoint: endpoints['agent']!,
+      methodConnectors: {
+        'create': _is.MethodConnector(
+          name: 'create',
+          params: {
+            'name': _is.ParameterDescription(
+              name: 'name',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'machineId': _is.ParameterDescription(
+              name: 'machineId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'role': _is.ParameterDescription(
+              name: 'role',
+              type: _is.getType<_i01du5ez.AgentRole>(),
+              nullable: false,
+            ),
+            'defaultModel': _is.ParameterDescription(
+              name: 'defaultModel',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+            'defaultEffort': _is.ParameterDescription(
+              name: 'defaultEffort',
+              type: _is.getType<_i293npqp.AgentEffort?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agent'] as _ik1xrao3.AgentEndpoint).create(
+                session,
+                params['name'],
+                params['machineId'],
+                role: params['role'],
+                defaultModel: params['defaultModel'],
+                defaultEffort: params['defaultEffort'],
+              ),
+        ),
+        'get': _is.MethodConnector(
+          name: 'get',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agent'] as _ik1xrao3.AgentEndpoint).get(
+                session,
+                params['id'],
+              ),
+        ),
+        'list': _is.MethodConnector(
+          name: 'list',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['agent'] as _ik1xrao3.AgentEndpoint).list(session),
+        ),
+        'update': _is.MethodConnector(
+          name: 'update',
+          params: {
+            'agent': _is.ParameterDescription(
+              name: 'agent',
+              type: _is.getType<_iaucj7w0.Agent>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agent'] as _ik1xrao3.AgentEndpoint).update(
+                session,
+                params['agent'],
+              ),
+        ),
+        'delete': _is.MethodConnector(
+          name: 'delete',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agent'] as _ik1xrao3.AgentEndpoint).delete(
+                session,
+                params['id'],
+              ),
+        ),
+      },
+    );
+    connectors['machine'] = _is.EndpointConnector(
+      name: 'machine',
+      endpoint: endpoints['machine']!,
+      methodConnectors: {
+        'create': _is.MethodConnector(
+          name: 'create',
+          params: {
+            'name': _is.ParameterDescription(
+              name: 'name',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).create(
+                    session,
+                    params['name'],
+                  ),
+        ),
+        'get': _is.MethodConnector(
+          name: 'get',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).get(
+                    session,
+                    params['id'],
+                  ),
+        ),
+        'list': _is.MethodConnector(
+          name: 'list',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .list(session),
+        ),
+        'update': _is.MethodConnector(
+          name: 'update',
+          params: {
+            'machine': _is.ParameterDescription(
+              name: 'machine',
+              type: _is.getType<_ilqrziin.Machine>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).update(
+                    session,
+                    params['machine'],
+                  ),
+        ),
+        'delete': _is.MethodConnector(
+          name: 'delete',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).delete(
+                    session,
+                    params['id'],
+                  ),
+        ),
+      },
+    );
+    connectors['project'] = _is.EndpointConnector(
+      name: 'project',
+      endpoint: endpoints['project']!,
+      methodConnectors: {
+        'create': _is.MethodConnector(
+          name: 'create',
+          params: {
+            'name': _is.ParameterDescription(
+              name: 'name',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'repoUrl': _is.ParameterDescription(
+              name: 'repoUrl',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'repoAccessToken': _is.ParameterDescription(
+              name: 'repoAccessToken',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+            'dockerImage': _is.ParameterDescription(
+              name: 'dockerImage',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['project'] as _iemg8ri2.ProjectEndpoint).create(
+                    session,
+                    params['name'],
+                    params['repoUrl'],
+                    repoAccessToken: params['repoAccessToken'],
+                    dockerImage: params['dockerImage'],
+                  ),
+        ),
+        'get': _is.MethodConnector(
+          name: 'get',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['project'] as _iemg8ri2.ProjectEndpoint).get(
+                    session,
+                    params['id'],
+                  ),
+        ),
+        'list': _is.MethodConnector(
+          name: 'list',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .list(session),
+        ),
+        'update': _is.MethodConnector(
+          name: 'update',
+          params: {
+            'project': _is.ParameterDescription(
+              name: 'project',
+              type: _is.getType<_ii35q81x.Project>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['project'] as _iemg8ri2.ProjectEndpoint).update(
+                    session,
+                    params['project'],
+                  ),
+        ),
+        'delete': _is.MethodConnector(
+          name: 'delete',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['project'] as _iemg8ri2.ProjectEndpoint).delete(
+                    session,
+                    params['id'],
+                  ),
         ),
       },
     );
