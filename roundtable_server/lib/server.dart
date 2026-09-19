@@ -102,4 +102,12 @@ void run(List<String> args) async {
 
   // Start the server.
   await pod.start();
+
+  // Periodically detect machines whose daemon has stopped heartbeating and
+  // fail their in-progress tasks (design doc §6.8).
+  await pod.futureCalls
+      .callRecurring()
+      .every(const Duration(seconds: 30))
+      .machineOffline
+      .check();
 }
