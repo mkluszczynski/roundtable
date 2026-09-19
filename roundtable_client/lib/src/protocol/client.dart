@@ -21,6 +21,7 @@ import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
+import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -370,6 +371,20 @@ class EndpointMachine extends _isc.EndpointRef {
     {'token': token},
   );
 
+  /// Resolves the [Machine] a registration token belongs to, without
+  /// mutating heartbeat state. Used by the agent-runner daemon at startup to
+  /// learn its own machine id before subscribing to
+  /// [TaskEndpoint.watchAssignedTasks] (design doc §6.1).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<_iwz93qz1.Machine> identify(String token) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine>(
+        'machine',
+        'identify',
+        {'token': token},
+      );
+
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'machine',
     'delete',
@@ -428,6 +443,50 @@ class EndpointProject extends _isc.EndpointRef {
     'delete',
     {'id': id},
   );
+}
+
+/// Task creation and the daemon's assignment feed (design doc §6.1).
+/// {@category Endpoint}
+class EndpointTask extends _isc.EndpointRef {
+  EndpointTask(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'task';
+
+  /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
+  /// queueing without an agent is a Should-scope feature, not implemented
+  /// here even though the schema allows `Task.agent` to be null).
+  ///
+  /// Notifies the assigned agent's machine via [watchAssignedTasks].
+  _ida.Future<_iw53rmon.Task> createTask(
+    int projectId,
+    int agentId,
+    String prompt, {
+    required bool skipPlanning,
+  }) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'createTask',
+    {
+      'projectId': projectId,
+      'agentId': agentId,
+      'prompt': prompt,
+      'skipPlanning': skipPlanning,
+    },
+  );
+
+  /// Streams tasks newly assigned to any agent hosted on [machineId] (design
+  /// doc §6.1 step 2 — by machine, not by agent, since one daemon serves
+  /// every agent it hosts). On subscribe, first replays any already-queued,
+  /// non-terminal tasks for that machine — otherwise a task created while the
+  /// daemon was offline/restarting would never surface — then yields each
+  /// task as it's created via [createTask].
+  _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
+      .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
+        'task',
+        'watchAssignedTasks',
+        {'machineId': machineId},
+        {},
+      );
 }
 
 /// This is an example endpoint that returns a greeting message through
@@ -491,6 +550,7 @@ class Client extends _isc.ServerpodClientShared {
     agent = EndpointAgent(this);
     machine = EndpointMachine(this);
     project = EndpointProject(this);
+    task = EndpointTask(this);
     greeting = EndpointGreeting(this);
     modules = Modules(this);
   }
@@ -505,6 +565,8 @@ class Client extends _isc.ServerpodClientShared {
 
   late final EndpointProject project;
 
+  late final EndpointTask task;
+
   late final EndpointGreeting greeting;
 
   late final Modules modules;
@@ -516,6 +578,7 @@ class Client extends _isc.ServerpodClientShared {
     'agent': agent,
     'machine': machine,
     'project': project,
+    'task': task,
     'greeting': greeting,
   };
 

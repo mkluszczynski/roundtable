@@ -75,6 +75,17 @@ class MachineEndpoint extends Endpoint {
     );
   }
 
+  /// Resolves the [Machine] a registration token belongs to, without
+  /// mutating heartbeat state. Used by the agent-runner daemon at startup to
+  /// learn its own machine id before subscribing to
+  /// [TaskEndpoint.watchAssignedTasks] (design doc §6.1).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<Machine> identify(Session session, String token) async {
+    return _findByToken(session, token);
+  }
+
   Future<Machine> _findByToken(Session session, String token) async {
     final machine = await Machine.db.findFirstRow(
       session,

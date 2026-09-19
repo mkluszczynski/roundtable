@@ -26,6 +26,7 @@ import '../auth/jwt_refresh_endpoint.dart' as _inwq3ztq;
 import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
 import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
 import '../endpoints/project_endpoint.dart' as _iemg8ri2;
+import '../endpoints/task_endpoint.dart' as _idmllfay;
 import '../greetings/greeting_endpoint.dart' as _il624ik7;
 export 'future_calls.dart' show ServerpodFutureCallsGetter;
 
@@ -61,6 +62,12 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'project',
+          null,
+        ),
+      'task': _idmllfay.TaskEndpoint()
+        ..initialize(
+          server,
+          'task',
           null,
         ),
       'greeting': _il624ik7.GreetingEndpoint()
@@ -497,6 +504,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['token'],
                   ),
         ),
+        'identify': _is.MethodConnector(
+          name: 'identify',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).identify(
+                    session,
+                    params['token'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {
@@ -624,6 +650,71 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['project'] as _iemg8ri2.ProjectEndpoint).delete(
                     session,
                     params['id'],
+                  ),
+        ),
+      },
+    );
+    connectors['task'] = _is.EndpointConnector(
+      name: 'task',
+      endpoint: endpoints['task']!,
+      methodConnectors: {
+        'createTask': _is.MethodConnector(
+          name: 'createTask',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'agentId': _is.ParameterDescription(
+              name: 'agentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'prompt': _is.ParameterDescription(
+              name: 'prompt',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'skipPlanning': _is.ParameterDescription(
+              name: 'skipPlanning',
+              type: _is.getType<bool>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).createTask(
+                    session,
+                    params['projectId'],
+                    params['agentId'],
+                    params['prompt'],
+                    skipPlanning: params['skipPlanning'],
+                  ),
+        ),
+        'watchAssignedTasks': _is.MethodStreamConnector(
+          name: 'watchAssignedTasks',
+          params: {
+            'machineId': _is.ParameterDescription(
+              name: 'machineId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .watchAssignedTasks(
+                    session,
+                    params['machineId'],
                   ),
         ),
       },

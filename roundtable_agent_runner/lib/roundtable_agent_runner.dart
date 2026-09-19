@@ -84,14 +84,14 @@ class AgentRunnerConfig {
   }
 }
 
-/// Reports a periodic heartbeat to the roundtable server for as long as the
-/// process runs.
+/// Reports a periodic heartbeat to the roundtable server, and subscribes to
+/// [TaskEndpoint.watchAssignedTasks] for as long as the process runs.
 ///
-/// This is deliberately the only responsibility of this stub — picking up
-/// tasks, running Claude Code, and managing git worktrees are separate,
-/// not-yet-implemented pieces of the full agent-runner daemon (design doc
-/// §6.1, §6.2, §6.10). Its purpose is to give `scripts/install-agent.sh` a
-/// real, testable systemd service to install.
+/// Subscribing to task assignments is currently log-only — picking up a
+/// task's worktree, running Claude Code, and managing the PR flow are
+/// separate, not-yet-implemented pieces of the full agent-runner daemon
+/// (design doc §6.2, §6.10). Its purpose is to give `scripts/install-agent.sh`
+/// a real, testable systemd service to install.
 class AgentRunnerService {
   AgentRunnerService(this._config, {Client? client})
     : _client = client ?? Client(_normalizeServerUrl(_config.serverUrl));
@@ -99,18 +99,45 @@ class AgentRunnerService {
   final AgentRunnerConfig _config;
   final Client _client;
   Timer? _timer;
+  StreamSubscription<Task>? _taskSubscription;
   final _stopped = Completer<void>();
 
   static String _normalizeServerUrl(String url) =>
       url.endsWith('/') ? url : '$url/';
 
-  /// Sends one heartbeat immediately, then every [_heartbeatInterval] —
-  /// until [stop] is called or the server rejects the registration token.
+  /// Resolves this machine's id, subscribes to its assigned-task stream,
+  /// then sends one heartbeat immediately and every [_heartbeatInterval]
+  /// after — until [stop] is called or the server rejects the registration
+  /// token.
   Future<void> run() async {
     _log('starting, server=${_config.serverUrl}');
+
+    final Machine machine;
+    try {
+      machine = await _client.machine.identify(_config.registrationToken);
+    } on InvalidTokenException catch (e) {
+      _log(
+        'FATAL: registration token rejected by server (${e.message}) — '
+        're-run scripts/install-agent.sh to obtain a new token',
+      );
+      stop(exitCode: 1);
+      return;
+    }
+
+    _subscribeToAssignedTasks(machine.id!);
     await _tick();
     _timer = Timer.periodic(_heartbeatInterval, (_) => _tick());
     return _stopped.future;
+  }
+
+  void _subscribeToAssignedTasks(int machineId) {
+    _taskSubscription = _client.task
+        .watchAssignedTasks(machineId)
+        .listen(
+          (task) => _log('assigned task ${task.id} (status=${task.status})'),
+          onError: (Object error) =>
+              _log('watchAssignedTasks stream error: $error'),
+        );
   }
 
   Future<void> _tick() async {
@@ -135,6 +162,8 @@ class AgentRunnerService {
   void stop({int exitCode = 0}) {
     _timer?.cancel();
     _timer = null;
+    _taskSubscription?.cancel();
+    _taskSubscription = null;
     if (!_stopped.isCompleted) {
       _stopped.complete();
     }

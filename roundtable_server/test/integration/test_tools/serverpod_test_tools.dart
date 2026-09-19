@@ -23,6 +23,7 @@ import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/machine_registration.dart'
     as _i1b54xmb;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _iacs;
@@ -167,6 +168,8 @@ class TestEndpoints {
 
   late final _ProjectEndpoint project;
 
+  late final _TaskEndpoint task;
+
   late final _GreetingEndpoint greeting;
 }
 
@@ -194,6 +197,10 @@ class _InternalTestEndpoints extends TestEndpoints
       serializationManager,
     );
     project = _ProjectEndpoint(
+      endpoints,
+      serializationManager,
+    );
+    task = _TaskEndpoint(
       endpoints,
       serializationManager,
     );
@@ -896,6 +903,37 @@ class _MachineEndpoint {
     });
   }
 
+  _ida.Future<_ilqrziin.Machine> identify(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'identify',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'identify',
+          parameters: _ist.testObjectToJson({'token': token}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ilqrziin.Machine>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<void> delete(
     _ist.TestSessionBuilder sessionBuilder,
     int id,
@@ -1098,6 +1136,88 @@ class _ProjectEndpoint {
         await _localUniqueSession.close();
       }
     });
+  }
+}
+
+class _TaskEndpoint {
+  _TaskEndpoint(
+    this._endpointDispatch,
+    this._serializationManager,
+  );
+
+  final _is.EndpointDispatch _endpointDispatch;
+
+  final _is.SerializationManager _serializationManager;
+
+  _ida.Future<_i77xifuu.Task> createTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int projectId,
+    int agentId,
+    String prompt, {
+    required bool skipPlanning,
+  }) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'createTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'createTask',
+          parameters: _ist.testObjectToJson({
+            'projectId': projectId,
+            'agentId': agentId,
+            'prompt': prompt,
+            'skipPlanning': skipPlanning,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Stream<_i77xifuu.Task> watchAssignedTasks(
+    _ist.TestSessionBuilder sessionBuilder,
+    int machineId,
+  ) {
+    var _localTestStreamManager = _ist.TestStreamManager<_i77xifuu.Task>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'task',
+              method: 'watchAssignedTasks',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'task',
+              methodName: 'watchAssignedTasks',
+              arguments: {'machineId': machineId},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
   }
 }
 
