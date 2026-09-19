@@ -48,6 +48,30 @@ class TaskEndpoint extends Endpoint {
   /// non-terminal tasks for that machine — otherwise a task created while the
   /// daemon was offline/restarting would never surface — then yields each
   /// task as it's created via [createTask].
+  /// Generic CRUD update, mirroring [ProjectEndpoint.update] /
+  /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
+  /// daemon to move a task through its lifecycle (design doc §6.1) —
+  /// e.g. `running` → `awaitingReview`/`failed` — and to persist
+  /// `claudeSessionId` once Claude Code reports one.
+  Future<Task> update(Session session, Task task) async {
+    return Task.db.updateRow(session, task);
+  }
+
+  /// Persists one line of a task's execution output as a [TaskLogEntry]
+  /// (design doc §6.3) — the panel's `watchLogs` stream, once it exists,
+  /// picks these up via `TaskLogEntry.db.watch()`.
+  Future<TaskLogEntry> appendLog(
+    Session session,
+    int taskId,
+    String content, {
+    LogSource source = LogSource.agent,
+  }) async {
+    return TaskLogEntry.db.insertRow(
+      session,
+      TaskLogEntry(taskId: taskId, content: content, source: source),
+    );
+  }
+
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
     var agentIds = (await Agent.db.find(
       session,

@@ -14,8 +14,10 @@ import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
 import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
+import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _iacs;
@@ -652,6 +654,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['id'],
                   ),
         ),
+        'getCloneUrl': _is.MethodConnector(
+          name: 'getCloneUrl',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .getCloneUrl(
+                    session,
+                    params['projectId'],
+                  ),
+        ),
       },
     );
     connectors['task'] = _is.EndpointConnector(
@@ -693,6 +714,55 @@ class Endpoints extends _is.EndpointDispatch {
                     params['agentId'],
                     params['prompt'],
                     skipPlanning: params['skipPlanning'],
+                  ),
+        ),
+        'update': _is.MethodConnector(
+          name: 'update',
+          params: {
+            'task': _is.ParameterDescription(
+              name: 'task',
+              type: _is.getType<_i77xifuu.Task>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint).update(
+                session,
+                params['task'],
+              ),
+        ),
+        'appendLog': _is.MethodConnector(
+          name: 'appendLog',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'content': _is.ParameterDescription(
+              name: 'content',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'source': _is.ParameterDescription(
+              name: 'source',
+              type: _is.getType<_iexu01r8.LogSource>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).appendLog(
+                    session,
+                    params['taskId'],
+                    params['content'],
+                    source: params['source'],
                   ),
         ),
         'watchAssignedTasks': _is.MethodStreamConnector(

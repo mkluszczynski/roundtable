@@ -80,5 +80,64 @@ void main() {
       final fetched = await endpoints.project.get(sessionBuilder, created.id!);
       expect(fetched, isNull);
     });
+
+    test(
+      'when getting the clone url for a project without an access token then the plain repo url is returned',
+      () async {
+        final created = await endpoints.project.create(
+          sessionBuilder,
+          'Roundtable',
+          'https://github.com/example/roundtable',
+        );
+
+        final cloneUrl = await endpoints.project.getCloneUrl(
+          sessionBuilder,
+          created.id!,
+        );
+
+        expect(cloneUrl, 'https://github.com/example/roundtable');
+      },
+    );
+
+    test(
+      'when getting the clone url for a project with an access token then it is injected as userinfo',
+      () async {
+        final created = await endpoints.project.create(
+          sessionBuilder,
+          'Roundtable',
+          'https://github.com/example/roundtable',
+          repoAccessToken: 'secret-token',
+        );
+
+        final cloneUrl = await endpoints.project.getCloneUrl(
+          sessionBuilder,
+          created.id!,
+        );
+
+        expect(
+          cloneUrl,
+          'https://x-access-token:secret-token@github.com/example/roundtable',
+        );
+      },
+    );
+
+    test(
+      'when getting the clone url for a non-https repo url then it is returned unchanged',
+      () async {
+        final created = await endpoints.project.create(
+          sessionBuilder,
+          'Roundtable',
+          'git@github.com:example/roundtable.git',
+          repoAccessToken: 'secret-token',
+        );
+
+        final cloneUrl = await endpoints.project.getCloneUrl(
+          sessionBuilder,
+          created.id!,
+        );
+
+        expect(cloneUrl, 'git@github.com:example/roundtable.git');
+      },
+    );
   });
 }

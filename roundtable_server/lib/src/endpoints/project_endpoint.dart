@@ -37,4 +37,28 @@ class ProjectEndpoint extends Endpoint {
   Future<void> delete(Session session, int id) async {
     await Project.db.deleteWhere(session, where: (t) => t.id.equals(id));
   }
+
+  /// Returns a ready-to-clone HTTPS URL for [projectId], with
+  /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
+  /// injected as the userinfo component when present. Called by the agent
+  /// daemon only at the moment a task starts, never persisted to disk on the
+  /// agent side (design doc §6.5).
+  Future<String> getCloneUrl(Session session, int projectId) async {
+    var project = await Project.db.findById(session, projectId);
+    if (project == null) {
+      throw Exception('Project $projectId not found');
+    }
+
+    var token = project.repoAccessToken;
+    if (token == null || token.isEmpty) {
+      return project.repoUrl;
+    }
+
+    var uri = Uri.tryParse(project.repoUrl);
+    if (uri == null || uri.scheme != 'https') {
+      return project.repoUrl;
+    }
+
+    return uri.replace(userInfo: 'x-access-token:$token').toString();
+  }
 }

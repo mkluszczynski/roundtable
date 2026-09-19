@@ -68,6 +68,58 @@ void main() {
       },
     );
 
+    test('when updating a task then the change is persisted', () async {
+      final machine = await createMachine();
+      final project = await createProject();
+      final agent = await createAgent(machine);
+      final created = await endpoints.task.createTask(
+        sessionBuilder,
+        project.id!,
+        agent.id!,
+        'Do something',
+        skipPlanning: true,
+      );
+
+      final updated = await endpoints.task.update(
+        sessionBuilder,
+        created.copyWith(
+          status: TaskStatus.running,
+          startedAt: DateTime.now().toUtc(),
+        ),
+      );
+
+      expect(updated.status, TaskStatus.running);
+      expect(updated.startedAt, isNotNull);
+    });
+
+    test(
+      'when appending a log line then it is persisted as a TaskLogEntry',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final entry = await endpoints.task.appendLog(
+          sessionBuilder,
+          task.id!,
+          '{"type":"system","subtype":"init"}',
+          source: LogSource.agent,
+        );
+
+        expect(entry.id, isNotNull);
+        expect(entry.taskId, task.id);
+        expect(entry.content, '{"type":"system","subtype":"init"}');
+        expect(entry.source, LogSource.agent);
+      },
+    );
+
     test(
       'when watching assigned tasks then an already-queued task for that machine is replayed',
       () async {

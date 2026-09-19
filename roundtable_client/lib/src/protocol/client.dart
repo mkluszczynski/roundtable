@@ -17,11 +17,14 @@ import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
 import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
+import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
+import 'package:roundtable_client/src/protocol/task_log_entry.dart'
+    as _inlvye37;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -443,6 +446,18 @@ class EndpointProject extends _isc.EndpointRef {
     'delete',
     {'id': id},
   );
+
+  /// Returns a ready-to-clone HTTPS URL for [projectId], with
+  /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
+  /// injected as the userinfo component when present. Called by the agent
+  /// daemon only at the moment a task starts, never persisted to disk on the
+  /// agent side (design doc §6.5).
+  _ida.Future<String> getCloneUrl(int projectId) =>
+      caller.callServerEndpoint<String>(
+        'project',
+        'getCloneUrl',
+        {'projectId': projectId},
+      );
 }
 
 /// Task creation and the daemon's assignment feed (design doc §6.1).
@@ -480,6 +495,35 @@ class EndpointTask extends _isc.EndpointRef {
   /// non-terminal tasks for that machine — otherwise a task created while the
   /// daemon was offline/restarting would never surface — then yields each
   /// task as it's created via [createTask].
+  /// Generic CRUD update, mirroring [ProjectEndpoint.update] /
+  /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
+  /// daemon to move a task through its lifecycle (design doc §6.1) —
+  /// e.g. `running` → `awaitingReview`/`failed` — and to persist
+  /// `claudeSessionId` once Claude Code reports one.
+  _ida.Future<_iw53rmon.Task> update(_iw53rmon.Task task) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'update',
+        {'task': task},
+      );
+
+  /// Persists one line of a task's execution output as a [TaskLogEntry]
+  /// (design doc §6.3) — the panel's `watchLogs` stream, once it exists,
+  /// picks these up via `TaskLogEntry.db.watch()`.
+  _ida.Future<_inlvye37.TaskLogEntry> appendLog(
+    int taskId,
+    String content, {
+    required _ict2bn87.LogSource source,
+  }) => caller.callServerEndpoint<_inlvye37.TaskLogEntry>(
+    'task',
+    'appendLog',
+    {
+      'taskId': taskId,
+      'content': content,
+      'source': source,
+    },
+  );
+
   _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
       .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
         'task',

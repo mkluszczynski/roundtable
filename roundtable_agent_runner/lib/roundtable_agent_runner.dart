@@ -3,6 +3,12 @@ import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
 
+import 'src/claude_code_executor.dart';
+import 'src/task_dispatcher.dart';
+import 'src/worktree_manager.dart';
+
+export 'src/claude_code_executor.dart';
+export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
 
 const _heartbeatInterval = Duration(seconds: 20);
@@ -16,16 +22,21 @@ class AgentRunnerConfig {
     required this.registrationToken,
     required this.serverUrl,
     this.claudeCodeOauthToken,
+    this.workspaceRoot = 'workspace',
   });
 
   final String registrationToken;
   final String serverUrl;
 
-  /// Held for a future Claude Code subprocess to consume (design doc §6.11);
-  /// this stub doesn't launch any subprocess yet.
+  /// Passed as `CLAUDE_CODE_OAUTH_TOKEN` to the `claude` subprocess (design
+  /// doc §6.11) — never sent to the server.
   final String? claudeCodeOauthToken;
 
-  /// Reads REGISTRATION_TOKEN/SERVER_URL/CLAUDE_CODE_OAUTH_TOKEN.
+  /// Root directory for [WorktreeManager]'s per-project bare clones and
+  /// per-task worktrees (design doc §6.10).
+  final String workspaceRoot;
+
+  /// Reads REGISTRATION_TOKEN/SERVER_URL/CLAUDE_CODE_OAUTH_TOKEN/WORKSPACE_ROOT.
   ///
   /// Under systemd, `EnvironmentFile=/etc/agent-runner/config.env` in the
   /// unit (written by `scripts/install-agent.sh`) is parsed by the systemd
@@ -61,6 +72,7 @@ class AgentRunnerConfig {
       registrationToken: token,
       serverUrl: server,
       claudeCodeOauthToken: values['CLAUDE_CODE_OAUTH_TOKEN'],
+      workspaceRoot: values['WORKSPACE_ROOT'] ?? 'workspace',
     );
   }
 
@@ -87,11 +99,10 @@ class AgentRunnerConfig {
 /// Reports a periodic heartbeat to the roundtable server, and subscribes to
 /// [TaskEndpoint.watchAssignedTasks] for as long as the process runs.
 ///
-/// Subscribing to task assignments is currently log-only — picking up a
-/// task's worktree, running Claude Code, and managing the PR flow are
-/// separate, not-yet-implemented pieces of the full agent-runner daemon
-/// (design doc §6.2, §6.10). Its purpose is to give `scripts/install-agent.sh`
-/// a real, testable systemd service to install.
+/// Each assigned task is handed to a [TaskDispatcher], which runs the
+/// execution-phase `claude` invocation for tasks that skip planning (design
+/// doc §6.1 step 5, §6.2) — planning-phase execution and the PR flow remain
+/// separate, not-yet-implemented pieces (§6.4, §6.1 step 7).
 class AgentRunnerService {
   AgentRunnerService(this._config, {Client? client})
     : _client = client ?? Client(_normalizeServerUrl(_config.serverUrl));
@@ -101,6 +112,25 @@ class AgentRunnerService {
   Timer? _timer;
   StreamSubscription<Task>? _taskSubscription;
   final _stopped = Completer<void>();
+
+  late final TaskDispatcher _dispatcher = TaskDispatcher(
+    worktreeManager: WorktreeManager(workspaceRoot: _config.workspaceRoot),
+    executorFactory: ClaudeCodeExecutor.new,
+    oauthToken: _config.claudeCodeOauthToken,
+    getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
+    fetchAgent: (agentId) async {
+      final agent = await _client.agent.get(agentId);
+      if (agent == null) {
+        throw StateError('Agent $agentId not found');
+      }
+      return agent;
+    },
+    updateTask: (task) => _client.task.update(task),
+    updateAgent: (agent) => _client.agent.update(agent),
+    appendLog: (taskId, content) =>
+        _client.task.appendLog(taskId, content, source: LogSource.agent),
+    log: _log,
+  );
 
   static String _normalizeServerUrl(String url) =>
       url.endsWith('/') ? url : '$url/';
@@ -131,13 +161,21 @@ class AgentRunnerService {
   }
 
   void _subscribeToAssignedTasks(int machineId) {
-    _taskSubscription = _client.task
-        .watchAssignedTasks(machineId)
-        .listen(
-          (task) => _log('assigned task ${task.id} (status=${task.status})'),
-          onError: (Object error) =>
-              _log('watchAssignedTasks stream error: $error'),
+    _taskSubscription = _client.task.watchAssignedTasks(machineId).listen(
+      (task) {
+        _log('assigned task ${task.id} (status=${task.status})');
+        unawaited(
+          _dispatcher
+              .handle(task)
+              .catchError(
+                (Object error) =>
+                    _log('task ${task.id} dispatch failed: $error'),
+              ),
         );
+      },
+      onError: (Object error) =>
+          _log('watchAssignedTasks stream error: $error'),
+    );
   }
 
   Future<void> _tick() async {

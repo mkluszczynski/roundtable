@@ -30,8 +30,11 @@ project:
   - list:
   - update:
   - delete:
+  - getCloneUrl:
 task:
   - createTask:
+  - update:
+  - appendLog:
   - watchAssignedTasks:
 greeting:
   - hello:
