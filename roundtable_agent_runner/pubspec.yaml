@@ -11,6 +11,7 @@ resolution: workspace
 dependencies:
   roundtable_client:
     path: ../roundtable_client
+  synchronized: ^3.3.0
 
 dev_dependencies:
   lints: ^6.0.0

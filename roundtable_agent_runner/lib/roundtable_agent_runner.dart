@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
 
+export 'src/worktree_manager.dart';
+
 const _heartbeatInterval = Duration(seconds: 20);
 
 /// Config for the agent-runner daemon, read from a `KEY=VALUE` env file
