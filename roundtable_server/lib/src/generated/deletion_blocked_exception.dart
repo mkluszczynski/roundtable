@@ -11,6 +11,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod/serverpod.dart' as _is;
+import 'deletion_block_reason.dart' as _iwa1mea8;
 
 /// Thrown when deleting a Machine or Agent is blocked by a guard condition
 /// (non-terminal tasks, or an online machine).
@@ -19,30 +20,44 @@ abstract class DeletionBlockedException
         _is.SerializableException,
         _is.SerializableModel,
         _is.ProtocolSerialization {
-  DeletionBlockedException._({required this.message});
+  DeletionBlockedException._({
+    required this.message,
+    required this.reason,
+  });
 
-  factory DeletionBlockedException({required String message}) =
-      _DeletionBlockedExceptionImpl;
+  factory DeletionBlockedException({
+    required String message,
+    required _iwa1mea8.DeletionBlockReason reason,
+  }) = _DeletionBlockedExceptionImpl;
 
   factory DeletionBlockedException.fromJson(
     Map<String, dynamic> jsonSerialization,
   ) {
     return DeletionBlockedException(
       message: jsonSerialization['message'] as String,
+      reason: _iwa1mea8.DeletionBlockReason.fromJson(
+        (jsonSerialization['reason'] as String),
+      ),
     );
   }
 
   String message;
 
+  _iwa1mea8.DeletionBlockReason reason;
+
   /// Returns a shallow copy of this [DeletionBlockedException]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
-  DeletionBlockedException copyWith({String? message});
+  DeletionBlockedException copyWith({
+    String? message,
+    _iwa1mea8.DeletionBlockReason? reason,
+  });
   @override
   Map<String, dynamic> toJson() {
     return {
       '__className__': 'DeletionBlockedException',
       'message': message,
+      'reason': reason.toJson(),
     };
   }
 
@@ -51,24 +66,36 @@ abstract class DeletionBlockedException
     return {
       '__className__': 'DeletionBlockedException',
       'message': message,
+      'reason': reason.toJson(),
     };
   }
 
   @override
   String toString() {
-    return 'DeletionBlockedException(message: $message)';
+    return 'DeletionBlockedException(message: $message, reason: $reason)';
   }
 }
 
 class _DeletionBlockedExceptionImpl extends DeletionBlockedException {
-  _DeletionBlockedExceptionImpl({required String message})
-    : super._(message: message);
+  _DeletionBlockedExceptionImpl({
+    required String message,
+    required _iwa1mea8.DeletionBlockReason reason,
+  }) : super._(
+         message: message,
+         reason: reason,
+       );
 
   /// Returns a shallow copy of this [DeletionBlockedException]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
   @override
-  DeletionBlockedException copyWith({String? message}) {
-    return DeletionBlockedException(message: message ?? this.message);
+  DeletionBlockedException copyWith({
+    String? message,
+    _iwa1mea8.DeletionBlockReason? reason,
+  }) {
+    return DeletionBlockedException(
+      message: message ?? this.message,
+      reason: reason ?? this.reason,
+    );
   }
 }

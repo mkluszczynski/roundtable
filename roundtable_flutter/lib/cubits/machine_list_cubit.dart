@@ -27,6 +27,14 @@ class MachineListError extends MachineListState {
   final String message;
 }
 
+/// Emitted transiently when a delete attempt is blocked because the machine
+/// is still `online` (design doc §6.8) — the panel reacts by showing the
+/// uninstall-command dialog instead of a plain error. Always followed by a
+/// fresh [MachineListLoaded]/[MachineListError] from a re-fetch.
+class MachineDeletionBlockedOnline extends MachineListState {
+  const MachineDeletionBlockedOnline();
+}
+
 class MachineListCubit extends Cubit<MachineListState> {
   MachineListCubit(this._repository) : super(const MachineListInitial());
 
@@ -40,5 +48,20 @@ class MachineListCubit extends Cubit<MachineListState> {
     } catch (e) {
       emit(MachineListError(e.toString()));
     }
+  }
+
+  Future<void> deleteMachine(int id) async {
+    try {
+      await _repository.deleteMachine(id);
+    } on DeletionBlockedException catch (e) {
+      if (e.reason == DeletionBlockReason.machineOnline) {
+        emit(const MachineDeletionBlockedOnline());
+      } else {
+        emit(MachineListError(e.message));
+      }
+    } catch (e) {
+      emit(MachineListError(e.toString()));
+    }
+    await fetchMachines();
   }
 }

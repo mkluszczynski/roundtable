@@ -97,6 +97,7 @@ class MachineEndpoint extends Endpoint {
     if (machine.status == MachineStatus.online) {
       throw DeletionBlockedException(
         message: 'Cannot delete an online machine',
+        reason: DeletionBlockReason.machineOnline,
       );
     }
 
@@ -113,6 +114,7 @@ class MachineEndpoint extends Endpoint {
     if (nonTerminalTaskCount > 0) {
       throw DeletionBlockedException(
         message: 'Cannot delete a machine with non-terminal tasks',
+        reason: DeletionBlockReason.nonTerminalTasks,
       );
     }
 

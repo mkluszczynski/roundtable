@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../client.dart';
 import '../cubits/machine_list_cubit.dart';
 import '../repositories/machine_repository.dart';
+import '../widgets/machine_online_delete_blocked_dialog.dart';
 
 class MachinesScreen extends StatelessWidget {
   const MachinesScreen({super.key});
@@ -13,10 +14,24 @@ class MachinesScreen extends StatelessWidget {
     return BlocProvider(
       create: (_) =>
           MachineListCubit(MachineRepository(client))..fetchMachines(),
-      child: BlocBuilder<MachineListCubit, MachineListState>(
+      child: BlocConsumer<MachineListCubit, MachineListState>(
+        listener: (context, state) {
+          if (state is MachineDeletionBlockedOnline) {
+            showDialog<void>(
+              context: context,
+              builder: (_) => const MachineOnlineDeleteBlockedDialog(),
+            );
+          } else if (state is MachineListError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
         builder: (context, state) {
           return switch (state) {
-            MachineListInitial() || MachineListLoading() => const Center(
+            MachineListInitial() ||
+            MachineListLoading() ||
+            MachineDeletionBlockedOnline() => const Center(
               child: CircularProgressIndicator(),
             ),
             MachineListError(:final message) => Center(
@@ -33,6 +48,12 @@ class MachinesScreen extends StatelessWidget {
                           leading: const Icon(Icons.computer),
                           title: Text(machine.name),
                           subtitle: Text(machine.status.name),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => context
+                                .read<MachineListCubit>()
+                                .deleteMachine(machine.id!),
+                          ),
                         );
                       },
                     ),

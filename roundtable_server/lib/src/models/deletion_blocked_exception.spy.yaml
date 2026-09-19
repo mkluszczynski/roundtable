@@ -3,3 +3,4 @@
 exception: DeletionBlockedException
 fields:
   message: String
+  reason: DeletionBlockReason

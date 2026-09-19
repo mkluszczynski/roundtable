@@ -25,6 +25,7 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
+import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'greetings/greeting.dart' as _izw8z7ou;
 import 'invalid_token_exception.dart' as _isgtss3z;
@@ -45,6 +46,7 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role.dart';
 export 'agent_status.dart';
+export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'greetings/greeting.dart';
 export 'invalid_token_exception.dart';
@@ -683,6 +685,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _iwa1mea8.DeletionBlockReason) {
+      return _iwa1mea8.DeletionBlockReason.fromJson(data) as T;
+    }
     if (t == _i8k4gzq0.DeletionBlockedException) {
       return _i8k4gzq0.DeletionBlockedException.fromJson(data) as T;
     }
@@ -743,6 +748,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_iwa1mea8.DeletionBlockReason?>()) {
+      return (data != null
+              ? _iwa1mea8.DeletionBlockReason.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _is.getType<_i8k4gzq0.DeletionBlockedException?>()) {
       return (data != null
@@ -919,6 +930,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _idfmm35v.AgentRole => 'AgentRole',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _izw8z7ou.Greeting => 'Greeting',
       _isgtss3z.InvalidTokenException => 'InvalidTokenException',
@@ -958,6 +970,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'AgentRole';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _iwa1mea8.DeletionBlockReason():
+        return 'DeletionBlockReason';
       case _i8k4gzq0.DeletionBlockedException():
         return 'DeletionBlockedException';
       case _izw8z7ou.Greeting():
@@ -1028,6 +1042,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
+    }
+    if (dataClassName == 'DeletionBlockReason') {
+      return deserialize<_iwa1mea8.DeletionBlockReason>(data['data']);
     }
     if (dataClassName == 'DeletionBlockedException') {
       return deserialize<_i8k4gzq0.DeletionBlockedException>(data['data']);

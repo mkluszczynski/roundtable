@@ -51,6 +51,7 @@ class AgentEndpoint extends Endpoint {
     if (nonTerminalTaskCount > 0) {
       throw DeletionBlockedException(
         message: 'Cannot delete an agent with non-terminal tasks',
+        reason: DeletionBlockReason.nonTerminalTasks,
       );
     }
 

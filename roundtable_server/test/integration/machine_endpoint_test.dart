@@ -138,7 +138,13 @@ void main() {
 
         await expectLater(
           endpoints.machine.delete(sessionBuilder, created.id!),
-          throwsA(isA<DeletionBlockedException>()),
+          throwsA(
+            isA<DeletionBlockedException>().having(
+              (e) => e.reason,
+              'reason',
+              DeletionBlockReason.machineOnline,
+            ),
+          ),
         );
       },
     );
@@ -174,7 +180,13 @@ void main() {
 
         await expectLater(
           endpoints.machine.delete(sessionBuilder, machine.id!),
-          throwsA(isA<DeletionBlockedException>()),
+          throwsA(
+            isA<DeletionBlockedException>().having(
+              (e) => e.reason,
+              'reason',
+              DeletionBlockReason.nonTerminalTasks,
+            ),
+          ),
         );
       },
     );
