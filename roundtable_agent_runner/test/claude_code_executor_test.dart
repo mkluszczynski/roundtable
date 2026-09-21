@@ -110,5 +110,21 @@ exit 0
         expect(lines.single, isNot(contains('ignored when resuming')));
       },
     );
+
+    test('calls onProcessStarted once with the live process', () async {
+      final script = writeFakeClaude('exit 0');
+      final executor = ClaudeCodeExecutor(executable: script);
+      final started = <Process>[];
+
+      await executor.run(
+        prompt: 'do the thing',
+        workingDirectory: tempDir.path,
+        onLine: (_) {},
+        onProcessStarted: started.add,
+      );
+
+      expect(started, hasLength(1));
+      expect(started.single.pid, greaterThan(0));
+    });
   });
 }

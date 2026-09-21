@@ -6,6 +6,7 @@ import 'package:serverpod/serverpod.dart';
 class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
+  static String _channelForTask(int taskId) => 'task-$taskId';
 
   /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
   /// queueing without an agent is a Should-scope feature, not implemented
@@ -77,6 +78,34 @@ class TaskEndpoint extends Endpoint {
     return entry;
   }
 
+  /// Cancels a task that hasn't reached a terminal state yet (design doc
+  /// §6.1 "Cancelling mid-run"): marks it `cancelled` and notifies
+  /// [watchTask] subscribers — the daemon running the task reacts by
+  /// sending `SIGTERM` to the Claude Code subprocess and resetting the
+  /// worktree.
+  Future<Task> cancelTask(Session session, int taskId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (!nonTerminalTaskStatuses.contains(task.status)) {
+      throw Exception(
+        'Task $taskId is not in a cancellable state (${task.status})',
+      );
+    }
+
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(
+        status: TaskStatus.cancelled,
+        finishedAt: DateTime.now().toUtc(),
+      ),
+    );
+    await session.messages.postMessage(_channelForTask(taskId), task);
+
+    return task;
+  }
+
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
     var agentIds = (await Agent.db.find(
       session,
@@ -120,6 +149,22 @@ class TaskEndpoint extends Endpoint {
     );
     await for (var entry in updates) {
       yield entry;
+    }
+  }
+
+  /// Streams [taskId]'s status, for the daemon running it (to detect a
+  /// cancellation mid-run, design doc §6.1) and the panel alike. On
+  /// subscribe, first replays the task's current row, then yields it again
+  /// each time [cancelTask] cancels it.
+  Stream<Task> watchTask(Session session, int taskId) async* {
+    var task = await Task.db.findById(session, taskId);
+    if (task != null) {
+      yield task;
+    }
+
+    var updates = session.messages.createStream<Task>(_channelForTask(taskId));
+    await for (var t in updates) {
+      yield t;
     }
   }
 }

@@ -35,7 +35,9 @@ task:
   - createTask:
   - update:
   - appendLog:
+  - cancelTask:
   - watchAssignedTasks:
   - watchLogs:
+  - watchTask:
 greeting:
   - hello:

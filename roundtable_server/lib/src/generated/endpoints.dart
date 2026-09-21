@@ -765,6 +765,25 @@ class Endpoints extends _is.EndpointDispatch {
                     source: params['source'],
                   ),
         ),
+        'cancelTask': _is.MethodConnector(
+          name: 'cancelTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).cancelTask(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'watchAssignedTasks': _is.MethodStreamConnector(
           name: 'watchAssignedTasks',
           params: {
@@ -804,6 +823,27 @@ class Endpoints extends _is.EndpointDispatch {
                 Map<String, dynamic> params,
                 Map<String, Stream> streamParams,
               ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchLogs(
+                session,
+                params['taskId'],
+              ),
+        ),
+        'watchTask': _is.MethodStreamConnector(
+          name: 'watchTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchTask(
                 session,
                 params['taskId'],
               ),

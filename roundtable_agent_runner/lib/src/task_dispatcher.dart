@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
@@ -21,6 +24,7 @@ class TaskDispatcher {
     required this.updateAgent,
     required this.appendLog,
     required this.openPullRequest,
+    required this.watchTask,
     required this.log,
   });
 
@@ -32,6 +36,12 @@ class TaskDispatcher {
   final Future<void> Function(Task task) updateTask;
   final Future<void> Function(Agent agent) updateAgent;
   final Future<void> Function(int taskId, String content) appendLog;
+
+  /// Streams a task's status (design doc §6.1 "Cancelling mid-run") —
+  /// subscribed to for the task currently being executed, to detect a
+  /// transition to `cancelled` while [ClaudeCodeExecutor.run] is in flight.
+  /// Bound to `client.task.watchTask` in production.
+  final Stream<Task> Function(int taskId) watchTask;
 
   /// Opens a GitHub PR for a pushed task branch (design doc §6.1 step 7) and
   /// returns its URL. Bound to [GitHubPullRequestOpener.open] in production.
@@ -67,6 +77,8 @@ class TaskDispatcher {
     }
 
     Agent? agent;
+    var cancelRequested = false;
+    StreamSubscription<Task>? watchSub;
     try {
       final cloneUrl = await getCloneUrl(projectId);
       await worktreeManager.ensureProjectCloned(
@@ -92,6 +104,20 @@ class TaskDispatcher {
           ? ''
           : '${buildRolePrompt(agent.role, agent.name)} ${task.prompt}';
 
+      // Subscribed for as long as this task is running, to detect a
+      // cancellation requested via `TaskEndpoint.cancelTask` (design doc
+      // §6.1 "Cancelling mid-run"). There's a small window between the
+      // `running` update above and this subscription starting where a
+      // cancellation could be missed — an accepted limitation, not solved
+      // here.
+      Process? liveProcess;
+      watchSub = watchTask(task.id!).listen((updated) {
+        if (updated.status == TaskStatus.cancelled) {
+          cancelRequested = true;
+          liveProcess?.kill(ProcessSignal.sigterm);
+        }
+      });
+
       final result = await executorFactory().run(
         prompt: prompt,
         workingDirectory: worktreePath,
@@ -100,7 +126,24 @@ class TaskDispatcher {
         effort: agent.defaultEffort?.name,
         resumeSessionId: resumeSessionId,
         onLine: (line) => appendLog(task.id!, line),
+        onProcessStarted: (p) => liveProcess = p,
       );
+
+      if (cancelRequested) {
+        log('task ${task.id}: cancelled, resetting worktree');
+        await worktreeManager.resetWorktree(
+          projectId: '$projectId',
+          taskId: '${task.id}',
+        );
+        await updateTask(
+          task.copyWith(
+            status: TaskStatus.cancelled,
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+        await updateAgent(agent.copyWith(status: AgentStatus.idle));
+        return;
+      }
 
       String? branchName;
       String? prUrl;
@@ -145,14 +188,16 @@ class TaskDispatcher {
       log('task ${task.id}: execution failed: $e');
       await updateTask(
         task.copyWith(
-          status: TaskStatus.failed,
+          status: cancelRequested ? TaskStatus.cancelled : TaskStatus.failed,
           finishedAt: DateTime.now().toUtc(),
-          failureReason: '$e',
+          failureReason: cancelRequested ? null : '$e',
         ),
       );
       if (agent != null) {
         await updateAgent(agent.copyWith(status: AgentStatus.idle));
       }
+    } finally {
+      await watchSub?.cancel();
     }
   }
 }

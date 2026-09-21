@@ -149,6 +149,88 @@ void main() {
       },
     );
 
+    test('when cancelling a queued task then it is marked cancelled', () async {
+      final machine = await createMachine();
+      final project = await createProject();
+      final agent = await createAgent(machine);
+      final task = await endpoints.task.createTask(
+        sessionBuilder,
+        project.id!,
+        agent.id!,
+        'Do something',
+        skipPlanning: true,
+      );
+
+      final cancelled = await endpoints.task.cancelTask(
+        sessionBuilder,
+        task.id!,
+      );
+
+      expect(cancelled.status, TaskStatus.cancelled);
+      expect(cancelled.finishedAt, isNotNull);
+    });
+
+    test(
+      'when cancelling a task already in a terminal state then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.done,
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        await expectLater(
+          endpoints.task.cancelTask(sessionBuilder, task.id!),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when cancelling an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.cancelTask(sessionBuilder, 999999),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when watching a task then its current row is replayed',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final tasks = await endpoints.task
+            .watchTask(sessionBuilder, task.id!)
+            .take(1)
+            .toList();
+
+        expect(tasks.single.id, task.id);
+      },
+    );
+
     test(
       'when watching assigned tasks then an already-queued task for that machine is replayed',
       () async {
@@ -286,6 +368,34 @@ void main() {
         await expectLater(
           stream.first.then((entry) => entry.id),
           completion(appended.id),
+        );
+      },
+    );
+
+    test(
+      'when the watched task is cancelled then the cancellation is emitted on the stream',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final stream = endpoints.task.watchTask(sessionBuilder, task.id!);
+        await flushEventQueue();
+
+        await endpoints.task.cancelTask(sessionBuilder, task.id!);
+
+        await expectLater(
+          stream
+              .firstWhere((t) => t.status == TaskStatus.cancelled)
+              .then((t) => t.id),
+          completion(task.id),
         );
       },
     );

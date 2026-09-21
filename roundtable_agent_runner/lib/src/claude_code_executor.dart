@@ -43,6 +43,11 @@ class ClaudeCodeExecutor {
   /// [onLine] is called once per non-blank line of stdout, with the raw
   /// NDJSON text exactly as emitted — that's what the caller persists via
   /// `TaskEndpoint.appendLog` (design doc §6.3).
+  ///
+  /// [onProcessStarted], if given, is called once with the live [Process]
+  /// right after it's spawned — so a caller can send it a signal (e.g.
+  /// `SIGTERM` on cancellation, design doc §6.1) without this method
+  /// otherwise exposing the process.
   Future<ClaudeCodeExecutionResult> run({
     required String prompt,
     required String workingDirectory,
@@ -51,6 +56,7 @@ class ClaudeCodeExecutor {
     String? effort,
     String? resumeSessionId,
     required void Function(String line) onLine,
+    void Function(Process process)? onProcessStarted,
   }) async {
     final args = [
       '-p',
@@ -72,6 +78,7 @@ class ClaudeCodeExecutor {
       workingDirectory: workingDirectory,
       environment: {'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken},
     );
+    onProcessStarted?.call(process);
 
     String? sessionId;
     var reportedSuccess = false;

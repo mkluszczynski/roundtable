@@ -524,6 +524,18 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
+  /// Cancels a task that hasn't reached a terminal state yet (design doc
+  /// §6.1 "Cancelling mid-run"): marks it `cancelled` and notifies
+  /// [watchTask] subscribers — the daemon running the task reacts by
+  /// sending `SIGTERM` to the Claude Code subprocess and resetting the
+  /// worktree.
+  _ida.Future<_iw53rmon.Task> cancelTask(int taskId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'cancelTask',
+        {'taskId': taskId},
+      );
+
   _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
       .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
         'task',
@@ -543,6 +555,18 @@ class EndpointTask extends _isc.EndpointRef {
       >(
         'task',
         'watchLogs',
+        {'taskId': taskId},
+        {},
+      );
+
+  /// Streams [taskId]'s status, for the daemon running it (to detect a
+  /// cancellation mid-run, design doc §6.1) and the panel alike. On
+  /// subscribe, first replays the task's current row, then yields it again
+  /// each time [cancelTask] cancels it.
+  _ida.Stream<_iw53rmon.Task> watchTask(int taskId) => caller
+      .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
+        'task',
+        'watchTask',
         {'taskId': taskId},
         {},
       );

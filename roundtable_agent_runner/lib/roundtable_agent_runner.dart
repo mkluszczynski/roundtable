@@ -132,6 +132,7 @@ class AgentRunnerService {
     appendLog: (taskId, content) =>
         _client.task.appendLog(taskId, content, source: LogSource.agent),
     openPullRequest: GitHubPullRequestOpener().open,
+    watchTask: (taskId) => _client.task.watchTask(taskId),
     log: _log,
   );
 

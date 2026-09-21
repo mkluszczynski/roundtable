@@ -1290,6 +1290,37 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_i77xifuu.Task> cancelTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'cancelTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'cancelTask',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Stream<_i77xifuu.Task> watchAssignedTasks(
     _ist.TestSessionBuilder sessionBuilder,
     int machineId,
@@ -1340,6 +1371,38 @@ class _TaskEndpoint {
               createSessionCallback: (_) => _localUniqueSession,
               endpointPath: 'task',
               methodName: 'watchLogs',
+              arguments: {'taskId': taskId},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
+  _ida.Stream<_i77xifuu.Task> watchTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) {
+    var _localTestStreamManager = _ist.TestStreamManager<_i77xifuu.Task>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'task',
+              method: 'watchTask',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'task',
+              methodName: 'watchTask',
               arguments: {'taskId': taskId},
               requestedInputStreams: [],
               serializationManager: _serializationManager,

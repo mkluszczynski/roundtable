@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:roundtable_agent_runner/roundtable_agent_runner.dart';
@@ -90,6 +91,7 @@ exit 0
               });
               return 'https://github.com/acme/widgets/pull/1';
             },
+        watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
       );
 
@@ -138,6 +140,7 @@ exit 0
               required title,
               body,
             }) async => throw StateError('should not be called'),
+        watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
       );
 
@@ -178,6 +181,7 @@ exit 0
                 required title,
                 body,
               }) async => throw StateError('GitHub API unreachable'),
+          watchTask: (_) => const Stream<Task>.empty(),
           log: (_) {},
         );
 
@@ -215,6 +219,7 @@ exit 0
               required title,
               body,
             }) async => throw StateError('should not be called'),
+        watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
       );
 
@@ -222,6 +227,77 @@ exit 0
 
       expect(taskUpdates.last.status, TaskStatus.failed);
       expect(taskUpdates.last.failureReason, isNotNull);
+      expect(agentUpdates.last.status, AgentStatus.idle);
+    });
+
+    test('a task cancelled mid-run is SIGTERM-ed, has its worktree reset, and '
+        'is marked cancelled without opening a PR', () async {
+      final startedFile = File('${tempDir.path}/started');
+      final terminatedFile = File('${tempDir.path}/terminated');
+      final claudeScript = writeFakeClaude('''
+trap 'touch "${terminatedFile.path}"; exit 143' TERM
+echo "partial change" > changed.txt
+touch "${startedFile.path}"
+while true; do sleep 0.05; done
+''');
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      final watchTaskController = StreamController<Task>();
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async => taskUpdates.add(task),
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (taskId, content) async {},
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
+        watchTask: (_) => watchTaskController.stream,
+        log: (_) {},
+      );
+
+      final handleFuture = dispatcher.handle(buildTask());
+
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!startedFile.existsSync()) {
+        if (DateTime.now().isAfter(deadline)) {
+          fail('fake claude script never started');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      watchTaskController.add(
+        buildTask().copyWith(status: TaskStatus.cancelled),
+      );
+
+      await handleFuture;
+      await watchTaskController.close();
+
+      expect(
+        terminatedFile.existsSync(),
+        isTrue,
+        reason: 'SIGTERM should have reached the subprocess',
+      );
+      expect(
+        File(
+          '${tempDir.path}/workspace/1/worktrees/1/changed.txt',
+        ).existsSync(),
+        isFalse,
+        reason: 'the worktree should have been reset',
+      );
+      expect(taskUpdates.last.status, TaskStatus.cancelled);
+      expect(taskUpdates.last.finishedAt, isNotNull);
+      expect(taskUpdates.last.branchName, isNull);
+      expect(taskUpdates.last.prUrl, isNull);
       expect(agentUpdates.last.status, AgentStatus.idle);
     });
 
@@ -248,6 +324,7 @@ exit 0
               required title,
               body,
             }) async => throw StateError('should not be called'),
+        watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
       );
 
