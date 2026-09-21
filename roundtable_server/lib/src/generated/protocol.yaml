@@ -36,5 +36,6 @@ task:
   - update:
   - appendLog:
   - watchAssignedTasks:
+  - watchLogs:
 greeting:
   - hello:

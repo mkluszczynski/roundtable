@@ -787,6 +787,27 @@ class Endpoints extends _is.EndpointDispatch {
                     params['machineId'],
                   ),
         ),
+        'watchLogs': _is.MethodStreamConnector(
+          name: 'watchLogs',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchLogs(
+                session,
+                params['taskId'],
+              ),
+        ),
       },
     );
     connectors['greeting'] = _is.EndpointConnector(

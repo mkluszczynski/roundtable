@@ -508,8 +508,8 @@ class EndpointTask extends _isc.EndpointRef {
       );
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
-  /// (design doc §6.3) — the panel's `watchLogs` stream, once it exists,
-  /// picks these up via `TaskLogEntry.db.watch()`.
+  /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
+  /// task.
   _ida.Future<_inlvye37.TaskLogEntry> appendLog(
     int taskId,
     String content, {
@@ -529,6 +529,21 @@ class EndpointTask extends _isc.EndpointRef {
         'task',
         'watchAssignedTasks',
         {'machineId': machineId},
+        {},
+      );
+
+  /// Streams a task's execution output as it's persisted via [appendLog]
+  /// (design doc §6.3), for the panel to render live. On subscribe, first
+  /// replays every already-persisted [TaskLogEntry] for [taskId] in order,
+  /// then yields each new entry as it's appended.
+  _ida.Stream<_inlvye37.TaskLogEntry> watchLogs(int taskId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_inlvye37.TaskLogEntry>,
+        _inlvye37.TaskLogEntry
+      >(
+        'task',
+        'watchLogs',
+        {'taskId': taskId},
         {},
       );
 }

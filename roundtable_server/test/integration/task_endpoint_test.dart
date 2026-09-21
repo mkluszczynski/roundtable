@@ -121,6 +121,35 @@ void main() {
     );
 
     test(
+      'when watching logs then an already-persisted log entry for that task is replayed',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        final existing = await endpoints.task.appendLog(
+          sessionBuilder,
+          task.id!,
+          'already there',
+          source: LogSource.agent,
+        );
+
+        final entries = await endpoints.task
+            .watchLogs(sessionBuilder, task.id!)
+            .take(1)
+            .toList();
+
+        expect(entries.map((e) => e.id), contains(existing.id));
+      },
+    );
+
+    test(
       'when watching assigned tasks then an already-queued task for that machine is replayed',
       () async {
         final machine = await createMachine();
@@ -227,6 +256,79 @@ void main() {
         await subscription.cancel();
 
         expect(events, isEmpty);
+      },
+    );
+
+    test(
+      'when a log line is appended for the watched task then it is emitted on the stream',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final stream = endpoints.task.watchLogs(sessionBuilder, task.id!);
+        await flushEventQueue();
+
+        final appended = await endpoints.task.appendLog(
+          sessionBuilder,
+          task.id!,
+          'live line',
+          source: LogSource.agent,
+        );
+
+        await expectLater(
+          stream.first.then((entry) => entry.id),
+          completion(appended.id),
+        );
+      },
+    );
+
+    test(
+      'when a log line is appended for a different task then it is not emitted',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final watchedTask = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Watched',
+          skipPlanning: true,
+        );
+        final otherTask = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Other',
+          skipPlanning: true,
+        );
+
+        final stream = endpoints.task.watchLogs(
+          sessionBuilder,
+          watchedTask.id!,
+        );
+        final entries = <TaskLogEntry>[];
+        final subscription = stream.listen(entries.add);
+        await flushEventQueue();
+
+        await endpoints.task.appendLog(
+          sessionBuilder,
+          otherTask.id!,
+          'for the other task',
+          source: LogSource.agent,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await subscription.cancel();
+
+        expect(entries, isEmpty);
       },
     );
   }, rollbackDatabase: RollbackDatabase.disabled);

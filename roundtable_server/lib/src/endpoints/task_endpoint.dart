@@ -5,6 +5,7 @@ import 'package:serverpod/serverpod.dart';
 /// Task creation and the daemon's assignment feed (design doc §6.1).
 class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
+  static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
 
   /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
   /// queueing without an agent is a Should-scope feature, not implemented
@@ -58,18 +59,22 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
-  /// (design doc §6.3) — the panel's `watchLogs` stream, once it exists,
-  /// picks these up via `TaskLogEntry.db.watch()`.
+  /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
+  /// task.
   Future<TaskLogEntry> appendLog(
     Session session,
     int taskId,
     String content, {
     LogSource source = LogSource.agent,
   }) async {
-    return TaskLogEntry.db.insertRow(
+    var entry = await TaskLogEntry.db.insertRow(
       session,
       TaskLogEntry(taskId: taskId, content: content, source: source),
     );
+
+    await session.messages.postMessage(_channelForTaskLogs(taskId), entry);
+
+    return entry;
   }
 
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
@@ -93,6 +98,28 @@ class TaskEndpoint extends Endpoint {
     );
     await for (var task in updates) {
       yield task;
+    }
+  }
+
+  /// Streams a task's execution output as it's persisted via [appendLog]
+  /// (design doc §6.3), for the panel to render live. On subscribe, first
+  /// replays every already-persisted [TaskLogEntry] for [taskId] in order,
+  /// then yields each new entry as it's appended.
+  Stream<TaskLogEntry> watchLogs(Session session, int taskId) async* {
+    var existing = await TaskLogEntry.db.find(
+      session,
+      where: (t) => t.taskId.equals(taskId),
+      orderBy: (t) => t.createdAt,
+    );
+    for (var entry in existing) {
+      yield entry;
+    }
+
+    var updates = session.messages.createStream<TaskLogEntry>(
+      _channelForTaskLogs(taskId),
+    );
+    await for (var entry in updates) {
+      yield entry;
     }
   }
 }
