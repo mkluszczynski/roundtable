@@ -58,7 +58,7 @@ class ClaudeCodeExecutor {
     String? resumeSessionId,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
-  }) async {
+  }) {
     final args = [
       '-p',
       prompt,
@@ -73,6 +73,72 @@ class ClaudeCodeExecutor {
       if (effort != null) ...['--effort', effort],
     ];
 
+    return _runProcess(
+      args: args,
+      workingDirectory: workingDirectory,
+      oauthToken: oauthToken,
+      onLine: onLine,
+      onProcessStarted: onProcessStarted,
+    );
+  }
+
+  /// Runs one planning-phase invocation (design doc §6.2 "Planning phase",
+  /// §6.4): `--permission-mode plan` routes every non-read-only tool call —
+  /// `AskUserQuestion`, `ExitPlanMode`, and (once a plan is approved) the
+  /// implementation tools that follow — through [permissionPromptTool], an
+  /// MCP tool registered via [mcpConfigPath] (see
+  /// `PermissionPromptTool`/`bin/permission_prompt_tool.dart`). Confirmed by
+  /// a manual spike against the real `claude` CLI: an approved `ExitPlanMode`
+  /// does **not** end the process — planning and execution happen in this
+  /// one continuous invocation, so there's no separate execution-phase call
+  /// to chain afterward for a fresh (non-`skipPlanning`) task. [permissionPromptTool]
+  /// is the tool's fully-qualified name, e.g.
+  /// `mcp__roundtable-permission__approval_prompt`.
+  Future<ClaudeCodeExecutionResult> runPlanning({
+    required String prompt,
+    required String workingDirectory,
+    required String permissionPromptTool,
+    required String mcpConfigPath,
+    String? oauthToken,
+    String? model,
+    String? effort,
+    required void Function(String line) onLine,
+    void Function(Process process)? onProcessStarted,
+  }) {
+    final args = [
+      '-p',
+      prompt,
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--include-partial-messages',
+      '--permission-mode',
+      'plan',
+      '--mcp-config',
+      mcpConfigPath,
+      '--strict-mcp-config',
+      '--permission-prompt-tool',
+      permissionPromptTool,
+      if (model != null) ...['--model', model],
+      if (effort != null) ...['--effort', effort],
+    ];
+
+    return _runProcess(
+      args: args,
+      workingDirectory: workingDirectory,
+      oauthToken: oauthToken,
+      onLine: onLine,
+      onProcessStarted: onProcessStarted,
+    );
+  }
+
+  Future<ClaudeCodeExecutionResult> _runProcess({
+    required List<String> args,
+    required String workingDirectory,
+    String? oauthToken,
+    required void Function(String line) onLine,
+    void Function(Process process)? onProcessStarted,
+  }) async {
     final process = await Process.start(
       executable,
       args,

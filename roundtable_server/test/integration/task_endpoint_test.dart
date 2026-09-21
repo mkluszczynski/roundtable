@@ -363,6 +363,299 @@ void main() {
     );
 
     test(
+      'when creating a question then it is persisted and the task is marked waitingForAnswer',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+
+        expect(question.id, isNotNull);
+        expect(question.taskId, task.id);
+        expect(question.question, 'Which approach?');
+        expect(question.options, ['Option A', 'Option B']);
+        expect(question.answer, isNull);
+
+        final updated = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(updated?.status, TaskStatus.waitingForAnswer);
+      },
+    );
+
+    test(
+      'when creating a question for an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.createQuestion(sessionBuilder, 999999, 'Q?', []),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when answering a question then the answer and answeredAt are persisted',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+
+        final answered = await endpoints.task.answerQuestion(
+          sessionBuilder,
+          question.id!,
+          'Option A',
+        );
+
+        expect(answered.answer, 'Option A');
+        expect(answered.answeredAt, isNotNull);
+      },
+    );
+
+    test(
+      'when answering an already-answered question then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+        await endpoints.task.answerQuestion(
+          sessionBuilder,
+          question.id!,
+          'Option A',
+        );
+
+        await expectLater(
+          endpoints.task.answerQuestion(
+            sessionBuilder,
+            question.id!,
+            'Option B',
+          ),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when answering an unknown question then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.answerQuestion(sessionBuilder, 999999, 'Answer'),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when watching the answer to an already-answered question then it is replayed',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+        await endpoints.task.answerQuestion(
+          sessionBuilder,
+          question.id!,
+          'Option A',
+        );
+
+        final answers = await endpoints.task
+            .watchAnswer(sessionBuilder, question.id!)
+            .take(1)
+            .toList();
+
+        expect(answers.single.answer, 'Option A');
+      },
+    );
+
+    test(
+      'when setting a plan ready then currentPlan is stored and the task is marked planReady',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+
+        final updated = await endpoints.task.setPlanReady(
+          sessionBuilder,
+          task.id!,
+          '1. Do this\n2. Do that',
+        );
+
+        expect(updated.status, TaskStatus.planReady);
+        expect(updated.currentPlan, '1. Do this\n2. Do that');
+      },
+    );
+
+    test(
+      'when setting a plan ready for an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.setPlanReady(sessionBuilder, 999999, 'Plan'),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when approving a planReady task then it is marked running',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan');
+
+        final approved = await endpoints.task.approvePlan(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(approved.status, TaskStatus.running);
+      },
+    );
+
+    test(
+      'when approving a task that is not planReady then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+
+        await expectLater(
+          endpoints.task.approvePlan(sessionBuilder, task.id!),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when submitting plan feedback on a planReady task then it is persisted as plan-phase feedback and the task returns to planning',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan');
+
+        final feedback = await endpoints.task.submitPlanFeedback(
+          sessionBuilder,
+          task.id!,
+          'Please reconsider the approach',
+        );
+
+        expect(feedback.phase, TaskFeedbackPhase.plan);
+        expect(feedback.message, 'Please reconsider the approach');
+
+        final updated = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(updated?.status, TaskStatus.planning);
+      },
+    );
+
+    test(
+      'when submitting plan feedback on a task that is not planReady then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+
+        await expectLater(
+          endpoints.task.submitPlanFeedback(
+            sessionBuilder,
+            task.id!,
+            'Feedback',
+          ),
+          throwsException,
+        );
+      },
+    );
+
+    test(
       'when watching assigned tasks then an already-queued task for that machine is replayed',
       () async {
         final machine = await createMachine();
@@ -570,6 +863,135 @@ void main() {
         await subscription.cancel();
 
         expect(events.map((t) => t.id), contains(task.id));
+      },
+    );
+
+    test(
+      'when a question is answered then the answer is emitted on watchAnswer',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+
+        final stream = endpoints.task.watchAnswer(sessionBuilder, question.id!);
+        await flushEventQueue();
+
+        await endpoints.task.answerQuestion(
+          sessionBuilder,
+          question.id!,
+          'Option A',
+        );
+
+        await expectLater(
+          stream.first.then((q) => q.answer),
+          completion('Option A'),
+        );
+      },
+    );
+
+    test(
+      'when a plan is approved then the decision is emitted on watchPlanDecision',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan');
+
+        final stream = endpoints.task.watchPlanDecision(
+          sessionBuilder,
+          task.id!,
+        );
+        await flushEventQueue();
+
+        await endpoints.task.approvePlan(sessionBuilder, task.id!);
+
+        await expectLater(
+          stream.first.then((t) => t.status),
+          completion(TaskStatus.running),
+        );
+      },
+    );
+
+    test(
+      'when plan feedback is submitted then the decision is emitted on watchPlanDecision as planning',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan');
+
+        final stream = endpoints.task.watchPlanDecision(
+          sessionBuilder,
+          task.id!,
+        );
+        await flushEventQueue();
+
+        await endpoints.task.submitPlanFeedback(
+          sessionBuilder,
+          task.id!,
+          'Reconsider',
+        );
+
+        await expectLater(
+          stream.first.then((t) => t.status),
+          completion(TaskStatus.planning),
+        );
+      },
+    );
+
+    test(
+      'when watching a plan decision for an already-planReady task then nothing is replayed until a new decision is made',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan');
+
+        final stream = endpoints.task.watchPlanDecision(
+          sessionBuilder,
+          task.id!,
+        );
+        final events = <Task>[];
+        final subscription = stream.listen(events.add);
+        await flushEventQueue();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        expect(events, isEmpty);
+        await subscription.cancel();
       },
     );
 

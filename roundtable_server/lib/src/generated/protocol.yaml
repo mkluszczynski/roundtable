@@ -38,6 +38,13 @@ task:
   - cancelTask:
   - submitFeedback:
   - latestFeedback:
+  - createQuestion:
+  - answerQuestion:
+  - watchAnswer:
+  - setPlanReady:
+  - approvePlan:
+  - submitPlanFeedback:
+  - watchPlanDecision:
   - getChangedFiles:
   - getFileContent:
   - watchAssignedTasks:

@@ -126,5 +126,104 @@ exit 0
       expect(started, hasLength(1));
       expect(started.single.pid, greaterThan(0));
     });
+
+    test('passes --model and --effort when set', () async {
+      final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+      final executor = ClaudeCodeExecutor(executable: script);
+      final lines = <String>[];
+
+      await executor.run(
+        prompt: 'do the thing',
+        workingDirectory: tempDir.path,
+        model: 'claude-opus-4-7',
+        effort: 'high',
+        onLine: lines.add,
+      );
+
+      expect(lines.single, contains('--model claude-opus-4-7'));
+      expect(lines.single, contains('--effort high'));
+    });
+
+    group('runPlanning', () {
+      test(
+        'passes --permission-mode plan, --mcp-config and --permission-prompt-tool',
+        () async {
+          final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+          final executor = ClaudeCodeExecutor(executable: script);
+          final lines = <String>[];
+
+          await executor.runPlanning(
+            prompt: 'do the thing',
+            workingDirectory: tempDir.path,
+            permissionPromptTool: 'mcp__roundtable-permission__approval_prompt',
+            mcpConfigPath: '/tmp/mcp-config.json',
+            onLine: lines.add,
+          );
+
+          expect(lines.single, contains('--permission-mode plan'));
+          expect(lines.single, contains('--mcp-config /tmp/mcp-config.json'));
+          expect(lines.single, contains('--strict-mcp-config'));
+          expect(
+            lines.single,
+            contains(
+              '--permission-prompt-tool mcp__roundtable-permission__approval_prompt',
+            ),
+          );
+        },
+      );
+
+      test('passes --model and --effort when set', () async {
+        final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+        final executor = ClaudeCodeExecutor(executable: script);
+        final lines = <String>[];
+
+        await executor.runPlanning(
+          prompt: 'do the thing',
+          workingDirectory: tempDir.path,
+          permissionPromptTool: 'mcp__roundtable-permission__approval_prompt',
+          mcpConfigPath: '/tmp/mcp-config.json',
+          model: 'claude-opus-4-7',
+          effort: 'high',
+          onLine: lines.add,
+        );
+
+        expect(lines.single, contains('--model claude-opus-4-7'));
+        expect(lines.single, contains('--effort high'));
+      });
+
+      test(
+        'forwards NDJSON lines and reports success with the session id',
+        () async {
+          final script = writeFakeClaude('''
+echo '{"type":"system","subtype":"init"}'
+echo '{"type":"result","subtype":"success","session_id":"plan-abc"}'
+exit 0
+''');
+          final executor = ClaudeCodeExecutor(executable: script);
+          final lines = <String>[];
+
+          final result = await executor.runPlanning(
+            prompt: 'do the thing',
+            workingDirectory: tempDir.path,
+            permissionPromptTool: 'mcp__roundtable-permission__approval_prompt',
+            mcpConfigPath: '/tmp/mcp-config.json',
+            onLine: lines.add,
+          );
+
+          expect(lines, hasLength(2));
+          expect(result.success, isTrue);
+          expect(result.sessionId, 'plan-abc');
+        },
+      );
+    });
   });
 }

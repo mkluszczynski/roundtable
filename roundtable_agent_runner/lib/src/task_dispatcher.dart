@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
@@ -27,6 +28,8 @@ class TaskDispatcher {
     required this.openPullRequest,
     required this.watchTask,
     required this.log,
+    required this.serverUrl,
+    required this.permissionPromptToolCommand,
   });
 
   final WorktreeManager worktreeManager;
@@ -62,23 +65,34 @@ class TaskDispatcher {
 
   final void Function(String message) log;
 
-  /// Handles one assigned [task]: either a fresh `queued` task (planning-
-  /// phase tasks are deliberately left untouched — planning-phase execution
-  /// isn't implemented yet, design doc §6.4), or an `awaitingReview` task
-  /// woken by [TaskEndpoint.submitFeedback] (design doc §6.1 step 9) — in
-  /// which case it's resumed via `--resume` with the feedback message as the
-  /// new prompt. Any other case (e.g. replayed on reconnect while already
-  /// running, or `awaitingReview` with no new feedback pending) is left
-  /// untouched.
+  /// Base URL of the roundtable server, passed as `SERVER_URL` to the
+  /// spawned permission-prompt-tool process (design doc §6.4) so it can
+  /// build its own [Client].
+  final String serverUrl;
+
+  /// The command (executable + leading args) that launches the
+  /// permission-prompt-tool binary (`bin/permission_prompt_tool.dart`),
+  /// e.g. `[Platform.resolvedExecutable, 'run', '<path>']` in dev mode. Used
+  /// as the `command`/`args` of the `--mcp-config` JSON written for each
+  /// planning-phase run.
+  final List<String> permissionPromptToolCommand;
+
+  /// Handles one assigned [task]: a fresh `queued` task — planning-phase
+  /// (design doc §6.2, §6.4) unless `skipPlanning` is set — or an
+  /// `awaitingReview` task woken by [TaskEndpoint.submitFeedback] (design
+  /// doc §6.1 step 9), resumed via `--resume` with the feedback message as
+  /// the new prompt. Any other case (e.g. replayed on reconnect while
+  /// already running, or `awaitingReview` with no new feedback pending, or a
+  /// planning-phase task replayed mid-flight after a daemon restart) is
+  /// left untouched — resuming an in-flight planning conversation isn't
+  /// supported, matching the existing accepted limitations around restarts.
   Future<void> handle(Task task) async {
     final isResume = task.status == TaskStatus.awaitingReview;
+    final needsPlanning =
+        !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
     String? resumePrompt;
 
     if (!isResume) {
-      if (!task.skipPlanning) {
-        log('task ${task.id}: planning phase not implemented yet, skipping');
-        return;
-      }
       if (task.status != TaskStatus.queued) {
         log('task ${task.id}: not queued (status=${task.status}), skipping');
         return;
@@ -135,7 +149,7 @@ class TaskDispatcher {
       await updateAgent(agent.copyWith(status: AgentStatus.busy));
       await updateTask(
         task.copyWith(
-          status: TaskStatus.running,
+          status: needsPlanning ? TaskStatus.planning : TaskStatus.running,
           startedAt: task.startedAt ?? DateTime.now().toUtc(),
         ),
       );
@@ -148,27 +162,60 @@ class TaskDispatcher {
       // Subscribed for as long as this task is running, to detect a
       // cancellation requested via `TaskEndpoint.cancelTask` (design doc
       // §6.1 "Cancelling mid-run"). There's a small window between the
-      // `running` update above and this subscription starting where a
-      // cancellation could be missed — an accepted limitation, not solved
-      // here.
+      // `running`/`planning` update above and this subscription starting
+      // where a cancellation could be missed — an accepted limitation, not
+      // solved here. For a planning-phase task, also mirrors `Task.status`
+      // into `Agent.status` (`waitingForResponse` while a question/plan
+      // decision is pending, `busy` once planning resumes) — design doc
+      // §6.1 step 4.
       Process? liveProcess;
       watchSub = watchTask(task.id!).listen((updated) {
         if (updated.status == TaskStatus.cancelled) {
           cancelRequested = true;
           liveProcess?.kill(ProcessSignal.sigterm);
+        } else if (needsPlanning) {
+          switch (updated.status) {
+            case TaskStatus.waitingForAnswer:
+            case TaskStatus.planReady:
+              unawaited(
+                updateAgent(
+                  agent!.copyWith(status: AgentStatus.waitingForResponse),
+                ),
+              );
+            case TaskStatus.planning:
+              unawaited(updateAgent(agent!.copyWith(status: AgentStatus.busy)));
+            default:
+              break;
+          }
         }
       });
 
-      final result = await executorFactory().run(
-        prompt: prompt,
-        workingDirectory: worktreePath,
-        oauthToken: oauthToken,
-        model: agent.defaultModel,
-        effort: agent.defaultEffort?.name,
-        resumeSessionId: resumeSessionId,
-        onLine: (line) => appendLog(task.id!, line),
-        onProcessStarted: (p) => liveProcess = p,
-      );
+      final ClaudeCodeExecutionResult result;
+      if (needsPlanning) {
+        final mcpConfigPath = await _writeMcpConfig(worktreePath, task.id!);
+        result = await executorFactory().runPlanning(
+          prompt: prompt,
+          workingDirectory: worktreePath,
+          permissionPromptTool: 'mcp__roundtable-permission__approval_prompt',
+          mcpConfigPath: mcpConfigPath,
+          oauthToken: oauthToken,
+          model: agent.defaultModel,
+          effort: agent.defaultEffort?.name,
+          onLine: (line) => appendLog(task.id!, line),
+          onProcessStarted: (p) => liveProcess = p,
+        );
+      } else {
+        result = await executorFactory().run(
+          prompt: prompt,
+          workingDirectory: worktreePath,
+          oauthToken: oauthToken,
+          model: agent.defaultModel,
+          effort: agent.defaultEffort?.name,
+          resumeSessionId: resumeSessionId,
+          onLine: (line) => appendLog(task.id!, line),
+          onProcessStarted: (p) => liveProcess = p,
+        );
+      }
 
       if (cancelRequested) {
         log('task ${task.id}: cancelled, resetting worktree');
@@ -245,6 +292,28 @@ class TaskDispatcher {
     } finally {
       await watchSub?.cancel();
     }
+  }
+
+  /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
+  /// (design doc §6.4) for [taskId]'s planning-phase run, into the task's
+  /// own worktree so concurrent tasks don't share a config file. The tool
+  /// process reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment
+  /// (see `bin/permission_prompt_tool.dart`) since `--mcp-config` only
+  /// supports a static command/args/env per server, not per-call params.
+  Future<String> _writeMcpConfig(String worktreePath, int taskId) async {
+    final configFile = File('$worktreePath/.roundtable-mcp-config.json');
+    await configFile.writeAsString(
+      jsonEncode({
+        'mcpServers': {
+          'roundtable-permission': {
+            'command': permissionPromptToolCommand.first,
+            'args': permissionPromptToolCommand.skip(1).toList(),
+            'env': {'SERVER_URL': serverUrl, 'ROUNDTABLE_TASK_ID': '$taskId'},
+          },
+        },
+      }),
+    );
+    return configFile.path;
   }
 }
 

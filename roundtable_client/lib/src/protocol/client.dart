@@ -27,6 +27,7 @@ import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
 import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
 import 'package:roundtable_client/src/protocol/task_log_entry.dart'
     as _inlvye37;
+import 'package:roundtable_client/src/protocol/task_question.dart' as _ihmnezqk;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -564,6 +565,106 @@ class EndpointTask extends _isc.EndpointRef {
         'task',
         'latestFeedback',
         {'taskId': taskId},
+      );
+
+  /// Records a plan-mode clarifying question (design doc §6.4
+  /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
+  /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the
+  /// panel can render it.
+  _ida.Future<_ihmnezqk.TaskQuestion> createQuestion(
+    int taskId,
+    String question,
+    List<String> options,
+  ) => caller.callServerEndpoint<_ihmnezqk.TaskQuestion>(
+    'task',
+    'createQuestion',
+    {
+      'taskId': taskId,
+      'question': question,
+      'options': options,
+    },
+  );
+
+  /// Answers a plan-mode clarifying question (design doc §6.4), waking the
+  /// permission-prompt-tool blocked on [watchAnswer].
+  _ida.Future<_ihmnezqk.TaskQuestion> answerQuestion(
+    int questionId,
+    String answer,
+  ) => caller.callServerEndpoint<_ihmnezqk.TaskQuestion>(
+    'task',
+    'answerQuestion',
+    {
+      'questionId': questionId,
+      'answer': answer,
+    },
+  );
+
+  /// Streams [questionId]'s answer, for the permission-prompt-tool to block
+  /// on while Claude Code waits on `AskUserQuestion` (design doc §6.4). On
+  /// subscribe, replays the question immediately if it was already answered
+  /// before the subscriber attached.
+  _ida.Stream<_ihmnezqk.TaskQuestion> watchAnswer(int questionId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_ihmnezqk.TaskQuestion>,
+        _ihmnezqk.TaskQuestion
+      >(
+        'task',
+        'watchAnswer',
+        {'questionId': questionId},
+        {},
+      );
+
+  /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
+  /// `Task.status = planReady`, so the dev can approve it or give feedback.
+  _ida.Future<_iw53rmon.Task> setPlanReady(
+    int taskId,
+    String plan,
+  ) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'setPlanReady',
+    {
+      'taskId': taskId,
+      'plan': plan,
+    },
+  );
+
+  /// Approves the current plan (design doc §6.4), waking the
+  /// permission-prompt-tool blocked on [watchPlanDecision] so it lets
+  /// `ExitPlanMode` through and Claude Code proceeds to implement.
+  _ida.Future<_iw53rmon.Task> approvePlan(int taskId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'approvePlan',
+        {'taskId': taskId},
+      );
+
+  /// Rejects the current plan with feedback (design doc §6.4), waking the
+  /// permission-prompt-tool so it denies `ExitPlanMode` and returns the
+  /// feedback message as the reason — Claude Code plans again in the same
+  /// process.
+  _ida.Future<_ifl2c5cu.TaskFeedback> submitPlanFeedback(
+    int taskId,
+    String message,
+  ) => caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+    'task',
+    'submitPlanFeedback',
+    {
+      'taskId': taskId,
+      'message': message,
+    },
+  );
+
+  /// Streams the dev's decision on [taskId]'s current plan (design doc
+  /// §6.4), for the permission-prompt-tool to block on while `ExitPlanMode`
+  /// is pending. Deliberately doesn't replay on subscribe — the tool always
+  /// subscribes right after setting `planReady` itself via [setPlanReady],
+  /// so a decision is always a future event, never one already made.
+  _ida.Stream<_iw53rmon.Task> watchPlanDecision(int taskId) => caller
+      .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
+        'task',
+        'watchPlanDecision',
+        {'taskId': taskId},
+        {},
       );
 
   /// Returns the list of files changed in [taskId]'s pull request (design

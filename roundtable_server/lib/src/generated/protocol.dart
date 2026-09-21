@@ -920,6 +920,9 @@ class Protocol extends _is.DatabaseSerializationManager {
               .toList()
           as T;
     }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
     if (t == List<_i16fkh06.DiffFile>) {
       return (data as List)
               .map((e) => deserialize<_i16fkh06.DiffFile>(e))

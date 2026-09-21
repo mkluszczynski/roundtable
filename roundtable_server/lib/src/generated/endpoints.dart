@@ -828,6 +828,131 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'createQuestion': _is.MethodConnector(
+          name: 'createQuestion',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'question': _is.ParameterDescription(
+              name: 'question',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'options': _is.ParameterDescription(
+              name: 'options',
+              type: _is.getType<List<String>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).createQuestion(
+                    session,
+                    params['taskId'],
+                    params['question'],
+                    params['options'],
+                  ),
+        ),
+        'answerQuestion': _is.MethodConnector(
+          name: 'answerQuestion',
+          params: {
+            'questionId': _is.ParameterDescription(
+              name: 'questionId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'answer': _is.ParameterDescription(
+              name: 'answer',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).answerQuestion(
+                    session,
+                    params['questionId'],
+                    params['answer'],
+                  ),
+        ),
+        'setPlanReady': _is.MethodConnector(
+          name: 'setPlanReady',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'plan': _is.ParameterDescription(
+              name: 'plan',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).setPlanReady(
+                    session,
+                    params['taskId'],
+                    params['plan'],
+                  ),
+        ),
+        'approvePlan': _is.MethodConnector(
+          name: 'approvePlan',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).approvePlan(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'submitPlanFeedback': _is.MethodConnector(
+          name: 'submitPlanFeedback',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'message': _is.ParameterDescription(
+              name: 'message',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .submitPlanFeedback(
+                    session,
+                    params['taskId'],
+                    params['message'],
+                  ),
+        ),
         'getChangedFiles': _is.MethodConnector(
           name: 'getChangedFiles',
           params: {
@@ -870,6 +995,49 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['taskId'],
                     params['contentsUrl'],
+                  ),
+        ),
+        'watchAnswer': _is.MethodStreamConnector(
+          name: 'watchAnswer',
+          params: {
+            'questionId': _is.ParameterDescription(
+              name: 'questionId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchAnswer(
+                session,
+                params['questionId'],
+              ),
+        ),
+        'watchPlanDecision': _is.MethodStreamConnector(
+          name: 'watchPlanDecision',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .watchPlanDecision(
+                    session,
+                    params['taskId'],
                   ),
         ),
         'watchAssignedTasks': _is.MethodStreamConnector(

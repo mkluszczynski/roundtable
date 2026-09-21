@@ -94,6 +94,8 @@ exit 0
             },
         watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
       );
 
       await dispatcher.handle(buildTask());
@@ -144,6 +146,8 @@ exit 0
             }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
       );
 
       await dispatcher.handle(buildTask());
@@ -186,6 +190,8 @@ exit 0
               }) async => throw StateError('GitHub API unreachable'),
           watchTask: (_) => const Stream<Task>.empty(),
           log: (_) {},
+          serverUrl: 'https://server.example',
+          permissionPromptToolCommand: const ['echo'],
         );
 
         await dispatcher.handle(buildTask());
@@ -225,6 +231,8 @@ exit 0
             }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
       );
 
       await dispatcher.handle(buildTask());
@@ -269,6 +277,8 @@ while true; do sleep 0.05; done
             }) async => throw StateError('should not be called'),
         watchTask: (_) => watchTaskController.stream,
         log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
       );
 
       final handleFuture = dispatcher.handle(buildTask());
@@ -306,21 +316,155 @@ while true; do sleep 0.05; done
       expect(agentUpdates.last.status, AgentStatus.idle);
     });
 
-    test('a task that has not skipped planning is left untouched', () async {
-      final taskUpdates = <Task>[];
-      final messages = <String>[];
+    test(
+      'a fresh non-skipPlanning task runs the planning-phase invocation with '
+      '--permission-mode plan and --mcp-config wired to the permission-prompt-tool',
+      () async {
+        final argsFile = File('${tempDir.path}/claude_args');
+        final claudeScript = writeFakeClaude('''
+echo "\$@" > "${argsFile.path}"
+echo "changed" > changed.txt
+echo '{"type":"result","subtype":"success","session_id":"sess-plan-1"}'
+exit 0
+''');
+        final taskUpdates = <Task>[];
+        final agentUpdates = <Agent>[];
+
+        final dispatcher = TaskDispatcher(
+          worktreeManager: WorktreeManager(
+            workspaceRoot: '${tempDir.path}/workspace',
+          ),
+          executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+          oauthToken: null,
+          getCloneUrl: (projectId) async => fixtureRepo.path,
+          fetchAgent: (agentId) async => buildAgent(),
+          updateTask: (task) async => taskUpdates.add(task),
+          updateAgent: (agent) async => agentUpdates.add(agent),
+          appendLog: (taskId, content) async {},
+          fetchLatestFeedback: (_) async => null,
+          openPullRequest:
+              ({
+                required cloneUrl,
+                required branchName,
+                required title,
+                body,
+              }) async => 'https://github.com/acme/widgets/pull/1',
+          watchTask: (_) => const Stream<Task>.empty(),
+          log: (_) {},
+          serverUrl: 'https://server.example',
+          permissionPromptToolCommand: const ['echo'],
+        );
+
+        await dispatcher.handle(buildTask(skipPlanning: false));
+
+        final claudeArgs = argsFile.readAsStringSync();
+        expect(claudeArgs, contains('--permission-mode plan'));
+        expect(claudeArgs, contains('--mcp-config'));
+        expect(claudeArgs, contains('--strict-mcp-config'));
+        expect(
+          claudeArgs,
+          contains(
+            '--permission-prompt-tool mcp__roundtable-permission__approval_prompt',
+          ),
+        );
+        expect(taskUpdates.map((t) => t.status), [
+          TaskStatus.planning,
+          TaskStatus.awaitingReview,
+        ]);
+        expect(taskUpdates.last.claudeSessionId, 'sess-plan-1');
+        expect(agentUpdates.map((a) => a.status), [
+          AgentStatus.busy,
+          AgentStatus.idle,
+        ]);
+      },
+    );
+
+    test('a planning-phase task moving through waitingForAnswer and back to '
+        'planning mirrors those transitions onto Agent.status', () async {
+      final startedFile = File('${tempDir.path}/started');
+      final claudeScript = writeFakeClaude('''
+touch "${startedFile.path}"
+while [ ! -f "${tempDir.path}/release" ]; do sleep 0.05; done
+echo '{"type":"result","subtype":"success","session_id":"sess-plan-2"}'
+exit 0
+''');
+      final agentUpdates = <Agent>[];
+      final watchTaskController = StreamController<Task>();
 
       final dispatcher = TaskDispatcher(
         worktreeManager: WorktreeManager(
           workspaceRoot: '${tempDir.path}/workspace',
         ),
-        executorFactory: ClaudeCodeExecutor.new,
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
         oauthToken: null,
-        getCloneUrl: (projectId) async =>
-            throw StateError('should not be called'),
-        fetchAgent: (agentId) async => throw StateError('should not be called'),
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async {},
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
+        watchTask: (_) => watchTaskController.stream,
+        log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
+      );
+
+      final handleFuture = dispatcher.handle(buildTask(skipPlanning: false));
+
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!startedFile.existsSync()) {
+        if (DateTime.now().isAfter(deadline)) {
+          fail('fake claude script never started');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+
+      watchTaskController.add(
+        buildTask(
+          skipPlanning: false,
+        ).copyWith(status: TaskStatus.waitingForAnswer),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      watchTaskController.add(
+        buildTask(skipPlanning: false).copyWith(status: TaskStatus.planning),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      File('${tempDir.path}/release').writeAsStringSync('');
+      await handleFuture;
+      await watchTaskController.close();
+
+      expect(agentUpdates.map((a) => a.status), [
+        AgentStatus.busy,
+        AgentStatus.waitingForResponse,
+        AgentStatus.busy,
+        AgentStatus.idle,
+      ]);
+    });
+
+    test('a failing planning-phase invocation marks the task failed without '
+        'attempting to commit or open a PR', () async {
+      final claudeScript = writeFakeClaude('exit 1');
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
-        updateAgent: (agent) async {},
+        updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (taskId, content) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
@@ -331,13 +475,19 @@ while true; do sleep 0.05; done
               body,
             }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
-        log: messages.add,
+        log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
       );
 
       await dispatcher.handle(buildTask(skipPlanning: false));
 
-      expect(taskUpdates, isEmpty);
-      expect(messages, contains(contains('planning phase not implemented')));
+      expect(taskUpdates.map((t) => t.status), [
+        TaskStatus.planning,
+        TaskStatus.failed,
+      ]);
+      expect(taskUpdates.last.failureReason, isNotNull);
+      expect(agentUpdates.last.status, AgentStatus.idle);
     });
 
     test(
@@ -394,6 +544,8 @@ exit 0
               },
           watchTask: (_) => const Stream<Task>.empty(),
           log: messages.add,
+          serverUrl: 'https://server.example',
+          permissionPromptToolCommand: const ['echo'],
         );
 
         // The worktree from the original run must already exist for the
@@ -467,6 +619,8 @@ exit 0
               }) async => throw StateError('should not be called'),
           watchTask: (_) => const Stream<Task>.empty(),
           log: messages.add,
+          serverUrl: 'https://server.example',
+          permissionPromptToolCommand: const ['echo'],
         );
 
         await dispatcher.handle(task);

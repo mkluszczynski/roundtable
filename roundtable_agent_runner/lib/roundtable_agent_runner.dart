@@ -10,6 +10,7 @@ import 'src/worktree_manager.dart';
 
 export 'src/claude_code_executor.dart';
 export 'src/github_pull_request_opener.dart';
+export 'src/permission_prompt_tool.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
 
@@ -135,7 +136,20 @@ class AgentRunnerService {
     openPullRequest: GitHubPullRequestOpener().open,
     watchTask: (taskId) => _client.task.watchTask(taskId),
     log: _log,
+    serverUrl: _normalizeServerUrl(_config.serverUrl),
+    permissionPromptToolCommand: _defaultPermissionPromptToolCommand(),
   );
+
+  /// Dev-mode default: re-run this same Dart SDK against the sibling
+  /// `bin/permission_prompt_tool.dart` script, resolved relative to
+  /// [Platform.script] (this process's own entrypoint, `bin/
+  /// roundtable_agent_runner.dart`). A compiled/deployed daemon (design doc
+  /// §6.8) would need its own compiled permission-prompt-tool binary path
+  /// here instead — not built out for the hackathon.
+  static List<String> _defaultPermissionPromptToolCommand() {
+    final toolUri = Platform.script.resolve('permission_prompt_tool.dart');
+    return [Platform.resolvedExecutable, 'run', toolUri.toFilePath()];
+  }
 
   static String _normalizeServerUrl(String url) =>
       url.endsWith('/') ? url : '$url/';

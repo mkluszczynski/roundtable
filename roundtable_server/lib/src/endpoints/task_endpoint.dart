@@ -8,6 +8,10 @@ class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
   static String _channelForTask(int taskId) => 'task-$taskId';
+  static String _channelForQuestion(int questionId) =>
+      'task-question-$questionId';
+  static String _channelForPlanDecision(int taskId) =>
+      'task-$taskId-plan-decision';
 
   final _github = GitHubRepoClient();
 
@@ -168,6 +172,154 @@ class TaskEndpoint extends Endpoint {
       limit: 1,
     );
     return results.isEmpty ? null : results.first;
+  }
+
+  /// Records a plan-mode clarifying question (design doc §6.4
+  /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
+  /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the
+  /// panel can render it.
+  Future<TaskQuestion> createQuestion(
+    Session session,
+    int taskId,
+    String question,
+    List<String> options,
+  ) async {
+    var task = await _requireTask(session, taskId);
+    var created = await TaskQuestion.db.insertRow(
+      session,
+      TaskQuestion(taskId: taskId, question: question, options: options),
+    );
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.waitingForAnswer),
+    );
+    await session.messages.postMessage(_channelForTask(taskId), task);
+    return created;
+  }
+
+  /// Answers a plan-mode clarifying question (design doc §6.4), waking the
+  /// permission-prompt-tool blocked on [watchAnswer].
+  Future<TaskQuestion> answerQuestion(
+    Session session,
+    int questionId,
+    String answer,
+  ) async {
+    var question = await TaskQuestion.db.findById(session, questionId);
+    if (question == null) {
+      throw Exception('TaskQuestion $questionId not found');
+    }
+    if (question.answer != null) {
+      throw Exception('TaskQuestion $questionId is already answered');
+    }
+
+    question = await TaskQuestion.db.updateRow(
+      session,
+      question.copyWith(answer: answer, answeredAt: DateTime.now().toUtc()),
+    );
+    await session.messages.postMessage(
+      _channelForQuestion(questionId),
+      question,
+    );
+    return question;
+  }
+
+  /// Streams [questionId]'s answer, for the permission-prompt-tool to block
+  /// on while Claude Code waits on `AskUserQuestion` (design doc §6.4). On
+  /// subscribe, replays the question immediately if it was already answered
+  /// before the subscriber attached.
+  Stream<TaskQuestion> watchAnswer(Session session, int questionId) async* {
+    var question = await TaskQuestion.db.findById(session, questionId);
+    if (question != null && question.answer != null) {
+      yield question;
+    }
+
+    var updates = session.messages.createStream<TaskQuestion>(
+      _channelForQuestion(questionId),
+    );
+    await for (var q in updates) {
+      yield q;
+    }
+  }
+
+  /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
+  /// `Task.status = planReady`, so the dev can approve it or give feedback.
+  Future<Task> setPlanReady(Session session, int taskId, String plan) async {
+    var task = await _requireTask(session, taskId);
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.planReady, currentPlan: plan),
+    );
+    await session.messages.postMessage(_channelForTask(taskId), task);
+    return task;
+  }
+
+  /// Approves the current plan (design doc §6.4), waking the
+  /// permission-prompt-tool blocked on [watchPlanDecision] so it lets
+  /// `ExitPlanMode` through and Claude Code proceeds to implement.
+  Future<Task> approvePlan(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.planReady) {
+      throw Exception('Task $taskId is not planReady (${task.status})');
+    }
+
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.running),
+    );
+    await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    return task;
+  }
+
+  /// Rejects the current plan with feedback (design doc §6.4), waking the
+  /// permission-prompt-tool so it denies `ExitPlanMode` and returns the
+  /// feedback message as the reason — Claude Code plans again in the same
+  /// process.
+  Future<TaskFeedback> submitPlanFeedback(
+    Session session,
+    int taskId,
+    String message,
+  ) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.planReady) {
+      throw Exception('Task $taskId is not planReady (${task.status})');
+    }
+
+    var feedback = await TaskFeedback.db.insertRow(
+      session,
+      TaskFeedback(
+        taskId: taskId,
+        message: message,
+        phase: TaskFeedbackPhase.plan,
+      ),
+    );
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.planning),
+    );
+    await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    return feedback;
+  }
+
+  /// Streams the dev's decision on [taskId]'s current plan (design doc
+  /// §6.4), for the permission-prompt-tool to block on while `ExitPlanMode`
+  /// is pending. Deliberately doesn't replay on subscribe — the tool always
+  /// subscribes right after setting `planReady` itself via [setPlanReady],
+  /// so a decision is always a future event, never one already made.
+  Stream<Task> watchPlanDecision(Session session, int taskId) async* {
+    var updates = session.messages.createStream<Task>(
+      _channelForPlanDecision(taskId),
+    );
+    await for (var t in updates) {
+      yield t;
+    }
+  }
+
+  Future<Task> _requireTask(Session session, int taskId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    return task;
   }
 
   /// Returns the list of files changed in [taskId]'s pull request (design
