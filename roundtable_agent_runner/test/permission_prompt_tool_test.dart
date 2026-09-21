@@ -231,5 +231,64 @@ void main() {
       expect(decision['behavior'], 'allow');
       expect(decision['updatedInput'], {'plan': 'Plan text'});
     });
+
+    test(
+      'a decide() failure denies instead of crashing the server, and later requests still get handled',
+      () async {
+        final throwingTool = PermissionPromptTool(
+          taskId: 1,
+          createQuestion: (taskId, question, options) async => _question(),
+          watchAnswer: (questionId) => const Stream.empty(),
+          setPlanReady: (taskId, plan) async =>
+              throw StateError('server unreachable'),
+          watchPlanDecision: (taskId) => const Stream.empty(),
+          latestFeedback: (taskId) async => null,
+        );
+
+        final responses = await run([
+          {
+            'jsonrpc': '2.0',
+            'id': 3,
+            'method': 'tools/call',
+            'params': {
+              'name': 'approval_prompt',
+              'arguments': {
+                'tool_name': 'ExitPlanMode',
+                'input': {'plan': 'Plan text'},
+              },
+            },
+          },
+          {
+            'jsonrpc': '2.0',
+            'id': 4,
+            'method': 'tools/call',
+            'params': {
+              'name': 'approval_prompt',
+              'arguments': {
+                'tool_name': 'Edit',
+                'input': {'file_path': 'README.md'},
+              },
+            },
+          },
+        ], throwingTool);
+
+        expect(responses, hasLength(2));
+
+        final failedDecision =
+            jsonDecode(
+                  responses[0]['result']['content'].single['text'] as String,
+                )
+                as Map;
+        expect(failedDecision['behavior'], 'deny');
+        expect(failedDecision['message'], contains('server unreachable'));
+
+        final laterDecision =
+            jsonDecode(
+                  responses[1]['result']['content'].single['text'] as String,
+                )
+                as Map;
+        expect(laterDecision['behavior'], 'allow');
+      },
+    );
   });
 }

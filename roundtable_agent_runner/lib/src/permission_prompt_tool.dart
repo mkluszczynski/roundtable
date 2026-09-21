@@ -216,7 +216,20 @@ Future<void> runPermissionPromptToolServer(
         final callToolName = arguments['tool_name']?.toString() ?? '';
         final callInput =
             (arguments['input'] as Map?)?.cast<String, dynamic>() ?? const {};
-        final decision = await tool.decide(callToolName, callInput);
+        PermissionDecision decision;
+        try {
+          decision = await tool.decide(callToolName, callInput);
+        } catch (e) {
+          // A transient failure in one of the injected callbacks (network
+          // RPC/streaming to the server) must not take down the whole
+          // subprocess — with --strict-mcp-config this is the only
+          // permission tool `claude` has for the entire planning-phase
+          // session, so an uncaught exception here would silently kill
+          // plan-mode handling for the rest of that run.
+          decision = PermissionDecision.deny(
+            'permission-prompt-tool error: $e',
+          );
+        }
         send({
           'jsonrpc': '2.0',
           'id': id,
