@@ -525,6 +525,43 @@ class Endpoints extends _is.EndpointDispatch {
                     params['token'],
                   ),
         ),
+        'reportMetric': _is.MethodConnector(
+          name: 'reportMetric',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'cpuPercent': _is.ParameterDescription(
+              name: 'cpuPercent',
+              type: _is.getType<double>(),
+              nullable: false,
+            ),
+            'memoryUsedMb': _is.ParameterDescription(
+              name: 'memoryUsedMb',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'memoryTotalMb': _is.ParameterDescription(
+              name: 'memoryTotalMb',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportMetric(
+                    session,
+                    params['token'],
+                    params['cpuPercent'],
+                    params['memoryUsedMb'],
+                    params['memoryTotalMb'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {
@@ -542,6 +579,28 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['machine'] as _ij6wllr0.MachineEndpoint).delete(
                     session,
                     params['id'],
+                  ),
+        ),
+        'watchLatestMetric': _is.MethodStreamConnector(
+          name: 'watchLatestMetric',
+          params: {
+            'machineId': _is.ParameterDescription(
+              name: 'machineId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .watchLatestMetric(
+                    session,
+                    params['machineId'],
                   ),
         ),
       },

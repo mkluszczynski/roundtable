@@ -23,6 +23,9 @@ String _hashToken(String token) {
 /// is `online`, or while any of its agents has a non-terminal task (design
 /// doc §5, §6.8).
 class MachineEndpoint extends Endpoint {
+  static String _channelForMachineMetrics(int machineId) =>
+      'machine-$machineId-metrics';
+
   Future<MachineRegistration> register(Session session, String name) async {
     final token = _generateRegistrationToken();
     final machine = await Machine.db.insertRow(
@@ -84,6 +87,56 @@ class MachineEndpoint extends Endpoint {
   /// registered machine.
   Future<Machine> identify(Session session, String token) async {
     return _findByToken(session, token);
+  }
+
+  /// Called periodically by the agent-runner daemon (design doc §6.9). Stores
+  /// a new [MachineMetric] row and notifies [watchLatestMetric] subscribers.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> reportMetric(
+    Session session,
+    String token,
+    double cpuPercent,
+    int memoryUsedMb,
+    int memoryTotalMb,
+  ) async {
+    final machine = await _findByToken(session, token);
+    final metric = await MachineMetric.db.insertRow(
+      session,
+      MachineMetric(
+        machineId: machine.id!,
+        cpuPercent: cpuPercent,
+        memoryUsedMb: memoryUsedMb,
+        memoryTotalMb: memoryTotalMb,
+      ),
+    );
+    await session.messages.postMessage(
+      _channelForMachineMetrics(machine.id!),
+      metric,
+    );
+  }
+
+  /// Streams the latest [MachineMetric] for [machineId] (design doc §6.9
+  /// snapshot) — replays the current latest row on subscribe, then yields
+  /// each new one as [reportMetric] stores it.
+  Stream<MachineMetric> watchLatestMetric(
+    Session session,
+    int machineId,
+  ) async* {
+    final latest = await MachineMetric.db.findFirstRow(
+      session,
+      where: (t) => t.machineId.equals(machineId),
+      orderBy: (t) => t.recordedAt.desc(),
+    );
+    if (latest != null) yield latest;
+
+    final updates = session.messages.createStream<MachineMetric>(
+      _channelForMachineMetrics(machineId),
+    );
+    await for (final metric in updates) {
+      yield metric;
+    }
   }
 
   Future<Machine> _findByToken(Session session, String token) async {

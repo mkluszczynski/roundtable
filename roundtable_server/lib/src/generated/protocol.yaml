@@ -23,6 +23,8 @@ machine:
   - heartbeat:
   - deregister:
   - identify:
+  - reportMetric:
+  - watchLatestMetric:
   - delete:
 project:
   - create:

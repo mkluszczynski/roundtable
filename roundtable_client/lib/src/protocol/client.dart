@@ -20,6 +20,8 @@ import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/machine_metric.dart'
+    as _il2pq5ll;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
@@ -389,6 +391,41 @@ class EndpointMachine extends _isc.EndpointRef {
         'machine',
         'identify',
         {'token': token},
+      );
+
+  /// Called periodically by the agent-runner daemon (design doc §6.9). Stores
+  /// a new [MachineMetric] row and notifies [watchLatestMetric] subscribers.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportMetric(
+    String token,
+    double cpuPercent,
+    int memoryUsedMb,
+    int memoryTotalMb,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportMetric',
+    {
+      'token': token,
+      'cpuPercent': cpuPercent,
+      'memoryUsedMb': memoryUsedMb,
+      'memoryTotalMb': memoryTotalMb,
+    },
+  );
+
+  /// Streams the latest [MachineMetric] for [machineId] (design doc §6.9
+  /// snapshot) — replays the current latest row on subscribe, then yields
+  /// each new one as [reportMetric] stores it.
+  _ida.Stream<_il2pq5ll.MachineMetric> watchLatestMetric(int machineId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_il2pq5ll.MachineMetric>,
+        _il2pq5ll.MachineMetric
+      >(
+        'machine',
+        'watchLatestMetric',
+        {'machineId': machineId},
+        {},
       );
 
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
