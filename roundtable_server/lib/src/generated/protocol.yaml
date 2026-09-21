@@ -38,6 +38,8 @@ task:
   - cancelTask:
   - submitFeedback:
   - latestFeedback:
+  - getChangedFiles:
+  - getFileContent:
   - watchAssignedTasks:
   - watchLogs:
   - watchTask:

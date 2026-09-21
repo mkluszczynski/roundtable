@@ -1,5 +1,6 @@
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
+import '../github_repo_client.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Task creation and the daemon's assignment feed (design doc §6.1).
@@ -7,6 +8,8 @@ class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
   static String _channelForTask(int taskId) => 'task-$taskId';
+
+  final _github = GitHubRepoClient();
 
   /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
   /// queueing without an agent is a Should-scope feature, not implemented
@@ -165,6 +168,57 @@ class TaskEndpoint extends Endpoint {
       limit: 1,
     );
     return results.isEmpty ? null : results.first;
+  }
+
+  /// Returns the list of files changed in [taskId]'s pull request (design
+  /// doc §6.7), fetched from the GitHub API using the project's
+  /// `repoAccessToken` — never returned to the panel.
+  Future<List<DiffFile>> getChangedFiles(Session session, int taskId) async {
+    final context = await _repoContextFor(session, taskId);
+    return _github.getChangedFiles(prUrl: context.prUrl, token: context.token);
+  }
+
+  /// Returns the raw content of the file at [contentsUrl] (as returned by
+  /// [getChangedFiles]) for [taskId]'s repository (design doc §6.7).
+  Future<String> getFileContent(
+    Session session,
+    int taskId,
+    String contentsUrl,
+  ) async {
+    final context = await _repoContextFor(session, taskId);
+    final pr = _github.parsePrUrl(context.prUrl);
+    return _github.getFileContent(
+      contentsUrl: contentsUrl,
+      token: context.token,
+      owner: pr.owner,
+      repo: pr.repo,
+    );
+  }
+
+  /// Loads [taskId]'s `prUrl` and its project's `repoAccessToken`, throwing
+  /// if the task, its PR, its project, or the project's token is missing.
+  Future<({String prUrl, String token})> _repoContextFor(
+    Session session,
+    int taskId,
+  ) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    var prUrl = task.prUrl;
+    if (prUrl == null) {
+      throw Exception('Task $taskId has no PR yet');
+    }
+    var project = await Project.db.findById(session, task.projectId);
+    if (project == null) {
+      throw Exception('Project ${task.projectId} not found');
+    }
+    var token = project.repoAccessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('Project ${task.projectId} has no repo access token');
+    }
+
+    return (prUrl: prUrl, token: token);
   }
 
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {

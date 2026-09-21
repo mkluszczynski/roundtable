@@ -15,6 +15,7 @@ import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
 import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
+import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
@@ -564,6 +565,30 @@ class EndpointTask extends _isc.EndpointRef {
         'latestFeedback',
         {'taskId': taskId},
       );
+
+  /// Returns the list of files changed in [taskId]'s pull request (design
+  /// doc §6.7), fetched from the GitHub API using the project's
+  /// `repoAccessToken` — never returned to the panel.
+  _ida.Future<List<_iusyva9a.DiffFile>> getChangedFiles(int taskId) =>
+      caller.callServerEndpoint<List<_iusyva9a.DiffFile>>(
+        'task',
+        'getChangedFiles',
+        {'taskId': taskId},
+      );
+
+  /// Returns the raw content of the file at [contentsUrl] (as returned by
+  /// [getChangedFiles]) for [taskId]'s repository (design doc §6.7).
+  _ida.Future<String> getFileContent(
+    int taskId,
+    String contentsUrl,
+  ) => caller.callServerEndpoint<String>(
+    'task',
+    'getFileContent',
+    {
+      'taskId': taskId,
+      'contentsUrl': contentsUrl,
+    },
+  );
 
   _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
       .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(

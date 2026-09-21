@@ -828,6 +828,50 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'getChangedFiles': _is.MethodConnector(
+          name: 'getChangedFiles',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).getChangedFiles(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'getFileContent': _is.MethodConnector(
+          name: 'getFileContent',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'contentsUrl': _is.ParameterDescription(
+              name: 'contentsUrl',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).getFileContent(
+                    session,
+                    params['taskId'],
+                    params['contentsUrl'],
+                  ),
+        ),
         'watchAssignedTasks': _is.MethodStreamConnector(
           name: 'watchAssignedTasks',
           params: {

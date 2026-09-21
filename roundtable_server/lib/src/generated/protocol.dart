@@ -12,6 +12,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
+import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:serverpod/protocol.dart' as _isp;
@@ -27,6 +28,7 @@ import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
 import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
+import 'diff_file.dart' as _iji3k3fl;
 import 'greetings/greeting.dart' as _izw8z7ou;
 import 'invalid_token_exception.dart' as _isgtss3z;
 import 'log_source.dart' as _ilj2nbps;
@@ -48,6 +50,7 @@ export 'agent_role.dart';
 export 'agent_status.dart';
 export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
+export 'diff_file.dart';
 export 'greetings/greeting.dart';
 export 'invalid_token_exception.dart';
 export 'log_source.dart';
@@ -691,6 +694,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i8k4gzq0.DeletionBlockedException) {
       return _i8k4gzq0.DeletionBlockedException.fromJson(data) as T;
     }
+    if (t == _iji3k3fl.DiffFile) {
+      return _iji3k3fl.DiffFile.fromJson(data) as T;
+    }
     if (t == _izw8z7ou.Greeting) {
       return _izw8z7ou.Greeting.fromJson(data) as T;
     }
@@ -760,6 +766,9 @@ class Protocol extends _is.DatabaseSerializationManager {
               ? _i8k4gzq0.DeletionBlockedException.fromJson(data)
               : null)
           as T;
+    }
+    if (t == _is.getType<_iji3k3fl.DiffFile?>()) {
+      return (data != null ? _iji3k3fl.DiffFile.fromJson(data) : null) as T;
     }
     if (t == _is.getType<_izw8z7ou.Greeting?>()) {
       return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
@@ -911,6 +920,12 @@ class Protocol extends _is.DatabaseSerializationManager {
               .toList()
           as T;
     }
+    if (t == List<_i16fkh06.DiffFile>) {
+      return (data as List)
+              .map((e) => deserialize<_i16fkh06.DiffFile>(e))
+              .toList()
+          as T;
+    }
     try {
       return _iais.Protocol().deserialize<T>(data, t);
     } on _is.DeserializationTypeNotFoundException catch (_) {}
@@ -932,6 +947,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i69bozh7.AgentStatus => 'AgentStatus',
       _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
+      _iji3k3fl.DiffFile => 'DiffFile',
       _izw8z7ou.Greeting => 'Greeting',
       _isgtss3z.InvalidTokenException => 'InvalidTokenException',
       _ilj2nbps.LogSource => 'LogSource',
@@ -974,6 +990,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'DeletionBlockReason';
       case _i8k4gzq0.DeletionBlockedException():
         return 'DeletionBlockedException';
+      case _iji3k3fl.DiffFile():
+        return 'DiffFile';
       case _izw8z7ou.Greeting():
         return 'Greeting';
       case _isgtss3z.InvalidTokenException():
@@ -1048,6 +1066,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'DeletionBlockedException') {
       return deserialize<_i8k4gzq0.DeletionBlockedException>(data['data']);
+    }
+    if (dataClassName == 'DiffFile') {
+      return deserialize<_iji3k3fl.DiffFile>(data['data']);
     }
     if (dataClassName == 'Greeting') {
       return deserialize<_izw8z7ou.Greeting>(data['data']);
