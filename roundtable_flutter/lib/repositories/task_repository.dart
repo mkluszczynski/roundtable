@@ -5,6 +5,18 @@ class TaskRepository {
 
   final Client _client;
 
+  Future<Task> createTask(
+    int projectId,
+    int agentId,
+    String prompt, {
+    required bool skipPlanning,
+  }) => _client.task.createTask(
+    projectId,
+    agentId,
+    prompt,
+    skipPlanning: skipPlanning,
+  );
+
   Future<List<DiffFile>> getChangedFiles(int taskId) =>
       _client.task.getChangedFiles(taskId);
 
