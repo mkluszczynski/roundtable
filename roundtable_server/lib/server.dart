@@ -110,4 +110,13 @@ void run(List<String> args) async {
       .every(const Duration(seconds: 30))
       .machineOffline
       .check();
+
+  // Periodically detect tasks that have made no progress for too long, even
+  // on a machine that's still online (design doc §4 "Timeout for a stuck
+  // task").
+  await pod.futureCalls
+      .callRecurring()
+      .every(const Duration(seconds: 30))
+      .stalledTask
+      .check();
 }

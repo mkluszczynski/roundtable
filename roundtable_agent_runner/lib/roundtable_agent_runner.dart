@@ -5,16 +5,19 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'src/claude_code_executor.dart';
 import 'src/github_pull_request_opener.dart';
+import 'src/metrics_collector.dart';
 import 'src/task_dispatcher.dart';
 import 'src/worktree_manager.dart';
 
 export 'src/claude_code_executor.dart';
 export 'src/github_pull_request_opener.dart';
+export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
 
 const _heartbeatInterval = Duration(seconds: 20);
+const _metricsInterval = Duration(seconds: 8);
 
 /// Config for the agent-runner daemon, read from a `KEY=VALUE` env file
 /// rather than CLI flags — the file is written by `scripts/install-agent.sh`
@@ -113,8 +116,10 @@ class AgentRunnerService {
   final AgentRunnerConfig _config;
   final Client _client;
   Timer? _timer;
+  Timer? _metricsTimer;
   StreamSubscription<Task>? _taskSubscription;
   final _stopped = Completer<void>();
+  final _metricsCollector = MetricsCollector();
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
     worktreeManager: WorktreeManager(workspaceRoot: _config.workspaceRoot),
@@ -176,6 +181,8 @@ class AgentRunnerService {
     _subscribeToAssignedTasks(machine.id!);
     await _tick();
     _timer = Timer.periodic(_heartbeatInterval, (_) => _tick());
+    unawaited(_reportMetrics());
+    _metricsTimer = Timer.periodic(_metricsInterval, (_) => _reportMetrics());
     return _stopped.future;
   }
 
@@ -212,6 +219,24 @@ class AgentRunnerService {
     }
   }
 
+  /// Reads local CPU/RAM usage and reports it to the server (design doc
+  /// §6.9). Deliberately doesn't treat [InvalidTokenException] as fatal here
+  /// — the heartbeat tick already owns that responsibility on its own
+  /// cadence; just log and retry.
+  Future<void> _reportMetrics() async {
+    try {
+      final reading = await _metricsCollector.collect();
+      await _client.machine.reportMetric(
+        _config.registrationToken,
+        reading.cpuPercent,
+        reading.memoryUsedMb,
+        reading.memoryTotalMb,
+      );
+    } catch (e) {
+      _log('metrics report failed, will retry: $e');
+    }
+  }
+
   /// Cancels the heartbeat loop and lets [run] return. Passing a non-zero
   /// [exitCode] additionally terminates the process, used for an
   /// unrecoverable [InvalidTokenException] as opposed to an ordinary
@@ -219,6 +244,8 @@ class AgentRunnerService {
   void stop({int exitCode = 0}) {
     _timer?.cancel();
     _timer = null;
+    _metricsTimer?.cancel();
+    _metricsTimer = null;
     _taskSubscription?.cancel();
     _taskSubscription = null;
     if (!_stopped.isCompleted) {

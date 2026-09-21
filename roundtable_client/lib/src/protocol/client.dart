@@ -20,6 +20,8 @@ import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/machine_metric.dart'
+    as _il2pq5ll;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
@@ -391,6 +393,41 @@ class EndpointMachine extends _isc.EndpointRef {
         {'token': token},
       );
 
+  /// Called periodically by the agent-runner daemon (design doc §6.9). Stores
+  /// a new [MachineMetric] row and notifies [watchLatestMetric] subscribers.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportMetric(
+    String token,
+    double cpuPercent,
+    int memoryUsedMb,
+    int memoryTotalMb,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportMetric',
+    {
+      'token': token,
+      'cpuPercent': cpuPercent,
+      'memoryUsedMb': memoryUsedMb,
+      'memoryTotalMb': memoryTotalMb,
+    },
+  );
+
+  /// Streams the latest [MachineMetric] for [machineId] (design doc §6.9
+  /// snapshot) — replays the current latest row on subscribe, then yields
+  /// each new one as [reportMetric] stores it.
+  _ida.Stream<_il2pq5ll.MachineMetric> watchLatestMetric(int machineId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_il2pq5ll.MachineMetric>,
+        _il2pq5ll.MachineMetric
+      >(
+        'machine',
+        'watchLatestMetric',
+        {'machineId': machineId},
+        {},
+      );
+
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'machine',
     'delete',
@@ -502,7 +539,9 @@ class EndpointTask extends _isc.EndpointRef {
   /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
   /// daemon to move a task through its lifecycle (design doc §6.1) —
   /// e.g. `running` → `awaitingReview`/`failed` — and to persist
-  /// `claudeSessionId` once Claude Code reports one.
+  /// `claudeSessionId` once Claude Code reports one. Bumps
+  /// `lastProgressAt`, since this is the daemon's primary path for
+  /// reporting task activity — see [StalledTaskFutureCall].
   _ida.Future<_iw53rmon.Task> update(_iw53rmon.Task task) =>
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
@@ -512,7 +551,8 @@ class EndpointTask extends _isc.EndpointRef {
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
-  /// task.
+  /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
+  /// activity — see [StalledTaskFutureCall].
   _ida.Future<_inlvye37.TaskLogEntry> appendLog(
     int taskId,
     String content, {
@@ -612,6 +652,18 @@ class EndpointTask extends _isc.EndpointRef {
         'watchAnswer',
         {'questionId': questionId},
         {},
+      );
+
+  /// Returns the most recently asked [TaskQuestion] for [taskId], or `null`
+  /// if none exists — mirrors [latestFeedback]. The panel checks
+  /// `Task.status == waitingForAnswer` to decide whether this is still
+  /// pending, since this method doesn't distinguish an answered question
+  /// from an unanswered one.
+  _ida.Future<_ihmnezqk.TaskQuestion?> latestQuestion(int taskId) =>
+      caller.callServerEndpoint<_ihmnezqk.TaskQuestion?>(
+        'task',
+        'latestQuestion',
+        {'taskId': taskId},
       );
 
   /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips

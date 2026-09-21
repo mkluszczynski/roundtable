@@ -23,6 +23,9 @@ fields:
   createdAt: DateTime, default=now
   startedAt: DateTime?
   finishedAt: DateTime?
+  ### Bumped on every sign of activity (a log line, a status transition).
+  ### Used by StalledTaskFutureCall to detect a task that's stopped making progress.
+  lastProgressAt: DateTime, default=now
   logs: List<TaskLogEntry>?, relation(name=task_logs)
   feedback: List<TaskFeedback>?, relation(name=task_feedback)
   questions: List<TaskQuestion>?, relation(name=task_questions)
