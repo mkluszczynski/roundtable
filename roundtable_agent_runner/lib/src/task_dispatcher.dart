@@ -20,6 +20,7 @@ class TaskDispatcher {
     required this.updateTask,
     required this.updateAgent,
     required this.appendLog,
+    required this.openPullRequest,
     required this.log,
   });
 
@@ -31,6 +32,17 @@ class TaskDispatcher {
   final Future<void> Function(Task task) updateTask;
   final Future<void> Function(Agent agent) updateAgent;
   final Future<void> Function(int taskId, String content) appendLog;
+
+  /// Opens a GitHub PR for a pushed task branch (design doc §6.1 step 7) and
+  /// returns its URL. Bound to [GitHubPullRequestOpener.open] in production.
+  final Future<String> Function({
+    required String cloneUrl,
+    required String branchName,
+    required String title,
+    String? body,
+  })
+  openPullRequest;
+
   final void Function(String message) log;
 
   /// Handles one assigned [task]. Planning-phase tasks (`skipPlanning ==
@@ -90,6 +102,32 @@ class TaskDispatcher {
         onLine: (line) => appendLog(task.id!, line),
       );
 
+      String? branchName;
+      String? prUrl;
+      if (result.success) {
+        final branch = 'task-${task.id}';
+        final committed = await worktreeManager.commitAndPush(
+          projectId: '$projectId',
+          taskId: '${task.id}',
+          commitMessage:
+              'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
+          pushUrl: cloneUrl,
+        );
+        if (committed) {
+          branchName = branch;
+          prUrl = await openPullRequest(
+            cloneUrl: cloneUrl,
+            branchName: branch,
+            title: 'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
+            body:
+                'Opened by ${agent.name} (Roundtable agent).\n\n'
+                '${task.prompt}',
+          );
+        } else {
+          log('task ${task.id}: no changes to commit, skipping PR');
+        }
+      }
+
       await updateTask(
         task.copyWith(
           status: result.success
@@ -98,6 +136,8 @@ class TaskDispatcher {
           finishedAt: DateTime.now().toUtc(),
           claudeSessionId: result.sessionId ?? task.claudeSessionId,
           failureReason: result.success ? null : result.errorSummary,
+          branchName: branchName ?? task.branchName,
+          prUrl: prUrl ?? task.prUrl,
         ),
       );
       await updateAgent(agent.copyWith(status: AgentStatus.idle));
@@ -115,4 +155,11 @@ class TaskDispatcher {
       }
     }
   }
+}
+
+/// Truncates [prompt] to its first line, capped at 72 characters, for use as
+/// a commit message / PR title summary.
+String _shortSummary(String prompt) {
+  final firstLine = prompt.trim().split('\n').first;
+  return firstLine.length > 72 ? '${firstLine.substring(0, 69)}...' : firstLine;
 }

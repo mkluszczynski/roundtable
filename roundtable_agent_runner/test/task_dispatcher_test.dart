@@ -51,17 +51,114 @@ void main() {
       status: AgentStatus.idle,
     );
 
-    test(
-      'a skipPlanning task runs to completion and reports success',
-      () async {
-        final claudeScript = writeFakeClaude('''
+    test('a skipPlanning task that produces changes commits, pushes, opens a '
+        'PR, and reports success', () async {
+      final claudeScript = writeFakeClaude('''
+echo "changed" > changed.txt
 echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
 exit 0
 ''');
-        final logLines = <String>[];
+      final logLines = <String>[];
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      final messages = <String>[];
+      final prRequests = <Map<String, String?>>[];
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async => taskUpdates.add(task),
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (taskId, content) async => logLines.add(content),
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async {
+              prRequests.add({
+                'cloneUrl': cloneUrl,
+                'branchName': branchName,
+                'title': title,
+                'body': body,
+              });
+              return 'https://github.com/acme/widgets/pull/1';
+            },
+        log: messages.add,
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(logLines, contains(contains('"session_id":"sess-1"')));
+      expect(agentUpdates.map((a) => a.status), [
+        AgentStatus.busy,
+        AgentStatus.idle,
+      ]);
+      expect(taskUpdates.map((t) => t.status), [
+        TaskStatus.running,
+        TaskStatus.awaitingReview,
+      ]);
+      expect(taskUpdates.last.claudeSessionId, 'sess-1');
+      expect(taskUpdates.last.branchName, 'task-1');
+      expect(taskUpdates.last.prUrl, 'https://github.com/acme/widgets/pull/1');
+      expect(prRequests, hasLength(1));
+      expect(prRequests.single['branchName'], 'task-1');
+    });
+
+    test('a skipPlanning task that produces no changes reaches awaitingReview '
+        'without opening a PR', () async {
+      final claudeScript = writeFakeClaude('''
+echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
+exit 0
+''');
+      final taskUpdates = <Task>[];
+      final messages = <String>[];
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async => taskUpdates.add(task),
+        updateAgent: (agent) async {},
+        appendLog: (taskId, content) async {},
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
+        log: messages.add,
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+      expect(taskUpdates.last.branchName, isNull);
+      expect(taskUpdates.last.prUrl, isNull);
+      expect(messages, contains(contains('no changes to commit')));
+    });
+
+    test(
+      'a PR-opening failure after a successful run marks the task failed',
+      () async {
+        final claudeScript = writeFakeClaude('''
+echo "changed" > changed.txt
+echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
+exit 0
+''');
         final taskUpdates = <Task>[];
         final agentUpdates = <Agent>[];
-        final messages = <String>[];
 
         final dispatcher = TaskDispatcher(
           worktreeManager: WorktreeManager(
@@ -73,22 +170,25 @@ exit 0
           fetchAgent: (agentId) async => buildAgent(),
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async => agentUpdates.add(agent),
-          appendLog: (taskId, content) async => logLines.add(content),
-          log: messages.add,
+          appendLog: (taskId, content) async {},
+          openPullRequest:
+              ({
+                required cloneUrl,
+                required branchName,
+                required title,
+                body,
+              }) async => throw StateError('GitHub API unreachable'),
+          log: (_) {},
         );
 
         await dispatcher.handle(buildTask());
 
-        expect(logLines, contains(contains('"session_id":"sess-1"')));
-        expect(agentUpdates.map((a) => a.status), [
-          AgentStatus.busy,
-          AgentStatus.idle,
-        ]);
-        expect(taskUpdates.map((t) => t.status), [
-          TaskStatus.running,
-          TaskStatus.awaitingReview,
-        ]);
-        expect(taskUpdates.last.claudeSessionId, 'sess-1');
+        expect(taskUpdates.last.status, TaskStatus.failed);
+        expect(
+          taskUpdates.last.failureReason,
+          contains('GitHub API unreachable'),
+        );
+        expect(agentUpdates.last.status, AgentStatus.idle);
       },
     );
 
@@ -108,6 +208,13 @@ exit 0
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (taskId, content) async {},
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
         log: (_) {},
       );
 
@@ -134,6 +241,13 @@ exit 0
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async {},
         appendLog: (taskId, content) async {},
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
         log: messages.add,
       );
 

@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'src/claude_code_executor.dart';
+import 'src/github_pull_request_opener.dart';
 import 'src/task_dispatcher.dart';
 import 'src/worktree_manager.dart';
 
 export 'src/claude_code_executor.dart';
+export 'src/github_pull_request_opener.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
 
@@ -129,6 +131,7 @@ class AgentRunnerService {
     updateAgent: (agent) => _client.agent.update(agent),
     appendLog: (taskId, content) =>
         _client.task.appendLog(taskId, content, source: LogSource.agent),
+    openPullRequest: GitHubPullRequestOpener().open,
     log: _log,
   );
 

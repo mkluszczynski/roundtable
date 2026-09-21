@@ -12,6 +12,7 @@ dependencies:
   roundtable_client:
     path: ../roundtable_client
   synchronized: ^3.3.0
+  http: ^1.2.0
 
 dev_dependencies:
   lints: ^6.0.0

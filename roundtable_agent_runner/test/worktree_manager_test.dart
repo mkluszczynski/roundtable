@@ -168,6 +168,61 @@ void main() {
       expect(File('$path/dirty.txt').existsSync(), isFalse);
     });
 
+    test(
+      'commitAndPush commits and pushes when the worktree has changes',
+      () async {
+        await manager.ensureProjectCloned(
+          projectId: 'p1',
+          cloneUrl: fixtureRepo.path,
+        );
+        final path = await manager.createWorktree(
+          projectId: 'p1',
+          taskId: 't1',
+        );
+        File('$path/new.txt').writeAsStringSync('new content');
+
+        final committed = await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'add new.txt',
+          pushUrl: fixtureRepo.path,
+        );
+
+        expect(committed, isTrue);
+        final log = await _gitOutput(fixtureRepo.path, [
+          'log',
+          '--oneline',
+          'task-t1',
+        ]);
+        expect(log, contains('add new.txt'));
+      },
+    );
+
+    test(
+      'commitAndPush returns false without committing when the worktree is clean',
+      () async {
+        await manager.ensureProjectCloned(
+          projectId: 'p1',
+          cloneUrl: fixtureRepo.path,
+        );
+        await manager.createWorktree(projectId: 'p1', taskId: 't1');
+
+        final committed = await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'nothing to commit',
+          pushUrl: fixtureRepo.path,
+        );
+
+        expect(committed, isFalse);
+        final branches = await _gitOutput(fixtureRepo.path, [
+          'branch',
+          '--list',
+        ]);
+        expect(branches, isNot(contains('task-t1')));
+      },
+    );
+
     test('rejects projectId/taskId containing path separators', () {
       expect(
         () => manager.createWorktree(projectId: '../evil', taskId: 't1'),

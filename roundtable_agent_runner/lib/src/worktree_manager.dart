@@ -198,6 +198,86 @@ class WorktreeManager {
     });
   }
 
+  /// Commits any pending changes in the task's worktree and pushes the
+  /// resulting branch to [pushUrl] (design doc §6.1 step 7). Returns `false`
+  /// without committing or pushing if the worktree has no changes — nothing
+  /// for the agent to have done. [pushUrl] is used as a one-off push target,
+  /// never stored as a named git remote, so any credentials embedded in it
+  /// never touch git config on disk (design doc §6.5).
+  Future<bool> commitAndPush({
+    required String projectId,
+    required String taskId,
+    required String commitMessage,
+    required String pushUrl,
+  }) {
+    _assertSafeSegment(projectId, name: 'projectId');
+    _assertSafeSegment(taskId, name: 'taskId');
+    return _lockFor(projectId).synchronized(() async {
+      final worktreeDir = _worktreeDir(projectId, taskId);
+      if (!Directory(worktreeDir).existsSync()) {
+        throw WorktreeException(
+          'no worktree for task $taskId on project $projectId',
+          stderr: '',
+        );
+      }
+
+      final add = await Process.run('git', [
+        'add',
+        '-A',
+      ], workingDirectory: worktreeDir);
+      if (add.exitCode != 0) {
+        throw WorktreeException(
+          'git add failed for task $taskId on project $projectId',
+          stderr: add.stderr.toString(),
+        );
+      }
+
+      final status = await Process.run('git', [
+        'status',
+        '--porcelain',
+      ], workingDirectory: worktreeDir);
+      if (status.exitCode != 0) {
+        throw WorktreeException(
+          'git status failed for task $taskId on project $projectId',
+          stderr: status.stderr.toString(),
+        );
+      }
+      if (status.stdout.toString().trim().isEmpty) {
+        return false;
+      }
+
+      final commit = await Process.run('git', [
+        '-c',
+        'user.name=Roundtable Agent',
+        '-c',
+        'user.email=agent@roundtable.local',
+        'commit',
+        '-m',
+        commitMessage,
+      ], workingDirectory: worktreeDir);
+      if (commit.exitCode != 0) {
+        throw WorktreeException(
+          'git commit failed for task $taskId on project $projectId',
+          stderr: commit.stderr.toString(),
+        );
+      }
+
+      final push = await Process.run('git', [
+        'push',
+        pushUrl,
+        'HEAD:refs/heads/task-$taskId',
+      ], workingDirectory: worktreeDir);
+      if (push.exitCode != 0) {
+        throw WorktreeException(
+          'git push failed for task $taskId on project $projectId',
+          stderr: push.stderr.toString(),
+        );
+      }
+
+      return true;
+    });
+  }
+
   /// Returns the worktree path for [taskId] if it currently exists on disk,
   /// else null.
   String? worktreePathIfExists({
