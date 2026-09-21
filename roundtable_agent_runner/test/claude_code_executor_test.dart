@@ -90,7 +90,7 @@ exit 0
     );
 
     test(
-      'passes an empty prompt and --resume when resuming a session',
+      'passes the given prompt and --resume when resuming a session',
       () async {
         final script = writeFakeClaude(r'''
 echo "{\"args\":\"$*\"}"
@@ -100,14 +100,14 @@ exit 0
         final lines = <String>[];
 
         await executor.run(
-          prompt: 'ignored when resuming',
+          prompt: 'please also update the README',
           workingDirectory: tempDir.path,
           resumeSessionId: 'session-1',
           onLine: lines.add,
         );
 
         expect(lines.single, contains('--resume session-1'));
-        expect(lines.single, isNot(contains('ignored when resuming')));
+        expect(lines.single, contains('please also update the README'));
       },
     );
 

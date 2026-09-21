@@ -25,6 +25,8 @@ import 'package:roundtable_server/src/generated/machine_registration.dart'
     as _i1b54xmb;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
+import 'package:roundtable_server/src/generated/task_feedback.dart'
+    as _il2mubb9;
 import 'package:roundtable_server/src/generated/task_log_entry.dart'
     as _in2gwlh7;
 import 'package:serverpod/serverpod.dart' as _is;
@@ -1314,6 +1316,72 @@ class _TaskEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_il2mubb9.TaskFeedback> submitFeedback(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    String message,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'submitFeedback',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'submitFeedback',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'message': message,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_il2mubb9.TaskFeedback>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_il2mubb9.TaskFeedback?> latestFeedback(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'latestFeedback',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'latestFeedback',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_il2mubb9.TaskFeedback?>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

@@ -131,6 +131,7 @@ class AgentRunnerService {
     updateAgent: (agent) => _client.agent.update(agent),
     appendLog: (taskId, content) =>
         _client.task.appendLog(taskId, content, source: LogSource.agent),
+    fetchLatestFeedback: (taskId) => _client.task.latestFeedback(taskId),
     openPullRequest: GitHubPullRequestOpener().open,
     watchTask: (taskId) => _client.task.watchTask(taskId),
     log: _log,

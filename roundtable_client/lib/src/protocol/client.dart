@@ -23,6 +23,7 @@ import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
+import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
 import 'package:roundtable_client/src/protocol/task_log_entry.dart'
     as _inlvye37;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
@@ -533,6 +534,34 @@ class EndpointTask extends _isc.EndpointRef {
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
         'cancelTask',
+        {'taskId': taskId},
+      );
+
+  /// Records feedback on a completed run (design doc §6.1 step 9, §6.4) and
+  /// wakes the daemon via the same channel [createTask] uses — the daemon
+  /// picks it up through its existing [watchAssignedTasks] subscription and
+  /// resumes the same Claude Code session (`TaskDispatcher.handle`).
+  _ida.Future<_ifl2c5cu.TaskFeedback> submitFeedback(
+    int taskId,
+    String message,
+  ) => caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+    'task',
+    'submitFeedback',
+    {
+      'taskId': taskId,
+      'message': message,
+    },
+  );
+
+  /// Returns the most recently submitted [TaskFeedback] for [taskId], or
+  /// `null` if none exists. Used by the daemon to fetch the message text of
+  /// a review-phase feedback that woke it via [submitFeedback], and to tell
+  /// a stale replay (e.g. after a daemon restart) apart from a real pending
+  /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  _ida.Future<_ifl2c5cu.TaskFeedback?> latestFeedback(int taskId) =>
+      caller.callServerEndpoint<_ifl2c5cu.TaskFeedback?>(
+        'task',
+        'latestFeedback',
         {'taskId': taskId},
       );
 

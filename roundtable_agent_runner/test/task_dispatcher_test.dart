@@ -76,6 +76,7 @@ exit 0
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (taskId, content) async => logLines.add(content),
+        fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
               required cloneUrl,
@@ -133,6 +134,7 @@ exit 0
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async {},
         appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
               required cloneUrl,
@@ -174,6 +176,7 @@ exit 0
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async => agentUpdates.add(agent),
           appendLog: (taskId, content) async {},
+          fetchLatestFeedback: (_) async => null,
           openPullRequest:
               ({
                 required cloneUrl,
@@ -212,6 +215,7 @@ exit 0
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
               required cloneUrl,
@@ -255,6 +259,7 @@ while true; do sleep 0.05; done
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
               required cloneUrl,
@@ -317,6 +322,7 @@ while true; do sleep 0.05; done
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async {},
         appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
               required cloneUrl,
@@ -333,6 +339,142 @@ while true; do sleep 0.05; done
       expect(taskUpdates, isEmpty);
       expect(messages, contains(contains('planning phase not implemented')));
     });
+
+    test(
+      'an awaitingReview task with fresh review feedback resumes via '
+      '--resume with the feedback message as the prompt, reuses the '
+      'worktree, and pushes to the existing PR without opening a new one',
+      () async {
+        final claudeScript = writeFakeClaude('''
+echo "\$@" > "${tempDir.path}/claude_args"
+echo "more changes" > changed2.txt
+echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
+exit 0
+''');
+        final taskUpdates = <Task>[];
+        final prRequests = <Map<String, String?>>[];
+        final messages = <String>[];
+
+        final resumingTask = buildTask().copyWith(
+          status: TaskStatus.awaitingReview,
+          claudeSessionId: 'sess-1',
+          branchName: 'task-1',
+          prUrl: 'https://github.com/acme/widgets/pull/1',
+          startedAt: DateTime.utc(2026),
+          finishedAt: DateTime.utc(2026, 1, 2),
+        );
+        final feedback = TaskFeedback(
+          taskId: 1,
+          message: 'Please also update the README',
+          phase: TaskFeedbackPhase.review,
+          createdAt: DateTime.utc(2026, 1, 3),
+        );
+
+        final dispatcher = TaskDispatcher(
+          worktreeManager: WorktreeManager(
+            workspaceRoot: '${tempDir.path}/workspace',
+          ),
+          executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+          oauthToken: null,
+          getCloneUrl: (projectId) async => fixtureRepo.path,
+          fetchAgent: (agentId) async => buildAgent(),
+          updateTask: (task) async => taskUpdates.add(task),
+          updateAgent: (agent) async {},
+          appendLog: (taskId, content) async {},
+          fetchLatestFeedback: (_) async => feedback,
+          openPullRequest:
+              ({
+                required cloneUrl,
+                required branchName,
+                required title,
+                body,
+              }) async {
+                prRequests.add({'branchName': branchName});
+                return 'https://github.com/acme/widgets/pull/999';
+              },
+          watchTask: (_) => const Stream<Task>.empty(),
+          log: messages.add,
+        );
+
+        // The worktree from the original run must already exist for the
+        // resumed run to reuse (createWorktree is idempotent, but the
+        // bare clone/branch need to already exist to model a real resume).
+        final seedWorktreeManager = WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        );
+        await seedWorktreeManager.ensureProjectCloned(
+          projectId: '1',
+          cloneUrl: fixtureRepo.path,
+        );
+        await seedWorktreeManager.createWorktree(projectId: '1', taskId: '1');
+
+        await dispatcher.handle(resumingTask);
+
+        final claudeArgs = File(
+          '${tempDir.path}/claude_args',
+        ).readAsStringSync();
+        expect(claudeArgs, contains('Please also update the README'));
+        expect(claudeArgs, contains('--resume'));
+        expect(claudeArgs, contains('sess-1'));
+        expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+        expect(taskUpdates.last.startedAt, resumingTask.startedAt);
+        expect(
+          taskUpdates.last.prUrl,
+          'https://github.com/acme/widgets/pull/1',
+        );
+        expect(prRequests, isEmpty);
+        expect(messages, contains(contains('pushed additional commits')));
+      },
+    );
+
+    test(
+      'an awaitingReview task with no new review feedback is left untouched',
+      () async {
+        final taskUpdates = <Task>[];
+        final messages = <String>[];
+
+        final task = buildTask().copyWith(
+          status: TaskStatus.awaitingReview,
+          claudeSessionId: 'sess-1',
+          finishedAt: DateTime.utc(2026, 1, 2),
+        );
+
+        final dispatcher = TaskDispatcher(
+          worktreeManager: WorktreeManager(
+            workspaceRoot: '${tempDir.path}/workspace',
+          ),
+          executorFactory: ClaudeCodeExecutor.new,
+          oauthToken: null,
+          getCloneUrl: (projectId) async =>
+              throw StateError('should not be called'),
+          fetchAgent: (agentId) async =>
+              throw StateError('should not be called'),
+          updateTask: (task) async => taskUpdates.add(task),
+          updateAgent: (agent) async {},
+          appendLog: (taskId, content) async {},
+          fetchLatestFeedback: (_) async => TaskFeedback(
+            taskId: 1,
+            message: 'stale, already consumed',
+            phase: TaskFeedbackPhase.review,
+            createdAt: DateTime.utc(2026, 1, 1),
+          ),
+          openPullRequest:
+              ({
+                required cloneUrl,
+                required branchName,
+                required title,
+                body,
+              }) async => throw StateError('should not be called'),
+          watchTask: (_) => const Stream<Task>.empty(),
+          log: messages.add,
+        );
+
+        await dispatcher.handle(task);
+
+        expect(taskUpdates, isEmpty);
+        expect(messages, contains(contains('no new review feedback pending')));
+      },
+    );
   });
 }
 

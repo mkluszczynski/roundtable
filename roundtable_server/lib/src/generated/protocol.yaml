@@ -36,6 +36,8 @@ task:
   - update:
   - appendLog:
   - cancelTask:
+  - submitFeedback:
+  - latestFeedback:
   - watchAssignedTasks:
   - watchLogs:
   - watchTask:

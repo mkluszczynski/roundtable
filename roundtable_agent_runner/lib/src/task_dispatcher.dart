@@ -23,6 +23,7 @@ class TaskDispatcher {
     required this.updateTask,
     required this.updateAgent,
     required this.appendLog,
+    required this.fetchLatestFeedback,
     required this.openPullRequest,
     required this.watchTask,
     required this.log,
@@ -36,6 +37,12 @@ class TaskDispatcher {
   final Future<void> Function(Task task) updateTask;
   final Future<void> Function(Agent agent) updateAgent;
   final Future<void> Function(int taskId, String content) appendLog;
+
+  /// Fetches the most recently submitted [TaskFeedback] for a task, used to
+  /// resume an `awaitingReview` task after [TaskEndpoint.submitFeedback]
+  /// wakes the daemon (design doc §6.1 step 9). Bound to
+  /// `client.task.latestFeedback` in production.
+  final Future<TaskFeedback?> Function(int taskId) fetchLatestFeedback;
 
   /// Streams a task's status (design doc §6.1 "Cancelling mid-run") —
   /// subscribed to for the task currently being executed, to detect a
@@ -55,18 +62,27 @@ class TaskDispatcher {
 
   final void Function(String message) log;
 
-  /// Handles one assigned [task]. Planning-phase tasks (`skipPlanning ==
-  /// false`) and tasks not in their initial `queued` state (e.g. replayed on
-  /// reconnect while already running) are deliberately left untouched —
-  /// planning-phase execution isn't implemented yet (design doc §6.4).
+  /// Handles one assigned [task]: either a fresh `queued` task (planning-
+  /// phase tasks are deliberately left untouched — planning-phase execution
+  /// isn't implemented yet, design doc §6.4), or an `awaitingReview` task
+  /// woken by [TaskEndpoint.submitFeedback] (design doc §6.1 step 9) — in
+  /// which case it's resumed via `--resume` with the feedback message as the
+  /// new prompt. Any other case (e.g. replayed on reconnect while already
+  /// running, or `awaitingReview` with no new feedback pending) is left
+  /// untouched.
   Future<void> handle(Task task) async {
-    if (!task.skipPlanning) {
-      log('task ${task.id}: planning phase not implemented yet, skipping');
-      return;
-    }
-    if (task.status != TaskStatus.queued) {
-      log('task ${task.id}: not queued (status=${task.status}), skipping');
-      return;
+    final isResume = task.status == TaskStatus.awaitingReview;
+    String? resumePrompt;
+
+    if (!isResume) {
+      if (!task.skipPlanning) {
+        log('task ${task.id}: planning phase not implemented yet, skipping');
+        return;
+      }
+      if (task.status != TaskStatus.queued) {
+        log('task ${task.id}: not queued (status=${task.status}), skipping');
+        return;
+      }
     }
 
     final projectId = task.projectId;
@@ -74,6 +90,31 @@ class TaskDispatcher {
     if (agentId == null) {
       log('task ${task.id}: missing agentId, skipping');
       return;
+    }
+
+    if (isResume) {
+      final sessionId = task.claudeSessionId;
+      if (sessionId == null) {
+        log('task ${task.id}: awaitingReview but no claudeSessionId, skipping');
+        return;
+      }
+      final feedback = await fetchLatestFeedback(task.id!);
+      final finishedAt = task.finishedAt;
+      final isFresh =
+          feedback != null &&
+          feedback.phase == TaskFeedbackPhase.review &&
+          (finishedAt == null || feedback.createdAt.isAfter(finishedAt));
+      if (!isFresh) {
+        // Either no feedback was ever submitted (the task is just sitting in
+        // awaitingReview for human review), or this is a stale replay of
+        // already-consumed feedback (e.g. daemon restart while the task sits
+        // in awaitingReview again after a resumed run finished) — comparing
+        // against `finishedAt` (bumped every time a run completes) is what
+        // tells the two apart without adding a schema field.
+        log('task ${task.id}: no new review feedback pending, skipping');
+        return;
+      }
+      resumePrompt = feedback.message;
     }
 
     Agent? agent;
@@ -95,13 +136,13 @@ class TaskDispatcher {
       await updateTask(
         task.copyWith(
           status: TaskStatus.running,
-          startedAt: DateTime.now().toUtc(),
+          startedAt: task.startedAt ?? DateTime.now().toUtc(),
         ),
       );
 
       final resumeSessionId = task.claudeSessionId;
-      final prompt = resumeSessionId != null
-          ? ''
+      final prompt = isResume
+          ? resumePrompt!
           : '${buildRolePrompt(agent.role, agent.name)} ${task.prompt}';
 
       // Subscribed for as long as this task is running, to detect a
@@ -158,14 +199,19 @@ class TaskDispatcher {
         );
         if (committed) {
           branchName = branch;
-          prUrl = await openPullRequest(
-            cloneUrl: cloneUrl,
-            branchName: branch,
-            title: 'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
-            body:
-                'Opened by ${agent.name} (Roundtable agent).\n\n'
-                '${task.prompt}',
-          );
+          if (task.prUrl == null) {
+            prUrl = await openPullRequest(
+              cloneUrl: cloneUrl,
+              branchName: branch,
+              title:
+                  'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
+              body:
+                  'Opened by ${agent.name} (Roundtable agent).\n\n'
+                  '${task.prompt}',
+            );
+          } else {
+            log('task ${task.id}: pushed additional commits to existing PR');
+          }
         } else {
           log('task ${task.id}: no changes to commit, skipping PR');
         }

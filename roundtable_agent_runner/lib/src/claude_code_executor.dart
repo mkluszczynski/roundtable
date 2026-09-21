@@ -36,9 +36,10 @@ class ClaudeCodeExecutor {
   /// Overridable in tests to point at a fake script instead of the real CLI.
   final String executable;
 
-  /// Runs one execution-phase invocation. [prompt] is ignored (an empty
-  /// string is passed to `-p`) when [resumeSessionId] is set, matching the
-  /// design doc's `<prompt, or empty if --resume>`.
+  /// Runs one execution-phase invocation. [prompt] is always passed to `-p`
+  /// as given — the caller decides what it should be (empty for a
+  /// no-message resume, matching the design doc's `<prompt, or empty if
+  /// --resume>`; the feedback text for a review-phase resume).
   ///
   /// [onLine] is called once per non-blank line of stdout, with the raw
   /// NDJSON text exactly as emitted — that's what the caller persists via
@@ -60,7 +61,7 @@ class ClaudeCodeExecutor {
   }) async {
     final args = [
       '-p',
-      resumeSessionId != null ? '' : prompt,
+      prompt,
       '--output-format',
       'stream-json',
       '--verbose',

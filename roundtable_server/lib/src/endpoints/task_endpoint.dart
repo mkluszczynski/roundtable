@@ -106,6 +106,67 @@ class TaskEndpoint extends Endpoint {
     return task;
   }
 
+  /// Records feedback on a completed run (design doc §6.1 step 9, §6.4) and
+  /// wakes the daemon via the same channel [createTask] uses — the daemon
+  /// picks it up through its existing [watchAssignedTasks] subscription and
+  /// resumes the same Claude Code session (`TaskDispatcher.handle`).
+  Future<TaskFeedback> submitFeedback(
+    Session session,
+    int taskId,
+    String message,
+  ) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (task.status != TaskStatus.awaitingReview) {
+      throw Exception('Task $taskId is not awaiting review (${task.status})');
+    }
+    var agentId = task.agentId;
+    if (agentId == null) {
+      throw Exception('Task $taskId has no assigned agent');
+    }
+    var agent = await Agent.db.findById(session, agentId);
+    if (agent == null) {
+      throw Exception('Agent $agentId not found');
+    }
+
+    var feedback = await TaskFeedback.db.insertRow(
+      session,
+      TaskFeedback(
+        taskId: taskId,
+        message: message,
+        phase: TaskFeedbackPhase.review,
+      ),
+    );
+
+    // Status is deliberately left as `awaitingReview` here — the dispatcher
+    // itself flips it to `running` once it actually picks the resume up,
+    // mirroring how it already does that transition for a fresh `queued`
+    // task.
+    await session.messages.postMessage(
+      _channelForMachine(agent.machineId),
+      task,
+    );
+
+    return feedback;
+  }
+
+  /// Returns the most recently submitted [TaskFeedback] for [taskId], or
+  /// `null` if none exists. Used by the daemon to fetch the message text of
+  /// a review-phase feedback that woke it via [submitFeedback], and to tell
+  /// a stale replay (e.g. after a daemon restart) apart from a real pending
+  /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  Future<TaskFeedback?> latestFeedback(Session session, int taskId) async {
+    var results = await TaskFeedback.db.find(
+      session,
+      where: (t) => t.taskId.equals(taskId),
+      orderBy: (t) => t.createdAt.desc(),
+      limit: 1,
+    );
+    return results.isEmpty ? null : results.first;
+  }
+
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
     var agentIds = (await Agent.db.find(
       session,

@@ -784,6 +784,50 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'submitFeedback': _is.MethodConnector(
+          name: 'submitFeedback',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'message': _is.ParameterDescription(
+              name: 'message',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).submitFeedback(
+                    session,
+                    params['taskId'],
+                    params['message'],
+                  ),
+        ),
+        'latestFeedback': _is.MethodConnector(
+          name: 'latestFeedback',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).latestFeedback(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'watchAssignedTasks': _is.MethodStreamConnector(
           name: 'watchAssignedTasks',
           params: {

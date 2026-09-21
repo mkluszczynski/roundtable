@@ -232,6 +232,137 @@ void main() {
     );
 
     test(
+      'when submitting feedback on an awaitingReview task then it is persisted as review-phase feedback',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.awaitingReview,
+            claudeSessionId: 'sess-1',
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final feedback = await endpoints.task.submitFeedback(
+          sessionBuilder,
+          task.id!,
+          'Please also update the README',
+        );
+
+        expect(feedback.id, isNotNull);
+        expect(feedback.taskId, task.id);
+        expect(feedback.message, 'Please also update the README');
+        expect(feedback.phase, TaskFeedbackPhase.review);
+      },
+    );
+
+    test(
+      'when submitting feedback on a task that is not awaiting review then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        await expectLater(
+          endpoints.task.submitFeedback(sessionBuilder, task.id!, 'Feedback'),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when submitting feedback on an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.submitFeedback(sessionBuilder, 999999, 'Feedback'),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when fetching the latest feedback then the most recently submitted one is returned',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.awaitingReview,
+            claudeSessionId: 'sess-1',
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+        await endpoints.task.submitFeedback(
+          sessionBuilder,
+          task.id!,
+          'First round of feedback',
+        );
+        final latest = await endpoints.task.submitFeedback(
+          sessionBuilder,
+          task.id!,
+          'Second round of feedback',
+        );
+
+        final fetched = await endpoints.task.latestFeedback(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(fetched?.id, latest.id);
+        expect(fetched?.message, 'Second round of feedback');
+      },
+    );
+
+    test(
+      'when fetching the latest feedback for a task with none then it returns null',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final fetched = await endpoints.task.latestFeedback(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(fetched, isNull);
+      },
+    );
+
+    test(
       'when watching assigned tasks then an already-queued task for that machine is replayed',
       () async {
         final machine = await createMachine();
@@ -397,6 +528,48 @@ void main() {
               .then((t) => t.id),
           completion(task.id),
         );
+      },
+    );
+
+    test(
+      'when feedback is submitted on the watched machine\'s task then it is re-emitted on watchAssignedTasks',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.awaitingReview,
+            claudeSessionId: 'sess-1',
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final stream = endpoints.task.watchAssignedTasks(
+          sessionBuilder,
+          machine.id!,
+        );
+        final events = <Task>[];
+        final subscription = stream.listen(events.add);
+        await flushEventQueue();
+
+        await endpoints.task.submitFeedback(
+          sessionBuilder,
+          task.id!,
+          'Please also update the README',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await subscription.cancel();
+
+        expect(events.map((t) => t.id), contains(task.id));
       },
     );
 
