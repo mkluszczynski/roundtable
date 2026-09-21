@@ -41,6 +41,7 @@ task:
   - createQuestion:
   - answerQuestion:
   - watchAnswer:
+  - latestQuestion:
   - setPlanReady:
   - approvePlan:
   - submitPlanFeedback:

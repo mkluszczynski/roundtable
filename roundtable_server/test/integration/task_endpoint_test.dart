@@ -408,6 +408,65 @@ void main() {
     );
 
     test(
+      'when fetching the latest question then the most recently asked one is returned',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'First question?',
+          ['A', 'B'],
+        );
+        final latest = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Second question?',
+          ['C', 'D'],
+        );
+
+        final fetched = await endpoints.task.latestQuestion(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(fetched?.id, latest.id);
+        expect(fetched?.question, 'Second question?');
+      },
+    );
+
+    test(
+      'when fetching the latest question for a task with none then it returns null',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+
+        final fetched = await endpoints.task.latestQuestion(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(fetched, isNull);
+      },
+    );
+
+    test(
       'when answering a question then the answer and answeredAt are persisted',
       () async {
         final machine = await createMachine();

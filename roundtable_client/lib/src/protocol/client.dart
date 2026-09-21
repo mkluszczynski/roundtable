@@ -614,6 +614,18 @@ class EndpointTask extends _isc.EndpointRef {
         {},
       );
 
+  /// Returns the most recently asked [TaskQuestion] for [taskId], or `null`
+  /// if none exists — mirrors [latestFeedback]. The panel checks
+  /// `Task.status == waitingForAnswer` to decide whether this is still
+  /// pending, since this method doesn't distinguish an answered question
+  /// from an unanswered one.
+  _ida.Future<_ihmnezqk.TaskQuestion?> latestQuestion(int taskId) =>
+      caller.callServerEndpoint<_ihmnezqk.TaskQuestion?>(
+        'task',
+        'latestQuestion',
+        {'taskId': taskId},
+      );
+
   /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
   /// `Task.status = planReady`, so the dev can approve it or give feedback.
   _ida.Future<_iw53rmon.Task> setPlanReady(

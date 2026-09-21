@@ -241,6 +241,21 @@ class TaskEndpoint extends Endpoint {
     }
   }
 
+  /// Returns the most recently asked [TaskQuestion] for [taskId], or `null`
+  /// if none exists — mirrors [latestFeedback]. The panel checks
+  /// `Task.status == waitingForAnswer` to decide whether this is still
+  /// pending, since this method doesn't distinguish an answered question
+  /// from an unanswered one.
+  Future<TaskQuestion?> latestQuestion(Session session, int taskId) async {
+    var results = await TaskQuestion.db.find(
+      session,
+      where: (t) => t.taskId.equals(taskId),
+      orderBy: (t) => t.createdAt.desc(),
+      limit: 1,
+    );
+    return results.isEmpty ? null : results.first;
+  }
+
   /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
   /// `Task.status = planReady`, so the dev can approve it or give feedback.
   Future<Task> setPlanReady(Session session, int taskId, String plan) async {

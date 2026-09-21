@@ -884,6 +884,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['answer'],
                   ),
         ),
+        'latestQuestion': _is.MethodConnector(
+          name: 'latestQuestion',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).latestQuestion(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'setPlanReady': _is.MethodConnector(
           name: 'setPlanReady',
           params: {

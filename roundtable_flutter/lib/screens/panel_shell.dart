@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'agents_screen.dart';
 import 'machines_screen.dart';
 import 'projects_screen.dart';
+import 'task_detail_screen.dart';
 import 'task_diff_screen.dart';
 
 class PanelShell extends StatefulWidget {
@@ -19,10 +20,17 @@ class _PanelShellState extends State<PanelShell> {
     ProjectsScreen(),
     MachinesScreen(),
     AgentsScreen(),
+    TaskDetailScreen(),
     TaskDiffScreen(),
   ];
 
-  static const _titles = ['Projects', 'Machines', 'Agents', 'Task Diff'];
+  static const _titles = [
+    'Projects',
+    'Machines',
+    'Agents',
+    'Task Detail',
+    'Task Diff',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +59,11 @@ class _PanelShellState extends State<PanelShell> {
                 icon: Icon(Icons.smart_toy_outlined),
                 selectedIcon: Icon(Icons.smart_toy),
                 label: Text('Agents'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.help_outline),
+                selectedIcon: Icon(Icons.help),
+                label: Text('Task Detail'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.difference_outlined),
