@@ -61,14 +61,20 @@ class TaskEndpoint extends Endpoint {
   /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
   /// daemon to move a task through its lifecycle (design doc §6.1) —
   /// e.g. `running` → `awaitingReview`/`failed` — and to persist
-  /// `claudeSessionId` once Claude Code reports one.
+  /// `claudeSessionId` once Claude Code reports one. Bumps
+  /// `lastProgressAt`, since this is the daemon's primary path for
+  /// reporting task activity — see [StalledTaskFutureCall].
   Future<Task> update(Session session, Task task) async {
-    return Task.db.updateRow(session, task);
+    return Task.db.updateRow(
+      session,
+      task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+    );
   }
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
-  /// task.
+  /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
+  /// activity — see [StalledTaskFutureCall].
   Future<TaskLogEntry> appendLog(
     Session session,
     int taskId,
@@ -78,6 +84,12 @@ class TaskEndpoint extends Endpoint {
     var entry = await TaskLogEntry.db.insertRow(
       session,
       TaskLogEntry(taskId: taskId, content: content, source: source),
+    );
+
+    var task = await _requireTask(session, taskId);
+    await Task.db.updateRow(
+      session,
+      task.copyWith(lastProgressAt: DateTime.now().toUtc()),
     );
 
     await session.messages.postMessage(_channelForTaskLogs(taskId), entry);
@@ -106,6 +118,7 @@ class TaskEndpoint extends Endpoint {
       task.copyWith(
         status: TaskStatus.cancelled,
         finishedAt: DateTime.now().toUtc(),
+        lastProgressAt: DateTime.now().toUtc(),
       ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
@@ -191,7 +204,10 @@ class TaskEndpoint extends Endpoint {
     );
     task = await Task.db.updateRow(
       session,
-      task.copyWith(status: TaskStatus.waitingForAnswer),
+      task.copyWith(
+        status: TaskStatus.waitingForAnswer,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
     return created;
@@ -262,7 +278,11 @@ class TaskEndpoint extends Endpoint {
     var task = await _requireTask(session, taskId);
     task = await Task.db.updateRow(
       session,
-      task.copyWith(status: TaskStatus.planReady, currentPlan: plan),
+      task.copyWith(
+        status: TaskStatus.planReady,
+        currentPlan: plan,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
     return task;
@@ -279,7 +299,10 @@ class TaskEndpoint extends Endpoint {
 
     task = await Task.db.updateRow(
       session,
-      task.copyWith(status: TaskStatus.running),
+      task.copyWith(
+        status: TaskStatus.running,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
     return task;
@@ -309,7 +332,10 @@ class TaskEndpoint extends Endpoint {
     );
     task = await Task.db.updateRow(
       session,
-      task.copyWith(status: TaskStatus.planning),
+      task.copyWith(
+        status: TaskStatus.planning,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
     return feedback;

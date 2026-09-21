@@ -39,12 +39,14 @@ abstract class Task
     DateTime? createdAt,
     this.startedAt,
     this.finishedAt,
+    DateTime? lastProgressAt,
     this.logs,
     this.feedback,
     this.questions,
   }) : skipPlanning = skipPlanning ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
-       createdAt = createdAt ?? DateTime.now();
+       createdAt = createdAt ?? DateTime.now(),
+       lastProgressAt = lastProgressAt ?? DateTime.now();
 
   factory Task({
     int? id,
@@ -63,6 +65,7 @@ abstract class Task
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
+    DateTime? lastProgressAt,
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
@@ -107,6 +110,11 @@ abstract class Task
           ? null
           : _isc.DateTimeJsonExtension.fromJson(
               jsonSerialization['finishedAt'],
+            ),
+      lastProgressAt: jsonSerialization['lastProgressAt'] == null
+          ? null
+          : _isc.DateTimeJsonExtension.fromJson(
+              jsonSerialization['lastProgressAt'],
             ),
       logs: jsonSerialization['logs'] == null
           ? null
@@ -169,6 +177,10 @@ abstract class Task
 
   DateTime? finishedAt;
 
+  /// Bumped on every sign of activity (a log line, a status transition).
+  /// Used by StalledTaskFutureCall to detect a task that's stopped making progress.
+  DateTime lastProgressAt;
+
   List<_ihv3trno.TaskLogEntry>? logs;
 
   List<_i5hi2zxr.TaskFeedback>? feedback;
@@ -195,6 +207,7 @@ abstract class Task
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
+    DateTime? lastProgressAt,
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
@@ -219,6 +232,7 @@ abstract class Task
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
+      'lastProgressAt': lastProgressAt.toJson(),
       if (logs != null) 'logs': logs?.toJson(valueToJson: (v) => v.toJson()),
       if (feedback != null)
         'feedback': feedback?.toJson(valueToJson: (v) => v.toJson()),
@@ -247,6 +261,7 @@ abstract class Task
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
+      'lastProgressAt': lastProgressAt.toJson(),
       if (logs != null)
         'logs': logs?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
       if (feedback != null)
@@ -284,6 +299,7 @@ class _TaskImpl extends Task {
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
+    DateTime? lastProgressAt,
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
@@ -304,6 +320,7 @@ class _TaskImpl extends Task {
          createdAt: createdAt,
          startedAt: startedAt,
          finishedAt: finishedAt,
+         lastProgressAt: lastProgressAt,
          logs: logs,
          feedback: feedback,
          questions: questions,
@@ -330,6 +347,7 @@ class _TaskImpl extends Task {
     DateTime? createdAt,
     Object? startedAt = _Undefined,
     Object? finishedAt = _Undefined,
+    DateTime? lastProgressAt,
     Object? logs = _Undefined,
     Object? feedback = _Undefined,
     Object? questions = _Undefined,
@@ -357,6 +375,7 @@ class _TaskImpl extends Task {
       createdAt: createdAt ?? this.createdAt,
       startedAt: startedAt is DateTime? ? startedAt : this.startedAt,
       finishedAt: finishedAt is DateTime? ? finishedAt : this.finishedAt,
+      lastProgressAt: lastProgressAt ?? this.lastProgressAt,
       logs: logs is List<_ihv3trno.TaskLogEntry>?
           ? logs
           : this.logs?.map((e0) => e0.copyWith()).toList(),

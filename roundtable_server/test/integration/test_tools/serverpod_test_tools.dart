@@ -221,6 +221,8 @@ class _InternalTestEndpoints extends TestEndpoints
 
 class _FutureCalls {
   late final machineOffline = _MachineOfflineFutureCall();
+
+  late final stalledTask = _StalledTaskFutureCall();
 }
 
 class _EmailIdpEndpoint {
@@ -1873,6 +1875,21 @@ class _MachineOfflineFutureCall {
         (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild();
     try {
       await _iewj8v67.MachineOfflineCheckFutureCall().invoke(
+        _localUniqueSession,
+        null,
+      );
+    } finally {
+      await _localUniqueSession.close();
+    }
+  }
+}
+
+class _StalledTaskFutureCall {
+  Future<void> check(_ist.TestSessionBuilder sessionBuilder) async {
+    var _localUniqueSession =
+        (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild();
+    try {
+      await _iewj8v67.StalledTaskCheckFutureCall().invoke(
         _localUniqueSession,
         null,
       );

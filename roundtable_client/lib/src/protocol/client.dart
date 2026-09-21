@@ -502,7 +502,9 @@ class EndpointTask extends _isc.EndpointRef {
   /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
   /// daemon to move a task through its lifecycle (design doc §6.1) —
   /// e.g. `running` → `awaitingReview`/`failed` — and to persist
-  /// `claudeSessionId` once Claude Code reports one.
+  /// `claudeSessionId` once Claude Code reports one. Bumps
+  /// `lastProgressAt`, since this is the daemon's primary path for
+  /// reporting task activity — see [StalledTaskFutureCall].
   _ida.Future<_iw53rmon.Task> update(_iw53rmon.Task task) =>
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
@@ -512,7 +514,8 @@ class EndpointTask extends _isc.EndpointRef {
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
-  /// task.
+  /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
+  /// activity — see [StalledTaskFutureCall].
   _ida.Future<_inlvye37.TaskLogEntry> appendLog(
     int taskId,
     String content, {
