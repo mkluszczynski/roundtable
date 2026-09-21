@@ -1,0 +1,7 @@
+### Returned once from Machine registration: the persisted Machine plus the raw
+### registration token, shown to the dev exactly this one time (design doc §6.8).
+### Not a database table — a transient wrapper for the endpoint response.
+class: MachineRegistration
+fields:
+  machine: Machine
+  token: String

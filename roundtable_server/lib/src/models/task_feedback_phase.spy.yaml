@@ -1,0 +1,7 @@
+### Which point in the task lifecycle a piece of feedback was given at.
+enum: TaskFeedbackPhase
+values:
+  ### feedback on the plan, during planReady
+  - plan
+  ### feedback after the PR, during awaitingReview
+  - review

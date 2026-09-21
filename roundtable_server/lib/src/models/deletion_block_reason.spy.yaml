@@ -1,0 +1,4 @@
+enum: DeletionBlockReason
+values:
+  - machineOnline
+  - nonTerminalTasks

@@ -1,0 +1,8 @@
+### A single line of output from a task's execution, streamed live to the panel.
+class: TaskLogEntry
+table: task_log_entry
+fields:
+  task: Task?, relation(name=task_logs)
+  content: String
+  source: LogSource, default=agent
+  createdAt: DateTime, default=now

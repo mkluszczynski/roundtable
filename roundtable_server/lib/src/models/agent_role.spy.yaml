@@ -1,0 +1,8 @@
+### An agent's specialty, used as a static prompt prefix. Context, not a permission restriction.
+enum: AgentRole
+values:
+  - frontend
+  - backend
+  - devops
+  - fullstack
+  - generalist

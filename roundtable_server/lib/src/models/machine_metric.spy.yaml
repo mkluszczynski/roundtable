@@ -1,0 +1,13 @@
+### A single CPU/RAM reading reported by a machine's daemon. Grows over time — needs periodic
+### cleanup of old entries.
+class: MachineMetric
+table: machine_metric
+fields:
+  machine: Machine?, relation(name=machine_metrics)
+  cpuPercent: double
+  memoryUsedMb: int
+  memoryTotalMb: int
+  recordedAt: DateTime, default=now
+indexes:
+  machine_metric_recorded_idx:
+    fields: machineId, recordedAt

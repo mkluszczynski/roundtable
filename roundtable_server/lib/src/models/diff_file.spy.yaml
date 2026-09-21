@@ -1,0 +1,16 @@
+### One changed file from a task's PR (design doc §6.7). Not a database table
+### — fetched on demand from the GitHub API and never persisted.
+class: DiffFile
+fields:
+  filename: String
+  ### GitHub's own status vocabulary (added/modified/removed/renamed/...) —
+  ### kept as String rather than an enum, same reasoning as Agent.defaultModel:
+  ### it's GitHub's vocabulary to extend, not ours to migrate a schema for.
+  status: String
+  additions: int
+  deletions: int
+  ### Absent for binary files.
+  patch: String?
+  ### Passed back into TaskEndpoint.getFileContent to fetch this file's full
+  ### content at this ref.
+  contentsUrl: String

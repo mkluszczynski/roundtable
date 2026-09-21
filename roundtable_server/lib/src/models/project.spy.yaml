@@ -1,0 +1,14 @@
+### A git repository that agents run tasks against.
+class: Project
+table: project
+fields:
+  ### The project's display name.
+  name: String
+  ### The URL of the git repository.
+  repoUrl: String
+  ### Fine-grained GitHub PAT, scoped to a single repo. Never reaches the panel.
+  repoAccessToken: String?, scope=serverOnly
+  ### Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
+  dockerImage: String?
+  createdAt: DateTime, default=now
+  tasks: List<Task>?, relation(name=project_tasks)

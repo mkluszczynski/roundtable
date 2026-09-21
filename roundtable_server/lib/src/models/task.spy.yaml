@@ -1,0 +1,31 @@
+### A single unit of work assigned to an agent on a project's repository.
+class: Task
+table: task
+fields:
+  project: Project?, relation(name=project_tasks)
+  ### Optional — this opens the door to task queueing without a schema change.
+  ### onDelete=SetNull: deleting an agent (once its non-terminal tasks are
+  ### gone) keeps its terminal/historical tasks around, just unassigned.
+  agent: Agent?, relation(name=agent_tasks, optional, onDelete=SetNull)
+  ### The task prompt given by the dev.
+  prompt: String
+  ### Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
+  skipPlanning: bool, default=false
+  status: TaskStatus, default=queued
+  ### Content of the latest ExitPlanMode plan, when status=planReady.
+  currentPlan: String?
+  ### Short error summary, no log-scrolling needed.
+  failureReason: String?
+  ### Claude Code session id, for --resume on feedback.
+  claudeSessionId: String?
+  branchName: String?
+  prUrl: String?
+  createdAt: DateTime, default=now
+  startedAt: DateTime?
+  finishedAt: DateTime?
+  ### Bumped on every sign of activity (a log line, a status transition).
+  ### Used by StalledTaskFutureCall to detect a task that's stopped making progress.
+  lastProgressAt: DateTime, default=now
+  logs: List<TaskLogEntry>?, relation(name=task_logs)
+  feedback: List<TaskFeedback>?, relation(name=task_feedback)
+  questions: List<TaskQuestion>?, relation(name=task_questions)

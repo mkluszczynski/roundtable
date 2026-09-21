@@ -1,0 +1,6 @@
+### Thrown when a machine's registration token doesn't match any known,
+### currently-valid Machine — unknown, wrong, or already revoked via
+### MachineEndpoint.deregister (design doc §6.8).
+exception: InvalidTokenException
+fields:
+  message: String

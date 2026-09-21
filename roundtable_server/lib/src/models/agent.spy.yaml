@@ -1,0 +1,18 @@
+### A named persona hosted on a machine, with a role and its own status.
+class: Agent
+table: agent
+fields:
+  machine: Machine?, relation(name=machine_agents)
+  ### The agent's display name.
+  name: String
+  role: AgentRole, default=generalist
+  ### e.g. "claude-opus-4-7" — deliberately String, not an enum: model names change more often than
+  ### it's worth migrating the schema for.
+  defaultModel: String?
+  defaultEffort: AgentEffort?
+  ### docker: implementation deferred.
+  executionMode: AgentExecutionMode, default=native
+  ### "offline" deliberately doesn't exist here — that follows from Machine.status.
+  status: AgentStatus, default=idle
+  createdAt: DateTime, default=now
+  tasks: List<Task>?, relation(name=agent_tasks)

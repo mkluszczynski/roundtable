@@ -9,5 +9,49 @@ emailIdp:
   - hasAccount:
 jwtRefresh:
   - refreshAccessToken:
+agent:
+  - create:
+  - get:
+  - list:
+  - update:
+  - delete:
+machine:
+  - register:
+  - get:
+  - list:
+  - update:
+  - heartbeat:
+  - deregister:
+  - identify:
+  - reportMetric:
+  - watchLatestMetric:
+  - delete:
+project:
+  - create:
+  - get:
+  - list:
+  - update:
+  - delete:
+  - getCloneUrl:
+task:
+  - createTask:
+  - update:
+  - appendLog:
+  - cancelTask:
+  - submitFeedback:
+  - latestFeedback:
+  - createQuestion:
+  - answerQuestion:
+  - watchAnswer:
+  - latestQuestion:
+  - setPlanReady:
+  - approvePlan:
+  - submitPlanFeedback:
+  - watchPlanDecision:
+  - getChangedFiles:
+  - getFileContent:
+  - watchAssignedTasks:
+  - watchLogs:
+  - watchTask:
 greeting:
   - hello:
