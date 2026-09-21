@@ -83,26 +83,44 @@ class PermissionPromptTool {
   Future<PermissionDecision> _decideAskUserQuestion(
     Map<String, dynamic> input,
   ) async {
-    // The real tool's input shape wasn't spiked live (to avoid extra billed
-    // API calls) — handle both a single question/options pair and a
+    // The real tool's input/output shape wasn't spiked live (to avoid extra
+    // billed API calls) — handle both a single question/options pair and a
     // questions-array shape defensively; only the first question is used,
-    // since `TaskQuestion` models one question at a time.
+    // since `TaskQuestion` models one question at a time. The resolved
+    // answer is folded back into `updatedInput` under the same shape it
+    // arrived in, since planning must see what the developer actually
+    // picked rather than the original, unanswered input (design doc §6.4).
     String question;
     List<String> options;
     final questions = input['questions'];
-    if (questions is List && questions.isNotEmpty) {
+    final usesQuestionsArray = questions is List && questions.isNotEmpty;
+    Map<String, dynamic>? firstQuestionMap;
+    if (usesQuestionsArray) {
       final first = questions.first;
-      final map = first is Map ? first : const {};
-      question = map['question']?.toString() ?? '';
-      options = _asStringOptions(map['options']);
+      firstQuestionMap = first is Map
+          ? first.cast<String, dynamic>()
+          : const {};
+      question = firstQuestionMap['question']?.toString() ?? '';
+      options = _asStringOptions(firstQuestionMap['options']);
     } else {
       question = input['question']?.toString() ?? '';
       options = _asStringOptions(input['options']);
     }
 
     final created = await createQuestion(taskId, question, options);
-    await watchAnswer(created.id!).first;
-    return PermissionDecision.allow(updatedInput: input);
+    final answered = await watchAnswer(created.id!).first;
+    final answer = answered.answer ?? '';
+
+    final updatedInput = Map<String, dynamic>.from(input);
+    if (usesQuestionsArray) {
+      final updatedQuestions = List<dynamic>.from(questions);
+      updatedQuestions[0] = {...?firstQuestionMap, 'answer': answer};
+      updatedInput['questions'] = updatedQuestions;
+    } else {
+      updatedInput['answer'] = answer;
+    }
+
+    return PermissionDecision.allow(updatedInput: updatedInput);
   }
 
   List<String> _asStringOptions(Object? raw) {

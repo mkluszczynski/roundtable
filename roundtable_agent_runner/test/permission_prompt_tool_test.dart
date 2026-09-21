@@ -50,45 +50,52 @@ void main() {
         expect(decision.updatedInput, {
           'question': 'Which approach?',
           'options': ['A', 'B'],
+          'answer': 'A',
         });
       },
     );
 
-    test(
-      'AskUserQuestion extracts the first entry from a questions array',
-      () async {
-        String? seenQuestion;
-        List<String>? seenOptions;
-        final tool = PermissionPromptTool(
-          taskId: 1,
-          createQuestion: (taskId, question, options) async {
-            seenQuestion = question;
-            seenOptions = options;
-            return _question();
+    test('AskUserQuestion extracts the first entry from a questions array and '
+        'folds the answer back into it', () async {
+      String? seenQuestion;
+      List<String>? seenOptions;
+      final tool = PermissionPromptTool(
+        taskId: 1,
+        createQuestion: (taskId, question, options) async {
+          seenQuestion = question;
+          seenOptions = options;
+          return _question();
+        },
+        watchAnswer: (questionId) =>
+            Stream.value(_question(id: questionId, answer: 'A')),
+        setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
+        watchPlanDecision: (taskId) => const Stream.empty(),
+        latestFeedback: (taskId) async => null,
+      );
+
+      final decision = await tool.decide('AskUserQuestion', {
+        'questions': [
+          {
+            'question': 'Which approach?',
+            'options': [
+              {'label': 'A'},
+              {'label': 'B'},
+            ],
           },
-          watchAnswer: (questionId) =>
-              Stream.value(_question(id: questionId, answer: 'A')),
-          setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
-          watchPlanDecision: (taskId) => const Stream.empty(),
-          latestFeedback: (taskId) async => null,
-        );
+        ],
+      });
 
-        await tool.decide('AskUserQuestion', {
-          'questions': [
-            {
-              'question': 'Which approach?',
-              'options': [
-                {'label': 'A'},
-                {'label': 'B'},
-              ],
-            },
-          ],
-        });
-
-        expect(seenQuestion, 'Which approach?');
-        expect(seenOptions, ['A', 'B']);
-      },
-    );
+      expect(seenQuestion, 'Which approach?');
+      expect(seenOptions, ['A', 'B']);
+      expect(decision.allow, isTrue);
+      final updatedQuestion = decision.updatedInput!['questions'].single as Map;
+      expect(updatedQuestion['question'], 'Which approach?');
+      expect(updatedQuestion['options'], [
+        {'label': 'A'},
+        {'label': 'B'},
+      ]);
+      expect(updatedQuestion['answer'], 'A');
+    });
 
     test(
       'ExitPlanMode stores the plan, blocks on the decision, and allows when approved',
