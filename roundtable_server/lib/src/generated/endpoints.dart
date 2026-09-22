@@ -409,6 +409,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String>(),
               nullable: false,
             ),
+            'hostInfo': _is.ParameterDescription(
+              name: 'hostInfo',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -418,6 +423,7 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['machine'] as _ij6wllr0.MachineEndpoint).register(
                     session,
                     params['name'],
+                    hostInfo: params['hostInfo'],
                   ),
         ),
         'get': _is.MethodConnector(
@@ -692,6 +698,31 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['project'] as _iemg8ri2.ProjectEndpoint).update(
                     session,
                     params['project'],
+                  ),
+        ),
+        'updateRepoAccessToken': _is.MethodConnector(
+          name: 'updateRepoAccessToken',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .updateRepoAccessToken(
+                    session,
+                    params['projectId'],
+                    params['token'],
                   ),
         ),
         'delete': _is.MethodConnector(
@@ -1117,6 +1148,20 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['taskId'],
                   ),
+        ),
+        'watchAllTasks': _is.MethodStreamConnector(
+          name: 'watchAllTasks',
+          params: {},
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchAllTasks(
+                session,
+              ),
         ),
         'watchAssignedTasks': _is.MethodStreamConnector(
           name: 'watchAssignedTasks',

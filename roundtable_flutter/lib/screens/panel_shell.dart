@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'agents_screen.dart';
+import '../theme/colors.dart';
+import '../widgets/nav_rail.dart';
+import 'dashboard_screen.dart';
 import 'machines_screen.dart';
 import 'projects_screen.dart';
-import 'task_detail_screen.dart';
-import 'task_diff_screen.dart';
 
+/// No top `AppBar` — each screen owns its own header content, per the
+/// design brief (the panel has no persistent app-wide top bar).
 class PanelShell extends StatefulWidget {
   const PanelShell({super.key});
 
@@ -17,67 +19,43 @@ class _PanelShellState extends State<PanelShell> {
   int _selectedIndex = 0;
 
   static const _screens = [
+    DashboardScreen(),
     ProjectsScreen(),
     MachinesScreen(),
-    AgentsScreen(),
-    TaskDetailScreen(),
-    TaskDiffScreen(),
   ];
 
-  static const _titles = [
-    'Projects',
-    'Machines',
-    'Agents',
-    'Task Detail',
-    'Task Diff',
+  static const _items = [
+    NavRailItem(
+      icon: Icons.space_dashboard_outlined,
+      selectedIcon: Icons.space_dashboard,
+      label: 'Dashboard',
+    ),
+    NavRailItem(
+      icon: Icons.folder_outlined,
+      selectedIcon: Icons.folder,
+      label: 'Projects',
+    ),
+    NavRailItem(
+      icon: Icons.computer_outlined,
+      selectedIcon: Icons.computer,
+      label: 'Machines',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_selectedIndex])),
+      backgroundColor: AppColors.bg0,
       body: Row(
         children: [
-          NavigationRail(
+          AppNavRail(
+            items: _items,
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() => _selectedIndex = index);
-            },
-            labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.folder_outlined),
-                selectedIcon: Icon(Icons.folder),
-                label: Text('Projects'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.computer_outlined),
-                selectedIcon: Icon(Icons.computer),
-                label: Text('Machines'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.smart_toy_outlined),
-                selectedIcon: Icon(Icons.smart_toy),
-                label: Text('Agents'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.help_outline),
-                selectedIcon: Icon(Icons.help),
-                label: Text('Task Detail'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.difference_outlined),
-                selectedIcon: Icon(Icons.difference),
-                label: Text('Task Diff'),
-              ),
-            ],
+            onSelected: (index) => setState(() => _selectedIndex = index),
           ),
-          const VerticalDivider(width: 1),
+          Container(width: 1, color: AppColors.border),
           Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: _screens,
-            ),
+            child: IndexedStack(index: _selectedIndex, children: _screens),
           ),
         ],
       ),

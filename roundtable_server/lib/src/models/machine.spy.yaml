@@ -5,6 +5,8 @@ table: machine
 fields:
   ### The machine's display name.
   name: String
+  ### Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  hostInfo: String?
   ### Hash of the machine's registration token. The raw token is shown to the dev only once.
   tokenHash: String?, scope=serverOnly
   status: MachineStatus, default=offline

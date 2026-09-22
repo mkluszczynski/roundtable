@@ -8,6 +8,8 @@ fields:
   repoUrl: String
   ### Fine-grained GitHub PAT, scoped to a single repo. Never reaches the panel.
   repoAccessToken: String?, scope=serverOnly
+  ### When the token was last set/updated — not sensitive, safe to show in the panel.
+  repoAccessTokenUpdatedAt: DateTime?
   ### Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   dockerImage: String?
   createdAt: DateTime, default=now

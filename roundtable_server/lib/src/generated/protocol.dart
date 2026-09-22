@@ -175,6 +175,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'String',
         ),
         _isp.ColumnDefinition(
+          name: 'hostInfo',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
           name: 'tokenHash',
           columnType: _isp.ColumnType.text,
           isNullable: true,
@@ -327,6 +333,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           columnType: _isp.ColumnType.text,
           isNullable: true,
           dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'repoAccessTokenUpdatedAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
         ),
         _isp.ColumnDefinition(
           name: 'dockerImage',

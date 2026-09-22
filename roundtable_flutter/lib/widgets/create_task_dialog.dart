@@ -9,9 +9,19 @@ import '../cubits/project_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../theme/colors.dart';
+import '../theme/spacing.dart';
+import '../theme/typography.dart';
+import 'app_modal.dart';
+import 'pill_selector.dart';
 
 class CreateTaskDialog extends StatelessWidget {
-  const CreateTaskDialog({super.key});
+  const CreateTaskDialog({super.key, this.initialProjectId});
+
+  /// When set (opened from `project_detail_screen.dart`'s "New task"), the
+  /// project is fixed and its `PillSelector` is hidden — same pattern as
+  /// `AddAgentDialog`'s scoped machine.
+  final int? initialProjectId;
 
   @override
   Widget build(BuildContext context) {
@@ -26,13 +36,15 @@ class CreateTaskDialog extends StatelessWidget {
         ),
         BlocProvider(create: (_) => CreateTaskCubit(TaskRepository(client))),
       ],
-      child: const _CreateTaskDialogContent(),
+      child: _CreateTaskDialogContent(initialProjectId: initialProjectId),
     );
   }
 }
 
 class _CreateTaskDialogContent extends StatefulWidget {
-  const _CreateTaskDialogContent();
+  const _CreateTaskDialogContent({this.initialProjectId});
+
+  final int? initialProjectId;
 
   @override
   State<_CreateTaskDialogContent> createState() =>
@@ -41,7 +53,7 @@ class _CreateTaskDialogContent extends StatefulWidget {
 
 class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   final _promptController = TextEditingController();
-  int? _projectId;
+  late int? _projectId = widget.initialProjectId;
   int? _agentId;
   bool _skipPlanning = false;
 
@@ -67,97 +79,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           );
         }
       },
-      child: AlertDialog(
-        title: const Text('New task'),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                BlocBuilder<ProjectListCubit, ProjectListState>(
-                  builder: (context, state) {
-                    final projects = switch (state) {
-                      ProjectListLoaded(:final projects) => projects,
-                      _ => <Project>[],
-                    };
-                    return DropdownButtonFormField<int>(
-                      initialValue: _projectId,
-                      decoration: const InputDecoration(labelText: 'Project'),
-                      items: [
-                        for (final project in projects)
-                          DropdownMenuItem(
-                            value: project.id,
-                            child: Text(project.name),
-                          ),
-                      ],
-                      onChanged: (value) => setState(() => _projectId = value),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                BlocBuilder<AgentListCubit, AgentListState>(
-                  builder: (context, state) {
-                    final agents = switch (state) {
-                      AgentListLoaded(:final agents) => agents,
-                      _ => <Agent>[],
-                    };
-                    return DropdownButtonFormField<int>(
-                      initialValue: _agentId,
-                      decoration: const InputDecoration(labelText: 'Agent'),
-                      items: [
-                        for (final agent in agents)
-                          DropdownMenuItem(
-                            value: agent.id,
-                            child: Text(agent.name),
-                          ),
-                      ],
-                      onChanged: (value) => setState(() => _agentId = value),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _promptController,
-                  decoration: const InputDecoration(
-                    labelText: 'Prompt',
-                    alignLabelWithHint: true,
-                  ),
-                  minLines: 3,
-                  maxLines: 6,
-                  onChanged: (_) => setState(() {}),
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _skipPlanning,
-                  title: const Text('Skip planning'),
-                  subtitle: const Text(
-                    'Go straight to execution — saves usage on trivial tasks',
-                  ),
-                  onChanged: (value) =>
-                      setState(() => _skipPlanning = value ?? false),
-                ),
-                BlocBuilder<CreateTaskCubit, CreateTaskState>(
-                  builder: (context, state) {
-                    if (state is CreateTaskError) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          state.message,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
+      child: AppModal(
+        title: 'New task',
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -186,6 +109,90 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
             },
           ),
         ],
+        child: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.initialProjectId == null) ...[
+                  Text('Project', style: AppTypography.label),
+                  const SizedBox(height: Spacing.sm),
+                  BlocBuilder<ProjectListCubit, ProjectListState>(
+                    builder: (context, state) {
+                      final projects = switch (state) {
+                        ProjectListLoaded(:final projects) => projects,
+                        _ => <Project>[],
+                      };
+                      return PillSelector<int>(
+                        options: [for (final p in projects) p.id!],
+                        labelBuilder: (id) =>
+                            projects.firstWhere((p) => p.id == id).name,
+                        selected: _projectId,
+                        onChanged: (id) => setState(() => _projectId = id),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                ],
+                Text('Agent', style: AppTypography.label),
+                const SizedBox(height: Spacing.sm),
+                BlocBuilder<AgentListCubit, AgentListState>(
+                  builder: (context, state) {
+                    final agents = switch (state) {
+                      AgentListLoaded(:final agents) => agents,
+                      _ => <Agent>[],
+                    };
+                    return PillSelector<int>(
+                      options: [for (final a in agents) a.id!],
+                      labelBuilder: (id) =>
+                          agents.firstWhere((a) => a.id == id).name,
+                      selected: _agentId,
+                      onChanged: (id) => setState(() => _agentId = id),
+                    );
+                  },
+                ),
+                const SizedBox(height: Spacing.lg),
+                TextField(
+                  controller: _promptController,
+                  decoration: const InputDecoration(
+                    labelText: 'Prompt',
+                    alignLabelWithHint: true,
+                  ),
+                  minLines: 3,
+                  maxLines: 6,
+                  onChanged: (_) => setState(() {}),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _skipPlanning,
+                  activeColor: AppColors.accent,
+                  title: const Text('Skip planning'),
+                  subtitle: const Text(
+                    'Go straight to execution — saves usage on trivial tasks',
+                  ),
+                  onChanged: (value) =>
+                      setState(() => _skipPlanning = value ?? false),
+                ),
+                BlocBuilder<CreateTaskCubit, CreateTaskState>(
+                  builder: (context, state) {
+                    if (state is CreateTaskError) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: Spacing.md),
+                        child: Text(
+                          state.message,
+                          style: const TextStyle(color: AppColors.red),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

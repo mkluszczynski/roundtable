@@ -327,12 +327,17 @@ class EndpointMachine extends _isc.EndpointRef {
   @override
   String get name => 'machine';
 
-  _ida.Future<_i80z6wcv.MachineRegistration> register(String name) =>
-      caller.callServerEndpoint<_i80z6wcv.MachineRegistration>(
-        'machine',
-        'register',
-        {'name': name},
-      );
+  _ida.Future<_i80z6wcv.MachineRegistration> register(
+    String name, {
+    String? hostInfo,
+  }) => caller.callServerEndpoint<_i80z6wcv.MachineRegistration>(
+    'machine',
+    'register',
+    {
+      'name': name,
+      'hostInfo': hostInfo,
+    },
+  );
 
   _ida.Future<_iwz93qz1.Machine?> get(int id) =>
       caller.callServerEndpoint<_iwz93qz1.Machine?>(
@@ -435,8 +440,8 @@ class EndpointMachine extends _isc.EndpointRef {
   );
 }
 
-/// Basic CRUD for [Project]. No deletion guards apply here — see
-/// [MachineEndpoint] and [AgentEndpoint] for the entities that have them.
+/// Basic CRUD for [Project]. Deletion is blocked while it has non-terminal
+/// tasks, mirroring [AgentEndpoint]/[MachineEndpoint]'s guard.
 /// {@category Endpoint}
 class EndpointProject extends _isc.EndpointRef {
   EndpointProject(_isc.EndpointCaller caller) : super(caller);
@@ -480,6 +485,21 @@ class EndpointProject extends _isc.EndpointRef {
         'update',
         {'project': project},
       );
+
+  /// Sets a new repo access token, keeping `scope=serverOnly` intact — the
+  /// token itself is never echoed back, only the (non-sensitive)
+  /// `repoAccessTokenUpdatedAt` timestamp is observable from the panel.
+  _ida.Future<void> updateRepoAccessToken(
+    int projectId,
+    String token,
+  ) => caller.callServerEndpoint<void>(
+    'project',
+    'updateRepoAccessToken',
+    {
+      'projectId': projectId,
+      'token': token,
+    },
+  );
 
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'project',
@@ -742,6 +762,20 @@ class EndpointTask extends _isc.EndpointRef {
       'contentsUrl': contentsUrl,
     },
   );
+
+  /// Streams every task, for the panel's dashboard kanban (design doc §4
+  /// "Should"), not the daemon, which uses [watchAssignedTasks] instead. On
+  /// subscribe, replays every task currently in the database, then yields
+  /// each task again whenever any of the status-changing methods above
+  /// (create/update/cancel/plan transitions) touches it — the panel merges
+  /// each update into its in-memory task list by id.
+  _ida.Stream<_iw53rmon.Task> watchAllTasks() => caller
+      .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
+        'task',
+        'watchAllTasks',
+        {},
+        {},
+      );
 
   _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
       .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(

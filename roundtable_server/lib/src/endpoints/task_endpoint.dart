@@ -12,6 +12,7 @@ class TaskEndpoint extends Endpoint {
       'task-question-$questionId';
   static String _channelForPlanDecision(int taskId) =>
       'task-$taskId-plan-decision';
+  static String _channelForAllTasks() => 'all-tasks';
 
   final _github = GitHubRepoClient();
 
@@ -47,6 +48,7 @@ class TaskEndpoint extends Endpoint {
       _channelForMachine(agent.machineId),
       task,
     );
+    await session.messages.postMessage(_channelForAllTasks(), task);
 
     return task;
   }
@@ -65,10 +67,12 @@ class TaskEndpoint extends Endpoint {
   /// `lastProgressAt`, since this is the daemon's primary path for
   /// reporting task activity — see [StalledTaskFutureCall].
   Future<Task> update(Session session, Task task) async {
-    return Task.db.updateRow(
+    var updated = await Task.db.updateRow(
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
     );
+    await session.messages.postMessage(_channelForAllTasks(), updated);
+    return updated;
   }
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
@@ -122,6 +126,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(_channelForAllTasks(), task);
 
     return task;
   }
@@ -210,6 +215,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(_channelForAllTasks(), task);
     return created;
   }
 
@@ -285,6 +291,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(_channelForAllTasks(), task);
     return task;
   }
 
@@ -305,6 +312,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(_channelForAllTasks(), task);
     return task;
   }
 
@@ -338,6 +346,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(_channelForAllTasks(), task);
     return feedback;
   }
 
@@ -412,6 +421,24 @@ class TaskEndpoint extends Endpoint {
     }
 
     return (prUrl: prUrl, token: token);
+  }
+
+  /// Streams every task, for the panel's dashboard kanban (design doc §4
+  /// "Should"), not the daemon, which uses [watchAssignedTasks] instead. On
+  /// subscribe, replays every task currently in the database, then yields
+  /// each task again whenever any of the status-changing methods above
+  /// (create/update/cancel/plan transitions) touches it — the panel merges
+  /// each update into its in-memory task list by id.
+  Stream<Task> watchAllTasks(Session session) async* {
+    var tasks = await Task.db.find(session, orderBy: (t) => t.createdAt);
+    for (var task in tasks) {
+      yield task;
+    }
+
+    var updates = session.messages.createStream<Task>(_channelForAllTasks());
+    await for (var task in updates) {
+      yield task;
+    }
   }
 
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {

@@ -26,11 +26,15 @@ class MachineEndpoint extends Endpoint {
   static String _channelForMachineMetrics(int machineId) =>
       'machine-$machineId-metrics';
 
-  Future<MachineRegistration> register(Session session, String name) async {
+  Future<MachineRegistration> register(
+    Session session,
+    String name, {
+    String? hostInfo,
+  }) async {
     final token = _generateRegistrationToken();
     final machine = await Machine.db.insertRow(
       session,
-      Machine(name: name, tokenHash: _hashToken(token)),
+      Machine(name: name, hostInfo: hostInfo, tokenHash: _hashToken(token)),
     );
     return MachineRegistration(machine: machine, token: token);
   }

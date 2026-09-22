@@ -23,6 +23,7 @@ abstract class Machine
   Machine._({
     this.id,
     required this.name,
+    this.hostInfo,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
     DateTime? createdAt,
@@ -34,6 +35,7 @@ abstract class Machine
   factory Machine({
     int? id,
     required String name,
+    String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     DateTime? createdAt,
@@ -45,6 +47,7 @@ abstract class Machine
     return Machine(
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
+      hostInfo: jsonSerialization['hostInfo'] as String?,
       status: jsonSerialization['status'] == null
           ? null
           : _i6yugb3s.MachineStatus.fromJson(
@@ -79,6 +82,9 @@ abstract class Machine
   /// The machine's display name.
   String name;
 
+  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  String? hostInfo;
+
   _i6yugb3s.MachineStatus status;
 
   /// Last time a heartbeat was received from this machine's daemon.
@@ -96,6 +102,7 @@ abstract class Machine
   Machine copyWith({
     int? id,
     String? name,
+    String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     DateTime? createdAt,
@@ -108,6 +115,7 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       'createdAt': createdAt.toJson(),
@@ -124,6 +132,7 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       'createdAt': createdAt.toJson(),
@@ -146,6 +155,7 @@ class _MachineImpl extends Machine {
   _MachineImpl({
     int? id,
     required String name,
+    String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     DateTime? createdAt,
@@ -154,6 +164,7 @@ class _MachineImpl extends Machine {
   }) : super._(
          id: id,
          name: name,
+         hostInfo: hostInfo,
          status: status,
          lastSeenAt: lastSeenAt,
          createdAt: createdAt,
@@ -168,6 +179,7 @@ class _MachineImpl extends Machine {
   Machine copyWith({
     Object? id = _Undefined,
     String? name,
+    Object? hostInfo = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
     DateTime? createdAt,
@@ -177,6 +189,7 @@ class _MachineImpl extends Machine {
     return Machine(
       id: id is int? ? id : this.id,
       name: name ?? this.name,
+      hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
       createdAt: createdAt ?? this.createdAt,

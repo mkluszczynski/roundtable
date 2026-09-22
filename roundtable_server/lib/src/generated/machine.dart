@@ -24,6 +24,7 @@ abstract class Machine
   Machine._({
     this.id,
     required this.name,
+    this.hostInfo,
     this.tokenHash,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
@@ -36,6 +37,7 @@ abstract class Machine
   factory Machine({
     int? id,
     required String name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -48,6 +50,7 @@ abstract class Machine
     return Machine(
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
+      hostInfo: jsonSerialization['hostInfo'] as String?,
       tokenHash: jsonSerialization['tokenHash'] as String?,
       status: jsonSerialization['status'] == null
           ? null
@@ -83,6 +86,9 @@ abstract class Machine
   /// The machine's display name.
   String name;
 
+  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  String? hostInfo;
+
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   String? tokenHash;
 
@@ -106,6 +112,7 @@ abstract class Machine
   Machine copyWith({
     int? id,
     String? name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -119,6 +126,7 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       if (tokenHash != null) 'tokenHash': tokenHash,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
@@ -136,6 +144,7 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       'createdAt': createdAt.toJson(),
@@ -186,6 +195,7 @@ class _MachineImpl extends Machine {
   _MachineImpl({
     int? id,
     required String name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -195,6 +205,7 @@ class _MachineImpl extends Machine {
   }) : super._(
          id: id,
          name: name,
+         hostInfo: hostInfo,
          tokenHash: tokenHash,
          status: status,
          lastSeenAt: lastSeenAt,
@@ -210,6 +221,7 @@ class _MachineImpl extends Machine {
   Machine copyWith({
     Object? id = _Undefined,
     String? name,
+    Object? hostInfo = _Undefined,
     Object? tokenHash = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
@@ -220,6 +232,7 @@ class _MachineImpl extends Machine {
     return Machine(
       id: id is int? ? id : this.id,
       name: name ?? this.name,
+      hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
       tokenHash: tokenHash is String? ? tokenHash : this.tokenHash,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
@@ -239,6 +252,11 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
 
   _is.ColumnValue<String, String> name(String value) => _is.ColumnValue(
     table.name,
+    value,
+  );
+
+  _is.ColumnValue<String, String> hostInfo(String? value) => _is.ColumnValue(
+    table.hostInfo,
     value,
   );
 
@@ -274,6 +292,10 @@ class MachineTable extends _is.Table<int?> {
       'name',
       this,
     );
+    hostInfo = _is.ColumnString(
+      'hostInfo',
+      this,
+    );
     tokenHash = _is.ColumnString(
       'tokenHash',
       this,
@@ -299,6 +321,9 @@ class MachineTable extends _is.Table<int?> {
 
   /// The machine's display name.
   late final _is.ColumnString name;
+
+  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  late final _is.ColumnString hostInfo;
 
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   late final _is.ColumnString tokenHash;
@@ -386,6 +411,7 @@ class MachineTable extends _is.Table<int?> {
   List<_is.Column> get columns => [
     id,
     name,
+    hostInfo,
     tokenHash,
     status,
     lastSeenAt,

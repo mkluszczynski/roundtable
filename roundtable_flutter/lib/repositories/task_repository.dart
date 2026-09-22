@@ -25,6 +25,12 @@ class TaskRepository {
 
   Stream<Task> watchTask(int taskId) => _client.task.watchTask(taskId);
 
+  /// Streams every task as it's created/changed, for the dashboard kanban.
+  /// Each event is a single task — merge it into your task list by id.
+  Stream<Task> watchAllTasks() => _client.task.watchAllTasks();
+
+  Stream<TaskLogEntry> watchLogs(int taskId) => _client.task.watchLogs(taskId);
+
   Future<TaskQuestion?> latestQuestion(int taskId) =>
       _client.task.latestQuestion(taskId);
 
@@ -35,4 +41,9 @@ class TaskRepository {
 
   Future<TaskFeedback> submitPlanFeedback(int taskId, String message) =>
       _client.task.submitPlanFeedback(taskId, message);
+
+  Future<TaskFeedback> submitFeedback(int taskId, String message) =>
+      _client.task.submitFeedback(taskId, message);
+
+  Future<Task> cancelTask(int taskId) => _client.task.cancelTask(taskId);
 }
