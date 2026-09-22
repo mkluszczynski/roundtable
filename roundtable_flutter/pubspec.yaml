@@ -35,6 +35,7 @@ dependencies:
     path: ../roundtable_client
   serverpod_auth_idp_flutter: 4.0.1
   serverpod_flutter: 4.0.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   # Used for agents to drive the app through the Dart MCP

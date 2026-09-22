@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../blocs/task_detail_bloc.dart';
 import '../client.dart';
@@ -276,7 +277,10 @@ class _InfoRail extends StatelessWidget {
             _RailSection(
               label: 'Pull request',
               child: OutlinedButton.icon(
-                onPressed: () {},
+                onPressed: () => launchUrl(
+                  Uri.parse(task.prUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
                 icon: const Icon(Icons.open_in_new, size: 14),
                 label: const Text('Open PR'),
               ),
@@ -591,7 +595,10 @@ class _DiffReview extends StatelessWidget {
             ),
             if (state.task.prUrl != null)
               TextButton.icon(
-                onPressed: () {},
+                onPressed: () => launchUrl(
+                  Uri.parse(state.task.prUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
                 icon: const Icon(Icons.open_in_new, size: 14),
                 label: const Text('View full PR on GitHub'),
               ),

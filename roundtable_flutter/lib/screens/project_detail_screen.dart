@@ -228,13 +228,12 @@ class _Header extends StatelessWidget {
             ),
             onPressed: () async {
               final cubit = context.read<ProjectListCubit>();
-              await cubit.deleteProject(project.id!);
+              final errorMessage = await cubit.deleteProject(project.id!);
               if (!context.mounted) return;
-              if (cubit.state is ProjectListError) {
-                final message = (cubit.state as ProjectListError).message;
+              if (errorMessage != null) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(SnackBar(content: Text(message)));
+                ).showSnackBar(SnackBar(content: Text(errorMessage)));
               } else {
                 Navigator.of(context).pop();
               }

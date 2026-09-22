@@ -7,12 +7,12 @@ import 'package:serverpod/serverpod.dart';
 class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
-  static String _channelForTask(int taskId) => 'task-$taskId';
+  static String channelForTask(int taskId) => 'task-$taskId';
   static String _channelForQuestion(int questionId) =>
       'task-question-$questionId';
   static String _channelForPlanDecision(int taskId) =>
       'task-$taskId-plan-decision';
-  static String _channelForAllTasks() => 'all-tasks';
+  static String channelForAllTasks() => 'all-tasks';
 
   final _github = GitHubRepoClient();
 
@@ -48,7 +48,7 @@ class TaskEndpoint extends Endpoint {
       _channelForMachine(agent.machineId),
       task,
     );
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
 
     return task;
   }
@@ -71,7 +71,7 @@ class TaskEndpoint extends Endpoint {
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
     );
-    await session.messages.postMessage(_channelForAllTasks(), updated);
+    await session.messages.postMessage(channelForAllTasks(), updated);
     return updated;
   }
 
@@ -125,8 +125,8 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
 
     return task;
   }
@@ -214,8 +214,8 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return created;
   }
 
@@ -290,8 +290,8 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
 
@@ -312,7 +312,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
 
@@ -346,7 +346,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
-    await session.messages.postMessage(_channelForAllTasks(), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return feedback;
   }
 
@@ -435,7 +435,7 @@ class TaskEndpoint extends Endpoint {
       yield task;
     }
 
-    var updates = session.messages.createStream<Task>(_channelForAllTasks());
+    var updates = session.messages.createStream<Task>(channelForAllTasks());
     await for (var task in updates) {
       yield task;
     }
@@ -497,7 +497,7 @@ class TaskEndpoint extends Endpoint {
       yield task;
     }
 
-    var updates = session.messages.createStream<Task>(_channelForTask(taskId));
+    var updates = session.messages.createStream<Task>(channelForTask(taskId));
     await for (var t in updates) {
       yield t;
     }
