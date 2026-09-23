@@ -13,6 +13,7 @@ export 'src/claude_code_executor.dart';
 export 'src/github_pull_request_opener.dart';
 export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
+export 'src/stream_json_formatter.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
 

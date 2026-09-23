@@ -100,7 +100,7 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(logLines, contains(contains('"session_id":"sess-1"')));
+      expect(logLines, contains('✅ Done'));
       expect(agentUpdates.map((a) => a.status), [
         AgentStatus.busy,
         AgentStatus.idle,

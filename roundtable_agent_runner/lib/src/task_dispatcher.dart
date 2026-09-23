@@ -6,6 +6,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
 import 'role_prompts.dart';
+import 'stream_json_formatter.dart';
 import 'worktree_manager.dart';
 
 /// Turns an assigned [Task] into a running Claude Code execution-phase
@@ -168,6 +169,16 @@ class TaskDispatcher {
       // into `Agent.status` (`waitingForResponse` while a question/plan
       // decision is pending, `busy` once planning resumes) — design doc
       // §6.1 step 4.
+      // One formatter per invocation: planning and execution share a single
+      // continuous `claude` process (see `runPlanning`'s doc comment), so
+      // its content-block buffering must persist across both phases.
+      final formatter = StreamJsonFormatter();
+      void onLine(String line) {
+        for (final formatted in formatter.feed(line)) {
+          appendLog(task.id!, formatted);
+        }
+      }
+
       Process? liveProcess;
       watchSub = watchTask(task.id!).listen((updated) {
         if (updated.status == TaskStatus.cancelled) {
@@ -201,7 +212,7 @@ class TaskDispatcher {
           oauthToken: oauthToken,
           model: agent.defaultModel,
           effort: agent.defaultEffort?.name,
-          onLine: (line) => appendLog(task.id!, line),
+          onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
       } else {
@@ -212,7 +223,7 @@ class TaskDispatcher {
           model: agent.defaultModel,
           effort: agent.defaultEffort?.name,
           resumeSessionId: resumeSessionId,
-          onLine: (line) => appendLog(task.id!, line),
+          onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
       }
