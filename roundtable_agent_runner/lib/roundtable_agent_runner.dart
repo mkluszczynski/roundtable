@@ -36,6 +36,7 @@ class AgentRunnerConfig {
     this.claudeCodeOauthToken,
     this.workspaceRoot = 'workspace',
     this.claudeExecutable = 'claude',
+    this.permissionPromptToolPath,
   });
 
   final String registrationToken;
@@ -57,6 +58,15 @@ class AgentRunnerConfig {
   /// Root directory for [WorktreeManager]'s per-project bare clones and
   /// per-task worktrees (design doc §6.10).
   final String workspaceRoot;
+
+  /// Path to the compiled `permission_prompt_tool` executable, when
+  /// installed (`scripts/install-agent.sh` always sets this). `null` in a
+  /// dev-mode run from a repo checkout, where the MCP server is instead
+  /// launched by re-running `bin/permission_prompt_tool.dart` from source
+  /// (see [AgentRunnerService._permissionPromptToolCommand]) — a deployed
+  /// daemon has no Dart SDK to do that with, so it needs this precompiled
+  /// binary instead (design doc §6.4, §6.8).
+  final String? permissionPromptToolPath;
 
   /// Reads REGISTRATION_TOKEN/SERVER_URL/CLAUDE_CODE_OAUTH_TOKEN/WORKSPACE_ROOT.
   ///
@@ -96,6 +106,7 @@ class AgentRunnerConfig {
       claudeCodeOauthToken: values['CLAUDE_CODE_OAUTH_TOKEN'],
       workspaceRoot: values['WORKSPACE_ROOT'] ?? 'workspace',
       claudeExecutable: values['CLAUDE_EXECUTABLE'] ?? 'claude',
+      permissionPromptToolPath: values['PERMISSION_PROMPT_TOOL_PATH'],
     );
   }
 
@@ -161,16 +172,22 @@ class AgentRunnerService {
     watchTask: (taskId) => _client.task.watchTask(taskId),
     log: _log,
     serverUrl: _normalizeServerUrl(_config.serverUrl),
-    permissionPromptToolCommand: _defaultPermissionPromptToolCommand(),
+    permissionPromptToolCommand: _permissionPromptToolCommand(_config),
   );
 
-  /// Dev-mode default: re-run this same Dart SDK against the sibling
-  /// `bin/permission_prompt_tool.dart` script, resolved relative to
-  /// [Platform.script] (this process's own entrypoint, `bin/
-  /// roundtable_agent_runner.dart`). A compiled/deployed daemon (design doc
-  /// §6.8) would need its own compiled permission-prompt-tool binary path
-  /// here instead — not built out for the hackathon.
-  static List<String> _defaultPermissionPromptToolCommand() {
+  /// Prefers `_config.permissionPromptToolPath` — the compiled binary
+  /// `scripts/install-agent.sh` downloads alongside the main daemon (design
+  /// doc §6.4, §6.8), since a deployed machine has no Dart SDK to run
+  /// `bin/permission_prompt_tool.dart` from source. Falls back to that
+  /// dev-mode source invocation, re-running this same Dart SDK against the
+  /// sibling script resolved relative to [Platform.script] (this process's
+  /// own entrypoint, `bin/roundtable_agent_runner.dart`) — used for local
+  /// runs from a repo checkout, where no such compiled path is configured.
+  static List<String> _permissionPromptToolCommand(AgentRunnerConfig config) {
+    final compiledPath = config.permissionPromptToolPath;
+    if (compiledPath != null && File(compiledPath).existsSync()) {
+      return [compiledPath];
+    }
     final toolUri = Platform.script.resolve('permission_prompt_tool.dart');
     return [Platform.resolvedExecutable, 'run', toolUri.toFilePath()];
   }

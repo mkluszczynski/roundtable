@@ -42,6 +42,16 @@ RUN mkdir -p /app/roundtable_server/web/static/bin \
   && cp build/bundle/bin/roundtable_agent_runner \
     /app/roundtable_server/web/static/bin/roundtable-agent-runner
 
+# Same for the permission-prompt-tool executable (design doc §6.4) — the
+# daemon spawns it as an MCP server during planning-phase runs, and it needs
+# its own compiled artifact for the same reason as above. `dart build cli`
+# wipes its whole --output directory on each invocation, so this must run
+# (and be copied out) only after the agent-runner binary above is already
+# copied out of build/.
+RUN dart build cli --target bin/permission_prompt_tool.dart --output build
+RUN cp build/bundle/bin/permission_prompt_tool \
+    /app/roundtable_server/web/static/bin/roundtable-permission-prompt-tool
+
 # Add a fallback for the copy of possibly missing directories.
 WORKDIR /app/roundtable_server
 RUN mkdir -p config web migrations

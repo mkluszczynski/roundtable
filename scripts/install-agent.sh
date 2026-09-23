@@ -28,6 +28,7 @@ UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 CONFIG_DIR="/etc/agent-runner"
 CONFIG_PATH="${CONFIG_DIR}/config.env"
 BIN_PATH="/usr/local/bin/roundtable-agent-runner"
+PERMISSION_PROMPT_BIN_PATH="/usr/local/bin/roundtable-permission-prompt-tool"
 SERVICE_USER="roundtable-agent"
 # Bare clones + per-task worktrees live here (design doc §6.10). Must be
 # owned by SERVICE_USER and outside /etc (config.env is 600, this isn't).
@@ -121,13 +122,16 @@ if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
   systemctl stop "$SERVICE_NAME"
 fi
 
-echo "Downloading agent-runner binary from ${SCRIPT_URL}..."
+echo "Downloading agent-runner and permission-prompt-tool binaries from ${SCRIPT_URL}..."
 TMP_BIN="$(mktemp)"
-trap 'rm -f "$TMP_BIN"' EXIT
+TMP_PERMISSION_BIN="$(mktemp)"
+trap 'rm -f "$TMP_BIN" "$TMP_PERMISSION_BIN"' EXIT
 curl -fsSL "${SCRIPT_URL%/}/agent-runner-bin" -o "$TMP_BIN"
+curl -fsSL "${SCRIPT_URL%/}/permission-prompt-tool-bin" -o "$TMP_PERMISSION_BIN"
 
-echo "Installing binary to ${BIN_PATH}..."
+echo "Installing binaries to ${BIN_PATH} and ${PERMISSION_PROMPT_BIN_PATH}..."
 install -m 755 "$TMP_BIN" "$BIN_PATH"
+install -m 755 "$TMP_PERMISSION_BIN" "$PERMISSION_PROMPT_BIN_PATH"
 
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   echo "Creating system user ${SERVICE_USER}..."
@@ -197,6 +201,7 @@ mkdir -p "$CONFIG_DIR"
   echo "REGISTRATION_TOKEN=${TOKEN}"
   echo "SERVER_URL=${SERVER}"
   echo "WORKSPACE_ROOT=${WORKSPACE_DIR}"
+  echo "PERMISSION_PROMPT_TOOL_PATH=${PERMISSION_PROMPT_BIN_PATH}"
   if [[ -n "$CLAUDE_BIN" ]]; then
     echo "CLAUDE_EXECUTABLE=${CLAUDE_BIN}"
   fi

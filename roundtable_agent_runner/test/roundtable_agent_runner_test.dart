@@ -27,6 +27,7 @@ void main() {
 REGISTRATION_TOKEN=abc123
 SERVER_URL=http://localhost:8080
 CLAUDE_CODE_OAUTH_TOKEN=claude-token
+PERMISSION_PROMPT_TOOL_PATH=/usr/local/bin/roundtable-permission-prompt-tool
 ''');
 
       final config = AgentRunnerConfig.load(path: path);
@@ -34,9 +35,13 @@ CLAUDE_CODE_OAUTH_TOKEN=claude-token
       expect(config.registrationToken, 'abc123');
       expect(config.serverUrl, 'http://localhost:8080');
       expect(config.claudeCodeOauthToken, 'claude-token');
+      expect(
+        config.permissionPromptToolPath,
+        '/usr/local/bin/roundtable-permission-prompt-tool',
+      );
     });
 
-    test('claudeCodeOauthToken is optional', () {
+    test('claudeCodeOauthToken and permissionPromptToolPath are optional', () {
       final path = writeConfig('''
 REGISTRATION_TOKEN=abc123
 SERVER_URL=http://localhost:8080
@@ -45,6 +50,7 @@ SERVER_URL=http://localhost:8080
       final config = AgentRunnerConfig.load(path: path);
 
       expect(config.claudeCodeOauthToken, isNull);
+      expect(config.permissionPromptToolPath, isNull);
     });
 
     test('throws when the file is missing', () {

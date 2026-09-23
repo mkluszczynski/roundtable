@@ -91,11 +91,31 @@ void run(List<String> args) async {
   // machine (design doc §6.8). The packaged Docker image ships it prebuilt;
   // in development it's compiled on demand from the sibling package and
   // cached on disk.
-  final agentRunnerBinary = await _resolveAgentRunnerBinary();
+  final agentRunnerBinary = await _resolveAgentRunnerBinary(
+    targetScript: 'bin/roundtable_agent_runner.dart',
+    packagedFileName: 'roundtable-agent-runner',
+    routeName: '/agent-runner-bin',
+  );
   if (agentRunnerBinary != null) {
     pod.webServer.addRoute(
       StaticRoute.file(agentRunnerBinary),
       '/agent-runner-bin',
+    );
+  }
+
+  // Serve a prebuilt permission-prompt-tool binary alongside the agent
+  // runner — a deployed daemon (no Dart SDK on the target machine) can't run
+  // `bin/permission_prompt_tool.dart` from source, so it needs its own
+  // compiled artifact too (design doc §6.4, §6.8).
+  final permissionPromptToolBinary = await _resolveAgentRunnerBinary(
+    targetScript: 'bin/permission_prompt_tool.dart',
+    packagedFileName: 'roundtable-permission-prompt-tool',
+    routeName: '/permission-prompt-tool-bin',
+  );
+  if (permissionPromptToolBinary != null) {
+    pod.webServer.addRoute(
+      StaticRoute.file(permissionPromptToolBinary),
+      '/permission-prompt-tool-bin',
     );
   }
 
@@ -170,16 +190,24 @@ void run(List<String> args) async {
       .check();
 }
 
-/// Resolves the agent-runner binary served at `/agent-runner-bin`.
+/// Resolves a compiled binary out of the sibling `roundtable_agent_runner`
+/// package, for [targetScript] (a `bin/*.dart` entrypoint in that package)
+/// served under [routeName] (used only for log messages).
 ///
-/// Prefers the prebuilt copy the Dockerfile bakes into `web/static/bin/`. In
-/// development, where the workspace's sibling `roundtable_agent_runner`
-/// package is source, not a binary, it's compiled once with `dart build cli`
-/// and cached under that package's `build/` directory — delete the cached
-/// binary to force a rebuild after changing the agent runner's source.
-Future<File?> _resolveAgentRunnerBinary() async {
+/// Prefers the prebuilt copy the Dockerfile bakes into
+/// `web/static/bin/$packagedFileName`. In development, where that package is
+/// source, not a binary, it's compiled once with `dart build cli` and cached
+/// under a per-target subdirectory of that package's `build/` directory (a
+/// separate subdirectory per target, since `dart build cli` wipes its whole
+/// `--output` directory on every invocation) — delete the cached binary to
+/// force a rebuild after changing its source.
+Future<File?> _resolveAgentRunnerBinary({
+  required String targetScript,
+  required String packagedFileName,
+  required String routeName,
+}) async {
   final packaged = File(
-    Uri(path: 'web/static/bin/roundtable-agent-runner').toFilePath(),
+    Uri(path: 'web/static/bin/$packagedFileName').toFilePath(),
   );
   if (packaged.existsSync()) return packaged;
 
@@ -188,28 +216,29 @@ Future<File?> _resolveAgentRunnerBinary() async {
   );
   if (!agentRunnerDir.existsSync()) return null;
 
+  final targetName = targetScript.split('/').last.replaceAll('.dart', '');
   final built = File(
     Uri(
       path:
-          '../roundtable_agent_runner/build/bundle/bin/roundtable_agent_runner',
+          '../roundtable_agent_runner/build/$targetName/bundle/bin/$targetName',
     ).toFilePath(),
   );
   if (!built.existsSync()) {
     stdout.writeln(
-      'Building agent-runner binary for /agent-runner-bin (first run only; '
+      'Building $targetName binary for $routeName (first run only; '
       'delete ${built.path} to force a rebuild after changing its source)...',
     );
     final result = await Process.run('dart', [
       'build',
       'cli',
       '--target',
-      'bin/roundtable_agent_runner.dart',
+      targetScript,
       '--output',
-      'build',
+      'build/$targetName',
     ], workingDirectory: agentRunnerDir.path);
     if (result.exitCode != 0) {
       stderr.writeln(
-        'Failed to build agent-runner binary, /agent-runner-bin will 404 '
+        'Failed to build $targetName binary, $routeName will 404 '
         'until this is fixed:\n${result.stderr}',
       );
       return null;
