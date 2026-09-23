@@ -20,6 +20,7 @@ import '../widgets/diff_view.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
+import '../widgets/task_log_line.dart';
 import '../utils/relative_time.dart';
 
 /// Mirrors the server's `nonTerminalTaskStatuses` (design doc §5, §6.8) —
@@ -642,10 +643,6 @@ class _LiveExecution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logText = state.logs.isEmpty
-        ? 'Waiting for output…'
-        : state.logs.map((entry) => entry.content).join('\n');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -663,10 +660,12 @@ class _LiveExecution extends StatelessWidget {
         ),
         const SizedBox(height: Spacing.sm),
         Expanded(
-          child: SingleChildScrollView(
-            reverse: true,
-            child: CodeBlock(code: logText),
-          ),
+          child: state.logs.isEmpty
+              ? Text('Waiting for output…', style: AppTypography.body)
+              : SingleChildScrollView(
+                  reverse: true,
+                  child: TaskLogView(entries: state.logs),
+                ),
         ),
       ],
     );
