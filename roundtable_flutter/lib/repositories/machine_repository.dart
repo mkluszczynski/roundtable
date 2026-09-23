@@ -19,6 +19,10 @@ class MachineRepository {
 
   Future<void> deleteMachine(int id) => _client.machine.delete(id);
 
+  /// Base URL the install/uninstall scripts are served from — used to render
+  /// a working uninstall command when deletion is blocked (design doc §6.8).
+  Future<String> getScriptUrl() => _client.machine.getScriptUrl();
+
   Stream<MachineMetric> watchLatestMetric(int machineId) =>
       _client.machine.watchLatestMetric(machineId);
 }

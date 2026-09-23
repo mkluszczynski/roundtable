@@ -67,6 +67,38 @@ void run(List<String> args) async {
     '/install-agent.sh',
   );
 
+  // Serve the uninstall script too — a machine installed via the curl
+  // one-liner above has no repo checkout to run `./scripts/uninstall-agent.sh`
+  // from, so the panel's "still online" delete dialog points at this route
+  // instead (design doc §6.8).
+  final devUninstallScript = File(
+    Uri(path: '../scripts/uninstall-agent.sh').toFilePath(),
+  );
+  final packagedUninstallScript = File(
+    Uri(path: 'web/static/uninstall-agent.sh').toFilePath(),
+  );
+  pod.webServer.addRoute(
+    StaticRoute.file(
+      devUninstallScript.existsSync()
+          ? devUninstallScript
+          : packagedUninstallScript,
+    ),
+    '/uninstall-agent.sh',
+  );
+
+  // Serve a prebuilt agent-runner binary so install-agent.sh can install a
+  // self-executable agent without a Dart SDK or repo checkout on the target
+  // machine (design doc §6.8). The packaged Docker image ships it prebuilt;
+  // in development it's compiled on demand from the sibling package and
+  // cached on disk.
+  final agentRunnerBinary = await _resolveAgentRunnerBinary();
+  if (agentRunnerBinary != null) {
+    pod.webServer.addRoute(
+      StaticRoute.file(agentRunnerBinary),
+      '/agent-runner-bin',
+    );
+  }
+
   // Checks if the flutter web app has been built and serves it if it has.
   final appDir = Directory(Uri(path: 'web/app').toFilePath());
   if (appDir.existsSync()) {
@@ -136,4 +168,52 @@ void run(List<String> args) async {
       .every(const Duration(seconds: 30))
       .stalledTask
       .check();
+}
+
+/// Resolves the agent-runner binary served at `/agent-runner-bin`.
+///
+/// Prefers the prebuilt copy the Dockerfile bakes into `web/static/bin/`. In
+/// development, where the workspace's sibling `roundtable_agent_runner`
+/// package is source, not a binary, it's compiled once with `dart build cli`
+/// and cached under that package's `build/` directory — delete the cached
+/// binary to force a rebuild after changing the agent runner's source.
+Future<File?> _resolveAgentRunnerBinary() async {
+  final packaged = File(
+    Uri(path: 'web/static/bin/roundtable-agent-runner').toFilePath(),
+  );
+  if (packaged.existsSync()) return packaged;
+
+  final agentRunnerDir = Directory(
+    Uri(path: '../roundtable_agent_runner').toFilePath(),
+  );
+  if (!agentRunnerDir.existsSync()) return null;
+
+  final built = File(
+    Uri(
+      path:
+          '../roundtable_agent_runner/build/bundle/bin/roundtable_agent_runner',
+    ).toFilePath(),
+  );
+  if (!built.existsSync()) {
+    stdout.writeln(
+      'Building agent-runner binary for /agent-runner-bin (first run only; '
+      'delete ${built.path} to force a rebuild after changing its source)...',
+    );
+    final result = await Process.run('dart', [
+      'build',
+      'cli',
+      '--target',
+      'bin/roundtable_agent_runner.dart',
+      '--output',
+      'build',
+    ], workingDirectory: agentRunnerDir.path);
+    if (result.exitCode != 0) {
+      stderr.writeln(
+        'Failed to build agent-runner binary, /agent-runner-bin will 404 '
+        'until this is fixed:\n${result.stderr}',
+      );
+      return null;
+    }
+  }
+  return built.existsSync() ? built : null;
 }

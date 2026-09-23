@@ -5,18 +5,26 @@
 FROM dart:3.12.2 AS build
 
 # Create a minimal workspace that preserves locked server dependency versions.
+# roundtable_agent_runner and roundtable_client are included too, so the
+# agent-runner binary served at /agent-runner-bin (see server.dart) can be
+# compiled here instead of on the target machine.
 WORKDIR /app
 COPY pubspec.lock .
 COPY roundtable_server roundtable_server
+COPY roundtable_agent_runner roundtable_agent_runner
+COPY roundtable_client roundtable_client
 COPY scripts scripts
 RUN mkdir -p roundtable_server/web/static \
-  && cp scripts/install-agent.sh roundtable_server/web/static/install-agent.sh
+  && cp scripts/install-agent.sh roundtable_server/web/static/install-agent.sh \
+  && cp scripts/uninstall-agent.sh roundtable_server/web/static/uninstall-agent.sh
 RUN printf '%s\n' \
   'name: _' \
   'environment:' \
   '  sdk: ^3.12.2' \
   'workspace:' \
   '  - roundtable_server' \
+  '  - roundtable_agent_runner' \
+  '  - roundtable_client' \
   > pubspec.yaml
 RUN dart pub get
 
@@ -25,7 +33,17 @@ WORKDIR /app/roundtable_server
 RUN dart build cli --target bin/main.dart --output build
 RUN mv build/bundle/bin/main build/bundle/bin/server
 
+# Compile the agent-runner executable and package it under web/static so
+# install-agent.sh can download and install it without a Dart SDK or repo
+# checkout on the target machine (design doc §6.8).
+WORKDIR /app/roundtable_agent_runner
+RUN dart build cli --target bin/roundtable_agent_runner.dart --output build
+RUN mkdir -p /app/roundtable_server/web/static/bin \
+  && cp build/bundle/bin/roundtable_agent_runner \
+    /app/roundtable_server/web/static/bin/roundtable-agent-runner
+
 # Add a fallback for the copy of possibly missing directories.
+WORKDIR /app/roundtable_server
 RUN mkdir -p config web migrations
 
 # Final stage

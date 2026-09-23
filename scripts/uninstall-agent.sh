@@ -19,6 +19,7 @@ UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 CONFIG_DIR="/etc/agent-runner"
 CONFIG_PATH="${CONFIG_DIR}/config.env"
 BIN_PATH="/usr/local/bin/roundtable-agent-runner"
+DATA_DIR="/var/lib/agent-runner"
 
 TOKEN_ARG=""
 SERVER_ARG=""
@@ -93,6 +94,7 @@ rm -f "$UNIT_PATH"
 rm -f "$CONFIG_PATH"
 rmdir --ignore-fail-on-non-empty "$CONFIG_DIR" 2>/dev/null || true
 rm -f "$BIN_PATH"
+rm -rf "$DATA_DIR"
 systemctl daemon-reload
 
 echo

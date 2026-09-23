@@ -10,12 +10,19 @@ import 'code_block.dart';
 /// that's still `online` — the daemon is alive and connected, so we hand
 /// them the exact command to shut it down properly (design doc §6.8).
 class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
-  const MachineOnlineDeleteBlockedDialog({super.key});
+  const MachineOnlineDeleteBlockedDialog({super.key, this.scriptUrl});
 
-  static const uninstallCommand = 'sudo ./scripts/uninstall-agent.sh';
+  /// Base URL the uninstall script is served from. Null when fetching it
+  /// failed, in which case we fall back to the repo-relative command — only
+  /// correct if the repo happens to be checked out on the target machine.
+  final String? scriptUrl;
 
   @override
   Widget build(BuildContext context) {
+    final scriptUrl = this.scriptUrl;
+    final uninstallCommand = scriptUrl == null
+        ? 'sudo ./scripts/uninstall-agent.sh'
+        : 'curl -fsSL $scriptUrl/uninstall-agent.sh | sudo bash';
     return AppModal(
       title: 'Machine is still online',
       actions: [
@@ -47,7 +54,7 @@ class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          const CodeBlock(code: uninstallCommand),
+          CodeBlock(code: uninstallCommand),
           const SizedBox(height: Spacing.lg),
           Text(
             "If this machine no longer physically exists, you don't need "
