@@ -69,6 +69,32 @@ Checklist after doing changes, in this order:
 - Run tests, if applicable (`dart test` in the server package)
 - Check `serverpod` MCP `tail_server_logs` and `tail_flutter_logs` for any issues.
 
+## `roundtable_agent_runner` is not covered by hot reload
+
+`serverpod start`'s hot reload/`hot_restart` only affects the server and the
+Flutter app. `roundtable_agent_runner` (the daemon installed on a registered
+machine) is never run in-process — it's distributed as a **compiled**
+binary (two, actually: `roundtable_agent_runner.dart` and
+`permission_prompt_tool.dart`, `dart build cli --target ... --output
+build/<target>`), served by the server at `/agent-runner-bin` and
+`/permission-prompt-tool-bin` and downloaded by `scripts/install-agent.sh`.
+
+`server.dart`'s `_resolveAgentRunnerBinary()` only builds these **once**, the
+first time each route is resolved (at server startup), then reuses whatever
+it finds cached under `roundtable_agent_runner/build/<target>/bundle/bin/` —
+it does not detect that the source changed. So after editing anything under
+`roundtable_agent_runner/`, before asking the user to reinstall the agent on
+a machine:
+
+1. `rm -rf roundtable_agent_runner/build` to drop the stale cached binaries.
+2. `hot_restart` (MCP) so the server re-resolves both routes and recompiles
+   fresh — confirm with e.g. `find roundtable_agent_runner/build -type f
+   -exec stat -c '%y %n' {} \;`, the mtimes should be recent.
+
+Skipping this means a machine that re-runs `install-agent.sh` just
+re-downloads the same old binary and the fix won't actually reach it, even
+though the source and the server's own hot-reloaded code are already fixed.
+
 If the user asks you to test the app:
 
 1. Use `get_flutter_app_dtd` (`serverpod` MCP) to get the Flutter app's DTD
