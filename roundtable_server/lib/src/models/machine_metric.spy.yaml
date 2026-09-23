@@ -3,7 +3,10 @@
 class: MachineMetric
 table: machine_metric
 fields:
-  machine: Machine?, relation(name=machine_metrics)
+  ### onDelete=Cascade: metrics are disposable telemetry, not history worth
+  ### preserving once the machine itself is gone (unlike Task, kept as an
+  ### audit trail via onDelete=SetNull).
+  machine: Machine?, relation(name=machine_metrics, onDelete=Cascade)
   cpuPercent: double
   memoryUsedMb: int
   memoryTotalMb: int

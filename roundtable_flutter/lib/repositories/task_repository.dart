@@ -46,4 +46,22 @@ class TaskRepository {
       _client.task.submitFeedback(taskId, message);
 
   Future<Task> cancelTask(int taskId) => _client.task.cancelTask(taskId);
+
+  /// Re-queues a `failed`/`cancelled` task for another attempt, so testing a
+  /// fix doesn't require recreating the task from scratch.
+  Future<Task> retryTask(int taskId) => _client.task.retryTask(taskId);
+
+  /// Assigns or reassigns [taskId] to [agentId] — used to give an
+  /// agent-less task (its previous agent was deleted) a new one, or to move
+  /// a backlog/review task to a different agent.
+  Future<Task> reassignAgent(int taskId, int agentId) =>
+      _client.task.reassignAgent(taskId, agentId);
+
+  /// Deletes a terminal (`done`/`failed`/`cancelled`) task — a non-terminal
+  /// one has to be cancelled first.
+  Future<void> deleteTask(int taskId) => _client.task.deleteTask(taskId);
+
+  /// Streams every task deletion, for the dashboard kanban to drop a
+  /// deleted task from its local list — the counterpart of [watchAllTasks].
+  Stream<TaskDeleted> watchTaskDeletions() => _client.task.watchTaskDeletions();
 }

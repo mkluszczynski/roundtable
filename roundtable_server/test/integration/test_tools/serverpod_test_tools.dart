@@ -28,6 +28,7 @@ import 'package:roundtable_server/src/generated/machine_registration.dart'
     as _i1b54xmb;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
+import 'package:roundtable_server/src/generated/task_deleted.dart' as _iqqmqwi6;
 import 'package:roundtable_server/src/generated/task_feedback.dart'
     as _il2mubb9;
 import 'package:roundtable_server/src/generated/task_log_entry.dart'
@@ -765,6 +766,36 @@ class _MachineEndpoint {
     });
   }
 
+  _ida.Future<String> getScriptUrl(
+    _ist.TestSessionBuilder sessionBuilder,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'getScriptUrl',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'getScriptUrl',
+          parameters: _ist.testObjectToJson({}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<String>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_ilqrziin.Machine?> get(
     _ist.TestSessionBuilder sessionBuilder,
     int id,
@@ -973,6 +1004,43 @@ class _MachineEndpoint {
             'cpuPercent': cpuPercent,
             'memoryUsedMb': memoryUsedMb,
             'memoryTotalMb': memoryTotalMb,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<void> reportClaudeStatus(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+    bool ok,
+    String? message,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'reportClaudeStatus',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'reportClaudeStatus',
+          parameters: _ist.testObjectToJson({
+            'token': token,
+            'ok': ok,
+            'message': message,
           }),
           serializationManager: _serializationManager,
         );
@@ -1441,6 +1509,72 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_i77xifuu.Task> retryTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'retryTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'retryTask',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i77xifuu.Task> reassignAgent(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    int agentId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'reassignAgent',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'reassignAgent',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'agentId': agentId,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_il2mubb9.TaskFeedback> submitFeedback(
     _ist.TestSessionBuilder sessionBuilder,
     int taskId,
@@ -1762,6 +1896,69 @@ class _TaskEndpoint {
               endpointPath: 'task',
               methodName: 'watchPlanDecision',
               arguments: {'taskId': taskId},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
+  _ida.Future<void> deleteTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'deleteTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'deleteTask',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Stream<_iqqmqwi6.TaskDeleted> watchTaskDeletions(
+    _ist.TestSessionBuilder sessionBuilder,
+  ) {
+    var _localTestStreamManager =
+        _ist.TestStreamManager<_iqqmqwi6.TaskDeleted>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'task',
+              method: 'watchTaskDeletions',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'task',
+              methodName: 'watchTaskDeletions',
+              arguments: {},
               requestedInputStreams: [],
               serializationManager: _serializationManager,
             );

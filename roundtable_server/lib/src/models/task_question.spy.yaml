@@ -3,7 +3,8 @@
 class: TaskQuestion
 table: task_question
 fields:
-  task: Task?, relation(name=task_questions)
+  ### onDelete=Cascade: questions have no meaning independent of their task.
+  task: Task?, relation(name=task_questions, onDelete=Cascade)
   question: String
   options: List<String>
   answer: String?

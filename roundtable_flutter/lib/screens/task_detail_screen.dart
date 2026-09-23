@@ -14,8 +14,10 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/agent_avatar.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
+import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../utils/relative_time.dart';
@@ -32,6 +34,71 @@ const _cancellableStatuses = {
   TaskStatus.running,
   TaskStatus.awaitingReview,
 };
+
+/// Mirrors the server's `retryTask` guard — a "Retry task" button lets the
+/// dev re-queue a failed/cancelled run without recreating the task from
+/// scratch (e.g. after fixing an agent-runner install issue).
+const _retryableStatuses = {TaskStatus.failed, TaskStatus.cancelled};
+
+/// Mirrors the server's `deleteTask` guard — only a terminal task (nothing
+/// left in `nonTerminalTaskStatuses`) can be deleted; a running one has to be
+/// cancelled first.
+const _deletableStatuses = {
+  TaskStatus.done,
+  TaskStatus.failed,
+  TaskStatus.cancelled,
+};
+
+/// Mirrors the server's `reassignAgent` guard — a task can be moved to a
+/// different agent while it's still in the backlog or parked in review, but
+/// not while actively executing under its current agent.
+const _reassignableStatuses = {
+  TaskStatus.queued,
+  TaskStatus.cloning,
+  TaskStatus.awaitingReview,
+};
+
+Future<void> _confirmDeleteTask(BuildContext context, int taskId) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final confirmed = await showAppModal<bool>(
+    context,
+    title: 'Delete task?',
+    subtitle: 'This permanently removes Task #$taskId and its logs.',
+    child: const SizedBox.shrink(),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+        onPressed: () => Navigator.of(context).pop(true),
+        child: const Text('Delete'),
+      ),
+    ],
+  );
+  if (confirmed ?? false) {
+    bloc.add(TaskDeleteRequested(taskId));
+  }
+}
+
+void _openReassignAgentDialog(
+  BuildContext context,
+  int taskId,
+  int? currentAgentId,
+) {
+  final bloc = context.read<TaskDetailBloc>();
+  showDialog<void>(
+    context: context,
+    builder: (_) => BlocProvider.value(
+      value: bloc,
+      child: ReassignAgentDialog(
+        taskId: taskId,
+        currentAgentId: currentAgentId,
+      ),
+    ),
+  );
+}
 
 /// One screen driven by `Task.status`, switching between the task lifecycle's
 /// 4 sub-states (design doc §6.4, §6.7): waiting for an answer, plan
@@ -64,40 +131,48 @@ class _TaskDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TaskDetailBloc, TaskDetailState>(
-      builder: (context, state) {
-        return switch (state) {
-          TaskDetailInitial() || TaskDetailLoading() => const Center(
-            child: CircularProgressIndicator(),
-          ),
-          TaskDetailError(:final message) => Center(
-            child: Text(
-              'Failed to load task: $message',
-              style: AppTypography.body.copyWith(color: AppColors.red),
-            ),
-          ),
-          TaskDetailLoaded() => Column(
-            children: [
-              _Header(state: state),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 320, child: _InfoRail(state: state)),
-                    VerticalDivider(width: 1, color: AppColors.border),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(Spacing.xl),
-                        child: _SubState(state: state),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        };
+    return BlocListener<TaskDetailBloc, TaskDetailState>(
+      listenWhen: (previous, current) => current is TaskDetailDeleted,
+      listener: (context, state) {
+        if (Navigator.canPop(context)) Navigator.of(context).pop();
       },
+      child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
+        builder: (context, state) {
+          return switch (state) {
+            TaskDetailInitial() ||
+            TaskDetailLoading() ||
+            TaskDetailDeleted() => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            TaskDetailError(:final message) => Center(
+              child: Text(
+                'Failed to load task: $message',
+                style: AppTypography.body.copyWith(color: AppColors.red),
+              ),
+            ),
+            TaskDetailLoaded() => Column(
+              children: [
+                _Header(state: state),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: 320, child: _InfoRail(state: state)),
+                      VerticalDivider(width: 1, color: AppColors.border),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(Spacing.xl),
+                          child: _SubState(state: state),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          };
+        },
+      ),
     );
   }
 }
@@ -156,6 +231,30 @@ class _Header extends StatelessWidget {
             AgentAvatar(name: state.agent!.name),
             const SizedBox(width: Spacing.sm),
             Text(state.agent!.name, style: AppTypography.body),
+            if (_reassignableStatuses.contains(task.status)) ...[
+              const SizedBox(width: Spacing.xs),
+              IconButton(
+                icon: const Icon(
+                  Icons.swap_horiz,
+                  size: 18,
+                  color: AppColors.text2,
+                ),
+                tooltip: 'Reassign agent',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _openReassignAgentDialog(
+                  context,
+                  task.id!,
+                  task.agentId,
+                ),
+              ),
+            ],
+          ] else ...[
+            const SizedBox(width: Spacing.lg),
+            OutlinedButton(
+              onPressed: () =>
+                  _openReassignAgentDialog(context, task.id!, null),
+              child: const Text('Assign agent'),
+            ),
           ],
           if (_cancellableStatuses.contains(task.status)) ...[
             const SizedBox(width: Spacing.lg),
@@ -170,6 +269,30 @@ class _Header extends StatelessWidget {
                       TaskCancelled(task.id!),
                     ),
               child: const Text('Cancel task'),
+            ),
+          ],
+          if (_retryableStatuses.contains(task.status)) ...[
+            const SizedBox(width: Spacing.lg),
+            OutlinedButton(
+              onPressed: state.submitting
+                  ? null
+                  : () => context.read<TaskDetailBloc>().add(
+                      TaskRetried(task.id!),
+                    ),
+              child: const Text('Retry task'),
+            ),
+          ],
+          if (_deletableStatuses.contains(task.status)) ...[
+            const SizedBox(width: Spacing.lg),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.red,
+                side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+              ),
+              onPressed: state.submitting
+                  ? null
+                  : () => _confirmDeleteTask(context, task.id!),
+              child: const Text('Delete task'),
             ),
           ],
         ],

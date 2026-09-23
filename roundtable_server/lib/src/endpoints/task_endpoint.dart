@@ -14,6 +14,17 @@ class TaskEndpoint extends Endpoint {
       'task-$taskId-plan-decision';
   static String channelForAllTasks() => 'all-tasks';
 
+  /// Statuses [reassignAgent] allows changing `Task.agent` in — the task
+  /// isn't actively executing under its current agent, so swapping it is
+  /// safe: still sitting in the backlog, or parked in review waiting on the
+  /// dev (design doc §5 — `Task.agent` is optional precisely so a task
+  /// survives its agent being deleted).
+  static const _reassignableTaskStatuses = {
+    TaskStatus.queued,
+    TaskStatus.cloning,
+    TaskStatus.awaitingReview,
+  };
+
   final _github = GitHubRepoClient();
 
   /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
@@ -124,6 +135,97 @@ class TaskEndpoint extends Endpoint {
         finishedAt: DateTime.now().toUtc(),
         lastProgressAt: DateTime.now().toUtc(),
       ),
+    );
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
+
+    return task;
+  }
+
+  /// Re-queues a `failed` or `cancelled` task for another attempt, without
+  /// the dev having to recreate it from scratch. Resets it to look exactly
+  /// like a brand new `queued` task — clearing `claudeSessionId` in
+  /// particular, so `TaskDispatcher.handle` starts a fresh Claude Code
+  /// invocation rather than trying to `--resume` a session that already
+  /// ended in failure/cancellation. Wakes the daemon via the same channel
+  /// [createTask] uses.
+  Future<Task> retryTask(Session session, int taskId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (task.status != TaskStatus.failed &&
+        task.status != TaskStatus.cancelled) {
+      throw Exception(
+        'Task $taskId is not retryable (status=${task.status})',
+      );
+    }
+    var agentId = task.agentId;
+    if (agentId == null) {
+      throw Exception(
+        'Task $taskId has no assigned agent — reassign one first',
+      );
+    }
+    var agent = await Agent.db.findById(session, agentId);
+    if (agent == null) {
+      throw Exception('Agent $agentId not found');
+    }
+
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(
+        status: TaskStatus.queued,
+        currentPlan: null,
+        failureReason: null,
+        claudeSessionId: null,
+        startedAt: null,
+        finishedAt: null,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
+    );
+
+    await session.messages.postMessage(
+      _channelForMachine(agent.machineId),
+      task,
+    );
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
+
+    return task;
+  }
+
+  /// Assigns [agentId] to [taskId] — either giving an agent-less task one
+  /// (its previous agent was deleted, see `Agent.machine`'s
+  /// `onDelete=Cascade`) or moving a backlog/review task to a different
+  /// agent. Blocked while the task is actively executing under its current
+  /// agent (`planning`/`running`/etc.) to avoid pulling an agent out from
+  /// under a live Claude Code run; not blocked when there's no current agent
+  /// at all, since in that case nothing is actually running.
+  Future<Task> reassignAgent(Session session, int taskId, int agentId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (task.agentId != null &&
+        !_reassignableTaskStatuses.contains(task.status)) {
+      throw Exception(
+        'Task $taskId cannot be reassigned while ${task.status.name}',
+      );
+    }
+    var agent = await Agent.db.findById(session, agentId);
+    if (agent == null) {
+      throw Exception('Agent $agentId not found');
+    }
+
+    task = await Task.db.updateRow(session, task.copyWith(agentId: agentId));
+
+    // Wakes the new agent's machine in case the task is sitting in the
+    // backlog waiting to be picked up — the same channel [createTask] posts
+    // to, since `watchAssignedTasks` only replays already-pending tasks once
+    // at subscribe time.
+    await session.messages.postMessage(
+      _channelForMachine(agent.machineId),
+      task,
     );
     await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
@@ -361,6 +463,43 @@ class TaskEndpoint extends Endpoint {
     );
     await for (var t in updates) {
       yield t;
+    }
+  }
+
+  /// Deletes a task once it's reached a terminal state — a non-terminal one
+  /// has to be cancelled first (mirrors [cancelTask]'s own guard, just
+  /// inverted). Its logs/questions/feedback cascade-delete with it (see
+  /// `Task`'s relations). Broadcasts a [TaskDeleted] on the same channel
+  /// [watchAllTasks] uses, since deleting the row leaves no `Task` to post as
+  /// an update.
+  Future<void> deleteTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (nonTerminalTaskStatuses.contains(task.status)) {
+      throw Exception(
+        'Task $taskId cannot be deleted while ${task.status.name} — cancel '
+        'it first',
+      );
+    }
+
+    await Task.db.deleteRow(session, task);
+    await session.messages.postMessage(
+      channelForAllTasks(),
+      TaskDeleted(taskId: taskId),
+    );
+  }
+
+  /// Streams [TaskDeleted] broadcasts from [deleteTask], for the dashboard
+  /// kanban to drop a deleted task from its local list — mirrors
+  /// [watchAllTasks], the other half of the same channel's traffic.
+  /// Deliberately doesn't replay anything on subscribe, same reasoning as
+  /// [watchPlanDecision]: a deletion is always a future event relative to
+  /// subscribing.
+  Stream<TaskDeleted> watchTaskDeletions(Session session) async* {
+    var updates = session.messages.createStream<TaskDeleted>(
+      channelForAllTasks(),
+    );
+    await for (var deletion in updates) {
+      yield deletion;
     }
   }
 

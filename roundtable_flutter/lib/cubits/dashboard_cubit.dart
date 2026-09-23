@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
@@ -52,10 +54,11 @@ class DashboardLoaded extends DashboardState {
   }
 }
 
-/// Wraps [TaskRepository.watchAllTasks] — one changed/created task per
-/// event, merged into an in-memory map by id and regrouped into
-/// [KanbanColumn]s on every update. A Cubit, not a Bloc: a single stream
-/// source (design doc §3.3).
+/// Wraps [TaskRepository.watchAllTasks]/[TaskRepository.watchTaskDeletions]
+/// — one changed/created/deleted task per event, merged into an in-memory
+/// map by id and regrouped into [KanbanColumn]s on every update. A Cubit,
+/// not a Bloc: both streams feed the same single `Map<int, Task>` state
+/// rather than driving separate concerns (design doc §3.3).
 class DashboardCubit extends Cubit<DashboardState> {
   DashboardCubit(this._repository) : super(const DashboardLoading());
 
@@ -64,14 +67,30 @@ class DashboardCubit extends Cubit<DashboardState> {
 
   Future<void> subscribe() async {
     emit(const DashboardLoading());
+    // `watchAllTasks` only yields when a task already exists or changes —
+    // with zero tasks in the database it never emits at all, so without
+    // this the cubit would sit in `DashboardLoading` forever instead of
+    // showing an empty board.
+    emit(DashboardLoaded(Map.of(_tasks)));
+    unawaited(_watchTasks());
+    unawaited(_watchDeletions());
+  }
+
+  Future<void> _watchTasks() async {
     try {
-      // `watchAllTasks` only yields when a task already exists or changes —
-      // with zero tasks in the database it never emits at all, so without
-      // this the cubit would sit in `DashboardLoading` forever instead of
-      // showing an empty board.
-      emit(DashboardLoaded(Map.of(_tasks)));
       await for (final task in _repository.watchAllTasks()) {
         _tasks[task.id!] = task;
+        emit(DashboardLoaded(Map.of(_tasks)));
+      }
+    } catch (e) {
+      emit(DashboardError(e.toString()));
+    }
+  }
+
+  Future<void> _watchDeletions() async {
+    try {
+      await for (final deletion in _repository.watchTaskDeletions()) {
+        _tasks.remove(deletion.taskId);
         emit(DashboardLoaded(Map.of(_tasks)));
       }
     } catch (e) {

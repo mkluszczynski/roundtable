@@ -66,6 +66,7 @@ abstract class TaskFeedback
 
   int taskId;
 
+  /// onDelete=Cascade: feedback has no meaning independent of its task.
   _iwn6t6fs.Task? task;
 
   String message;
@@ -237,6 +238,7 @@ class TaskFeedbackTable extends _is.Table<int?> {
 
   late final _is.ColumnInt taskId;
 
+  /// onDelete=Cascade: feedback has no meaning independent of its task.
   _iwn6t6fs.TaskTable? _task;
 
   late final _is.ColumnString message;

@@ -65,6 +65,7 @@ abstract class TaskLogEntry
 
   int taskId;
 
+  /// onDelete=Cascade: log entries have no meaning independent of their task.
   _iwn6t6fs.Task? task;
 
   String content;

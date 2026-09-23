@@ -63,6 +63,7 @@ abstract class TaskFeedback
 
   int taskId;
 
+  /// onDelete=Cascade: feedback has no meaning independent of its task.
   _iwn6t6fs.Task? task;
 
   String message;

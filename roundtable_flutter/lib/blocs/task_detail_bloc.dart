@@ -49,6 +49,25 @@ class TaskCancelled extends TaskDetailEvent {
   final int taskId;
 }
 
+class TaskRetried extends TaskDetailEvent {
+  const TaskRetried(this.taskId);
+
+  final int taskId;
+}
+
+class AgentReassigned extends TaskDetailEvent {
+  const AgentReassigned(this.taskId, this.agentId);
+
+  final int taskId;
+  final int agentId;
+}
+
+class TaskDeleteRequested extends TaskDetailEvent {
+  const TaskDeleteRequested(this.taskId);
+
+  final int taskId;
+}
+
 /// Internal: starts the live log tail for [taskId]. Added once, the first
 /// time the task enters `planning`/`running`.
 class _LogsSubscribed extends TaskDetailEvent {
@@ -91,6 +110,13 @@ class TaskDetailError extends TaskDetailState {
   const TaskDetailError(this.message);
 
   final String message;
+}
+
+/// Terminal state reached once [TaskDeleteRequested] succeeds — the task no
+/// longer exists, so there's nothing left for `_TaskDetailView` to render;
+/// the screen listens for this to pop back to the dashboard.
+class TaskDetailDeleted extends TaskDetailState {
+  const TaskDetailDeleted();
 }
 
 class TaskDetailLoaded extends TaskDetailState {
@@ -139,7 +165,9 @@ class TaskDetailLoaded extends TaskDetailState {
     Task? task,
     Project? project,
     Agent? agent,
+    bool clearAgent = false,
     Machine? machine,
+    bool clearMachine = false,
     TaskQuestion? pendingQuestion,
     bool clearPendingQuestion = false,
     bool? submitting,
@@ -156,8 +184,8 @@ class TaskDetailLoaded extends TaskDetailState {
     return TaskDetailLoaded(
       task: task ?? this.task,
       project: project ?? this.project,
-      agent: agent ?? this.agent,
-      machine: machine ?? this.machine,
+      agent: clearAgent ? null : (agent ?? this.agent),
+      machine: clearMachine ? null : (machine ?? this.machine),
       pendingQuestion: clearPendingQuestion
           ? null
           : (pendingQuestion ?? this.pendingQuestion),
@@ -197,6 +225,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     on<PlanFeedbackSubmitted>(_onPlanFeedbackSubmitted);
     on<ReviewFeedbackSubmitted>(_onReviewFeedbackSubmitted);
     on<TaskCancelled>(_onTaskCancelled);
+    on<TaskRetried>(_onTaskRetried);
+    on<AgentReassigned>(_onAgentReassigned);
+    on<TaskDeleteRequested>(_onTaskDeleteRequested);
     on<_LogsSubscribed>(_onLogsSubscribed);
     on<_ChangedFilesRequested>(_onChangedFilesRequested);
     on<FileSelected>(_onFileSelected);
@@ -244,6 +275,28 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       pendingQuestion = await _repository.latestQuestion(task.id!);
     }
     if (previous is TaskDetailLoaded) {
+      // Task.agentId is otherwise immutable, but reassignAgent changes it —
+      // refetch agent/machine when that happens rather than caching stale
+      // ones (or a stale null after an agent-less task gets one assigned).
+      if (task.agentId != previous.task.agentId) {
+        final agentId = task.agentId;
+        final agent = agentId == null
+            ? null
+            : await _agentRepository.getAgent(agentId);
+        final machine = agent == null
+            ? null
+            : await _machineRepository.getMachine(agent.machineId);
+        return previous.copyWith(
+          task: task,
+          agent: agent,
+          clearAgent: agent == null,
+          machine: machine,
+          clearMachine: machine == null,
+          pendingQuestion: pendingQuestion,
+          clearPendingQuestion: pendingQuestion == null,
+          submitting: false,
+        );
+      }
       return previous.copyWith(
         task: task,
         pendingQuestion: pendingQuestion,
@@ -252,8 +305,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       );
     }
 
-    // First load: the task's relations (project/agent/machine) never change
-    // for a given task, so fetch them once rather than on every status tick.
+    // First load: the task's project never changes and, initially, neither
+    // does its agent/machine — fetched once here; reassignAgent's branch
+    // above is what keeps agent/machine fresh afterwards.
     final project = await _projectRepository.getProject(task.projectId);
     final agentId = task.agentId;
     final agent = agentId == null
@@ -337,6 +391,49 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     emit(current.copyWith(submitting: true));
     try {
       await _repository.cancelTask(event.taskId);
+    } catch (e) {
+      emit(TaskDetailError(e.toString()));
+    }
+  }
+
+  Future<void> _onTaskRetried(
+    TaskRetried event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    emit(current.copyWith(submitting: true));
+    try {
+      await _repository.retryTask(event.taskId);
+    } catch (e) {
+      emit(TaskDetailError(e.toString()));
+    }
+  }
+
+  Future<void> _onAgentReassigned(
+    AgentReassigned event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    emit(current.copyWith(submitting: true));
+    try {
+      await _repository.reassignAgent(event.taskId, event.agentId);
+    } catch (e) {
+      emit(TaskDetailError(e.toString()));
+    }
+  }
+
+  Future<void> _onTaskDeleteRequested(
+    TaskDeleteRequested event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    emit(current.copyWith(submitting: true));
+    try {
+      await _repository.deleteTask(event.taskId);
+      emit(const TaskDetailDeleted());
     } catch (e) {
       emit(TaskDetailError(e.toString()));
     }

@@ -209,6 +209,277 @@ void main() {
     );
 
     test(
+      'when retrying a failed task then it is reset to queued with the failure/session state cleared',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.failed,
+            failureReason: 'claude: No such file or directory',
+            claudeSessionId: 'session-123',
+            currentPlan: 'Old plan',
+            startedAt: DateTime.now().toUtc(),
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final retried = await endpoints.task.retryTask(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(retried.status, TaskStatus.queued);
+        expect(retried.failureReason, isNull);
+        expect(retried.claudeSessionId, isNull);
+        expect(retried.currentPlan, isNull);
+        expect(retried.startedAt, isNull);
+        expect(retried.finishedAt, isNull);
+      },
+    );
+
+    test(
+      'when retrying a cancelled task then it is reset to queued',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        final cancelled = await endpoints.task.cancelTask(
+          sessionBuilder,
+          task.id!,
+        );
+
+        final retried = await endpoints.task.retryTask(
+          sessionBuilder,
+          cancelled.id!,
+        );
+
+        expect(retried.status, TaskStatus.queued);
+      },
+    );
+
+    test(
+      'when retrying a task that is not failed/cancelled then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        await expectLater(
+          endpoints.task.retryTask(sessionBuilder, task.id!),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when retrying an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.retryTask(sessionBuilder, 999999),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when reassigning a queued task to a different agent then agentId is updated',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final otherAgent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final reassigned = await endpoints.task.reassignAgent(
+          sessionBuilder,
+          task.id!,
+          otherAgent.id!,
+        );
+
+        expect(reassigned.agentId, otherAgent.id);
+      },
+    );
+
+    test(
+      'when reassigning an agent-less task then it succeeds regardless of status',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final newAgent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(status: TaskStatus.running, agentId: null),
+        );
+
+        final reassigned = await endpoints.task.reassignAgent(
+          sessionBuilder,
+          task.id!,
+          newAgent.id!,
+        );
+
+        expect(reassigned.agentId, newAgent.id);
+      },
+    );
+
+    test(
+      'when reassigning a task actively running under its current agent then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final otherAgent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(status: TaskStatus.running),
+        );
+
+        await expectLater(
+          endpoints.task.reassignAgent(
+            sessionBuilder,
+            task.id!,
+            otherAgent.id!,
+          ),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when reassigning to an unknown agent then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        await expectLater(
+          endpoints.task.reassignAgent(sessionBuilder, task.id!, 999999),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when reassigning an unknown task then it throws',
+      () async {
+        final machine = await createMachine();
+        final agent = await createAgent(machine);
+
+        await expectLater(
+          endpoints.task.reassignAgent(sessionBuilder, 999999, agent.id!),
+          throwsException,
+        );
+      },
+    );
+
+    test('when deleting a terminal task then it is removed', () async {
+      final machine = await createMachine();
+      final project = await createProject();
+      final agent = await createAgent(machine);
+      final task = await endpoints.task.createTask(
+        sessionBuilder,
+        project.id!,
+        agent.id!,
+        'Do something',
+        skipPlanning: true,
+      );
+      await endpoints.task.update(
+        sessionBuilder,
+        task.copyWith(
+          status: TaskStatus.done,
+          finishedAt: DateTime.now().toUtc(),
+        ),
+      );
+
+      await endpoints.task.deleteTask(sessionBuilder, task.id!);
+
+      final deleted = await Task.db.findById(sessionBuilder.build(), task.id!);
+      expect(deleted, isNull);
+    });
+
+    test(
+      'when deleting a task that is not in a terminal state then it throws',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        await expectLater(
+          endpoints.task.deleteTask(sessionBuilder, task.id!),
+          throwsException,
+        );
+      },
+    );
+
+    test(
+      'when deleting an unknown task then it throws',
+      () async {
+        await expectLater(
+          endpoints.task.deleteTask(sessionBuilder, 999999),
+          throwsException,
+        );
+      },
+    );
+
+    test(
       'when watching a task then its current row is replayed',
       () async {
         final machine = await createMachine();
@@ -884,6 +1155,39 @@ void main() {
     );
 
     test(
+      'when a terminal task is deleted then it is emitted on watchTaskDeletions',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.done,
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final stream = endpoints.task.watchTaskDeletions(sessionBuilder);
+        await flushEventQueue();
+
+        await endpoints.task.deleteTask(sessionBuilder, task.id!);
+
+        await expectLater(
+          stream.first.then((d) => d.taskId),
+          completion(task.id),
+        );
+      },
+    );
+
+    test(
       'when feedback is submitted on the watched machine\'s task then it is re-emitted on watchAssignedTasks',
       () async {
         final machine = await createMachine();
@@ -922,6 +1226,47 @@ void main() {
         await subscription.cancel();
 
         expect(events.map((t) => t.id), contains(task.id));
+      },
+    );
+
+    test(
+      'when a failed task is retried then it is re-emitted on watchAssignedTasks as queued',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.failed,
+            failureReason: 'boom',
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final stream = endpoints.task.watchAssignedTasks(
+          sessionBuilder,
+          machine.id!,
+        );
+        final events = <Task>[];
+        final subscription = stream.listen(events.add);
+        await flushEventQueue();
+
+        await endpoints.task.retryTask(sessionBuilder, task.id!);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await subscription.cancel();
+
+        expect(
+          events.where((t) => t.id == task.id).map((t) => t.status),
+          contains(TaskStatus.queued),
+        );
       },
     );
 

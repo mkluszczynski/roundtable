@@ -1,0 +1,6 @@
+### Broadcast on `all-tasks` when a task is deleted (design doc §6.1) — deleting
+### the row leaves no `Task` to post as an update, so subscribers (the
+### dashboard kanban) drop it from their local task list by id instead.
+class: TaskDeleted
+fields:
+  taskId: int
