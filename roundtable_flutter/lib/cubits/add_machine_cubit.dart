@@ -18,10 +18,17 @@ class AddMachineSubmitting extends AddMachineState {
 /// The machine is registered — [token] is shown to the dev exactly once and
 /// is never fetchable again (design doc §6.8).
 class AddMachineRegistered extends AddMachineState {
-  const AddMachineRegistered(this.machine, this.token);
+  const AddMachineRegistered(
+    this.machine,
+    this.token,
+    this.serverUrl,
+    this.scriptUrl,
+  );
 
   final Machine machine;
   final String token;
+  final String serverUrl;
+  final String scriptUrl;
 }
 
 class AddMachineError extends AddMachineState {
@@ -43,7 +50,12 @@ class AddMachineCubit extends Cubit<AddMachineState> {
         hostInfo: hostInfo,
       );
       emit(
-        AddMachineRegistered(registration.machine, registration.token),
+        AddMachineRegistered(
+          registration.machine,
+          registration.token,
+          registration.serverUrl,
+          registration.scriptUrl,
+        ),
       );
     } catch (e) {
       emit(AddMachineError(e.toString()));

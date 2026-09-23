@@ -1,7 +1,13 @@
 ### Returned once from Machine registration: the persisted Machine plus the raw
 ### registration token, shown to the dev exactly this one time (design doc §6.8).
 ### Not a database table — a transient wrapper for the endpoint response.
+###
+### serverUrl and scriptUrl can differ: serverUrl is the API server the
+### installed agent-runner connects to, scriptUrl is where the install
+### script itself is hosted (the web server).
 class: MachineRegistration
 fields:
   machine: Machine
   token: String
+  serverUrl: String
+  scriptUrl: String

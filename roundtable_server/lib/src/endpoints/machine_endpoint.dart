@@ -36,7 +36,24 @@ class MachineEndpoint extends Endpoint {
       session,
       Machine(name: name, hostInfo: hostInfo, tokenHash: _hashToken(token)),
     );
-    return MachineRegistration(machine: machine, token: token);
+    final apiServer = session.serverpod.config.apiServer;
+    // Falls back to the API server if this monolith wasn't configured with a
+    // separate web server role (webServer is only set up for that role).
+    final webServer = session.serverpod.config.webServer ?? apiServer;
+    return MachineRegistration(
+      machine: machine,
+      token: token,
+      serverUrl: Uri(
+        scheme: apiServer.publicScheme,
+        host: apiServer.publicHost,
+        port: apiServer.publicPort,
+      ).toString(),
+      scriptUrl: Uri(
+        scheme: webServer.publicScheme,
+        host: webServer.publicHost,
+        port: webServer.publicPort,
+      ).toString(),
+    );
   }
 
   Future<Machine?> get(Session session, int id) async {

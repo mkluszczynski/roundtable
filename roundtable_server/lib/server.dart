@@ -50,6 +50,23 @@ void run(List<String> args) async {
     '/assets/assets/config.json',
   );
 
+  // Serve the machine install script so the "add machine" command works on a
+  // fresh host that doesn't have this repo checked out. In development it's
+  // read straight from the repo's scripts/ directory; the packaged Docker
+  // image only ships web/, so the Dockerfile copies the script there too.
+  final devInstallScript = File(
+    Uri(path: '../scripts/install-agent.sh').toFilePath(),
+  );
+  final packagedInstallScript = File(
+    Uri(path: 'web/static/install-agent.sh').toFilePath(),
+  );
+  pod.webServer.addRoute(
+    StaticRoute.file(
+      devInstallScript.existsSync() ? devInstallScript : packagedInstallScript,
+    ),
+    '/install-agent.sh',
+  );
+
   // Checks if the flutter web app has been built and serves it if it has.
   final appDir = Directory(Uri(path: 'web/app').toFilePath());
   if (appDir.existsSync()) {

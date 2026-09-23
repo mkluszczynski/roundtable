@@ -17,16 +17,24 @@ import 'machine.dart' as _i0hti3f2;
 /// Returned once from Machine registration: the persisted Machine plus the raw
 /// registration token, shown to the dev exactly this one time (design doc §6.8).
 /// Not a database table — a transient wrapper for the endpoint response.
+///
+/// serverUrl and scriptUrl can differ: serverUrl is the API server the
+/// installed agent-runner connects to, scriptUrl is where the install
+/// script itself is hosted (the web server).
 abstract class MachineRegistration
     implements _isc.SerializableModel, _isc.ProtocolSerialization {
   MachineRegistration._({
     required this.machine,
     required this.token,
+    required this.serverUrl,
+    required this.scriptUrl,
   });
 
   factory MachineRegistration({
     required _i0hti3f2.Machine machine,
     required String token,
+    required String serverUrl,
+    required String scriptUrl,
   }) = _MachineRegistrationImpl;
 
   factory MachineRegistration.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -35,6 +43,8 @@ abstract class MachineRegistration
         jsonSerialization['machine'],
       ),
       token: jsonSerialization['token'] as String,
+      serverUrl: jsonSerialization['serverUrl'] as String,
+      scriptUrl: jsonSerialization['scriptUrl'] as String,
     );
   }
 
@@ -42,12 +52,18 @@ abstract class MachineRegistration
 
   String token;
 
+  String serverUrl;
+
+  String scriptUrl;
+
   /// Returns a shallow copy of this [MachineRegistration]
   /// with some or all fields replaced by the given arguments.
   @_isc.useResult
   MachineRegistration copyWith({
     _i0hti3f2.Machine? machine,
     String? token,
+    String? serverUrl,
+    String? scriptUrl,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -55,6 +71,8 @@ abstract class MachineRegistration
       '__className__': 'MachineRegistration',
       'machine': machine.toJson(),
       'token': token,
+      'serverUrl': serverUrl,
+      'scriptUrl': scriptUrl,
     };
   }
 
@@ -64,6 +82,8 @@ abstract class MachineRegistration
       '__className__': 'MachineRegistration',
       'machine': machine.toJsonForProtocol(),
       'token': token,
+      'serverUrl': serverUrl,
+      'scriptUrl': scriptUrl,
     };
   }
 
@@ -77,9 +97,13 @@ class _MachineRegistrationImpl extends MachineRegistration {
   _MachineRegistrationImpl({
     required _i0hti3f2.Machine machine,
     required String token,
+    required String serverUrl,
+    required String scriptUrl,
   }) : super._(
          machine: machine,
          token: token,
+         serverUrl: serverUrl,
+         scriptUrl: scriptUrl,
        );
 
   /// Returns a shallow copy of this [MachineRegistration]
@@ -89,10 +113,14 @@ class _MachineRegistrationImpl extends MachineRegistration {
   MachineRegistration copyWith({
     _i0hti3f2.Machine? machine,
     String? token,
+    String? serverUrl,
+    String? scriptUrl,
   }) {
     return MachineRegistration(
       machine: machine ?? this.machine.copyWith(),
       token: token ?? this.token,
+      serverUrl: serverUrl ?? this.serverUrl,
+      scriptUrl: scriptUrl ?? this.scriptUrl,
     );
   }
 }

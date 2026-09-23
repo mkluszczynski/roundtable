@@ -8,6 +8,9 @@ FROM dart:3.12.2 AS build
 WORKDIR /app
 COPY pubspec.lock .
 COPY roundtable_server roundtable_server
+COPY scripts scripts
+RUN mkdir -p roundtable_server/web/static \
+  && cp scripts/install-agent.sh roundtable_server/web/static/install-agent.sh
 RUN printf '%s\n' \
   'name: _' \
   'environment:' \

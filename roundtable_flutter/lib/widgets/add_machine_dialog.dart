@@ -52,6 +52,8 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
           return _RegisteredStep(
             machineName: state.machine.name,
             token: state.token,
+            serverUrl: state.serverUrl,
+            scriptUrl: state.scriptUrl,
           );
         }
 
@@ -117,16 +119,23 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
 }
 
 class _RegisteredStep extends StatelessWidget {
-  const _RegisteredStep({required this.machineName, required this.token});
+  const _RegisteredStep({
+    required this.machineName,
+    required this.token,
+    required this.serverUrl,
+    required this.scriptUrl,
+  });
 
   final String machineName;
   final String token;
+  final String serverUrl;
+  final String scriptUrl;
 
   @override
   Widget build(BuildContext context) {
     final command =
-        './scripts/install-agent.sh --token $token --server '
-        '<your-server-url>';
+        'curl -fsSL $scriptUrl/install-agent.sh | bash -s -- '
+        '--token $token --server $serverUrl';
     return AppModal(
       title: 'Machine registered',
       subtitle: machineName,
@@ -143,9 +152,8 @@ class _RegisteredStep extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This token is shown once. Clone the repo on the target '
-              'machine and run the following command to install the agent '
-              'runner:',
+              'This token is shown once. Run the following command on the '
+              'target machine to install the agent runner:',
               style: AppTypography.body,
             ),
             const SizedBox(height: Spacing.lg),
