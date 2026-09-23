@@ -1,0 +1,1 @@
+{"mcpServers":{"roundtable-permission":{"command":"/usr/local/bin/roundtable-permission-prompt-tool","args":[],"env":{"SERVER_URL":"http://localhost:8080/","ROUNDTABLE_TASK_ID":"5"}}}}
