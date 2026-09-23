@@ -17,6 +17,7 @@ agent:
   - delete:
 machine:
   - register:
+  - getScriptUrl:
   - get:
   - list:
   - update:
@@ -24,6 +25,7 @@ machine:
   - deregister:
   - identify:
   - reportMetric:
+  - reportClaudeStatus:
   - watchLatestMetric:
   - delete:
 project:
@@ -39,6 +41,8 @@ task:
   - update:
   - appendLog:
   - cancelTask:
+  - retryTask:
+  - reassignAgent:
   - submitFeedback:
   - latestFeedback:
   - createQuestion:
@@ -49,6 +53,8 @@ task:
   - approvePlan:
   - submitPlanFeedback:
   - watchPlanDecision:
+  - deleteTask:
+  - watchTaskDeletions:
   - getChangedFiles:
   - getFileContent:
   - watchAllTasks:

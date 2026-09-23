@@ -279,11 +279,14 @@ class TaskDispatcher {
       await updateAgent(agent.copyWith(status: AgentStatus.idle));
     } catch (e) {
       log('task ${task.id}: execution failed: $e');
+      final failureReason = cancelRequested
+          ? null
+          : (e is ProcessException ? describeClaudeLaunchFailure(e) : '$e');
       await updateTask(
         task.copyWith(
           status: cancelRequested ? TaskStatus.cancelled : TaskStatus.failed,
           finishedAt: DateTime.now().toUtc(),
-          failureReason: cancelRequested ? null : '$e',
+          failureReason: failureReason,
         ),
       );
       if (agent != null) {

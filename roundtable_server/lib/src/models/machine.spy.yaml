@@ -12,6 +12,15 @@ fields:
   status: MachineStatus, default=offline
   ### Last time a heartbeat was received from this machine's daemon.
   lastSeenAt: DateTime?
+  ### Whether the daemon's last check of its configured `claude` executable
+  ### succeeded (`Process.run(claudeExecutable, ['--version'])`) — null until
+  ### the first check reports in. Surfaced as a warning banner in the panel
+  ### instead of only in `journalctl -u agent-runner`, since a broken
+  ### CLAUDE_EXECUTABLE otherwise silently fails every task on this machine.
+  claudeExecutableOk: bool?
+  ### Actionable error message set when `claudeExecutableOk` is false (e.g. a
+  ### `ProcessException` launching `claude`, with fix instructions).
+  claudeExecutableError: String?
   createdAt: DateTime, default=now
   agents: List<Agent>?, relation(name=machine_agents)
   metrics: List<MachineMetric>?, relation(name=machine_metrics)

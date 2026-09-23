@@ -8,6 +8,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'app_modal.dart';
+import 'claude_token_help_accordion.dart';
 import 'code_block.dart';
 
 /// Two-step machine registration (design doc §6.8): a name form, then the
@@ -36,11 +37,13 @@ class _AddMachineDialogContent extends StatefulWidget {
 class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
   final _nameController = TextEditingController();
   final _hostInfoController = TextEditingController();
+  final _claudeTokenController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
     _hostInfoController.dispose();
+    _claudeTokenController.dispose();
     super.dispose();
   }
 
@@ -54,10 +57,15 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
             token: state.token,
             serverUrl: state.serverUrl,
             scriptUrl: state.scriptUrl,
+            claudeToken: _claudeTokenController.text.trim(),
           );
         }
 
         final submitting = state is AddMachineSubmitting;
+        final canSubmit =
+            !submitting &&
+            _nameController.text.trim().isNotEmpty &&
+            _claudeTokenController.text.trim().isNotEmpty;
         return AppModal(
           title: 'Add machine',
           actions: [
@@ -66,7 +74,7 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: (!submitting && _nameController.text.trim().isNotEmpty)
+              onPressed: canSubmit
                   ? () => context.read<AddMachineCubit>().submit(
                       _nameController.text.trim(),
                       hostInfo: _hostInfoController.text.trim().isEmpty
@@ -102,6 +110,17 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
                     hintText: 'e.g. Hetzner · Ubuntu 22.04',
                   ),
                 ),
+                const SizedBox(height: Spacing.lg),
+                TextField(
+                  controller: _claudeTokenController,
+                  decoration: const InputDecoration(
+                    labelText: 'Claude Code OAuth token',
+                  ),
+                  obscureText: true,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: Spacing.sm),
+                const ClaudeTokenHelpAccordion(),
                 if (state is AddMachineError) ...[
                   const SizedBox(height: Spacing.md),
                   Text(
@@ -124,6 +143,7 @@ class _RegisteredStep extends StatelessWidget {
     required this.token,
     required this.serverUrl,
     required this.scriptUrl,
+    required this.claudeToken,
   });
 
   final String machineName;
@@ -131,11 +151,16 @@ class _RegisteredStep extends StatelessWidget {
   final String serverUrl;
   final String scriptUrl;
 
+  /// Claude Code OAuth token entered in the form step — never sent to the
+  /// server (design doc §6.11), only folded into the install command below.
+  final String claudeToken;
+
   @override
   Widget build(BuildContext context) {
     final command =
-        'curl -fsSL $scriptUrl/install-agent.sh | bash -s -- '
-        '--token $token --server $serverUrl';
+        'curl -fsSL $scriptUrl/install-agent.sh | sudo bash -s -- '
+        '--token $token --server $serverUrl --script-url $scriptUrl'
+        "${claudeToken.isEmpty ? '' : " --claude-token '$claudeToken'"}";
     return AppModal(
       title: 'Machine registered',
       subtitle: machineName,

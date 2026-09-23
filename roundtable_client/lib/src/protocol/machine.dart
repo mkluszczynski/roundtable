@@ -26,6 +26,8 @@ abstract class Machine
     this.hostInfo,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
+    this.claudeExecutableOk,
+    this.claudeExecutableError,
     DateTime? createdAt,
     this.agents,
     this.metrics,
@@ -38,6 +40,8 @@ abstract class Machine
     String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -58,6 +62,13 @@ abstract class Machine
           : _isc.DateTimeJsonExtension.fromJson(
               jsonSerialization['lastSeenAt'],
             ),
+      claudeExecutableOk: jsonSerialization['claudeExecutableOk'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['claudeExecutableOk'],
+            ),
+      claudeExecutableError:
+          jsonSerialization['claudeExecutableError'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -90,6 +101,17 @@ abstract class Machine
   /// Last time a heartbeat was received from this machine's daemon.
   DateTime? lastSeenAt;
 
+  /// Whether the daemon's last check of its configured `claude` executable
+  /// succeeded (`Process.run(claudeExecutable, ['--version'])`) — null until
+  /// the first check reports in. Surfaced as a warning banner in the panel
+  /// instead of only in `journalctl -u agent-runner`, since a broken
+  /// CLAUDE_EXECUTABLE otherwise silently fails every task on this machine.
+  bool? claudeExecutableOk;
+
+  /// Actionable error message set when `claudeExecutableOk` is false (e.g. a
+  /// `ProcessException` launching `claude`, with fix instructions).
+  String? claudeExecutableError;
+
   DateTime createdAt;
 
   List<_ijo8h3v4.Agent>? agents;
@@ -105,6 +127,8 @@ abstract class Machine
     String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -118,6 +142,9 @@ abstract class Machine
       if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
+      if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
+      if (claudeExecutableError != null)
+        'claudeExecutableError': claudeExecutableError,
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJson()),
@@ -135,6 +162,9 @@ abstract class Machine
       if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
+      if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
+      if (claudeExecutableError != null)
+        'claudeExecutableError': claudeExecutableError,
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -158,6 +188,8 @@ class _MachineImpl extends Machine {
     String? hostInfo,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -167,6 +199,8 @@ class _MachineImpl extends Machine {
          hostInfo: hostInfo,
          status: status,
          lastSeenAt: lastSeenAt,
+         claudeExecutableOk: claudeExecutableOk,
+         claudeExecutableError: claudeExecutableError,
          createdAt: createdAt,
          agents: agents,
          metrics: metrics,
@@ -182,6 +216,8 @@ class _MachineImpl extends Machine {
     Object? hostInfo = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
+    Object? claudeExecutableOk = _Undefined,
+    Object? claudeExecutableError = _Undefined,
     DateTime? createdAt,
     Object? agents = _Undefined,
     Object? metrics = _Undefined,
@@ -192,6 +228,12 @@ class _MachineImpl extends Machine {
       hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
+      claudeExecutableOk: claudeExecutableOk is bool?
+          ? claudeExecutableOk
+          : this.claudeExecutableOk,
+      claudeExecutableError: claudeExecutableError is String?
+          ? claudeExecutableError
+          : this.claudeExecutableError,
       createdAt: createdAt ?? this.createdAt,
       agents: agents is List<_ijo8h3v4.Agent>?
           ? agents

@@ -242,6 +242,45 @@ exit 0
       expect(agentUpdates.last.status, AgentStatus.idle);
     });
 
+    test('an unlaunchable claude executable marks the task failed with a '
+        'friendly, actionable reason instead of the raw exception', () async {
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () =>
+            ClaudeCodeExecutor(executable: '${tempDir.path}/no-such-claude'),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async => taskUpdates.add(task),
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
+        watchTask: (_) => const Stream<Task>.empty(),
+        log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(taskUpdates.last.failureReason, contains('CLAUDE_EXECUTABLE'));
+      expect(taskUpdates.last.failureReason, contains('no-such-claude'));
+      expect(agentUpdates.last.status, AgentStatus.idle);
+    });
+
     test('a task cancelled mid-run is SIGTERM-ed, has its worktree reset, and '
         'is marked cancelled without opening a PR', () async {
       final startedFile = File('${tempDir.path}/started');

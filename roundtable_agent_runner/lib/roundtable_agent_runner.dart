@@ -19,6 +19,11 @@ export 'src/worktree_manager.dart';
 const _heartbeatInterval = Duration(seconds: 20);
 const _metricsInterval = Duration(seconds: 8);
 
+/// Delay before resubscribing to `watchAssignedTasks` after the stream
+/// errors or closes unexpectedly (e.g. a transient WebSocket hiccup) — see
+/// [AgentRunnerService._subscribeToAssignedTasks].
+const _taskStreamResubscribeDelay = Duration(seconds: 5);
+
 /// Config for the agent-runner daemon, read from a `KEY=VALUE` env file
 /// rather than CLI flags — the file is written by `scripts/install-agent.sh`
 /// with restrictive permissions (chmod 600), so the token never shows up in
@@ -29,6 +34,7 @@ class AgentRunnerConfig {
     required this.serverUrl,
     this.claudeCodeOauthToken,
     this.workspaceRoot = 'workspace',
+    this.claudeExecutable = 'claude',
   });
 
   final String registrationToken;
@@ -37,6 +43,15 @@ class AgentRunnerConfig {
   /// Passed as `CLAUDE_CODE_OAUTH_TOKEN` to the `claude` subprocess (design
   /// doc §6.11) — never sent to the server.
   final String? claudeCodeOauthToken;
+
+  /// Path (or bare name resolved via PATH) to the `claude` CLI. Defaults to
+  /// bare `'claude'`, which only resolves under systemd if it's on the
+  /// service's restricted PATH — often not the case for a CLI installed via
+  /// nvm/npm in a regular user's home directory. `scripts/install-agent.sh`
+  /// resolves an absolute path at install time and sets `CLAUDE_EXECUTABLE`
+  /// when it can find one, to avoid a `ProcessException: No such file or
+  /// directory` at task-run time.
+  final String claudeExecutable;
 
   /// Root directory for [WorktreeManager]'s per-project bare clones and
   /// per-task worktrees (design doc §6.10).
@@ -79,6 +94,7 @@ class AgentRunnerConfig {
       serverUrl: server,
       claudeCodeOauthToken: values['CLAUDE_CODE_OAUTH_TOKEN'],
       workspaceRoot: values['WORKSPACE_ROOT'] ?? 'workspace',
+      claudeExecutable: values['CLAUDE_EXECUTABLE'] ?? 'claude',
     );
   }
 
@@ -118,12 +134,14 @@ class AgentRunnerService {
   Timer? _timer;
   Timer? _metricsTimer;
   StreamSubscription<Task>? _taskSubscription;
+  Timer? _taskResubscribeTimer;
   final _stopped = Completer<void>();
   final _metricsCollector = MetricsCollector();
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
     worktreeManager: WorktreeManager(workspaceRoot: _config.workspaceRoot),
-    executorFactory: ClaudeCodeExecutor.new,
+    executorFactory: () =>
+        ClaudeCodeExecutor(executable: _config.claudeExecutable),
     oauthToken: _config.claudeCodeOauthToken,
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: (agentId) async {
@@ -186,22 +204,78 @@ class AgentRunnerService {
     return _stopped.future;
   }
 
+  /// Verifies `_config.claudeExecutable` can actually be launched, logging a
+  /// clear warning and reporting the result to the server (surfaced as a
+  /// warning banner on this machine's card in the panel — see
+  /// `MachineEndpoint.reportClaudeStatus`) rather than letting the first
+  /// assigned task surface a raw `ProcessException` that's easy to miss in
+  /// install/journal logs. Called once at startup and again on every
+  /// [_tick], so a fix applied without restarting the daemon (e.g. a
+  /// `setfacl` permission grant) clears the warning within one heartbeat
+  /// interval instead of requiring a restart. Deliberately non-fatal: the
+  /// daemon still comes online and reports heartbeat/metrics so the machine
+  /// doesn't look dead, it just can't run tasks yet.
+  Future<void> _checkClaudeExecutable() async {
+    String? failureMessage;
+    try {
+      await Process.run(_config.claudeExecutable, ['--version']);
+    } on ProcessException catch (e) {
+      failureMessage = describeClaudeLaunchFailure(e);
+      _log('WARNING: $failureMessage');
+    }
+    try {
+      await _client.machine.reportClaudeStatus(
+        _config.registrationToken,
+        failureMessage == null,
+        failureMessage,
+      );
+    } catch (e) {
+      _log('reportClaudeStatus failed, will retry: $e');
+    }
+  }
+
+  /// Subscribes to `watchAssignedTasks`, resubscribing after a short delay
+  /// if the stream ever errors or closes unexpectedly (e.g. a transient
+  /// WebSocket hiccup). Without this, one dropped stream would silently and
+  /// permanently stop the daemon from picking up any task — created,
+  /// retried, or fed back — while its unrelated heartbeat/metrics timers
+  /// kept it looking "online" the whole time.
   void _subscribeToAssignedTasks(int machineId) {
-    _taskSubscription = _client.task.watchAssignedTasks(machineId).listen(
-      (task) {
-        _log('assigned task ${task.id} (status=${task.status})');
-        unawaited(
-          _dispatcher
-              .handle(task)
-              .catchError(
-                (Object error) =>
-                    _log('task ${task.id} dispatch failed: $error'),
-              ),
+    _taskSubscription = _client.task
+        .watchAssignedTasks(machineId)
+        .listen(
+          (task) {
+            _log('assigned task ${task.id} (status=${task.status})');
+            unawaited(
+              _dispatcher
+                  .handle(task)
+                  .catchError(
+                    (Object error) =>
+                        _log('task ${task.id} dispatch failed: $error'),
+                  ),
+            );
+          },
+          onError: (Object error) {
+            _log('watchAssignedTasks stream error: $error — resubscribing');
+            _scheduleResubscribeToAssignedTasks(machineId);
+          },
+          onDone: () {
+            if (_stopped.isCompleted) return;
+            _log(
+              'watchAssignedTasks stream closed unexpectedly — resubscribing',
+            );
+            _scheduleResubscribeToAssignedTasks(machineId);
+          },
         );
-      },
-      onError: (Object error) =>
-          _log('watchAssignedTasks stream error: $error'),
-    );
+  }
+
+  void _scheduleResubscribeToAssignedTasks(int machineId) {
+    if (_stopped.isCompleted) return;
+    _taskResubscribeTimer?.cancel();
+    _taskResubscribeTimer = Timer(_taskStreamResubscribeDelay, () {
+      if (_stopped.isCompleted) return;
+      _subscribeToAssignedTasks(machineId);
+    });
   }
 
   Future<void> _tick() async {
@@ -217,6 +291,7 @@ class AgentRunnerService {
     } catch (e) {
       _log('heartbeat failed, will retry: $e');
     }
+    await _checkClaudeExecutable();
   }
 
   /// Reads local CPU/RAM usage and reports it to the server (design doc
@@ -246,6 +321,8 @@ class AgentRunnerService {
     _timer = null;
     _metricsTimer?.cancel();
     _metricsTimer = null;
+    _taskResubscribeTimer?.cancel();
+    _taskResubscribeTimer = null;
     _taskSubscription?.cancel();
     _taskSubscription = null;
     if (!_stopped.isCompleted) {

@@ -2,6 +2,33 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// POSIX `EACCES` — the OS error code `ProcessException.errorCode` carries
+/// when a subprocess couldn't be launched due to a permissions problem
+/// (as opposed to `ENOENT`, "no such file or directory").
+const _eaccesErrorCode = 13;
+
+/// Human-readable, actionable description of a [ProcessException] thrown by
+/// [Process.start]/[Process.run] when launching the configured `claude`
+/// executable. Shared between [TaskDispatcher]'s per-task `Task.failureReason`
+/// and the daemon's startup/periodic health check
+/// (`AgentRunnerService._checkClaudeExecutable`), so both surfaces give the
+/// same diagnosis instead of a raw exception dump.
+String describeClaudeLaunchFailure(ProcessException e) {
+  if (e.errorCode == _eaccesErrorCode) {
+    return 'Permission denied launching the claude CLI ("${e.executable}") — '
+        'the agent-runner service user cannot execute this file. This '
+        "usually means CLAUDE_EXECUTABLE points at a regular user's own "
+        "install (e.g. via nvm/npm) and that user's home directory blocks "
+        'this cross-user access. Re-run scripts/install-agent.sh, which '
+        'installs claude directly for the agent-runner service account '
+        'instead (its own self-contained install, no cross-user permissions '
+        'needed), then restart the agent-runner service.';
+  }
+  return 'Could not launch the claude CLI ("${e.executable}"): ${e.message}. '
+      'Set CLAUDE_EXECUTABLE in /etc/agent-runner/config.env to its full '
+      'path and restart the agent-runner service.';
+}
+
 /// The outcome of one `claude` execution-phase run (design doc §6.2).
 class ClaudeCodeExecutionResult {
   ClaudeCodeExecutionResult({

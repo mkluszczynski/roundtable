@@ -37,6 +37,7 @@ import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'project.dart' as _ifiazq2p;
 import 'task.dart' as _iwn6t6fs;
+import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_feedback_phase.dart' as _iitmdld3;
 import 'task_log_entry.dart' as _ihv3trno;
@@ -59,6 +60,7 @@ export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'project.dart';
 export 'task.dart';
+export 'task_deleted.dart';
 export 'task_feedback.dart';
 export 'task_feedback_phase.dart';
 export 'task_log_entry.dart';
@@ -151,6 +153,9 @@ class Protocol extends _isc.SerializationManager {
     if (t == _iwn6t6fs.Task) {
       return _iwn6t6fs.Task.fromJson(data) as T;
     }
+    if (t == _imh5lex6.TaskDeleted) {
+      return _imh5lex6.TaskDeleted.fromJson(data) as T;
+    }
     if (t == _i5hi2zxr.TaskFeedback) {
       return _i5hi2zxr.TaskFeedback.fromJson(data) as T;
     }
@@ -231,6 +236,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _isc.getType<_iwn6t6fs.Task?>()) {
       return (data != null ? _iwn6t6fs.Task.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_imh5lex6.TaskDeleted?>()) {
+      return (data != null ? _imh5lex6.TaskDeleted.fromJson(data) : null) as T;
     }
     if (t == _isc.getType<_i5hi2zxr.TaskFeedback?>()) {
       return (data != null ? _i5hi2zxr.TaskFeedback.fromJson(data) : null) as T;
@@ -384,6 +392,7 @@ class Protocol extends _isc.SerializationManager {
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _ifiazq2p.Project => 'Project',
       _iwn6t6fs.Task => 'Task',
+      _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
       _iitmdld3.TaskFeedbackPhase => 'TaskFeedbackPhase',
       _ihv3trno.TaskLogEntry => 'TaskLogEntry',
@@ -437,6 +446,8 @@ class Protocol extends _isc.SerializationManager {
         return 'Project';
       case _iwn6t6fs.Task():
         return 'Task';
+      case _imh5lex6.TaskDeleted():
+        return 'TaskDeleted';
       case _i5hi2zxr.TaskFeedback():
         return 'TaskFeedback';
       case _iitmdld3.TaskFeedbackPhase():
@@ -519,6 +530,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'Task') {
       return deserialize<_iwn6t6fs.Task>(data['data']);
+    }
+    if (dataClassName == 'TaskDeleted') {
+      return deserialize<_imh5lex6.TaskDeleted>(data['data']);
     }
     if (dataClassName == 'TaskFeedback') {
       return deserialize<_i5hi2zxr.TaskFeedback>(data['data']);

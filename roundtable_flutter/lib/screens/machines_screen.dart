@@ -15,6 +15,7 @@ import '../utils/relative_time.dart';
 import '../widgets/add_agent_dialog.dart';
 import '../widgets/add_machine_dialog.dart';
 import '../widgets/app_card.dart';
+import '../widgets/claude_warning_banner.dart';
 import '../widgets/machine_online_delete_blocked_dialog.dart';
 import '../widgets/metric_bar.dart';
 import '../widgets/status_pill.dart';
@@ -50,7 +51,9 @@ class MachinesScreen extends StatelessWidget {
                   if (state is MachineDeletionBlockedOnline) {
                     showDialog<void>(
                       context: context,
-                      builder: (_) => const MachineOnlineDeleteBlockedDialog(),
+                      builder: (_) => MachineOnlineDeleteBlockedDialog(
+                        scriptUrl: state.scriptUrl,
+                      ),
                     );
                   } else if (state is MachineListError) {
                     ScaffoldMessenger.of(
@@ -237,6 +240,14 @@ class _MachineCard extends StatelessWidget {
                   Text(machine.hostInfo!, style: AppTypography.code),
               ],
             ),
+            if (machine.claudeExecutableOk == false) ...[
+              const SizedBox(height: Spacing.md),
+              ClaudeWarningBanner(
+                message:
+                    machine.claudeExecutableError ??
+                    'claude CLI could not be launched.',
+              ),
+            ],
             if (online) ...[
               const SizedBox(height: Spacing.md),
               BlocProvider(

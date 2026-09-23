@@ -24,6 +24,12 @@ abstract final class AppColors {
 
   static const red = Color(0xFFFF3D57);
 
+  /// Amber, for a degraded-but-not-failed state (e.g. a machine whose
+  /// `claude` executable can't be launched) — distinct from [red]'s hard
+  /// failure. Not yet in `docs/UI-DESIGN.md` §1's palette; added here as the
+  /// first user of a "warning" severity.
+  static const warning = Color(0xFFFFB020);
+
   /// Near-black background for code blocks/diffs, distinct from [bg0].
   static const codeBg = Color(0xFF0B0B0D);
 

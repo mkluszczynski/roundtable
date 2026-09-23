@@ -26,6 +26,7 @@ import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
+import 'package:roundtable_client/src/protocol/task_deleted.dart' as _iwt28wmq;
 import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
 import 'package:roundtable_client/src/protocol/task_log_entry.dart'
     as _inlvye37;
@@ -339,6 +340,16 @@ class EndpointMachine extends _isc.EndpointRef {
     },
   );
 
+  /// Base URL the install/uninstall scripts (and the agent-runner binary
+  /// install-agent.sh downloads) are served from — the panel's "Delete"
+  /// dialog for an online machine uses this to render a working
+  /// `curl | sudo bash` uninstall command (design doc §6.8).
+  _ida.Future<String> getScriptUrl() => caller.callServerEndpoint<String>(
+    'machine',
+    'getScriptUrl',
+    {},
+  );
+
   _ida.Future<_iwz93qz1.Machine?> get(int id) =>
       caller.callServerEndpoint<_iwz93qz1.Machine?>(
         'machine',
@@ -416,6 +427,28 @@ class EndpointMachine extends _isc.EndpointRef {
       'cpuPercent': cpuPercent,
       'memoryUsedMb': memoryUsedMb,
       'memoryTotalMb': memoryTotalMb,
+    },
+  );
+
+  /// Called by the daemon at startup and on every heartbeat tick to report
+  /// whether its configured `claude` executable can actually be launched —
+  /// surfaced as a warning banner on the machine's card in the panel instead
+  /// of only in `journalctl -u agent-runner`. [message] should be null when
+  /// [ok] is true, and an actionable error description otherwise.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportClaudeStatus(
+    String token,
+    bool ok,
+    String? message,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportClaudeStatus',
+    {
+      'token': token,
+      'ok': ok,
+      'message': message,
     },
   );
 
@@ -599,6 +632,39 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
+  /// Re-queues a `failed` or `cancelled` task for another attempt, without
+  /// the dev having to recreate it from scratch. Resets it to look exactly
+  /// like a brand new `queued` task — clearing `claudeSessionId` in
+  /// particular, so `TaskDispatcher.handle` starts a fresh Claude Code
+  /// invocation rather than trying to `--resume` a session that already
+  /// ended in failure/cancellation. Wakes the daemon via the same channel
+  /// [createTask] uses.
+  _ida.Future<_iw53rmon.Task> retryTask(int taskId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'retryTask',
+        {'taskId': taskId},
+      );
+
+  /// Assigns [agentId] to [taskId] — either giving an agent-less task one
+  /// (its previous agent was deleted, see `Agent.machine`'s
+  /// `onDelete=Cascade`) or moving a backlog/review task to a different
+  /// agent. Blocked while the task is actively executing under its current
+  /// agent (`planning`/`running`/etc.) to avoid pulling an agent out from
+  /// under a live Claude Code run; not blocked when there's no current agent
+  /// at all, since in that case nothing is actually running.
+  _ida.Future<_iw53rmon.Task> reassignAgent(
+    int taskId,
+    int agentId,
+  ) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'reassignAgent',
+    {
+      'taskId': taskId,
+      'agentId': agentId,
+    },
+  );
+
   /// Records feedback on a completed run (design doc §6.1 step 9, §6.4) and
   /// wakes the daemon via the same channel [createTask] uses — the daemon
   /// picks it up through its existing [watchAssignedTasks] subscription and
@@ -736,6 +802,35 @@ class EndpointTask extends _isc.EndpointRef {
         'task',
         'watchPlanDecision',
         {'taskId': taskId},
+        {},
+      );
+
+  /// Deletes a task once it's reached a terminal state — a non-terminal one
+  /// has to be cancelled first (mirrors [cancelTask]'s own guard, just
+  /// inverted). Its logs/questions/feedback cascade-delete with it (see
+  /// `Task`'s relations). Broadcasts a [TaskDeleted] on the same channel
+  /// [watchAllTasks] uses, since deleting the row leaves no `Task` to post as
+  /// an update.
+  _ida.Future<void> deleteTask(int taskId) => caller.callServerEndpoint<void>(
+    'task',
+    'deleteTask',
+    {'taskId': taskId},
+  );
+
+  /// Streams [TaskDeleted] broadcasts from [deleteTask], for the dashboard
+  /// kanban to drop a deleted task from its local list — mirrors
+  /// [watchAllTasks], the other half of the same channel's traffic.
+  /// Deliberately doesn't replay anything on subscribe, same reasoning as
+  /// [watchPlanDecision]: a deletion is always a future event relative to
+  /// subscribing.
+  _ida.Stream<_iwt28wmq.TaskDeleted> watchTaskDeletions() =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_iwt28wmq.TaskDeleted>,
+        _iwt28wmq.TaskDeleted
+      >(
+        'task',
+        'watchTaskDeletions',
+        {},
         {},
       );
 
