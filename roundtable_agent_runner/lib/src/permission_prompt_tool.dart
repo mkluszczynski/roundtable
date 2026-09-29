@@ -113,9 +113,13 @@ class PermissionPromptTool {
 
     final updatedInput = Map<String, dynamic>.from(input);
     if (usesQuestionsArray) {
-      final updatedQuestions = List<dynamic>.from(questions);
-      updatedQuestions[0] = {...?firstQuestionMap, 'answer': answer};
-      updatedInput['questions'] = updatedQuestions;
+      // Claude Code reads answers from a top-level `answers` map keyed by
+      // question text; without it the model is told the user didn't answer.
+      final existing = input['answers'];
+      updatedInput['answers'] = {
+        if (existing is Map) ...existing.cast<String, dynamic>(),
+        question: answer,
+      };
     } else {
       updatedInput['answer'] = answer;
     }

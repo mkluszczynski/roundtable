@@ -58,10 +58,16 @@ class ClaudeCodeExecutionResult {
 /// phase") and parses its `--output-format stream-json` stdout as NDJSON,
 /// one line at a time.
 class ClaudeCodeExecutor {
-  ClaudeCodeExecutor({this.executable = 'claude'});
+  ClaudeCodeExecutor({
+    this.executable = 'claude',
+    this.pipeDrainTimeout = const Duration(seconds: 5),
+  });
 
   /// Overridable in tests to point at a fake script instead of the real CLI.
   final String executable;
+
+  /// How long to keep reading stdout/stderr after the process has exited.
+  final Duration pipeDrainTimeout;
 
   /// Runs one execution-phase invocation. [prompt] is always passed to `-p`
   /// as given — the caller decides what it should be (empty for a
@@ -83,6 +89,8 @@ class ClaudeCodeExecutor {
     String? model,
     String? effort,
     String? resumeSessionId,
+    String? permissionPromptTool,
+    String? mcpConfigPath,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -93,8 +101,18 @@ class ClaudeCodeExecutor {
       'stream-json',
       '--verbose',
       '--include-partial-messages',
-      '--permission-prompts',
-      'none',
+      // Headless `-p` auto-denies anything needing approval (Edit, Bash…);
+      // the permission-prompt-tool auto-allows those instead.
+      if (permissionPromptTool != null && mcpConfigPath != null) ...[
+        '--mcp-config',
+        mcpConfigPath,
+        '--strict-mcp-config',
+        '--permission-prompt-tool',
+        permissionPromptTool,
+      ] else ...[
+        '--permission-prompts',
+        'none',
+      ],
       if (resumeSessionId != null) ...['--resume', resumeSessionId],
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
@@ -177,7 +195,7 @@ class ClaudeCodeExecutor {
     String? sessionId;
     var reportedSuccess = false;
 
-    final stdoutDone = process.stdout
+    final stdoutSub = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
@@ -194,18 +212,24 @@ class ClaudeCodeExecutor {
             sessionId = event['session_id'] as String?;
             reportedSuccess = event['subtype'] == 'success';
           }
-        })
-        .asFuture<void>();
+        });
+    final stdoutDone = stdoutSub.asFuture<void>();
 
     final stderrBuffer = StringBuffer();
-    final stderrDone = process.stderr
+    final stderrSub = process.stderr
         .transform(utf8.decoder)
-        .listen(stderrBuffer.write)
-        .asFuture<void>();
+        .listen(stderrBuffer.write);
+    final stderrDone = stderrSub.asFuture<void>();
 
     final exitCode = await process.exitCode;
-    await stdoutDone;
-    await stderrDone;
+    // A grandchild (e.g. the permission-prompt-tool MCP server) can inherit
+    // and keep the pipes open after `claude` exits, so EOF may never come.
+    try {
+      await Future.wait([stdoutDone, stderrDone]).timeout(pipeDrainTimeout);
+    } on TimeoutException {
+      await stdoutSub.cancel();
+      await stderrSub.cancel();
+    }
 
     final success = reportedSuccess && exitCode == 0;
     return ClaudeCodeExecutionResult(

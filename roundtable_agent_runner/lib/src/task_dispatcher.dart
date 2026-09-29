@@ -135,6 +135,10 @@ class TaskDispatcher {
     Agent? agent;
     var cancelRequested = false;
     StreamSubscription<Task>? watchSub;
+    Directory? mcpConfigDir;
+    log(
+      'task ${task.id}: starting (${isResume ? 'resume' : (needsPlanning ? 'planning' : 'execution')})',
+    );
     try {
       final cloneUrl = await getCloneUrl(projectId);
       await worktreeManager.ensureProjectCloned(
@@ -145,6 +149,7 @@ class TaskDispatcher {
         projectId: '$projectId',
         taskId: '${task.id}',
       );
+      log('task ${task.id}: worktree ready at $worktreePath');
 
       agent = await fetchAgent(agentId);
       await updateAgent(agent.copyWith(status: AgentStatus.busy));
@@ -175,39 +180,54 @@ class TaskDispatcher {
       final formatter = StreamJsonFormatter();
       void onLine(String line) {
         for (final formatted in formatter.feed(line)) {
-          appendLog(task.id!, formatted);
+          appendLog(task.id!, formatted).catchError(
+            (Object e) => log('task ${task.id}: appendLog failed: $e'),
+          );
         }
       }
 
       Process? liveProcess;
-      watchSub = watchTask(task.id!).listen((updated) {
-        if (updated.status == TaskStatus.cancelled) {
-          cancelRequested = true;
-          liveProcess?.kill(ProcessSignal.sigterm);
-        } else if (needsPlanning) {
-          switch (updated.status) {
-            case TaskStatus.waitingForAnswer:
-            case TaskStatus.planReady:
-              unawaited(
-                updateAgent(
-                  agent!.copyWith(status: AgentStatus.waitingForResponse),
-                ),
-              );
-            case TaskStatus.planning:
-              unawaited(updateAgent(agent!.copyWith(status: AgentStatus.busy)));
-            default:
-              break;
+      watchSub = watchTask(task.id!).listen(
+        (updated) {
+          if (updated.status == TaskStatus.cancelled) {
+            cancelRequested = true;
+            liveProcess?.kill(ProcessSignal.sigterm);
+          } else if (needsPlanning) {
+            switch (updated.status) {
+              case TaskStatus.waitingForAnswer:
+              case TaskStatus.planReady:
+                unawaited(
+                  updateAgent(
+                    agent!.copyWith(status: AgentStatus.waitingForResponse),
+                  ),
+                );
+              case TaskStatus.planning:
+                unawaited(
+                  updateAgent(agent!.copyWith(status: AgentStatus.busy)),
+                );
+              default:
+                break;
+            }
           }
-        }
-      });
+        },
+        onError: (Object e) =>
+            log('task ${task.id}: watchTask stream error: $e'),
+      );
+
+      const permissionPromptTool =
+          'mcp__roundtable-permission__approval_prompt';
+      mcpConfigDir = await Directory.systemTemp.createTemp(
+        'roundtable-task-${task.id}-',
+      );
+      final mcpConfigPath = await _writeMcpConfig(mcpConfigDir, task.id!);
 
       final ClaudeCodeExecutionResult result;
       if (needsPlanning) {
-        final mcpConfigPath = await _writeMcpConfig(worktreePath, task.id!);
+        log('task ${task.id}: running claude (planning)');
         result = await executorFactory().runPlanning(
           prompt: prompt,
           workingDirectory: worktreePath,
-          permissionPromptTool: 'mcp__roundtable-permission__approval_prompt',
+          permissionPromptTool: permissionPromptTool,
           mcpConfigPath: mcpConfigPath,
           oauthToken: oauthToken,
           model: agent.defaultModel,
@@ -216,6 +236,7 @@ class TaskDispatcher {
           onProcessStarted: (p) => liveProcess = p,
         );
       } else {
+        log('task ${task.id}: running claude (execution)');
         result = await executorFactory().run(
           prompt: prompt,
           workingDirectory: worktreePath,
@@ -223,6 +244,8 @@ class TaskDispatcher {
           model: agent.defaultModel,
           effort: agent.defaultEffort?.name,
           resumeSessionId: resumeSessionId,
+          permissionPromptTool: permissionPromptTool,
+          mcpConfigPath: mcpConfigPath,
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
@@ -244,8 +267,14 @@ class TaskDispatcher {
         return;
       }
 
+      log(
+        'task ${task.id}: claude exited (code=${result.exitCode}, '
+        'success=${result.success})',
+      );
+
       String? branchName;
       String? prUrl;
+      String? failureReason = result.success ? null : result.errorSummary;
       if (result.success) {
         final branch = 'task-${task.id}';
         final committed = await worktreeManager.commitAndPush(
@@ -270,24 +299,29 @@ class TaskDispatcher {
           } else {
             log('task ${task.id}: pushed additional commits to existing PR');
           }
+        } else if (task.branchName == null) {
+          log('task ${task.id}: no changes to commit, marking failed');
+          failureReason = 'Agent finished without changing any files.';
         } else {
-          log('task ${task.id}: no changes to commit, skipping PR');
+          log('task ${task.id}: no new changes, keeping existing PR');
         }
       }
 
+      final status = failureReason == null
+          ? TaskStatus.awaitingReview
+          : TaskStatus.failed;
       await updateTask(
         task.copyWith(
-          status: result.success
-              ? TaskStatus.awaitingReview
-              : TaskStatus.failed,
+          status: status,
           finishedAt: DateTime.now().toUtc(),
           claudeSessionId: result.sessionId ?? task.claudeSessionId,
-          failureReason: result.success ? null : result.errorSummary,
+          failureReason: failureReason,
           branchName: branchName ?? task.branchName,
           prUrl: prUrl ?? task.prUrl,
         ),
       );
       await updateAgent(agent.copyWith(status: AgentStatus.idle));
+      log('task ${task.id}: finished with status ${status.name}');
     } catch (e) {
       log('task ${task.id}: execution failed: $e');
       final failureReason = cancelRequested
@@ -305,17 +339,22 @@ class TaskDispatcher {
       }
     } finally {
       await watchSub?.cancel();
+      try {
+        await mcpConfigDir?.delete(recursive: true);
+      } catch (e) {
+        log('task ${task.id}: could not remove MCP config dir: $e');
+      }
     }
   }
 
   /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
-  /// (design doc §6.4) for [taskId]'s planning-phase run, into the task's
-  /// own worktree so concurrent tasks don't share a config file. The tool
-  /// process reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment
-  /// (see `bin/permission_prompt_tool.dart`) since `--mcp-config` only
-  /// supports a static command/args/env per server, not per-call params.
-  Future<String> _writeMcpConfig(String worktreePath, int taskId) async {
-    final configFile = File('$worktreePath/.roundtable-mcp-config.json');
+  /// (design doc §6.4) for [taskId]'s planning-phase run. Kept outside the
+  /// worktree so it never ends up in the task's commit. The tool process
+  /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
+  /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a
+  /// static command/args/env per server, not per-call params.
+  Future<String> _writeMcpConfig(Directory dir, int taskId) async {
+    final configFile = File('${dir.path}/mcp-config.json');
     await configFile.writeAsString(
       jsonEncode({
         'mcpServers': {

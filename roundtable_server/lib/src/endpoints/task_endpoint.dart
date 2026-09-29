@@ -13,6 +13,7 @@ class TaskEndpoint extends Endpoint {
   static String _channelForPlanDecision(int taskId) =>
       'task-$taskId-plan-decision';
   static String channelForAllTasks() => 'all-tasks';
+  static String _channelForTaskDeletions() => 'task-deletions';
 
   /// Statuses [reassignAgent] allows changing `Task.agent` in — the task
   /// isn't actively executing under its current agent, so swapping it is
@@ -78,10 +79,24 @@ class TaskEndpoint extends Endpoint {
   /// `lastProgressAt`, since this is the daemon's primary path for
   /// reporting task activity — see [StalledTaskFutureCall].
   Future<Task> update(Session session, Task task) async {
+    // The daemon sends back the Task it received at dispatch time, so only
+    // write the fields it owns — otherwise it reverts server-side changes
+    // made during the run (currentPlan, question/plan status transitions).
     var updated = await Task.db.updateRow(
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+      columns: (t) => [
+        t.status,
+        t.failureReason,
+        t.claudeSessionId,
+        t.branchName,
+        t.prUrl,
+        t.startedAt,
+        t.finishedAt,
+        t.lastProgressAt,
+      ],
     );
+    await session.messages.postMessage(channelForTask(updated.id!), updated);
     await session.messages.postMessage(channelForAllTasks(), updated);
     return updated;
   }
@@ -102,9 +117,12 @@ class TaskEndpoint extends Endpoint {
     );
 
     var task = await _requireTask(session, taskId);
+    // Only this column: log lines arrive concurrently with status changes
+    // (e.g. setPlanReady), and writing the whole row back would revert them.
     await Task.db.updateRow(
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+      columns: (t) => [t.lastProgressAt],
     );
 
     await session.messages.postMessage(_channelForTaskLogs(taskId), entry);
@@ -322,7 +340,8 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Answers a plan-mode clarifying question (design doc §6.4), waking the
-  /// permission-prompt-tool blocked on [watchAnswer].
+  /// permission-prompt-tool blocked on [watchAnswer], and moves the task back
+  /// to `planning` since Claude Code resumes as soon as the tool returns.
   Future<TaskQuestion> answerQuestion(
     Session session,
     int questionId,
@@ -344,6 +363,19 @@ class TaskEndpoint extends Endpoint {
       _channelForQuestion(questionId),
       question,
     );
+
+    var task = await Task.db.findById(session, question.taskId);
+    if (task != null && task.status == TaskStatus.waitingForAnswer) {
+      task = await Task.db.updateRow(
+        session,
+        task.copyWith(
+          status: TaskStatus.planning,
+          lastProgressAt: DateTime.now().toUtc(),
+        ),
+      );
+      await session.messages.postMessage(channelForTask(task.id!), task);
+      await session.messages.postMessage(channelForAllTasks(), task);
+    }
     return question;
   }
 
@@ -414,6 +446,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
@@ -448,6 +481,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
     return feedback;
   }
@@ -483,20 +517,21 @@ class TaskEndpoint extends Endpoint {
 
     await Task.db.deleteRow(session, task);
     await session.messages.postMessage(
-      channelForAllTasks(),
+      _channelForTaskDeletions(),
       TaskDeleted(taskId: taskId),
     );
   }
 
   /// Streams [TaskDeleted] broadcasts from [deleteTask], for the dashboard
-  /// kanban to drop a deleted task from its local list — mirrors
-  /// [watchAllTasks], the other half of the same channel's traffic.
+  /// kanban to drop a deleted task from its local list. Uses its own channel:
+  /// sharing [channelForAllTasks] would feed `Task` messages into a
+  /// `TaskDeleted`-typed stream (and vice versa for [watchAllTasks]).
   /// Deliberately doesn't replay anything on subscribe, same reasoning as
   /// [watchPlanDecision]: a deletion is always a future event relative to
   /// subscribing.
   Stream<TaskDeleted> watchTaskDeletions(Session session) async* {
     var updates = session.messages.createStream<TaskDeleted>(
-      channelForAllTasks(),
+      _channelForTaskDeletions(),
     );
     await for (var deletion in updates) {
       yield deletion;

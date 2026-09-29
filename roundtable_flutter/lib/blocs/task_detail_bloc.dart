@@ -68,8 +68,8 @@ class TaskDeleteRequested extends TaskDetailEvent {
   final int taskId;
 }
 
-/// Internal: starts the live log tail for [taskId]. Added once, the first
-/// time the task enters `planning`/`running`.
+/// Internal: starts the log tail (history, then live) for [taskId]. Added
+/// once, on the first task event.
 class _LogsSubscribed extends TaskDetailEvent {
   const _LogsSubscribed(this.taskId);
 
@@ -239,7 +239,6 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   final AgentRepository _agentRepository;
   final MachineRepository _machineRepository;
 
-  static const _liveStatuses = {TaskStatus.planning, TaskStatus.running};
   static const _reviewStatuses = {TaskStatus.awaitingReview, TaskStatus.done};
 
   Future<void> _onSubscribed(
@@ -252,12 +251,17 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         final current = state;
         emit(await _stateFor(task, previous: current));
 
-        if (_liveStatuses.contains(task.status) &&
-            (current is! TaskDetailLoaded || !current.logsSubscribed)) {
+        // Logs are subscribed for every status so they stay reachable from
+        // the Logs tab after the task leaves planning/running.
+        if (current is! TaskDetailLoaded || !current.logsSubscribed) {
           add(_LogsSubscribed(event.taskId));
         }
+        // Refetch each time the task (re-)enters review, e.g. after a
+        // feedback iteration pushed new commits.
         if (_reviewStatuses.contains(task.status) &&
-            (current is! TaskDetailLoaded || !current.filesRequested)) {
+            (current is! TaskDetailLoaded ||
+                !current.filesRequested ||
+                !_reviewStatuses.contains(current.task.status))) {
           add(_ChangedFilesRequested(event.taskId));
         }
       }
@@ -308,7 +312,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     // First load: the task's project never changes and, initially, neither
     // does its agent/machine — fetched once here; reassignAgent's branch
     // above is what keeps agent/machine fresh afterwards.
-    final project = await _projectRepository.getProject(task.projectId);
+    final projectFuture = _projectRepository.getProject(task.projectId);
     final agentId = task.agentId;
     final agent = agentId == null
         ? null
@@ -316,6 +320,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     final machine = agent == null
         ? null
         : await _machineRepository.getMachine(agent.machineId);
+    final project = await projectFuture;
 
     return TaskDetailLoaded(
       task: task,

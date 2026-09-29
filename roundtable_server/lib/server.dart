@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:serverpod_auth_idp_server/core.dart';
 import 'package:serverpod_auth_idp_server/providers/email.dart';
+import 'package:serverpod/protocol.dart' as sp;
 import 'package:serverpod_cloud_storage/serverpod_cloud_storage.dart';
 
 import 'src/cache_busting.dart';
@@ -172,10 +173,26 @@ void run(List<String> args) async {
   // Start the server.
   await pod.start();
 
+  // Recurring calls are persisted, so scheduling them on every start stacks
+  // up duplicates. Drop any existing rows (including ones from before they
+  // had an identifier) and schedule exactly one of each.
+  final session = await pod.createSession(enableLogging: false);
+  try {
+    await sp.FutureCallEntry.db.deleteWhere(
+      session,
+      where: (t) => t.name.inSet({
+        'MachineOfflineCheckFutureCall',
+        'StalledTaskCheckFutureCall',
+      }),
+    );
+  } finally {
+    await session.close();
+  }
+
   // Periodically detect machines whose daemon has stopped heartbeating and
   // fail their in-progress tasks (design doc §6.8).
   await pod.futureCalls
-      .callRecurring()
+      .callRecurring(identifier: 'machine-offline-check')
       .every(const Duration(seconds: 30))
       .machineOffline
       .check();
@@ -184,7 +201,7 @@ void run(List<String> args) async {
   // on a machine that's still online (design doc §4 "Timeout for a stuck
   // task").
   await pod.futureCalls
-      .callRecurring()
+      .callRecurring(identifier: 'stalled-task-check')
       .every(const Duration(seconds: 30))
       .stalledTask
       .check();

@@ -142,8 +142,31 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                   builder: (context, state) {
                     final agents = switch (state) {
                       AgentListLoaded(:final agents) => agents,
-                      _ => <Agent>[],
+                      _ => null,
                     };
+                    if (state is AgentListError) {
+                      return Text(
+                        'Could not load agents: ${state.message}',
+                        style: AppTypography.body.copyWith(
+                          color: AppColors.red,
+                        ),
+                      );
+                    }
+                    if (agents == null) {
+                      return const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      );
+                    }
+                    if (agents.isEmpty) {
+                      return Text(
+                        'No agents yet — add one on the Agents screen.',
+                        style: AppTypography.body.copyWith(
+                          color: AppColors.text1,
+                        ),
+                      );
+                    }
                     return PillSelector<int>(
                       options: [for (final a in agents) a.id!],
                       labelBuilder: (id) =>

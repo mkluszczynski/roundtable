@@ -141,6 +141,11 @@ if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   # keeps its own config/credentials under $HOME/.claude.
   useradd --system --no-create-home --home-dir "$DATA_DIR" \
     --shell /usr/sbin/nologin "$SERVICE_USER"
+elif [ "$(getent passwd "$SERVICE_USER" | cut -d: -f6)" != "$DATA_DIR" ]; then
+  # Accounts created by older installs point $HOME at a directory that
+  # doesn't exist, so `claude` fails to create ~/.claude/plans.
+  echo "Updating ${SERVICE_USER} home directory to ${DATA_DIR}..."
+  usermod --home "$DATA_DIR" "$SERVICE_USER"
 fi
 
 echo "Creating workspace directory ${WORKSPACE_DIR}..."
@@ -224,6 +229,7 @@ Type=simple
 ExecStart=${BIN_PATH}
 EnvironmentFile=${CONFIG_PATH}
 WorkingDirectory=${DATA_DIR}
+Environment=HOME=${DATA_DIR}
 $(if [[ -n "$CLAUDE_BIN" ]]; then
   # The self-installed \`claude\` above is a self-contained native binary
   # (no interpreter dependency), but a \`--claude-path\` pointing at an

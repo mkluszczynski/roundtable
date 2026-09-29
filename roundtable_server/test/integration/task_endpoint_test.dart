@@ -344,8 +344,8 @@ void main() {
           'Do something',
           skipPlanning: false,
         );
-        await endpoints.task.update(
-          sessionBuilder,
+        await Task.db.updateRow(
+          sessionBuilder.build(),
           task.copyWith(status: TaskStatus.running, agentId: null),
         );
 
@@ -769,6 +769,40 @@ void main() {
     );
 
     test(
+      'when answering a question then the task moves back to planning',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        final question = await endpoints.task.createQuestion(
+          sessionBuilder,
+          task.id!,
+          'Which approach?',
+          ['Option A', 'Option B'],
+        );
+
+        await endpoints.task.answerQuestion(
+          sessionBuilder,
+          question.id!,
+          'Option A',
+        );
+
+        final fetched = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(fetched!.status, TaskStatus.planning);
+      },
+    );
+
+    test(
       'when answering an already-answered question then it throws',
       () async {
         final machine = await createMachine();
@@ -845,6 +879,46 @@ void main() {
             .toList();
 
         expect(answers.single.answer, 'Option A');
+      },
+    );
+
+    test(
+      'when stale task snapshots are written back via appendLog or update '
+      'then planReady and currentPlan are preserved',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final dispatched = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.setPlanReady(
+          sessionBuilder,
+          dispatched.id!,
+          'The plan',
+        );
+
+        await endpoints.task.appendLog(
+          sessionBuilder,
+          dispatched.id!,
+          'line',
+          source: LogSource.agent,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          dispatched.copyWith(claudeSessionId: 'sess-1'),
+        );
+
+        final fetched = await Task.db.findById(
+          sessionBuilder.build(),
+          dispatched.id!,
+        );
+        expect(fetched!.currentPlan, 'The plan');
+        expect(fetched.claudeSessionId, 'sess-1');
       },
     );
 

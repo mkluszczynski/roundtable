@@ -11,13 +11,24 @@ import 'package:serverpod/serverpod.dart';
 class StalledTaskFutureCall extends FutureCall {
   static const _stalledThreshold = Duration(minutes: 15);
 
+  /// Statuses where the task is waiting on the developer, not the agent, so
+  /// a lack of progress is expected.
+  static const _waitingOnHumanStatuses = {
+    TaskStatus.waitingForAnswer,
+    TaskStatus.planReady,
+    TaskStatus.awaitingReview,
+  };
+
   Future<void> check(Session session) async {
     final cutoff = DateTime.now().toUtc().subtract(_stalledThreshold);
 
     final stalledTasks = await Task.db.find(
       session,
       where: (t) =>
-          t.status.inSet(nonTerminalTaskStatuses) & (t.lastProgressAt < cutoff),
+          t.status.inSet(
+            nonTerminalTaskStatuses.difference(_waitingOnHumanStatuses),
+          ) &
+          (t.lastProgressAt < cutoff),
     );
 
     for (final task in stalledTasks) {

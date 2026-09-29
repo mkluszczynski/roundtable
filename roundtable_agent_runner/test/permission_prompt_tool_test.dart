@@ -94,7 +94,7 @@ void main() {
         {'label': 'A'},
         {'label': 'B'},
       ]);
-      expect(updatedQuestion['answer'], 'A');
+      expect(decision.updatedInput!['answers'], {'Which approach?': 'A'});
     });
 
     test(

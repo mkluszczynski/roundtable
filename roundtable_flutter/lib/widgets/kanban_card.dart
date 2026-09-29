@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -45,7 +46,7 @@ class KanbanCard extends StatelessWidget {
             const SizedBox(height: Spacing.sm),
             StatusPill.fromAppearance(
               taskStatusAppearance(task.status),
-              label: task.status.name,
+              label: task.status.label,
             ),
             if (agentName != null || machineName != null) ...[
               const SizedBox(height: Spacing.sm),

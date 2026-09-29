@@ -712,7 +712,8 @@ class EndpointTask extends _isc.EndpointRef {
   );
 
   /// Answers a plan-mode clarifying question (design doc §6.4), waking the
-  /// permission-prompt-tool blocked on [watchAnswer].
+  /// permission-prompt-tool blocked on [watchAnswer], and moves the task back
+  /// to `planning` since Claude Code resumes as soon as the tool returns.
   _ida.Future<_ihmnezqk.TaskQuestion> answerQuestion(
     int questionId,
     String answer,
@@ -818,8 +819,9 @@ class EndpointTask extends _isc.EndpointRef {
   );
 
   /// Streams [TaskDeleted] broadcasts from [deleteTask], for the dashboard
-  /// kanban to drop a deleted task from its local list — mirrors
-  /// [watchAllTasks], the other half of the same channel's traffic.
+  /// kanban to drop a deleted task from its local list. Uses its own channel:
+  /// sharing [channelForAllTasks] would feed `Task` messages into a
+  /// `TaskDeleted`-typed stream (and vice versa for [watchAllTasks]).
   /// Deliberately doesn't replay anything on subscribe, same reasoning as
   /// [watchPlanDecision]: a deletion is always a future event relative to
   /// subscribing.

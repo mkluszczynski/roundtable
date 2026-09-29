@@ -38,6 +38,8 @@ class GitHubRepoClient {
   }) async {
     final (:owner, :repo, :number) = parsePrUrl(prUrl);
 
+    await _waitForPrToCatchUp(owner, repo, number, token);
+
     final response = await _http.get(
       Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number/files', {
         'per_page': '100',
@@ -105,6 +107,44 @@ class GitHubRepoClient {
     }
 
     return response.body;
+  }
+
+  /// GitHub updates a PR's head (and its `/files` diff) asynchronously after
+  /// a push, so right after the daemon pushes a feedback iteration the diff
+  /// can still be the previous one. Waits (briefly) until the PR head matches
+  /// the branch tip. Best effort: gives up silently after [attempts].
+  Future<void> _waitForPrToCatchUp(
+    String owner,
+    String repo,
+    String number,
+    String token, {
+    int attempts = 10,
+  }) async {
+    for (var i = 0; i < attempts; i++) {
+      final prResponse = await _http.get(
+        Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+        headers: _headers(token),
+      );
+      if (prResponse.statusCode != 200) return;
+      final head =
+          (jsonDecode(prResponse.body) as Map<String, dynamic>)['head']
+              as Map<String, dynamic>;
+      final ref = head['ref'] as String;
+      final prSha = head['sha'] as String;
+
+      final refResponse = await _http.get(
+        Uri.https('api.github.com', '/repos/$owner/$repo/git/ref/heads/$ref'),
+        headers: _headers(token),
+      );
+      if (refResponse.statusCode != 200) return;
+      final branchSha =
+          ((jsonDecode(refResponse.body) as Map<String, dynamic>)['object']
+                  as Map<String, dynamic>)['sha']
+              as String;
+      if (branchSha == prSha) return;
+
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
   }
 
   Map<String, String> _headers(String token) => {

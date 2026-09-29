@@ -116,7 +116,7 @@ exit 0
       expect(prRequests.single['branchName'], 'task-1');
     });
 
-    test('a skipPlanning task that produces no changes reaches awaitingReview '
+    test('a skipPlanning task that produces no changes is marked failed '
         'without opening a PR', () async {
       final claudeScript = writeFakeClaude('''
 echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
@@ -152,7 +152,11 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(
+        taskUpdates.last.failureReason,
+        'Agent finished without changing any files.',
+      );
       expect(taskUpdates.last.branchName, isNull);
       expect(taskUpdates.last.prUrl, isNull);
       expect(messages, contains(contains('no changes to commit')));

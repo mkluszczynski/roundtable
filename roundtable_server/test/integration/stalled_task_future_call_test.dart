@@ -153,5 +153,42 @@ void main() {
         );
       },
     );
+
+    for (final status in [
+      TaskStatus.waitingForAnswer,
+      TaskStatus.planReady,
+      TaskStatus.awaitingReview,
+    ]) {
+      test(
+        'when a ${status.name} task has a stale lastProgressAt then it is '
+        'left alone',
+        () async {
+          final session = sessionBuilder.build();
+          final project = await Project.db.insertRow(
+            session,
+            Project(
+              name: 'Roundtable',
+              repoUrl: 'https://github.com/example/roundtable',
+            ),
+          );
+          final task = await Task.db.insertRow(
+            session,
+            Task(
+              projectId: project.id!,
+              prompt: 'Do something',
+              status: status,
+              lastProgressAt: DateTime.now().toUtc().subtract(
+                const Duration(hours: 2),
+              ),
+            ),
+          );
+
+          await StalledTaskFutureCall().check(session);
+
+          final fetchedTask = await Task.db.findById(session, task.id!);
+          expect(fetchedTask!.status, status);
+        },
+      );
+    }
   });
 }

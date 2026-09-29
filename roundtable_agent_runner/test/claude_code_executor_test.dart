@@ -50,6 +50,32 @@ exit 0
     );
 
     test(
+      'returns after exit even if a grandchild keeps the pipes open',
+      () async {
+        final script = writeFakeClaude('''
+sleep 30 &
+echo '{"type":"result","subtype":"success","session_id":"abc123"}'
+exit 0
+''');
+        final executor = ClaudeCodeExecutor(
+          executable: script,
+          pipeDrainTimeout: const Duration(milliseconds: 500),
+        );
+
+        final result = await executor
+            .run(
+              prompt: 'do the thing',
+              workingDirectory: tempDir.path,
+              onLine: (_) {},
+            )
+            .timeout(const Duration(seconds: 10));
+
+        expect(result.success, isTrue);
+        expect(result.sessionId, 'abc123');
+      },
+    );
+
+    test(
       'reports failure and an error summary when the result subtype is not success',
       () async {
         final script = writeFakeClaude('''
@@ -146,6 +172,35 @@ exit 0
       expect(lines.single, contains('--model claude-opus-4-7'));
       expect(lines.single, contains('--effort high'));
     });
+
+    test(
+      'routes permissions through the permission-prompt-tool when given',
+      () async {
+        final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+        final executor = ClaudeCodeExecutor(executable: script);
+        final lines = <String>[];
+
+        await executor.run(
+          prompt: 'do the thing',
+          workingDirectory: tempDir.path,
+          resumeSessionId: 'sess-1',
+          permissionPromptTool: 'mcp__x__approval_prompt',
+          mcpConfigPath: '/tmp/cfg.json',
+          onLine: lines.add,
+        );
+
+        expect(lines.single, contains('--mcp-config /tmp/cfg.json'));
+        expect(
+          lines.single,
+          contains('--permission-prompt-tool mcp__x__approval_prompt'),
+        );
+        expect(lines.single, isNot(contains('--permission-prompts none')));
+        expect(lines.single, contains('--resume sess-1'));
+      },
+    );
 
     group('runPlanning', () {
       test(

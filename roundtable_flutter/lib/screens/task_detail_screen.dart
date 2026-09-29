@@ -9,6 +9,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -17,6 +18,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
+import '../widgets/pill_selector.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
@@ -225,7 +227,7 @@ class _Header extends StatelessWidget {
           ),
           StatusPill.fromAppearance(
             taskStatusAppearance(task.status),
-            label: task.status.name,
+            label: task.status.label,
           ),
           if (state.agent != null) ...[
             const SizedBox(width: Spacing.lg),
@@ -474,8 +476,66 @@ class _TimelineRow extends StatelessWidget {
   }
 }
 
-class _SubState extends StatelessWidget {
+class _SubState extends StatefulWidget {
   const _SubState({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  State<_SubState> createState() => _SubStateState();
+}
+
+class _SubStateState extends State<_SubState> {
+  bool _showLogs = false;
+
+  static bool _isLive(TaskStatus s) =>
+      s == TaskStatus.planning || s == TaskStatus.running;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    // Live statuses already show the log; the toggle only matters elsewhere.
+    if (_isLive(state.task.status)) return _LiveExecution(state: state);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PillSelector<bool>(
+          options: const [false, true],
+          labelBuilder: (showLogs) => showLogs ? 'Logs' : 'Details',
+          selected: _showLogs,
+          onChanged: (v) => setState(() => _showLogs = v),
+        ),
+        const SizedBox(height: Spacing.md),
+        Expanded(
+          child: _showLogs
+              ? _LogHistory(state: state)
+              : _SubStateBody(state: state),
+        ),
+      ],
+    );
+  }
+}
+
+class _LogHistory extends StatelessWidget {
+  const _LogHistory({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.logs.isEmpty) {
+      return Text('No output yet.', style: AppTypography.body);
+    }
+    return SingleChildScrollView(
+      reverse: true,
+      child: TaskLogView(entries: state.logs),
+    );
+  }
+}
+
+class _SubStateBody extends StatelessWidget {
+  const _SubStateBody({required this.state});
 
   final TaskDetailLoaded state;
 
@@ -546,6 +606,13 @@ class _PendingQuestion extends StatelessWidget {
                       ),
               ),
             ),
+          if (state.submitting) ...[
+            const SizedBox(height: Spacing.md),
+            Text(
+              'Answer sent — agent continuing…',
+              style: AppTypography.body.copyWith(color: AppColors.text1),
+            ),
+          ],
         ],
       ),
     );

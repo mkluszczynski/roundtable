@@ -202,16 +202,25 @@ class AgentRunnerService {
   Future<void> run() async {
     _log('starting, server=${_config.serverUrl}');
 
-    final Machine machine;
-    try {
-      machine = await _client.machine.identify(_config.registrationToken);
-    } on InvalidTokenException catch (e) {
-      _log(
-        'FATAL: registration token rejected by server (${e.message}) — '
-        're-run scripts/install-agent.sh to obtain a new token',
-      );
-      stop(exitCode: 1);
-      return;
+    Machine? machine;
+    var retryDelay = const Duration(seconds: 1);
+    while (machine == null) {
+      try {
+        machine = await _client.machine.identify(_config.registrationToken);
+      } on InvalidTokenException catch (e) {
+        _log(
+          'FATAL: registration token rejected by server (${e.message}) — '
+          're-run scripts/install-agent.sh to obtain a new token',
+        );
+        stop(exitCode: 1);
+        return;
+      } catch (e) {
+        _log('server unreachable ($e), retrying in ${retryDelay.inSeconds}s');
+        await Future<void>.delayed(retryDelay);
+        retryDelay = retryDelay * 2 > const Duration(seconds: 30)
+            ? const Duration(seconds: 30)
+            : retryDelay * 2;
+      }
     }
 
     _subscribeToAssignedTasks(machine.id!);

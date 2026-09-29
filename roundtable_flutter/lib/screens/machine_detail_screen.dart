@@ -11,6 +11,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -363,7 +364,7 @@ class _RecentTasksPanel extends StatelessWidget {
                             const SizedBox(height: Spacing.sm),
                             StatusPill.fromAppearance(
                               taskStatusAppearance(task.status),
-                              label: task.status.name,
+                              label: task.status.label,
                             ),
                             const SizedBox(height: Spacing.sm),
                             Text(
