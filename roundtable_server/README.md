@@ -8,3 +8,5 @@ Start your server by running:
     serverpod start
 
 When you are finished, you can shut down the running server with `Q`.
+
+by mkluszczynski.dev
