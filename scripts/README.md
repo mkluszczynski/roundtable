@@ -49,3 +49,5 @@ for one person's interactive use. Several agents on the same machine firing
 off Claude Code subprocesses concurrently will hit Pro/Max usage limits
 sooner than a single developer working by hand — worth keeping in mind
 before running many agents in parallel on one machine.
+
+https://mkluszczynski.dev
