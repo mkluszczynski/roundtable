@@ -13,3 +13,5 @@ A great starting point for learning Serverpod is our documentation site at:
 To run the project, first make sure that the server is running, then do:
 
     flutter run
+
+Tested end-to-end by Roundtable
