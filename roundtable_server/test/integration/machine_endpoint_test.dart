@@ -303,5 +303,80 @@ void main() {
         );
       },
     );
+
+    test(
+      'when reporting a failing claude status with a valid token then it is '
+      'persisted on the machine',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        await endpoints.machine.reportClaudeStatus(
+          sessionBuilder,
+          registration.token,
+          false,
+          'Permission denied launching the claude CLI',
+        );
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.claudeExecutableOk, isFalse);
+        expect(
+          fetched.claudeExecutableError,
+          'Permission denied launching the claude CLI',
+        );
+      },
+    );
+
+    test(
+      'when reporting a successful claude status then a previous error is '
+      'cleared',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        await endpoints.machine.reportClaudeStatus(
+          sessionBuilder,
+          registration.token,
+          false,
+          'some earlier error',
+        );
+
+        await endpoints.machine.reportClaudeStatus(
+          sessionBuilder,
+          registration.token,
+          true,
+          null,
+        );
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.claudeExecutableOk, isTrue);
+        expect(fetched.claudeExecutableError, isNull);
+      },
+    );
+
+    test(
+      'when reporting a claude status with an unknown token then it throws '
+      'InvalidTokenException',
+      () async {
+        await expectLater(
+          endpoints.machine.reportClaudeStatus(
+            sessionBuilder,
+            'not-a-real-token',
+            false,
+            'irrelevant',
+          ),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
   });
 }

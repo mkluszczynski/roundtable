@@ -41,4 +41,28 @@ class ProjectListCubit extends Cubit<ProjectListState> {
       emit(ProjectListError(e.toString()));
     }
   }
+
+  /// Deletion is blocked while the project has non-terminal tasks (design
+  /// doc §5) — surfaced as a plain [ProjectListError], unlike
+  /// [MachineListCubit.deleteMachine]'s online guard, since there's no
+  /// follow-up flow to offer here.
+  ///
+  /// Returns `null` on success, or the error message on failure. The
+  /// trailing [fetchProjects] refetch always overwrites the emitted
+  /// [ProjectListError] state, so callers must use this return value rather
+  /// than reading [state] after this call resolves.
+  Future<String?> deleteProject(int id) async {
+    String? errorMessage;
+    try {
+      await _repository.deleteProject(id);
+    } on DeletionBlockedException catch (e) {
+      errorMessage = e.message;
+      emit(ProjectListError(e.message));
+    } catch (e) {
+      errorMessage = e.toString();
+      emit(ProjectListError(errorMessage));
+    }
+    await fetchProjects();
+    return errorMessage;
+  }
 }

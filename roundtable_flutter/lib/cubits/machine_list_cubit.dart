@@ -32,7 +32,11 @@ class MachineListError extends MachineListState {
 /// uninstall-command dialog instead of a plain error. Always followed by a
 /// fresh [MachineListLoaded]/[MachineListError] from a re-fetch.
 class MachineDeletionBlockedOnline extends MachineListState {
-  const MachineDeletionBlockedOnline();
+  const MachineDeletionBlockedOnline(this.scriptUrl);
+
+  /// Base URL the uninstall script is served from, or null if fetching it
+  /// failed — the dialog falls back to a repo-relative command in that case.
+  final String? scriptUrl;
 }
 
 class MachineListCubit extends Cubit<MachineListState> {
@@ -55,7 +59,14 @@ class MachineListCubit extends Cubit<MachineListState> {
       await _repository.deleteMachine(id);
     } on DeletionBlockedException catch (e) {
       if (e.reason == DeletionBlockReason.machineOnline) {
-        emit(const MachineDeletionBlockedOnline());
+        String? scriptUrl;
+        try {
+          scriptUrl = await _repository.getScriptUrl();
+        } catch (_) {
+          // Fall through with scriptUrl = null; the dialog falls back to a
+          // repo-relative command rather than blocking on this fetch.
+        }
+        emit(MachineDeletionBlockedOnline(scriptUrl));
       } else {
         emit(MachineListError(e.message));
       }

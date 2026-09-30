@@ -21,6 +21,7 @@ abstract class Project
     this.id,
     required this.name,
     required this.repoUrl,
+    this.repoAccessTokenUpdatedAt,
     this.dockerImage,
     DateTime? createdAt,
     this.tasks,
@@ -30,6 +31,7 @@ abstract class Project
     int? id,
     required String name,
     required String repoUrl,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -40,6 +42,12 @@ abstract class Project
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
       repoUrl: jsonSerialization['repoUrl'] as String,
+      repoAccessTokenUpdatedAt:
+          jsonSerialization['repoAccessTokenUpdatedAt'] == null
+          ? null
+          : _isc.DateTimeJsonExtension.fromJson(
+              jsonSerialization['repoAccessTokenUpdatedAt'],
+            ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -63,6 +71,9 @@ abstract class Project
   /// The URL of the git repository.
   String repoUrl;
 
+  /// When the token was last set/updated — not sensitive, safe to show in the panel.
+  DateTime? repoAccessTokenUpdatedAt;
+
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
@@ -77,6 +88,7 @@ abstract class Project
     int? id,
     String? name,
     String? repoUrl,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -88,6 +100,8 @@ abstract class Project
       if (id != null) 'id': id,
       'name': name,
       'repoUrl': repoUrl,
+      if (repoAccessTokenUpdatedAt != null)
+        'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
@@ -101,6 +115,8 @@ abstract class Project
       if (id != null) 'id': id,
       'name': name,
       'repoUrl': repoUrl,
+      if (repoAccessTokenUpdatedAt != null)
+        'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
@@ -121,6 +137,7 @@ class _ProjectImpl extends Project {
     int? id,
     required String name,
     required String repoUrl,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -128,6 +145,7 @@ class _ProjectImpl extends Project {
          id: id,
          name: name,
          repoUrl: repoUrl,
+         repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
          createdAt: createdAt,
          tasks: tasks,
@@ -141,6 +159,7 @@ class _ProjectImpl extends Project {
     Object? id = _Undefined,
     String? name,
     String? repoUrl,
+    Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
@@ -149,6 +168,9 @@ class _ProjectImpl extends Project {
       id: id is int? ? id : this.id,
       name: name ?? this.name,
       repoUrl: repoUrl ?? this.repoUrl,
+      repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt is DateTime?
+          ? repoAccessTokenUpdatedAt
+          : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?

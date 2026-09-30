@@ -72,6 +72,7 @@ abstract class TaskQuestion
 
   int taskId;
 
+  /// onDelete=Cascade: questions have no meaning independent of their task.
   _iwn6t6fs.Task? task;
 
   String question;

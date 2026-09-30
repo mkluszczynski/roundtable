@@ -7,11 +7,24 @@ import 'package:serverpod/serverpod.dart';
 class TaskEndpoint extends Endpoint {
   static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
-  static String _channelForTask(int taskId) => 'task-$taskId';
+  static String channelForTask(int taskId) => 'task-$taskId';
   static String _channelForQuestion(int questionId) =>
       'task-question-$questionId';
   static String _channelForPlanDecision(int taskId) =>
       'task-$taskId-plan-decision';
+  static String channelForAllTasks() => 'all-tasks';
+  static String _channelForTaskDeletions() => 'task-deletions';
+
+  /// Statuses [reassignAgent] allows changing `Task.agent` in — the task
+  /// isn't actively executing under its current agent, so swapping it is
+  /// safe: still sitting in the backlog, or parked in review waiting on the
+  /// dev (design doc §5 — `Task.agent` is optional precisely so a task
+  /// survives its agent being deleted).
+  static const _reassignableTaskStatuses = {
+    TaskStatus.queued,
+    TaskStatus.cloning,
+    TaskStatus.awaitingReview,
+  };
 
   final _github = GitHubRepoClient();
 
@@ -47,6 +60,7 @@ class TaskEndpoint extends Endpoint {
       _channelForMachine(agent.machineId),
       task,
     );
+    await session.messages.postMessage(channelForAllTasks(), task);
 
     return task;
   }
@@ -65,10 +79,26 @@ class TaskEndpoint extends Endpoint {
   /// `lastProgressAt`, since this is the daemon's primary path for
   /// reporting task activity — see [StalledTaskFutureCall].
   Future<Task> update(Session session, Task task) async {
-    return Task.db.updateRow(
+    // The daemon sends back the Task it received at dispatch time, so only
+    // write the fields it owns — otherwise it reverts server-side changes
+    // made during the run (currentPlan, question/plan status transitions).
+    var updated = await Task.db.updateRow(
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+      columns: (t) => [
+        t.status,
+        t.failureReason,
+        t.claudeSessionId,
+        t.branchName,
+        t.prUrl,
+        t.startedAt,
+        t.finishedAt,
+        t.lastProgressAt,
+      ],
     );
+    await session.messages.postMessage(channelForTask(updated.id!), updated);
+    await session.messages.postMessage(channelForAllTasks(), updated);
+    return updated;
   }
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
@@ -87,9 +117,12 @@ class TaskEndpoint extends Endpoint {
     );
 
     var task = await _requireTask(session, taskId);
+    // Only this column: log lines arrive concurrently with status changes
+    // (e.g. setPlanReady), and writing the whole row back would revert them.
     await Task.db.updateRow(
       session,
       task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+      columns: (t) => [t.lastProgressAt],
     );
 
     await session.messages.postMessage(_channelForTaskLogs(taskId), entry);
@@ -121,7 +154,99 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
+
+    return task;
+  }
+
+  /// Re-queues a `failed` or `cancelled` task for another attempt, without
+  /// the dev having to recreate it from scratch. Resets it to look exactly
+  /// like a brand new `queued` task — clearing `claudeSessionId` in
+  /// particular, so `TaskDispatcher.handle` starts a fresh Claude Code
+  /// invocation rather than trying to `--resume` a session that already
+  /// ended in failure/cancellation. Wakes the daemon via the same channel
+  /// [createTask] uses.
+  Future<Task> retryTask(Session session, int taskId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (task.status != TaskStatus.failed &&
+        task.status != TaskStatus.cancelled) {
+      throw Exception(
+        'Task $taskId is not retryable (status=${task.status})',
+      );
+    }
+    var agentId = task.agentId;
+    if (agentId == null) {
+      throw Exception(
+        'Task $taskId has no assigned agent — reassign one first',
+      );
+    }
+    var agent = await Agent.db.findById(session, agentId);
+    if (agent == null) {
+      throw Exception('Agent $agentId not found');
+    }
+
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(
+        status: TaskStatus.queued,
+        currentPlan: null,
+        failureReason: null,
+        claudeSessionId: null,
+        startedAt: null,
+        finishedAt: null,
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
+    );
+
+    await session.messages.postMessage(
+      _channelForMachine(agent.machineId),
+      task,
+    );
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
+
+    return task;
+  }
+
+  /// Assigns [agentId] to [taskId] — either giving an agent-less task one
+  /// (its previous agent was deleted, see `Agent.machine`'s
+  /// `onDelete=Cascade`) or moving a backlog/review task to a different
+  /// agent. Blocked while the task is actively executing under its current
+  /// agent (`planning`/`running`/etc.) to avoid pulling an agent out from
+  /// under a live Claude Code run; not blocked when there's no current agent
+  /// at all, since in that case nothing is actually running.
+  Future<Task> reassignAgent(Session session, int taskId, int agentId) async {
+    var task = await Task.db.findById(session, taskId);
+    if (task == null) {
+      throw Exception('Task $taskId not found');
+    }
+    if (task.agentId != null &&
+        !_reassignableTaskStatuses.contains(task.status)) {
+      throw Exception(
+        'Task $taskId cannot be reassigned while ${task.status.name}',
+      );
+    }
+    var agent = await Agent.db.findById(session, agentId);
+    if (agent == null) {
+      throw Exception('Agent $agentId not found');
+    }
+
+    task = await Task.db.updateRow(session, task.copyWith(agentId: agentId));
+
+    // Wakes the new agent's machine in case the task is sitting in the
+    // backlog waiting to be picked up — the same channel [createTask] posts
+    // to, since `watchAssignedTasks` only replays already-pending tasks once
+    // at subscribe time.
+    await session.messages.postMessage(
+      _channelForMachine(agent.machineId),
+      task,
+    );
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
 
     return task;
   }
@@ -209,12 +334,14 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return created;
   }
 
   /// Answers a plan-mode clarifying question (design doc §6.4), waking the
-  /// permission-prompt-tool blocked on [watchAnswer].
+  /// permission-prompt-tool blocked on [watchAnswer], and moves the task back
+  /// to `planning` since Claude Code resumes as soon as the tool returns.
   Future<TaskQuestion> answerQuestion(
     Session session,
     int questionId,
@@ -236,6 +363,19 @@ class TaskEndpoint extends Endpoint {
       _channelForQuestion(questionId),
       question,
     );
+
+    var task = await Task.db.findById(session, question.taskId);
+    if (task != null && task.status == TaskStatus.waitingForAnswer) {
+      task = await Task.db.updateRow(
+        session,
+        task.copyWith(
+          status: TaskStatus.planning,
+          lastProgressAt: DateTime.now().toUtc(),
+        ),
+      );
+      await session.messages.postMessage(channelForTask(task.id!), task);
+      await session.messages.postMessage(channelForAllTasks(), task);
+    }
     return question;
   }
 
@@ -284,7 +424,8 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(_channelForTask(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
 
@@ -305,6 +446,8 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
 
@@ -338,6 +481,8 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
     return feedback;
   }
 
@@ -352,6 +497,44 @@ class TaskEndpoint extends Endpoint {
     );
     await for (var t in updates) {
       yield t;
+    }
+  }
+
+  /// Deletes a task once it's reached a terminal state — a non-terminal one
+  /// has to be cancelled first (mirrors [cancelTask]'s own guard, just
+  /// inverted). Its logs/questions/feedback cascade-delete with it (see
+  /// `Task`'s relations). Broadcasts a [TaskDeleted] on the same channel
+  /// [watchAllTasks] uses, since deleting the row leaves no `Task` to post as
+  /// an update.
+  Future<void> deleteTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (nonTerminalTaskStatuses.contains(task.status)) {
+      throw Exception(
+        'Task $taskId cannot be deleted while ${task.status.name} — cancel '
+        'it first',
+      );
+    }
+
+    await Task.db.deleteRow(session, task);
+    await session.messages.postMessage(
+      _channelForTaskDeletions(),
+      TaskDeleted(taskId: taskId),
+    );
+  }
+
+  /// Streams [TaskDeleted] broadcasts from [deleteTask], for the dashboard
+  /// kanban to drop a deleted task from its local list. Uses its own channel:
+  /// sharing [channelForAllTasks] would feed `Task` messages into a
+  /// `TaskDeleted`-typed stream (and vice versa for [watchAllTasks]).
+  /// Deliberately doesn't replay anything on subscribe, same reasoning as
+  /// [watchPlanDecision]: a deletion is always a future event relative to
+  /// subscribing.
+  Stream<TaskDeleted> watchTaskDeletions(Session session) async* {
+    var updates = session.messages.createStream<TaskDeleted>(
+      _channelForTaskDeletions(),
+    );
+    await for (var deletion in updates) {
+      yield deletion;
     }
   }
 
@@ -414,6 +597,24 @@ class TaskEndpoint extends Endpoint {
     return (prUrl: prUrl, token: token);
   }
 
+  /// Streams every task, for the panel's dashboard kanban (design doc §4
+  /// "Should"), not the daemon, which uses [watchAssignedTasks] instead. On
+  /// subscribe, replays every task currently in the database, then yields
+  /// each task again whenever any of the status-changing methods above
+  /// (create/update/cancel/plan transitions) touches it — the panel merges
+  /// each update into its in-memory task list by id.
+  Stream<Task> watchAllTasks(Session session) async* {
+    var tasks = await Task.db.find(session, orderBy: (t) => t.createdAt);
+    for (var task in tasks) {
+      yield task;
+    }
+
+    var updates = session.messages.createStream<Task>(channelForAllTasks());
+    await for (var task in updates) {
+      yield task;
+    }
+  }
+
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
     var agentIds = (await Agent.db.find(
       session,
@@ -470,7 +671,7 @@ class TaskEndpoint extends Endpoint {
       yield task;
     }
 
-    var updates = session.messages.createStream<Task>(_channelForTask(taskId));
+    var updates = session.messages.createStream<Task>(channelForTask(taskId));
     await for (var t in updates) {
       yield t;
     }

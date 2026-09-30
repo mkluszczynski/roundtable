@@ -1,4 +1,5 @@
 import '../endpoints/non_terminal_task_statuses.dart';
+import '../endpoints/task_endpoint.dart';
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -10,17 +11,28 @@ import 'package:serverpod/serverpod.dart';
 class StalledTaskFutureCall extends FutureCall {
   static const _stalledThreshold = Duration(minutes: 15);
 
+  /// Statuses where the task is waiting on the developer, not the agent, so
+  /// a lack of progress is expected.
+  static const _waitingOnHumanStatuses = {
+    TaskStatus.waitingForAnswer,
+    TaskStatus.planReady,
+    TaskStatus.awaitingReview,
+  };
+
   Future<void> check(Session session) async {
     final cutoff = DateTime.now().toUtc().subtract(_stalledThreshold);
 
     final stalledTasks = await Task.db.find(
       session,
       where: (t) =>
-          t.status.inSet(nonTerminalTaskStatuses) & (t.lastProgressAt < cutoff),
+          t.status.inSet(
+            nonTerminalTaskStatuses.difference(_waitingOnHumanStatuses),
+          ) &
+          (t.lastProgressAt < cutoff),
     );
 
     for (final task in stalledTasks) {
-      await Task.db.updateRow(
+      final updated = await Task.db.updateRow(
         session,
         task.copyWith(
           status: TaskStatus.failed,
@@ -28,6 +40,14 @@ class StalledTaskFutureCall extends FutureCall {
               'Task made no progress for over ${_stalledThreshold.inMinutes} minutes',
           finishedAt: DateTime.now().toUtc(),
         ),
+      );
+      await session.messages.postMessage(
+        TaskEndpoint.channelForTask(updated.id!),
+        updated,
+      );
+      await session.messages.postMessage(
+        TaskEndpoint.channelForAllTasks(),
+        updated,
       );
     }
   }

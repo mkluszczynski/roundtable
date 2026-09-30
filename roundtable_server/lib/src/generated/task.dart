@@ -141,6 +141,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   int projectId;
 
+  /// onDelete=Cascade: a task has no meaning independent of its project,
+  /// unlike Agent (kept optional/SetNull for task history, see below).
   _ifiazq2p.Project? project;
 
   int? agentId;
@@ -578,6 +580,8 @@ class TaskTable extends _is.Table<int?> {
 
   late final _is.ColumnInt projectId;
 
+  /// onDelete=Cascade: a task has no meaning independent of its project,
+  /// unlike Agent (kept optional/SetNull for task history, see below).
   _ifiazq2p.ProjectTable? _project;
 
   late final _is.ColumnInt agentId;

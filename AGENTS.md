@@ -1,7 +1,37 @@
-# Flutter & Serverpod project
+# Roundtable
 
-This project is a Flutter app (frontend) backed by a Serverpod server (backend). Always build the app's backend with Serverpod.
-Build for multiple users, use Serverpod's built-in authentication, which is already set up in `lib/server.dart`.
+Roundtable is an AI coding-agent command center (see `docs/DESIGN-DOC.md` for
+the full product/architecture spec and `docs/UI-DESIGN.md` for the design
+system). A developer registers machines (laptop, VPS) that host agents —
+named personas with a role, model, and effort — assigns them tasks against a
+git repo, and watches the work live (streamed logs, plan approval, diff
+review, PR) from one panel, instead of SSH-ing in and babysitting a terminal.
+
+This project is a Flutter app (frontend, `roundtable_flutter/`) backed by a
+Serverpod server (backend, `roundtable_server/`). Always build the app's
+backend with Serverpod. Build for multiple users, use Serverpod's built-in
+authentication, which is already set up in `lib/server.dart`.
+
+## App structure
+
+- `roundtable_flutter/lib/screens/` — `panel_shell.dart` (nav rail + tabs:
+  Dashboard, Projects, Machines, Agents, Task Detail), `dashboard_screen.dart`
+  (live kanban board + machines panel), `task_detail_screen.dart` (one screen,
+  4 sub-states switched on `Task.status`: waiting for answer, plan approval,
+  live execution log tail, diff review), `projects_screen.dart`,
+  `machines_screen.dart`, `agents_screen.dart` (CRUD lists).
+- `roundtable_flutter/lib/widgets/` — the shared design-system components
+  (`status_pill.dart`, `app_card.dart`, `code_block.dart`, `pill_selector.dart`,
+  `app_modal.dart`, `diff_view.dart`) plus the add-machine/add-project/
+  add-agent/create-task dialogs built on them. Each shared widget has a
+  matching test under `roundtable_flutter/test/widgets/`.
+- `roundtable_flutter/lib/theme/` — dark-only design tokens (`colors.dart`,
+  `typography.dart`, `spacing.dart`) and `app_theme.dart`, per
+  `docs/UI-DESIGN.md`.
+- `roundtable_flutter/lib/{cubits,blocs,repositories}/` — state management
+  per `docs/DESIGN-DOC.md` §3.3: a repository layer wraps the generated
+  `client`, Cubits wrap a single stream, `TaskDetailBloc` is the one full Bloc
+  (multiple event sources: task status, logs, diff, dev actions).
 
 The user starts the server and Flutter app with `serverpod start`. There is no need to check if the server is running: make the changes and call the `serverpod` MCP tools as needed. If the server is not running, an informative error message will be received from the MCP server. Then STOP and ask the user to start it. NEVER start the server yourself. The Flutter app is started along with it, or can be launched from the MCP tool `spawn_flutter_app`.
 
@@ -39,6 +69,32 @@ Checklist after doing changes, in this order:
 - Run tests, if applicable (`dart test` in the server package)
 - Check `serverpod` MCP `tail_server_logs` and `tail_flutter_logs` for any issues.
 
+## `roundtable_agent_runner` is not covered by hot reload
+
+`serverpod start`'s hot reload/`hot_restart` only affects the server and the
+Flutter app. `roundtable_agent_runner` (the daemon installed on a registered
+machine) is never run in-process — it's distributed as a **compiled**
+binary (two, actually: `roundtable_agent_runner.dart` and
+`permission_prompt_tool.dart`, `dart build cli --target ... --output
+build/<target>`), served by the server at `/agent-runner-bin` and
+`/permission-prompt-tool-bin` and downloaded by `scripts/install-agent.sh`.
+
+`server.dart`'s `_resolveAgentRunnerBinary()` only builds these **once**, the
+first time each route is resolved (at server startup), then reuses whatever
+it finds cached under `roundtable_agent_runner/build/<target>/bundle/bin/` —
+it does not detect that the source changed. So after editing anything under
+`roundtable_agent_runner/`, before asking the user to reinstall the agent on
+a machine:
+
+1. `rm -rf roundtable_agent_runner/build` to drop the stale cached binaries.
+2. `hot_restart` (MCP) so the server re-resolves both routes and recompiles
+   fresh — confirm with e.g. `find roundtable_agent_runner/build -type f
+   -exec stat -c '%y %n' {} \;`, the mtimes should be recent.
+
+Skipping this means a machine that re-runs `install-agent.sh` just
+re-downloads the same old binary and the fix won't actually reach it, even
+though the source and the server's own hot-reloaded code are already fixed.
+
 If the user asks you to test the app:
 
 1. Use `get_flutter_app_dtd` (`serverpod` MCP) to get the Flutter app's DTD
@@ -47,4 +103,4 @@ If the user asks you to test the app:
 
 The app is launched from `roundtable_flutter/lib/driver.dart`, which starts the Flutter driver extension with text entry emulation turned off so the app stays usable by hand. To let the driver type, set `enableTextEntryEmulation: true` there and `hot_restart` the app.
 
-IMPORTANT: After building the first version of the app, update this AGENTS.md file with information about the app we're building. KEEP the info about the MCP server and the checklist. Remove this paragraph.
+Several status dots (`StatusPill` with `pulsing: true`) animate continuously via a looping `AnimationController`. This can make `flutter_driver_command`'s default frame-sync wait never resolve (tap/waitFor time out even though the widget is right there). If a driver command times out on a screen with a pulsing pill, run `set_frame_sync` with `enabled: false` first, then retry.

@@ -26,13 +26,45 @@ class MachineEndpoint extends Endpoint {
   static String _channelForMachineMetrics(int machineId) =>
       'machine-$machineId-metrics';
 
-  Future<MachineRegistration> register(Session session, String name) async {
+  Future<MachineRegistration> register(
+    Session session,
+    String name, {
+    String? hostInfo,
+  }) async {
     final token = _generateRegistrationToken();
     final machine = await Machine.db.insertRow(
       session,
-      Machine(name: name, tokenHash: _hashToken(token)),
+      Machine(name: name, hostInfo: hostInfo, tokenHash: _hashToken(token)),
     );
-    return MachineRegistration(machine: machine, token: token);
+    final apiServer = session.serverpod.config.apiServer;
+    return MachineRegistration(
+      machine: machine,
+      token: token,
+      serverUrl: Uri(
+        scheme: apiServer.publicScheme,
+        host: apiServer.publicHost,
+        port: apiServer.publicPort,
+      ).toString(),
+      scriptUrl: _scriptUrl(session),
+    );
+  }
+
+  /// Base URL the install/uninstall scripts (and the agent-runner binary
+  /// install-agent.sh downloads) are served from — the panel's "Delete"
+  /// dialog for an online machine uses this to render a working
+  /// `curl | sudo bash` uninstall command (design doc §6.8).
+  Future<String> getScriptUrl(Session session) async => _scriptUrl(session);
+
+  String _scriptUrl(Session session) {
+    final apiServer = session.serverpod.config.apiServer;
+    // Falls back to the API server if this monolith wasn't configured with a
+    // separate web server role (webServer is only set up for that role).
+    final webServer = session.serverpod.config.webServer ?? apiServer;
+    return Uri(
+      scheme: webServer.publicScheme,
+      host: webServer.publicHost,
+      port: webServer.publicPort,
+    ).toString();
   }
 
   Future<Machine?> get(Session session, int id) async {
@@ -114,6 +146,27 @@ class MachineEndpoint extends Endpoint {
     await session.messages.postMessage(
       _channelForMachineMetrics(machine.id!),
       metric,
+    );
+  }
+
+  /// Called by the daemon at startup and on every heartbeat tick to report
+  /// whether its configured `claude` executable can actually be launched —
+  /// surfaced as a warning banner on the machine's card in the panel instead
+  /// of only in `journalctl -u agent-runner`. [message] should be null when
+  /// [ok] is true, and an actionable error description otherwise.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> reportClaudeStatus(
+    Session session,
+    String token,
+    bool ok,
+    String? message,
+  ) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(claudeExecutableOk: ok, claudeExecutableError: message),
     );
   }
 

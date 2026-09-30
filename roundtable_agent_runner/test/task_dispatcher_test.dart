@@ -100,7 +100,7 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(logLines, contains(contains('"session_id":"sess-1"')));
+      expect(logLines, contains('✅ Done'));
       expect(agentUpdates.map((a) => a.status), [
         AgentStatus.busy,
         AgentStatus.idle,
@@ -116,7 +116,7 @@ exit 0
       expect(prRequests.single['branchName'], 'task-1');
     });
 
-    test('a skipPlanning task that produces no changes reaches awaitingReview '
+    test('a skipPlanning task that produces no changes is marked failed '
         'without opening a PR', () async {
       final claudeScript = writeFakeClaude('''
 echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
@@ -152,7 +152,11 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(
+        taskUpdates.last.failureReason,
+        'Agent finished without changing any files.',
+      );
       expect(taskUpdates.last.branchName, isNull);
       expect(taskUpdates.last.prUrl, isNull);
       expect(messages, contains(contains('no changes to commit')));
@@ -239,6 +243,45 @@ exit 0
 
       expect(taskUpdates.last.status, TaskStatus.failed);
       expect(taskUpdates.last.failureReason, isNotNull);
+      expect(agentUpdates.last.status, AgentStatus.idle);
+    });
+
+    test('an unlaunchable claude executable marks the task failed with a '
+        'friendly, actionable reason instead of the raw exception', () async {
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () =>
+            ClaudeCodeExecutor(executable: '${tempDir.path}/no-such-claude'),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async => taskUpdates.add(task),
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (taskId, content) async {},
+        fetchLatestFeedback: (_) async => null,
+        openPullRequest:
+            ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
+        watchTask: (_) => const Stream<Task>.empty(),
+        log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(taskUpdates.last.failureReason, contains('CLAUDE_EXECUTABLE'));
+      expect(taskUpdates.last.failureReason, contains('no-such-claude'));
       expect(agentUpdates.last.status, AgentStatus.idle);
     });
 

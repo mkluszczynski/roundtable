@@ -2,7 +2,9 @@
 class: Task
 table: task
 fields:
-  project: Project?, relation(name=project_tasks)
+  ### onDelete=Cascade: a task has no meaning independent of its project,
+  ### unlike Agent (kept optional/SetNull for task history, see below).
+  project: Project?, relation(name=project_tasks, onDelete=Cascade)
   ### Optional — this opens the door to task queueing without a schema change.
   ### onDelete=SetNull: deleting an agent (once its non-terminal tasks are
   ### gone) keeps its terminal/historical tasks around, just unassigned.

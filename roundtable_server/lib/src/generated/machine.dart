@@ -24,9 +24,12 @@ abstract class Machine
   Machine._({
     this.id,
     required this.name,
+    this.hostInfo,
     this.tokenHash,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
+    this.claudeExecutableOk,
+    this.claudeExecutableError,
     DateTime? createdAt,
     this.agents,
     this.metrics,
@@ -36,9 +39,12 @@ abstract class Machine
   factory Machine({
     int? id,
     required String name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -48,6 +54,7 @@ abstract class Machine
     return Machine(
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
+      hostInfo: jsonSerialization['hostInfo'] as String?,
       tokenHash: jsonSerialization['tokenHash'] as String?,
       status: jsonSerialization['status'] == null
           ? null
@@ -57,6 +64,13 @@ abstract class Machine
       lastSeenAt: jsonSerialization['lastSeenAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['lastSeenAt']),
+      claudeExecutableOk: jsonSerialization['claudeExecutableOk'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['claudeExecutableOk'],
+            ),
+      claudeExecutableError:
+          jsonSerialization['claudeExecutableError'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -83,6 +97,9 @@ abstract class Machine
   /// The machine's display name.
   String name;
 
+  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  String? hostInfo;
+
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   String? tokenHash;
 
@@ -90,6 +107,17 @@ abstract class Machine
 
   /// Last time a heartbeat was received from this machine's daemon.
   DateTime? lastSeenAt;
+
+  /// Whether the daemon's last check of its configured `claude` executable
+  /// succeeded (`Process.run(claudeExecutable, ['--version'])`) — null until
+  /// the first check reports in. Surfaced as a warning banner in the panel
+  /// instead of only in `journalctl -u agent-runner`, since a broken
+  /// CLAUDE_EXECUTABLE otherwise silently fails every task on this machine.
+  bool? claudeExecutableOk;
+
+  /// Actionable error message set when `claudeExecutableOk` is false (e.g. a
+  /// `ProcessException` launching `claude`, with fix instructions).
+  String? claudeExecutableError;
 
   DateTime createdAt;
 
@@ -106,9 +134,12 @@ abstract class Machine
   Machine copyWith({
     int? id,
     String? name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -119,9 +150,13 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       if (tokenHash != null) 'tokenHash': tokenHash,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
+      if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
+      if (claudeExecutableError != null)
+        'claudeExecutableError': claudeExecutableError,
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJson()),
@@ -136,8 +171,12 @@ abstract class Machine
       '__className__': 'Machine',
       if (id != null) 'id': id,
       'name': name,
+      if (hostInfo != null) 'hostInfo': hostInfo,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
+      if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
+      if (claudeExecutableError != null)
+        'claudeExecutableError': claudeExecutableError,
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -186,18 +225,24 @@ class _MachineImpl extends Machine {
   _MachineImpl({
     int? id,
     required String name,
+    String? hostInfo,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
+    bool? claudeExecutableOk,
+    String? claudeExecutableError,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
   }) : super._(
          id: id,
          name: name,
+         hostInfo: hostInfo,
          tokenHash: tokenHash,
          status: status,
          lastSeenAt: lastSeenAt,
+         claudeExecutableOk: claudeExecutableOk,
+         claudeExecutableError: claudeExecutableError,
          createdAt: createdAt,
          agents: agents,
          metrics: metrics,
@@ -210,9 +255,12 @@ class _MachineImpl extends Machine {
   Machine copyWith({
     Object? id = _Undefined,
     String? name,
+    Object? hostInfo = _Undefined,
     Object? tokenHash = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
+    Object? claudeExecutableOk = _Undefined,
+    Object? claudeExecutableError = _Undefined,
     DateTime? createdAt,
     Object? agents = _Undefined,
     Object? metrics = _Undefined,
@@ -220,9 +268,16 @@ class _MachineImpl extends Machine {
     return Machine(
       id: id is int? ? id : this.id,
       name: name ?? this.name,
+      hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
       tokenHash: tokenHash is String? ? tokenHash : this.tokenHash,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
+      claudeExecutableOk: claudeExecutableOk is bool?
+          ? claudeExecutableOk
+          : this.claudeExecutableOk,
+      claudeExecutableError: claudeExecutableError is String?
+          ? claudeExecutableError
+          : this.claudeExecutableError,
       createdAt: createdAt ?? this.createdAt,
       agents: agents is List<_ijo8h3v4.Agent>?
           ? agents
@@ -239,6 +294,11 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
 
   _is.ColumnValue<String, String> name(String value) => _is.ColumnValue(
     table.name,
+    value,
+  );
+
+  _is.ColumnValue<String, String> hostInfo(String? value) => _is.ColumnValue(
+    table.hostInfo,
     value,
   );
 
@@ -260,6 +320,18 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
         value,
       );
 
+  _is.ColumnValue<bool, bool> claudeExecutableOk(bool? value) =>
+      _is.ColumnValue(
+        table.claudeExecutableOk,
+        value,
+      );
+
+  _is.ColumnValue<String, String> claudeExecutableError(String? value) =>
+      _is.ColumnValue(
+        table.claudeExecutableError,
+        value,
+      );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -272,6 +344,10 @@ class MachineTable extends _is.Table<int?> {
     updateTable = MachineUpdateTable(this);
     name = _is.ColumnString(
       'name',
+      this,
+    );
+    hostInfo = _is.ColumnString(
+      'hostInfo',
       this,
     );
     tokenHash = _is.ColumnString(
@@ -288,6 +364,14 @@ class MachineTable extends _is.Table<int?> {
       'lastSeenAt',
       this,
     );
+    claudeExecutableOk = _is.ColumnBool(
+      'claudeExecutableOk',
+      this,
+    );
+    claudeExecutableError = _is.ColumnString(
+      'claudeExecutableError',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -300,6 +384,9 @@ class MachineTable extends _is.Table<int?> {
   /// The machine's display name.
   late final _is.ColumnString name;
 
+  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  late final _is.ColumnString hostInfo;
+
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   late final _is.ColumnString tokenHash;
 
@@ -307,6 +394,17 @@ class MachineTable extends _is.Table<int?> {
 
   /// Last time a heartbeat was received from this machine's daemon.
   late final _is.ColumnDateTime lastSeenAt;
+
+  /// Whether the daemon's last check of its configured `claude` executable
+  /// succeeded (`Process.run(claudeExecutable, ['--version'])`) — null until
+  /// the first check reports in. Surfaced as a warning banner in the panel
+  /// instead of only in `journalctl -u agent-runner`, since a broken
+  /// CLAUDE_EXECUTABLE otherwise silently fails every task on this machine.
+  late final _is.ColumnBool claudeExecutableOk;
+
+  /// Actionable error message set when `claudeExecutableOk` is false (e.g. a
+  /// `ProcessException` launching `claude`, with fix instructions).
+  late final _is.ColumnString claudeExecutableError;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -386,9 +484,12 @@ class MachineTable extends _is.Table<int?> {
   List<_is.Column> get columns => [
     id,
     name,
+    hostInfo,
     tokenHash,
     status,
     lastSeenAt,
+    claudeExecutableOk,
+    claudeExecutableError,
     createdAt,
   ];
 

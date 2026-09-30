@@ -6,4 +6,20 @@ class AgentRepository {
   final Client _client;
 
   Future<List<Agent>> listAgents() => _client.agent.list();
+
+  Future<Agent?> getAgent(int id) => _client.agent.get(id);
+
+  Future<Agent> createAgent({
+    required String name,
+    required int machineId,
+    AgentRole role = AgentRole.generalist,
+    String? defaultModel,
+    AgentEffort? defaultEffort,
+  }) => _client.agent.create(
+    name,
+    machineId,
+    role: role,
+    defaultModel: defaultModel,
+    defaultEffort: defaultEffort,
+  );
 }

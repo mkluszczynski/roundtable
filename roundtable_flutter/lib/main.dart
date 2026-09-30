@@ -2,21 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'client.dart';
 import 'screens/panel_shell.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeClient();
   runApp(const MyApp());
-}
-
-/// Builds a theme for the given [brightness].
-ThemeData _buildTheme(Brightness brightness) {
-  return ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: Colors.blue,
-      brightness: brightness,
-    ),
-  );
 }
 
 class MyApp extends StatelessWidget {
@@ -25,10 +16,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Serverpod Demo',
-      theme: _buildTheme(Brightness.light),
-      darkTheme: _buildTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
+      title: 'Roundtable',
+      darkTheme: buildAppTheme(),
+      themeMode: ThemeMode.dark,
       home: const PanelShell(),
     );
   }

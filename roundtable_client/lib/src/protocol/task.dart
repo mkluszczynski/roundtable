@@ -141,6 +141,8 @@ abstract class Task
 
   int projectId;
 
+  /// onDelete=Cascade: a task has no meaning independent of its project,
+  /// unlike Agent (kept optional/SetNull for task history, see below).
   _ifiazq2p.Project? project;
 
   int? agentId;

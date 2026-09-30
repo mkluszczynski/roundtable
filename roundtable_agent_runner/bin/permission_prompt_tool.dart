@@ -40,4 +40,8 @@ Future<void> main() async {
     toolName: 'approval_prompt',
     serverName: 'roundtable-permission',
   );
+  // Open streaming connections would otherwise keep this process (and the
+  // pipes it inherited from `claude`) alive after stdin closes.
+  client.close();
+  exit(0);
 }

@@ -3,7 +3,8 @@
 class: TaskFeedback
 table: task_feedback
 fields:
-  task: Task?, relation(name=task_feedback)
+  ### onDelete=Cascade: feedback has no meaning independent of its task.
+  task: Task?, relation(name=task_feedback, onDelete=Cascade)
   message: String
   phase: TaskFeedbackPhase
   createdAt: DateTime, default=now

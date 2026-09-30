@@ -2,7 +2,8 @@
 class: TaskLogEntry
 table: task_log_entry
 fields:
-  task: Task?, relation(name=task_logs)
+  ### onDelete=Cascade: log entries have no meaning independent of their task.
+  task: Task?, relation(name=task_logs, onDelete=Cascade)
   content: String
   source: LogSource, default=agent
   createdAt: DateTime, default=now

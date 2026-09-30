@@ -1,8 +1,9 @@
+import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
-/// Basic CRUD for [Project]. No deletion guards apply here — see
-/// [MachineEndpoint] and [AgentEndpoint] for the entities that have them.
+/// Basic CRUD for [Project]. Deletion is blocked while it has non-terminal
+/// tasks, mirroring [AgentEndpoint]/[MachineEndpoint]'s guard.
 class ProjectEndpoint extends Endpoint {
   Future<Project> create(
     Session session,
@@ -17,6 +18,9 @@ class ProjectEndpoint extends Endpoint {
         name: name,
         repoUrl: repoUrl,
         repoAccessToken: repoAccessToken,
+        repoAccessTokenUpdatedAt: repoAccessToken == null
+            ? null
+            : DateTime.now(),
         dockerImage: dockerImage,
       ),
     );
@@ -34,8 +38,46 @@ class ProjectEndpoint extends Endpoint {
     return Project.db.updateRow(session, project);
   }
 
+  /// Sets a new repo access token, keeping `scope=serverOnly` intact — the
+  /// token itself is never echoed back, only the (non-sensitive)
+  /// `repoAccessTokenUpdatedAt` timestamp is observable from the panel.
+  Future<void> updateRepoAccessToken(
+    Session session,
+    int projectId,
+    String token,
+  ) async {
+    var project = await Project.db.findById(session, projectId);
+    if (project == null) {
+      throw Exception('Project $projectId not found');
+    }
+    await Project.db.updateRow(
+      session,
+      project.copyWith(
+        repoAccessToken: token,
+        repoAccessTokenUpdatedAt: DateTime.now(),
+      ),
+    );
+  }
+
   Future<void> delete(Session session, int id) async {
-    await Project.db.deleteWhere(session, where: (t) => t.id.equals(id));
+    var project = await Project.db.findById(session, id);
+    if (project == null) {
+      throw Exception('Project $id not found');
+    }
+
+    var nonTerminalTaskCount = await Task.db.count(
+      session,
+      where: (t) =>
+          t.projectId.equals(id) & t.status.inSet(nonTerminalTaskStatuses),
+    );
+    if (nonTerminalTaskCount > 0) {
+      throw DeletionBlockedException(
+        message: 'Cannot delete a project with non-terminal tasks',
+        reason: DeletionBlockReason.nonTerminalTasks,
+      );
+    }
+
+    await Project.db.deleteRow(session, project);
   }
 
   /// Returns a ready-to-clone HTTPS URL for [projectId], with

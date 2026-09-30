@@ -23,6 +23,7 @@ abstract class Project
     required this.name,
     required this.repoUrl,
     this.repoAccessToken,
+    this.repoAccessTokenUpdatedAt,
     this.dockerImage,
     DateTime? createdAt,
     this.tasks,
@@ -33,6 +34,7 @@ abstract class Project
     required String name,
     required String repoUrl,
     String? repoAccessToken,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -44,6 +46,12 @@ abstract class Project
       name: jsonSerialization['name'] as String,
       repoUrl: jsonSerialization['repoUrl'] as String,
       repoAccessToken: jsonSerialization['repoAccessToken'] as String?,
+      repoAccessTokenUpdatedAt:
+          jsonSerialization['repoAccessTokenUpdatedAt'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['repoAccessTokenUpdatedAt'],
+            ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -72,6 +80,9 @@ abstract class Project
   /// Fine-grained GitHub PAT, scoped to a single repo. Never reaches the panel.
   String? repoAccessToken;
 
+  /// When the token was last set/updated — not sensitive, safe to show in the panel.
+  DateTime? repoAccessTokenUpdatedAt;
+
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
@@ -90,6 +101,7 @@ abstract class Project
     String? name,
     String? repoUrl,
     String? repoAccessToken,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -102,6 +114,8 @@ abstract class Project
       'name': name,
       'repoUrl': repoUrl,
       if (repoAccessToken != null) 'repoAccessToken': repoAccessToken,
+      if (repoAccessTokenUpdatedAt != null)
+        'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
@@ -115,6 +129,8 @@ abstract class Project
       if (id != null) 'id': id,
       'name': name,
       'repoUrl': repoUrl,
+      if (repoAccessTokenUpdatedAt != null)
+        'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
@@ -158,6 +174,7 @@ class _ProjectImpl extends Project {
     required String name,
     required String repoUrl,
     String? repoAccessToken,
+    DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
@@ -166,6 +183,7 @@ class _ProjectImpl extends Project {
          name: name,
          repoUrl: repoUrl,
          repoAccessToken: repoAccessToken,
+         repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
          createdAt: createdAt,
          tasks: tasks,
@@ -180,6 +198,7 @@ class _ProjectImpl extends Project {
     String? name,
     String? repoUrl,
     Object? repoAccessToken = _Undefined,
+    Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
@@ -191,6 +210,9 @@ class _ProjectImpl extends Project {
       repoAccessToken: repoAccessToken is String?
           ? repoAccessToken
           : this.repoAccessToken,
+      repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt is DateTime?
+          ? repoAccessTokenUpdatedAt
+          : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
@@ -219,6 +241,13 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
         value,
       );
 
+  _is.ColumnValue<DateTime, DateTime> repoAccessTokenUpdatedAt(
+    DateTime? value,
+  ) => _is.ColumnValue(
+    table.repoAccessTokenUpdatedAt,
+    value,
+  );
+
   _is.ColumnValue<String, String> dockerImage(String? value) => _is.ColumnValue(
     table.dockerImage,
     value,
@@ -246,6 +275,10 @@ class ProjectTable extends _is.Table<int?> {
       'repoAccessToken',
       this,
     );
+    repoAccessTokenUpdatedAt = _is.ColumnDateTime(
+      'repoAccessTokenUpdatedAt',
+      this,
+    );
     dockerImage = _is.ColumnString(
       'dockerImage',
       this,
@@ -267,6 +300,9 @@ class ProjectTable extends _is.Table<int?> {
 
   /// Fine-grained GitHub PAT, scoped to a single repo. Never reaches the panel.
   late final _is.ColumnString repoAccessToken;
+
+  /// When the token was last set/updated — not sensitive, safe to show in the panel.
+  late final _is.ColumnDateTime repoAccessTokenUpdatedAt;
 
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   late final _is.ColumnString dockerImage;
@@ -315,6 +351,7 @@ class ProjectTable extends _is.Table<int?> {
     name,
     repoUrl,
     repoAccessToken,
+    repoAccessTokenUpdatedAt,
     dockerImage,
     createdAt,
   ];

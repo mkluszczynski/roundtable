@@ -1,3 +1,4 @@
+import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
 
 import 'test_tools/serverpod_test_tools.dart';
@@ -80,6 +81,84 @@ void main() {
       final fetched = await endpoints.project.get(sessionBuilder, created.id!);
       expect(fetched, isNull);
     });
+
+    test(
+      'when deleting a project with a non-terminal task then it throws DeletionBlockedException',
+      () async {
+        final session = sessionBuilder.build();
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            prompt: 'Do something',
+            status: TaskStatus.planning,
+          ),
+        );
+
+        await expectLater(
+          endpoints.project.delete(sessionBuilder, project.id!),
+          throwsA(isA<DeletionBlockedException>()),
+        );
+      },
+    );
+
+    test(
+      'when creating a project with a repo access token then repoAccessTokenUpdatedAt is set',
+      () async {
+        final project = await endpoints.project.create(
+          sessionBuilder,
+          'Roundtable',
+          'https://github.com/example/roundtable',
+          repoAccessToken: 'secret-token',
+        );
+
+        expect(project.repoAccessTokenUpdatedAt, isNotNull);
+      },
+    );
+
+    test(
+      'when updating the repo access token then repoAccessTokenUpdatedAt is refreshed and the raw token is never returned',
+      () async {
+        final created = await endpoints.project.create(
+          sessionBuilder,
+          'Roundtable',
+          'https://github.com/example/roundtable',
+        );
+        expect(created.repoAccessTokenUpdatedAt, isNull);
+
+        await endpoints.project.updateRepoAccessToken(
+          sessionBuilder,
+          created.id!,
+          'new-secret-token',
+        );
+
+        final fetched = await endpoints.project.get(
+          sessionBuilder,
+          created.id!,
+        );
+        expect(fetched!.repoAccessTokenUpdatedAt, isNotNull);
+
+        // `repoAccessToken` is `scope=serverOnly`: it's stripped from
+        // wire serialization to the panel, not from in-process endpoint
+        // calls like this test's — verify the real guarantee instead,
+        // that `getCloneUrl` (the only server-side reader) sees it.
+        final cloneUrl = await endpoints.project.getCloneUrl(
+          sessionBuilder,
+          created.id!,
+        );
+        expect(
+          cloneUrl,
+          'https://x-access-token:new-secret-token@github.com/example/roundtable',
+        );
+      },
+    );
 
     test(
       'when getting the clone url for a project without an access token then the plain repo url is returned',

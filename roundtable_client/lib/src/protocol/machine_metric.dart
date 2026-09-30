@@ -65,6 +65,9 @@ abstract class MachineMetric
 
   int machineId;
 
+  /// onDelete=Cascade: metrics are disposable telemetry, not history worth
+  /// preserving once the machine itself is gone (unlike Task, kept as an
+  /// audit trail via onDelete=SetNull).
   _i0hti3f2.Machine? machine;
 
   double cpuPercent;

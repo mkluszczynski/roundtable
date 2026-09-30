@@ -2,7 +2,10 @@
 class: Agent
 table: agent
 fields:
-  machine: Machine?, relation(name=machine_agents)
+  ### onDelete=Cascade: deleting a machine removes the agents hosted on it —
+  ### an agent has no existence independent of its machine (design doc §5).
+  ### Their own tasks are preserved as history: Task.agent is onDelete=SetNull.
+  machine: Machine?, relation(name=machine_agents, onDelete=Cascade)
   ### The agent's display name.
   name: String
   role: AgentRole, default=generalist

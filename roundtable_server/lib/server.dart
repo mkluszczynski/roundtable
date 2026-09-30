@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:serverpod_auth_idp_server/core.dart';
 import 'package:serverpod_auth_idp_server/providers/email.dart';
+import 'package:serverpod/protocol.dart' as sp;
 import 'package:serverpod_cloud_storage/serverpod_cloud_storage.dart';
 
 import 'src/cache_busting.dart';
@@ -49,6 +50,75 @@ void run(List<String> args) async {
     AppConfigRoute(apiConfig: pod.config.apiServer),
     '/assets/assets/config.json',
   );
+
+  // Serve the machine install script so the "add machine" command works on a
+  // fresh host that doesn't have this repo checked out. In development it's
+  // read straight from the repo's scripts/ directory; the packaged Docker
+  // image only ships web/, so the Dockerfile copies the script there too.
+  final devInstallScript = File(
+    Uri(path: '../scripts/install-agent.sh').toFilePath(),
+  );
+  final packagedInstallScript = File(
+    Uri(path: 'web/static/install-agent.sh').toFilePath(),
+  );
+  pod.webServer.addRoute(
+    StaticRoute.file(
+      devInstallScript.existsSync() ? devInstallScript : packagedInstallScript,
+    ),
+    '/install-agent.sh',
+  );
+
+  // Serve the uninstall script too — a machine installed via the curl
+  // one-liner above has no repo checkout to run `./scripts/uninstall-agent.sh`
+  // from, so the panel's "still online" delete dialog points at this route
+  // instead (design doc §6.8).
+  final devUninstallScript = File(
+    Uri(path: '../scripts/uninstall-agent.sh').toFilePath(),
+  );
+  final packagedUninstallScript = File(
+    Uri(path: 'web/static/uninstall-agent.sh').toFilePath(),
+  );
+  pod.webServer.addRoute(
+    StaticRoute.file(
+      devUninstallScript.existsSync()
+          ? devUninstallScript
+          : packagedUninstallScript,
+    ),
+    '/uninstall-agent.sh',
+  );
+
+  // Serve a prebuilt agent-runner binary so install-agent.sh can install a
+  // self-executable agent without a Dart SDK or repo checkout on the target
+  // machine (design doc §6.8). The packaged Docker image ships it prebuilt;
+  // in development it's compiled on demand from the sibling package and
+  // cached on disk.
+  final agentRunnerBinary = await _resolveAgentRunnerBinary(
+    targetScript: 'bin/roundtable_agent_runner.dart',
+    packagedFileName: 'roundtable-agent-runner',
+    routeName: '/agent-runner-bin',
+  );
+  if (agentRunnerBinary != null) {
+    pod.webServer.addRoute(
+      StaticRoute.file(agentRunnerBinary),
+      '/agent-runner-bin',
+    );
+  }
+
+  // Serve a prebuilt permission-prompt-tool binary alongside the agent
+  // runner — a deployed daemon (no Dart SDK on the target machine) can't run
+  // `bin/permission_prompt_tool.dart` from source, so it needs its own
+  // compiled artifact too (design doc §6.4, §6.8).
+  final permissionPromptToolBinary = await _resolveAgentRunnerBinary(
+    targetScript: 'bin/permission_prompt_tool.dart',
+    packagedFileName: 'roundtable-permission-prompt-tool',
+    routeName: '/permission-prompt-tool-bin',
+  );
+  if (permissionPromptToolBinary != null) {
+    pod.webServer.addRoute(
+      StaticRoute.file(permissionPromptToolBinary),
+      '/permission-prompt-tool-bin',
+    );
+  }
 
   // Checks if the flutter web app has been built and serves it if it has.
   final appDir = Directory(Uri(path: 'web/app').toFilePath());
@@ -103,10 +173,26 @@ void run(List<String> args) async {
   // Start the server.
   await pod.start();
 
+  // Recurring calls are persisted, so scheduling them on every start stacks
+  // up duplicates. Drop any existing rows (including ones from before they
+  // had an identifier) and schedule exactly one of each.
+  final session = await pod.createSession(enableLogging: false);
+  try {
+    await sp.FutureCallEntry.db.deleteWhere(
+      session,
+      where: (t) => t.name.inSet({
+        'MachineOfflineCheckFutureCall',
+        'StalledTaskCheckFutureCall',
+      }),
+    );
+  } finally {
+    await session.close();
+  }
+
   // Periodically detect machines whose daemon has stopped heartbeating and
   // fail their in-progress tasks (design doc §6.8).
   await pod.futureCalls
-      .callRecurring()
+      .callRecurring(identifier: 'machine-offline-check')
       .every(const Duration(seconds: 30))
       .machineOffline
       .check();
@@ -115,8 +201,65 @@ void run(List<String> args) async {
   // on a machine that's still online (design doc §4 "Timeout for a stuck
   // task").
   await pod.futureCalls
-      .callRecurring()
+      .callRecurring(identifier: 'stalled-task-check')
       .every(const Duration(seconds: 30))
       .stalledTask
       .check();
+}
+
+/// Resolves a compiled binary out of the sibling `roundtable_agent_runner`
+/// package, for [targetScript] (a `bin/*.dart` entrypoint in that package)
+/// served under [routeName] (used only for log messages).
+///
+/// Prefers the prebuilt copy the Dockerfile bakes into
+/// `web/static/bin/$packagedFileName`. In development, where that package is
+/// source, not a binary, it's compiled once with `dart build cli` and cached
+/// under a per-target subdirectory of that package's `build/` directory (a
+/// separate subdirectory per target, since `dart build cli` wipes its whole
+/// `--output` directory on every invocation) — delete the cached binary to
+/// force a rebuild after changing its source.
+Future<File?> _resolveAgentRunnerBinary({
+  required String targetScript,
+  required String packagedFileName,
+  required String routeName,
+}) async {
+  final packaged = File(
+    Uri(path: 'web/static/bin/$packagedFileName').toFilePath(),
+  );
+  if (packaged.existsSync()) return packaged;
+
+  final agentRunnerDir = Directory(
+    Uri(path: '../roundtable_agent_runner').toFilePath(),
+  );
+  if (!agentRunnerDir.existsSync()) return null;
+
+  final targetName = targetScript.split('/').last.replaceAll('.dart', '');
+  final built = File(
+    Uri(
+      path:
+          '../roundtable_agent_runner/build/$targetName/bundle/bin/$targetName',
+    ).toFilePath(),
+  );
+  if (!built.existsSync()) {
+    stdout.writeln(
+      'Building $targetName binary for $routeName (first run only; '
+      'delete ${built.path} to force a rebuild after changing its source)...',
+    );
+    final result = await Process.run('dart', [
+      'build',
+      'cli',
+      '--target',
+      targetScript,
+      '--output',
+      'build/$targetName',
+    ], workingDirectory: agentRunnerDir.path);
+    if (result.exitCode != 0) {
+      stderr.writeln(
+        'Failed to build $targetName binary, $routeName will 404 '
+        'until this is fixed:\n${result.stderr}',
+      );
+      return null;
+    }
+  }
+  return built.existsSync() ? built : null;
 }

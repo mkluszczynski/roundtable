@@ -17,6 +17,7 @@ agent:
   - delete:
 machine:
   - register:
+  - getScriptUrl:
   - get:
   - list:
   - update:
@@ -24,6 +25,7 @@ machine:
   - deregister:
   - identify:
   - reportMetric:
+  - reportClaudeStatus:
   - watchLatestMetric:
   - delete:
 project:
@@ -31,6 +33,7 @@ project:
   - get:
   - list:
   - update:
+  - updateRepoAccessToken:
   - delete:
   - getCloneUrl:
 task:
@@ -38,6 +41,8 @@ task:
   - update:
   - appendLog:
   - cancelTask:
+  - retryTask:
+  - reassignAgent:
   - submitFeedback:
   - latestFeedback:
   - createQuestion:
@@ -48,8 +53,11 @@ task:
   - approvePlan:
   - submitPlanFeedback:
   - watchPlanDecision:
+  - deleteTask:
+  - watchTaskDeletions:
   - getChangedFiles:
   - getFileContent:
+  - watchAllTasks:
   - watchAssignedTasks:
   - watchLogs:
   - watchTask:

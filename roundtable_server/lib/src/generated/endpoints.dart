@@ -409,6 +409,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String>(),
               nullable: false,
             ),
+            'hostInfo': _is.ParameterDescription(
+              name: 'hostInfo',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -418,7 +423,18 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['machine'] as _ij6wllr0.MachineEndpoint).register(
                     session,
                     params['name'],
+                    hostInfo: params['hostInfo'],
                   ),
+        ),
+        'getScriptUrl': _is.MethodConnector(
+          name: 'getScriptUrl',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .getScriptUrl(session),
         ),
         'get': _is.MethodConnector(
           name: 'get',
@@ -562,6 +578,37 @@ class Endpoints extends _is.EndpointDispatch {
                     params['memoryTotalMb'],
                   ),
         ),
+        'reportClaudeStatus': _is.MethodConnector(
+          name: 'reportClaudeStatus',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'ok': _is.ParameterDescription(
+              name: 'ok',
+              type: _is.getType<bool>(),
+              nullable: false,
+            ),
+            'message': _is.ParameterDescription(
+              name: 'message',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportClaudeStatus(
+                    session,
+                    params['token'],
+                    params['ok'],
+                    params['message'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {
@@ -692,6 +739,31 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['project'] as _iemg8ri2.ProjectEndpoint).update(
                     session,
                     params['project'],
+                  ),
+        ),
+        'updateRepoAccessToken': _is.MethodConnector(
+          name: 'updateRepoAccessToken',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .updateRepoAccessToken(
+                    session,
+                    params['projectId'],
+                    params['token'],
                   ),
         ),
         'delete': _is.MethodConnector(
@@ -841,6 +913,50 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['task'] as _idmllfay.TaskEndpoint).cancelTask(
                     session,
                     params['taskId'],
+                  ),
+        ),
+        'retryTask': _is.MethodConnector(
+          name: 'retryTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).retryTask(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'reassignAgent': _is.MethodConnector(
+          name: 'reassignAgent',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'agentId': _is.ParameterDescription(
+              name: 'agentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).reassignAgent(
+                    session,
+                    params['taskId'],
+                    params['agentId'],
                   ),
         ),
         'submitFeedback': _is.MethodConnector(
@@ -1031,6 +1147,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['message'],
                   ),
         ),
+        'deleteTask': _is.MethodConnector(
+          name: 'deleteTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).deleteTask(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'getChangedFiles': _is.MethodConnector(
           name: 'getChangedFiles',
           params: {
@@ -1117,6 +1252,33 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['taskId'],
                   ),
+        ),
+        'watchTaskDeletions': _is.MethodStreamConnector(
+          name: 'watchTaskDeletions',
+          params: {},
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .watchTaskDeletions(session),
+        ),
+        'watchAllTasks': _is.MethodStreamConnector(
+          name: 'watchAllTasks',
+          params: {},
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchAllTasks(
+                session,
+              ),
         ),
         'watchAssignedTasks': _is.MethodStreamConnector(
           name: 'watchAssignedTasks',
