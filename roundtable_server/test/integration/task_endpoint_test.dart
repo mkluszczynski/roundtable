@@ -1122,6 +1122,8 @@ void main() {
           sessionBuilder,
           machine.id!,
         );
+        // Listen before creating, otherwise the post can race the subscription.
+        final firstId = stream.first.then((task) => task.id);
         await flushEventQueue();
 
         final created = await endpoints.task.createTask(
@@ -1132,10 +1134,7 @@ void main() {
           skipPlanning: false,
         );
 
-        await expectLater(
-          stream.first.then((task) => task.id),
-          completion(created.id),
-        );
+        await expectLater(firstId, completion(created.id));
       },
     );
 
@@ -1184,6 +1183,7 @@ void main() {
         );
 
         final stream = endpoints.task.watchLogs(sessionBuilder, task.id!);
+        final firstEvent = stream.first.then((entry) => entry.id);
         await flushEventQueue();
 
         final appended = await endpoints.task.appendLog(
@@ -1193,10 +1193,7 @@ void main() {
           source: LogSource.agent,
         );
 
-        await expectLater(
-          stream.first.then((entry) => entry.id),
-          completion(appended.id),
-        );
+        await expectLater(firstEvent, completion(appended.id));
       },
     );
 
@@ -1215,16 +1212,14 @@ void main() {
         );
 
         final stream = endpoints.task.watchTask(sessionBuilder, task.id!);
+        final firstEvent = stream
+            .firstWhere((t) => t.status == TaskStatus.cancelled)
+            .then((t) => t.id);
         await flushEventQueue();
 
         await endpoints.task.cancelTask(sessionBuilder, task.id!);
 
-        await expectLater(
-          stream
-              .firstWhere((t) => t.status == TaskStatus.cancelled)
-              .then((t) => t.id),
-          completion(task.id),
-        );
+        await expectLater(firstEvent, completion(task.id));
       },
     );
 
@@ -1250,14 +1245,12 @@ void main() {
         );
 
         final stream = endpoints.task.watchTaskDeletions(sessionBuilder);
+        final firstEvent = stream.first.then((d) => d.taskId);
         await flushEventQueue();
 
         await endpoints.task.deleteTask(sessionBuilder, task.id!);
 
-        await expectLater(
-          stream.first.then((d) => d.taskId),
-          completion(task.id),
-        );
+        await expectLater(firstEvent, completion(task.id));
       },
     );
 
@@ -1365,6 +1358,7 @@ void main() {
         );
 
         final stream = endpoints.task.watchAnswer(sessionBuilder, question.id!);
+        final firstEvent = stream.first.then((q) => q.answer);
         await flushEventQueue();
 
         await endpoints.task.answerQuestion(
@@ -1373,10 +1367,7 @@ void main() {
           'Option A',
         );
 
-        await expectLater(
-          stream.first.then((q) => q.answer),
-          completion('Option A'),
-        );
+        await expectLater(firstEvent, completion('Option A'));
       },
     );
 
@@ -1399,14 +1390,12 @@ void main() {
           sessionBuilder,
           task.id!,
         );
+        final firstEvent = stream.first.then((t) => t.status);
         await flushEventQueue();
 
         await endpoints.task.approvePlan(sessionBuilder, task.id!);
 
-        await expectLater(
-          stream.first.then((t) => t.status),
-          completion(TaskStatus.running),
-        );
+        await expectLater(firstEvent, completion(TaskStatus.running));
       },
     );
 
@@ -1429,6 +1418,7 @@ void main() {
           sessionBuilder,
           task.id!,
         );
+        final firstEvent = stream.first.then((t) => t.status);
         await flushEventQueue();
 
         await endpoints.task.submitPlanFeedback(
@@ -1437,10 +1427,7 @@ void main() {
           'Reconsider',
         );
 
-        await expectLater(
-          stream.first.then((t) => t.status),
-          completion(TaskStatus.planning),
-        );
+        await expectLater(firstEvent, completion(TaskStatus.planning));
       },
     );
 
