@@ -874,8 +874,8 @@ class Endpoints extends _is.EndpointDispatch {
             ),
             'agentId': _is.ParameterDescription(
               name: 'agentId',
-              type: _is.getType<int>(),
-              nullable: false,
+              type: _is.getType<int?>(),
+              nullable: true,
             ),
             'prompt': _is.ParameterDescription(
               name: 'prompt',

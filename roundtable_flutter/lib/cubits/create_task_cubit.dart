@@ -34,7 +34,7 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
 
   Future<void> submit({
     required int projectId,
-    required int agentId,
+    int? agentId,
     required String prompt,
     required bool skipPlanning,
   }) async {

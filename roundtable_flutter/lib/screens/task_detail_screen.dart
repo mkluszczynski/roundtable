@@ -29,6 +29,7 @@ import '../utils/relative_time.dart';
 /// the header's "Cancel task" button only shows while the task is still
 /// something a `cancelTask` call can act on.
 const _cancellableStatuses = {
+  TaskStatus.draft,
   TaskStatus.queued,
   TaskStatus.cloning,
   TaskStatus.planning,
@@ -47,6 +48,7 @@ const _retryableStatuses = {TaskStatus.failed, TaskStatus.cancelled};
 /// left in `nonTerminalTaskStatuses`) can be deleted; a running one has to be
 /// cancelled first.
 const _deletableStatuses = {
+  TaskStatus.draft,
   TaskStatus.done,
   TaskStatus.failed,
   TaskStatus.cancelled,
@@ -56,6 +58,7 @@ const _deletableStatuses = {
 /// different agent while it's still in the backlog or parked in review, but
 /// not while actively executing under its current agent.
 const _reassignableStatuses = {
+  TaskStatus.draft,
   TaskStatus.queued,
   TaskStatus.cloning,
   TaskStatus.awaitingReview,
@@ -256,7 +259,11 @@ class _Header extends StatelessWidget {
             OutlinedButton(
               onPressed: () =>
                   _openReassignAgentDialog(context, task.id!, null),
-              child: const Text('Assign agent'),
+              child: Text(
+                task.status == TaskStatus.draft
+                    ? 'Assign & start'
+                    : 'Assign agent',
+              ),
             ),
           ],
           if (_cancellableStatuses.contains(task.status)) ...[
@@ -553,6 +560,10 @@ class _SubStateBody extends StatelessWidget {
       TaskStatus.failed => Text(
         state.task.failureReason ?? 'This task failed.',
         style: AppTypography.body.copyWith(color: AppColors.red),
+      ),
+      TaskStatus.draft => Text(
+        'Draft — assign an agent to start this task.',
+        style: AppTypography.body.copyWith(color: AppColors.text1),
       ),
       TaskStatus.queued || TaskStatus.cloning || TaskStatus.cancelled => Text(
         'No action needed for this task right now.',

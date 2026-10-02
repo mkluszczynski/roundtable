@@ -51,6 +51,70 @@ void main() {
     );
 
     test(
+      'when creating a task without an agent then it is persisted as a draft',
+      () async {
+        final project = await createProject();
+
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          null,
+          'Do something later',
+          skipPlanning: false,
+        );
+
+        expect(task.agentId, isNull);
+        expect(task.status, TaskStatus.draft);
+      },
+    );
+
+    test(
+      'when assigning an agent to a draft then it is queued for that agent',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final draft = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          null,
+          'Do something later',
+          skipPlanning: false,
+        );
+
+        final assigned = await endpoints.task.reassignAgent(
+          sessionBuilder,
+          draft.id!,
+          agent.id!,
+        );
+
+        expect(assigned.agentId, agent.id);
+        expect(assigned.status, TaskStatus.queued);
+      },
+    );
+
+    test(
+      'when deleting a draft then it is removed without cancelling first',
+      () async {
+        final project = await createProject();
+        final draft = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          null,
+          'Do something later',
+          skipPlanning: false,
+        );
+
+        await endpoints.task.deleteTask(sessionBuilder, draft.id!);
+
+        expect(
+          await Task.db.findById(sessionBuilder.build(), draft.id!),
+          isNull,
+        );
+      },
+    );
+
+    test(
       'when creating a task for an unknown agent then it throws',
       () async {
         final project = await createProject();

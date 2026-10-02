@@ -1470,7 +1470,7 @@ class _TaskEndpoint {
   _ida.Future<_i77xifuu.Task> createTask(
     _ist.TestSessionBuilder sessionBuilder,
     int projectId,
-    int agentId,
+    int? agentId,
     String prompt, {
     required bool skipPlanning,
   }) async {

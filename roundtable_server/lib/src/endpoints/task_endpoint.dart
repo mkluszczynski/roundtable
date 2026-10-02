@@ -21,6 +21,7 @@ class TaskEndpoint extends Endpoint {
   /// dev (design doc §5 — `Task.agent` is optional precisely so a task
   /// survives its agent being deleted).
   static const _reassignableTaskStatuses = {
+    TaskStatus.draft,
     TaskStatus.queued,
     TaskStatus.cloning,
     TaskStatus.awaitingReview,
@@ -28,21 +29,23 @@ class TaskEndpoint extends Endpoint {
 
   final _github = GitHubRepoClient();
 
-  /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
-  /// queueing without an agent is a Should-scope feature, not implemented
-  /// here even though the schema allows `Task.agent` to be null).
-  ///
-  /// Notifies the assigned agent's machine via [watchAssignedTasks].
+  /// Creates a [Task] (design doc §6.1 step 1). With an [agentId] it's
+  /// `queued` and the agent's machine is notified via [watchAssignedTasks];
+  /// without one it's a `draft` that nothing picks up until an agent is
+  /// assigned via [reassignAgent].
   Future<Task> createTask(
     Session session,
     int projectId,
-    int agentId,
+    int? agentId,
     String prompt, {
     bool skipPlanning = false,
   }) async {
-    var agent = await Agent.db.findById(session, agentId);
-    if (agent == null) {
-      throw Exception('Agent $agentId not found');
+    Agent? agent;
+    if (agentId != null) {
+      agent = await Agent.db.findById(session, agentId);
+      if (agent == null) {
+        throw Exception('Agent $agentId not found');
+      }
     }
 
     var task = await Task.db.insertRow(
@@ -52,14 +55,16 @@ class TaskEndpoint extends Endpoint {
         agentId: agentId,
         prompt: prompt,
         skipPlanning: skipPlanning,
-        status: TaskStatus.queued,
+        status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );
 
-    await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
-      task,
-    );
+    if (agent != null) {
+      await session.messages.postMessage(
+        _channelForMachine(agent.machineId),
+        task,
+      );
+    }
     await session.messages.postMessage(channelForAllTasks(), task);
 
     return task;
@@ -235,7 +240,17 @@ class TaskEndpoint extends Endpoint {
       throw Exception('Agent $agentId not found');
     }
 
-    task = await Task.db.updateRow(session, task.copyWith(agentId: agentId));
+    // Assigning an agent to a draft is what starts it.
+    task = await Task.db.updateRow(
+      session,
+      task.status == TaskStatus.draft
+          ? task.copyWith(
+              agentId: agentId,
+              status: TaskStatus.queued,
+              lastProgressAt: DateTime.now().toUtc(),
+            )
+          : task.copyWith(agentId: agentId),
+    );
 
     // Wakes the new agent's machine in case the task is sitting in the
     // backlog waiting to be picked up — the same channel [createTask] posts
@@ -508,7 +523,9 @@ class TaskEndpoint extends Endpoint {
   /// an update.
   Future<void> deleteTask(Session session, int taskId) async {
     var task = await _requireTask(session, taskId);
-    if (nonTerminalTaskStatuses.contains(task.status)) {
+    // A draft never ran, so it can be deleted without cancelling first.
+    if (task.status != TaskStatus.draft &&
+        nonTerminalTaskStatuses.contains(task.status)) {
       throw Exception(
         'Task $taskId cannot be deleted while ${task.status.name} — cancel '
         'it first',
