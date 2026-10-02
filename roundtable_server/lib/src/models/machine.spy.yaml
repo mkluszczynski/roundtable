@@ -21,6 +21,14 @@ fields:
   ### Actionable error message set when `claudeExecutableOk` is false (e.g. a
   ### `ProcessException` launching `claude`, with fix instructions).
   claudeExecutableError: String?
+  ### Version of the agent-runner binaries installed on this machine (see
+  ### `agentRunnerVersion` on the server), reported by the daemon on every
+  ### check-in. Null for daemons that predate in-panel updates.
+  runnerVersion: String?
+  ### Set when the dev clicks "Update runner" in the panel; the daemon picks
+  ### it up on its next check-in and hands off to the root-side updater.
+  ### Cleared once the daemon reports a different [runnerVersion].
+  updateRequestedAt: DateTime?
   createdAt: DateTime, default=now
   agents: List<Agent>?, relation(name=machine_agents)
   metrics: List<MachineMetric>?, relation(name=machine_metrics)

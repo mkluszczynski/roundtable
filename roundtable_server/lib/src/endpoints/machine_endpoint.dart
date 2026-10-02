@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
+import '../agent_runner_binaries.dart';
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
@@ -92,6 +93,53 @@ class MachineEndpoint extends Endpoint {
         status: MachineStatus.online,
         lastSeenAt: DateTime.now().toUtc(),
       ),
+    );
+  }
+
+  /// Heartbeat for daemons that support in-panel updates: does what
+  /// [heartbeat] does, records the daemon's installed [runnerVersion], and
+  /// returns whether the dev requested an update via [requestRunnerUpdate].
+  /// A pending request is cleared once the daemon reports a version other
+  /// than the one it was requested from, i.e. after the update restarted it.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<bool> checkIn(
+    Session session,
+    String token,
+    String? runnerVersion,
+  ) async {
+    final machine = await _findByToken(session, token);
+    final updated = machine.runnerVersion != runnerVersion;
+    final updateRequestedAt = updated ? null : machine.updateRequestedAt;
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(
+        status: MachineStatus.online,
+        lastSeenAt: DateTime.now().toUtc(),
+        runnerVersion: runnerVersion,
+        updateRequestedAt: updateRequestedAt,
+      ),
+    );
+    return updateRequestedAt != null;
+  }
+
+  /// The version of the agent-runner binaries the server currently serves —
+  /// a machine whose [Machine.runnerVersion] differs is out of date. Null if
+  /// the binaries can't be resolved (e.g. the dev-mode build failed).
+  Future<String?> latestRunnerVersion(Session session) =>
+      AgentRunnerBinaries.instance.version();
+
+  /// Asks machine [id]'s daemon to update itself to the binaries the server
+  /// currently serves, on its next check-in.
+  Future<Machine> requestRunnerUpdate(Session session, int id) async {
+    final machine = await Machine.db.findById(session, id);
+    if (machine == null) {
+      throw Exception('Machine $id not found');
+    }
+    return Machine.db.updateRow(
+      session,
+      machine.copyWith(updateRequestedAt: DateTime.now().toUtc()),
     );
   }
 

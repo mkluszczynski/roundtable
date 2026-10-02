@@ -70,6 +70,7 @@ TOKEN="${TOKEN_ARG:-$REGISTRATION_TOKEN}"
 SERVER="${SERVER_ARG:-$SERVER_URL}"
 
 echo "Stopping and disabling ${SERVICE_NAME}..."
+systemctl disable --now agent-runner-update.path >/dev/null 2>&1 || true
 systemctl disable --now "$SERVICE_NAME" >/dev/null 2>&1 || true
 
 DEREGISTERED=false
@@ -92,6 +93,9 @@ fi
 
 echo "Removing local files..."
 rm -f "$UNIT_PATH"
+rm -f /etc/systemd/system/agent-runner-update.service \
+  /etc/systemd/system/agent-runner-update.path \
+  /usr/local/bin/roundtable-agent-update
 rm -f "$CONFIG_PATH"
 rmdir --ignore-fail-on-non-empty "$CONFIG_DIR" 2>/dev/null || true
 rm -f "$BIN_PATH"

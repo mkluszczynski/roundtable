@@ -73,27 +73,26 @@ Checklist after doing changes, in this order:
 
 `serverpod start`'s hot reload/`hot_restart` only affects the server and the
 Flutter app. `roundtable_agent_runner` (the daemon installed on a registered
-machine) is never run in-process — it's distributed as a **compiled**
-binary (two, actually: `roundtable_agent_runner.dart` and
-`permission_prompt_tool.dart`, `dart build cli --target ... --output
-build/<target>`), served by the server at `/agent-runner-bin` and
-`/permission-prompt-tool-bin` and downloaded by `scripts/install-agent.sh`.
+machine) is never run in-process — it's distributed as two **compiled**
+binaries (`roundtable_agent_runner.dart` and `permission_prompt_tool.dart`),
+served at `/agent-runner-bin` and `/permission-prompt-tool-bin` by
+`roundtable_server/lib/src/agent_runner_binaries.dart`.
 
-`server.dart`'s `_resolveAgentRunnerBinary()` only builds these **once**, the
-first time each route is resolved (at server startup), then reuses whatever
-it finds cached under `roundtable_agent_runner/build/<target>/bundle/bin/` —
-it does not detect that the source changed. So after editing anything under
-`roundtable_agent_runner/`, before asking the user to reinstall the agent on
-a machine:
+In development those routes rebuild a binary on request whenever any file
+under `roundtable_agent_runner/{bin,lib}`, `roundtable_client/lib`, or the
+lockfile is newer than the cached build in
+`roundtable_agent_runner/build/<target>/bundle/bin/` — no manual
+`rm -rf build` needed.
 
-1. `rm -rf roundtable_agent_runner/build` to drop the stale cached binaries.
-2. `hot_restart` (MCP) so the server re-resolves both routes and recompiles
-   fresh — confirm with e.g. `find roundtable_agent_runner/build -type f
-   -exec stat -c '%y %n' {} \;`, the mtimes should be recent.
-
-Skipping this means a machine that re-runs `install-agent.sh` just
-re-downloads the same old binary and the fix won't actually reach it, even
-though the source and the server's own hot-reloaded code are already fixed.
+To ship a runner change to a machine: the Machines screen compares each
+machine's reported `runnerVersion` (content hashes of its installed
+binaries) with `MachineEndpoint.latestRunnerVersion` and shows an "Update"
+button. It sets `updateRequestedAt`; the daemon's next `checkIn` (≤20 s)
+writes `/var/lib/agent-runner/update-requested`, and the root-side
+`agent-runner-update.path` systemd unit (installed by
+`scripts/install-agent.sh`) re-downloads both binaries and restarts the
+service. Machines installed before this existed must re-run the install
+script once.
 
 If the user asks you to test the app:
 

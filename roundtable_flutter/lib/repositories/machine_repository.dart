@@ -23,6 +23,16 @@ class MachineRepository {
   /// a working uninstall command when deletion is blocked (design doc §6.8).
   Future<String> getScriptUrl() => _client.machine.getScriptUrl();
 
+  /// Version of the agent-runner binaries the server currently serves, or
+  /// null if they can't be built — compared against
+  /// [Machine.runnerVersion] to offer an update.
+  Future<String?> getLatestRunnerVersion() =>
+      _client.machine.latestRunnerVersion();
+
+  /// Asks the machine's daemon to update itself on its next check-in.
+  Future<Machine> requestRunnerUpdate(int id) =>
+      _client.machine.requestRunnerUpdate(id);
+
   Stream<MachineMetric> watchLatestMetric(int machineId) =>
       _client.machine.watchLatestMetric(machineId);
 }

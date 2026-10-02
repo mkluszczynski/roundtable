@@ -30,6 +30,8 @@ abstract class Machine
     this.lastSeenAt,
     this.claudeExecutableOk,
     this.claudeExecutableError,
+    this.runnerVersion,
+    this.updateRequestedAt,
     DateTime? createdAt,
     this.agents,
     this.metrics,
@@ -45,6 +47,8 @@ abstract class Machine
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
     String? claudeExecutableError,
+    String? runnerVersion,
+    DateTime? updateRequestedAt,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -71,6 +75,12 @@ abstract class Machine
             ),
       claudeExecutableError:
           jsonSerialization['claudeExecutableError'] as String?,
+      runnerVersion: jsonSerialization['runnerVersion'] as String?,
+      updateRequestedAt: jsonSerialization['updateRequestedAt'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['updateRequestedAt'],
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -119,6 +129,16 @@ abstract class Machine
   /// `ProcessException` launching `claude`, with fix instructions).
   String? claudeExecutableError;
 
+  /// Version of the agent-runner binaries installed on this machine (see
+  /// `agentRunnerVersion` on the server), reported by the daemon on every
+  /// check-in. Null for daemons that predate in-panel updates.
+  String? runnerVersion;
+
+  /// Set when the dev clicks "Update runner" in the panel; the daemon picks
+  /// it up on its next check-in and hands off to the root-side updater.
+  /// Cleared once the daemon reports a different [runnerVersion].
+  DateTime? updateRequestedAt;
+
   DateTime createdAt;
 
   List<_ijo8h3v4.Agent>? agents;
@@ -140,6 +160,8 @@ abstract class Machine
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
     String? claudeExecutableError,
+    String? runnerVersion,
+    DateTime? updateRequestedAt,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -157,6 +179,9 @@ abstract class Machine
       if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
       if (claudeExecutableError != null)
         'claudeExecutableError': claudeExecutableError,
+      if (runnerVersion != null) 'runnerVersion': runnerVersion,
+      if (updateRequestedAt != null)
+        'updateRequestedAt': updateRequestedAt?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJson()),
@@ -177,6 +202,9 @@ abstract class Machine
       if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
       if (claudeExecutableError != null)
         'claudeExecutableError': claudeExecutableError,
+      if (runnerVersion != null) 'runnerVersion': runnerVersion,
+      if (updateRequestedAt != null)
+        'updateRequestedAt': updateRequestedAt?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -231,6 +259,8 @@ class _MachineImpl extends Machine {
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
     String? claudeExecutableError,
+    String? runnerVersion,
+    DateTime? updateRequestedAt,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -243,6 +273,8 @@ class _MachineImpl extends Machine {
          lastSeenAt: lastSeenAt,
          claudeExecutableOk: claudeExecutableOk,
          claudeExecutableError: claudeExecutableError,
+         runnerVersion: runnerVersion,
+         updateRequestedAt: updateRequestedAt,
          createdAt: createdAt,
          agents: agents,
          metrics: metrics,
@@ -261,6 +293,8 @@ class _MachineImpl extends Machine {
     Object? lastSeenAt = _Undefined,
     Object? claudeExecutableOk = _Undefined,
     Object? claudeExecutableError = _Undefined,
+    Object? runnerVersion = _Undefined,
+    Object? updateRequestedAt = _Undefined,
     DateTime? createdAt,
     Object? agents = _Undefined,
     Object? metrics = _Undefined,
@@ -278,6 +312,12 @@ class _MachineImpl extends Machine {
       claudeExecutableError: claudeExecutableError is String?
           ? claudeExecutableError
           : this.claudeExecutableError,
+      runnerVersion: runnerVersion is String?
+          ? runnerVersion
+          : this.runnerVersion,
+      updateRequestedAt: updateRequestedAt is DateTime?
+          ? updateRequestedAt
+          : this.updateRequestedAt,
       createdAt: createdAt ?? this.createdAt,
       agents: agents is List<_ijo8h3v4.Agent>?
           ? agents
@@ -332,6 +372,18 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
         value,
       );
 
+  _is.ColumnValue<String, String> runnerVersion(String? value) =>
+      _is.ColumnValue(
+        table.runnerVersion,
+        value,
+      );
+
+  _is.ColumnValue<DateTime, DateTime> updateRequestedAt(DateTime? value) =>
+      _is.ColumnValue(
+        table.updateRequestedAt,
+        value,
+      );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -372,6 +424,14 @@ class MachineTable extends _is.Table<int?> {
       'claudeExecutableError',
       this,
     );
+    runnerVersion = _is.ColumnString(
+      'runnerVersion',
+      this,
+    );
+    updateRequestedAt = _is.ColumnDateTime(
+      'updateRequestedAt',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -405,6 +465,16 @@ class MachineTable extends _is.Table<int?> {
   /// Actionable error message set when `claudeExecutableOk` is false (e.g. a
   /// `ProcessException` launching `claude`, with fix instructions).
   late final _is.ColumnString claudeExecutableError;
+
+  /// Version of the agent-runner binaries installed on this machine (see
+  /// `agentRunnerVersion` on the server), reported by the daemon on every
+  /// check-in. Null for daemons that predate in-panel updates.
+  late final _is.ColumnString runnerVersion;
+
+  /// Set when the dev clicks "Update runner" in the panel; the daemon picks
+  /// it up on its next check-in and hands off to the root-side updater.
+  /// Cleared once the daemon reports a different [runnerVersion].
+  late final _is.ColumnDateTime updateRequestedAt;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -490,6 +560,8 @@ class MachineTable extends _is.Table<int?> {
     lastSeenAt,
     claudeExecutableOk,
     claudeExecutableError,
+    runnerVersion,
+    updateRequestedAt,
     createdAt,
   ];
 

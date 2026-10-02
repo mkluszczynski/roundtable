@@ -503,6 +503,60 @@ class Endpoints extends _is.EndpointDispatch {
                     params['token'],
                   ),
         ),
+        'checkIn': _is.MethodConnector(
+          name: 'checkIn',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'runnerVersion': _is.ParameterDescription(
+              name: 'runnerVersion',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).checkIn(
+                    session,
+                    params['token'],
+                    params['runnerVersion'],
+                  ),
+        ),
+        'latestRunnerVersion': _is.MethodConnector(
+          name: 'latestRunnerVersion',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .latestRunnerVersion(session),
+        ),
+        'requestRunnerUpdate': _is.MethodConnector(
+          name: 'requestRunnerUpdate',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .requestRunnerUpdate(
+                    session,
+                    params['id'],
+                  ),
+        ),
         'deregister': _is.MethodConnector(
           name: 'deregister',
           params: {
