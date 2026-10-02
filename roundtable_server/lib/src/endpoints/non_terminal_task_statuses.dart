@@ -3,6 +3,7 @@ import '../generated/protocol.dart';
 /// [TaskStatus] values that count as "in progress" for the deletion guards on
 /// [MachineEndpoint] and [AgentEndpoint] (design doc §5, §6.8).
 const nonTerminalTaskStatuses = {
+  TaskStatus.draft,
   TaskStatus.queued,
   TaskStatus.cloning,
   TaskStatus.planning,

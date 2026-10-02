@@ -14,3 +14,5 @@ values:
   - done
   - failed
   - cancelled
+  ### created without an agent; not dispatched until one is assigned via reassignAgent
+  - draft

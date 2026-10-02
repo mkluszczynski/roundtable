@@ -7,7 +7,7 @@ class TaskRepository {
 
   Future<Task> createTask(
     int projectId,
-    int agentId,
+    int? agentId,
     String prompt, {
     required bool skipPlanning,
   }) => _client.task.createTask(

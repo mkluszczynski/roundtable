@@ -14,6 +14,7 @@ class StalledTaskFutureCall extends FutureCall {
   /// Statuses where the task is waiting on the developer, not the agent, so
   /// a lack of progress is expected.
   static const _waitingOnHumanStatuses = {
+    TaskStatus.draft,
     TaskStatus.waitingForAnswer,
     TaskStatus.planReady,
     TaskStatus.awaitingReview,

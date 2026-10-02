@@ -64,9 +64,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   }
 
   bool get _canSubmit =>
-      _projectId != null &&
-      _agentId != null &&
-      _promptController.text.trim().isNotEmpty;
+      _projectId != null && _promptController.text.trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +91,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                 onPressed: (_canSubmit && !submitting)
                     ? () => context.read<CreateTaskCubit>().submit(
                         projectId: _projectId!,
-                        agentId: _agentId!,
+                        agentId: _agentId,
                         prompt: _promptController.text.trim(),
                         skipPlanning: _skipPlanning,
                       )
@@ -104,7 +102,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Create'),
+                    : Text(_agentId == null ? 'Save draft' : 'Create'),
               );
             },
           ),
@@ -159,18 +157,13 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       );
                     }
-                    if (agents.isEmpty) {
-                      return Text(
-                        'No agents yet — add one on the Agents screen.',
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.text1,
-                        ),
-                      );
-                    }
-                    return PillSelector<int>(
-                      options: [for (final a in agents) a.id!],
-                      labelBuilder: (id) =>
-                          agents.firstWhere((a) => a.id == id).name,
+                    // `null` is "no agent": the task is saved as a draft
+                    // and starts once an agent is assigned from its page.
+                    return PillSelector<int?>(
+                      options: [null, for (final a in agents) a.id!],
+                      labelBuilder: (id) => id == null
+                          ? 'None (draft)'
+                          : agents.firstWhere((a) => a.id == id).name,
                       selected: _agentId,
                       onChanged: (id) => setState(() => _agentId = id),
                     );

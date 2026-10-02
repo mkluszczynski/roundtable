@@ -600,14 +600,13 @@ class EndpointTask extends _isc.EndpointRef {
   @override
   String get name => 'task';
 
-  /// Creates a [Task] already assigned to [agentId] (design doc §6.1 step 1 —
-  /// queueing without an agent is a Should-scope feature, not implemented
-  /// here even though the schema allows `Task.agent` to be null).
-  ///
-  /// Notifies the assigned agent's machine via [watchAssignedTasks].
+  /// Creates a [Task] (design doc §6.1 step 1). With an [agentId] it's
+  /// `queued` and the agent's machine is notified via [watchAssignedTasks];
+  /// without one it's a `draft` that nothing picks up until an agent is
+  /// assigned via [reassignAgent].
   _ida.Future<_iw53rmon.Task> createTask(
     int projectId,
-    int agentId,
+    int? agentId,
     String prompt, {
     required bool skipPlanning,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(

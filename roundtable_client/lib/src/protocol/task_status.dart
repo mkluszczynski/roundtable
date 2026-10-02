@@ -29,7 +29,10 @@ enum TaskStatus implements _isc.SerializableModel {
   awaitingReview,
   done,
   failed,
-  cancelled;
+  cancelled,
+
+  /// created without an agent; not dispatched until one is assigned via reassignAgent
+  draft;
 
   static TaskStatus fromJson(String name) {
     switch (name) {
@@ -53,6 +56,8 @@ enum TaskStatus implements _isc.SerializableModel {
         return TaskStatus.failed;
       case 'cancelled':
         return TaskStatus.cancelled;
+      case 'draft':
+        return TaskStatus.draft;
       default:
         throw ArgumentError(
           'Value "$name" cannot be converted to "TaskStatus"',

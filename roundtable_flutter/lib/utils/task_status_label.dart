@@ -2,6 +2,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 extension TaskStatusLabel on TaskStatus {
   String get label => switch (this) {
+    TaskStatus.draft => 'draft',
     TaskStatus.queued => 'queued',
     TaskStatus.cloning => 'cloning',
     TaskStatus.planning => 'planning',

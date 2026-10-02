@@ -10,7 +10,9 @@ import '../repositories/task_repository.dart';
 enum KanbanColumn { backlog, inProgress, review, done }
 
 KanbanColumn kanbanColumnFor(TaskStatus status) => switch (status) {
-  TaskStatus.queued || TaskStatus.cloning => KanbanColumn.backlog,
+  TaskStatus.draft ||
+  TaskStatus.queued ||
+  TaskStatus.cloning => KanbanColumn.backlog,
   TaskStatus.planning ||
   TaskStatus.waitingForAnswer ||
   TaskStatus.planReady ||
