@@ -34,6 +34,14 @@ SERVICE_USER="roundtable-agent"
 # owned by SERVICE_USER and outside /etc (config.env is 600, this isn't).
 DATA_DIR="/var/lib/agent-runner"
 WORKSPACE_DIR="${DATA_DIR}/workspace"
+# In-panel updates: the daemon (unprivileged, NoNewPrivileges) can't replace
+# its own root-owned binaries, so it writes UPDATE_FLAG_PATH instead and a
+# root-side systemd path unit runs UPDATER_PATH to re-download them.
+UPDATE_FLAG_PATH="${DATA_DIR}/update-requested"
+UPDATER_PATH="/usr/local/bin/roundtable-agent-update"
+UPDATE_SERVICE_NAME="agent-runner-update"
+UPDATE_SERVICE_PATH="/etc/systemd/system/${UPDATE_SERVICE_NAME}.service"
+UPDATE_PATH_UNIT_PATH="/etc/systemd/system/${UPDATE_SERVICE_NAME}.path"
 
 TOKEN=""
 SERVER=""
@@ -207,6 +215,8 @@ mkdir -p "$CONFIG_DIR"
   echo "SERVER_URL=${SERVER}"
   echo "WORKSPACE_ROOT=${WORKSPACE_DIR}"
   echo "PERMISSION_PROMPT_TOOL_PATH=${PERMISSION_PROMPT_BIN_PATH}"
+  echo "SCRIPT_URL=${SCRIPT_URL}"
+  echo "UPDATE_FLAG_PATH=${UPDATE_FLAG_PATH}"
   if [[ -n "$CLAUDE_BIN" ]]; then
     echo "CLAUDE_EXECUTABLE=${CLAUDE_BIN}"
   fi
@@ -247,9 +257,55 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+echo "Writing ${UPDATER_PATH}..."
+cat > "$UPDATER_PATH" <<EOF
+#!/usr/bin/env bash
+# Re-downloads the agent-runner binaries from the server and restarts the
+# service. Triggered by ${UPDATE_SERVICE_NAME}.path when the daemon writes
+# ${UPDATE_FLAG_PATH} (the panel's "Update runner" button).
+set -euo pipefail
+SCRIPT_URL="\$(sed -n 's/^SCRIPT_URL=//p' "${CONFIG_PATH}")"
+rm -f "${UPDATE_FLAG_PATH}"
+TMP_BIN="\$(mktemp)"
+TMP_PERMISSION_BIN="\$(mktemp)"
+trap 'rm -f "\$TMP_BIN" "\$TMP_PERMISSION_BIN"' EXIT
+echo "Downloading agent-runner binaries from \${SCRIPT_URL}..."
+curl -fsSL "\${SCRIPT_URL%/}/agent-runner-bin" -o "\$TMP_BIN"
+curl -fsSL "\${SCRIPT_URL%/}/permission-prompt-tool-bin" -o "\$TMP_PERMISSION_BIN"
+systemctl stop "${SERVICE_NAME}"
+install -m 755 "\$TMP_BIN" "${BIN_PATH}"
+install -m 755 "\$TMP_PERMISSION_BIN" "${PERMISSION_PROMPT_BIN_PATH}"
+systemctl start "${SERVICE_NAME}"
+echo "agent-runner updated and restarted."
+EOF
+chmod 755 "$UPDATER_PATH"
+
+echo "Writing ${UPDATE_SERVICE_PATH} and ${UPDATE_PATH_UNIT_PATH}..."
+cat > "$UPDATE_SERVICE_PATH" <<EOF
+[Unit]
+Description=Roundtable Agent Runner updater
+
+[Service]
+Type=oneshot
+ExecStart=${UPDATER_PATH}
+EOF
+cat > "$UPDATE_PATH_UNIT_PATH" <<EOF
+[Unit]
+Description=Watch for agent-runner update requests
+
+[Path]
+PathExists=${UPDATE_FLAG_PATH}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+# A stale flag from before this install would trigger an immediate update.
+rm -f "$UPDATE_FLAG_PATH"
+
 echo "Starting ${SERVICE_NAME}..."
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
+systemctl enable --now "${UPDATE_SERVICE_NAME}.path"
 
 echo
 echo "agent-runner installed and started."

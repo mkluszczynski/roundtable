@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:serverpod_auth_idp_server/core.dart';
@@ -5,6 +6,7 @@ import 'package:serverpod_auth_idp_server/providers/email.dart';
 import 'package:serverpod/protocol.dart' as sp;
 import 'package:serverpod_cloud_storage/serverpod_cloud_storage.dart';
 
+import 'src/agent_runner_binaries.dart';
 import 'src/cache_busting.dart';
 import 'src/generated/serverpod.dart';
 import 'src/web/routes/app_config_route.dart';
@@ -87,38 +89,22 @@ void run(List<String> args) async {
     '/uninstall-agent.sh',
   );
 
-  // Serve a prebuilt agent-runner binary so install-agent.sh can install a
+  // Serve prebuilt agent-runner and permission-prompt-tool binaries so
+  // install-agent.sh (and the root-side updater it installs) can install a
   // self-executable agent without a Dart SDK or repo checkout on the target
-  // machine (design doc §6.8). The packaged Docker image ships it prebuilt;
-  // in development it's compiled on demand from the sibling package and
-  // cached on disk.
-  final agentRunnerBinary = await _resolveAgentRunnerBinary(
-    targetScript: 'bin/roundtable_agent_runner.dart',
-    packagedFileName: 'roundtable-agent-runner',
-    routeName: '/agent-runner-bin',
+  // machine (design doc §6.4, §6.8). The packaged Docker image ships them
+  // prebuilt; in development they're compiled from the sibling package and
+  // rebuilt whenever its sources change.
+  pod.webServer.addRoute(
+    AgentRunnerBinaryRoute(AgentRunnerBinary.agentRunner),
+    '/agent-runner-bin',
   );
-  if (agentRunnerBinary != null) {
-    pod.webServer.addRoute(
-      StaticRoute.file(agentRunnerBinary),
-      '/agent-runner-bin',
-    );
-  }
-
-  // Serve a prebuilt permission-prompt-tool binary alongside the agent
-  // runner — a deployed daemon (no Dart SDK on the target machine) can't run
-  // `bin/permission_prompt_tool.dart` from source, so it needs its own
-  // compiled artifact too (design doc §6.4, §6.8).
-  final permissionPromptToolBinary = await _resolveAgentRunnerBinary(
-    targetScript: 'bin/permission_prompt_tool.dart',
-    packagedFileName: 'roundtable-permission-prompt-tool',
-    routeName: '/permission-prompt-tool-bin',
+  pod.webServer.addRoute(
+    AgentRunnerBinaryRoute(AgentRunnerBinary.permissionPromptTool),
+    '/permission-prompt-tool-bin',
   );
-  if (permissionPromptToolBinary != null) {
-    pod.webServer.addRoute(
-      StaticRoute.file(permissionPromptToolBinary),
-      '/permission-prompt-tool-bin',
-    );
-  }
+  // Warm the dev-mode build cache so the first install doesn't wait on it.
+  unawaited(AgentRunnerBinaries.instance.version());
 
   // Checks if the flutter web app has been built and serves it if it has.
   final appDir = Directory(Uri(path: 'web/app').toFilePath());
@@ -205,61 +191,4 @@ void run(List<String> args) async {
       .every(const Duration(seconds: 30))
       .stalledTask
       .check();
-}
-
-/// Resolves a compiled binary out of the sibling `roundtable_agent_runner`
-/// package, for [targetScript] (a `bin/*.dart` entrypoint in that package)
-/// served under [routeName] (used only for log messages).
-///
-/// Prefers the prebuilt copy the Dockerfile bakes into
-/// `web/static/bin/$packagedFileName`. In development, where that package is
-/// source, not a binary, it's compiled once with `dart build cli` and cached
-/// under a per-target subdirectory of that package's `build/` directory (a
-/// separate subdirectory per target, since `dart build cli` wipes its whole
-/// `--output` directory on every invocation) — delete the cached binary to
-/// force a rebuild after changing its source.
-Future<File?> _resolveAgentRunnerBinary({
-  required String targetScript,
-  required String packagedFileName,
-  required String routeName,
-}) async {
-  final packaged = File(
-    Uri(path: 'web/static/bin/$packagedFileName').toFilePath(),
-  );
-  if (packaged.existsSync()) return packaged;
-
-  final agentRunnerDir = Directory(
-    Uri(path: '../roundtable_agent_runner').toFilePath(),
-  );
-  if (!agentRunnerDir.existsSync()) return null;
-
-  final targetName = targetScript.split('/').last.replaceAll('.dart', '');
-  final built = File(
-    Uri(
-      path:
-          '../roundtable_agent_runner/build/$targetName/bundle/bin/$targetName',
-    ).toFilePath(),
-  );
-  if (!built.existsSync()) {
-    stdout.writeln(
-      'Building $targetName binary for $routeName (first run only; '
-      'delete ${built.path} to force a rebuild after changing its source)...',
-    );
-    final result = await Process.run('dart', [
-      'build',
-      'cli',
-      '--target',
-      targetScript,
-      '--output',
-      'build/$targetName',
-    ], workingDirectory: agentRunnerDir.path);
-    if (result.exitCode != 0) {
-      stderr.writeln(
-        'Failed to build $targetName binary, $routeName will 404 '
-        'until this is fixed:\n${result.stderr}',
-      );
-      return null;
-    }
-  }
-  return built.existsSync() ? built : null;
 }

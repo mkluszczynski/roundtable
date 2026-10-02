@@ -15,9 +15,11 @@ import '../utils/relative_time.dart';
 import '../widgets/add_agent_dialog.dart';
 import '../widgets/add_machine_dialog.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_modal.dart';
 import '../widgets/claude_warning_banner.dart';
 import '../widgets/machine_online_delete_blocked_dialog.dart';
 import '../widgets/metric_bar.dart';
+import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
 import 'machine_detail_screen.dart';
 
@@ -213,6 +215,52 @@ class _MachineCard extends StatelessWidget {
   final Machine machine;
   final List<Agent> agents;
 
+  RunnerUpdateStatus _updateStatus(BuildContext context) {
+    final state = context.read<MachineListCubit>().state;
+    return runnerUpdateStatus(
+      installedVersion: machine.runnerVersion,
+      latestVersion: state is MachineListLoaded
+          ? state.latestRunnerVersion
+          : null,
+      updateRequestedAt: machine.updateRequestedAt,
+    );
+  }
+
+  /// Updating restarts the daemon, which kills any `claude` run in
+  /// progress — confirm first when an agent here is mid-task.
+  Future<void> _confirmAndUpdate(BuildContext context) async {
+    final cubit = context.read<MachineListCubit>();
+    final busy = agents.any((a) => a.status != AgentStatus.idle);
+    if (busy) {
+      final confirmed = await showAppModal<bool>(
+        context,
+        title: 'Update agent runner?',
+        subtitle: machine.name,
+        child: Text(
+          'An agent on this machine is working on a task. Updating restarts '
+          'the agent runner, which interrupts that task.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+          ),
+          Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Update anyway'),
+            ),
+          ),
+        ],
+      );
+      if (confirmed != true) return;
+    }
+    await cubit.requestRunnerUpdate(machine.id!);
+  }
+
   @override
   Widget build(BuildContext context) {
     final online = machine.status == MachineStatus.online;
@@ -240,6 +288,13 @@ class _MachineCard extends StatelessWidget {
                   Text(machine.hostInfo!, style: AppTypography.code),
               ],
             ),
+            if (_updateStatus(context) != RunnerUpdateStatus.upToDate) ...[
+              const SizedBox(height: Spacing.md),
+              RunnerUpdateBanner(
+                status: _updateStatus(context),
+                onUpdate: () => _confirmAndUpdate(context),
+              ),
+            ],
             if (machine.claudeExecutableOk == false) ...[
               const SizedBox(height: Spacing.md),
               ClaudeWarningBanner(

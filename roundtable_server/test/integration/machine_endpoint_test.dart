@@ -267,6 +267,81 @@ void main() {
     );
 
     test(
+      'when checking in then the machine is marked online and its runner '
+      'version is recorded',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        final updateRequested = await endpoints.machine.checkIn(
+          sessionBuilder,
+          registration.token,
+          'v1',
+        );
+
+        expect(updateRequested, isFalse);
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.status, MachineStatus.online);
+        expect(fetched.runnerVersion, 'v1');
+      },
+    );
+
+    test(
+      'when an update is requested then check-ins report it until the '
+      'daemon comes back with a new version',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        final id = registration.machine.id!;
+        await endpoints.machine.checkIn(
+          sessionBuilder,
+          registration.token,
+          'v1',
+        );
+
+        await endpoints.machine.requestRunnerUpdate(sessionBuilder, id);
+
+        expect(
+          await endpoints.machine.checkIn(
+            sessionBuilder,
+            registration.token,
+            'v1',
+          ),
+          isTrue,
+        );
+        expect(
+          await endpoints.machine.checkIn(
+            sessionBuilder,
+            registration.token,
+            'v2',
+          ),
+          isFalse,
+        );
+        final fetched = await endpoints.machine.get(sessionBuilder, id);
+        expect(fetched!.runnerVersion, 'v2');
+        expect(fetched.updateRequestedAt, isNull);
+      },
+    );
+
+    test(
+      'when checking in with an unknown token then it throws '
+      'InvalidTokenException',
+      () async {
+        await expectLater(
+          endpoints.machine.checkIn(sessionBuilder, 'not-a-real-token', 'v1'),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
+
+    test(
       'when deregistering with a valid token then the machine is marked '
       'offline and the token is revoked',
       () async {

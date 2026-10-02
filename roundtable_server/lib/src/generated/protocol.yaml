@@ -22,6 +22,9 @@ machine:
   - list:
   - update:
   - heartbeat:
+  - checkIn:
+  - latestRunnerVersion:
+  - requestRunnerUpdate:
   - deregister:
   - identify:
   - reportMetric:

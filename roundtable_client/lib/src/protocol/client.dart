@@ -382,6 +382,45 @@ class EndpointMachine extends _isc.EndpointRef {
     {'token': token},
   );
 
+  /// Heartbeat for daemons that support in-panel updates: does what
+  /// [heartbeat] does, records the daemon's installed [runnerVersion], and
+  /// returns whether the dev requested an update via [requestRunnerUpdate].
+  /// A pending request is cleared once the daemon reports a version other
+  /// than the one it was requested from, i.e. after the update restarted it.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<bool> checkIn(
+    String token,
+    String? runnerVersion,
+  ) => caller.callServerEndpoint<bool>(
+    'machine',
+    'checkIn',
+    {
+      'token': token,
+      'runnerVersion': runnerVersion,
+    },
+  );
+
+  /// The version of the agent-runner binaries the server currently serves —
+  /// a machine whose [Machine.runnerVersion] differs is out of date. Null if
+  /// the binaries can't be resolved (e.g. the dev-mode build failed).
+  _ida.Future<String?> latestRunnerVersion() =>
+      caller.callServerEndpoint<String?>(
+        'machine',
+        'latestRunnerVersion',
+        {},
+      );
+
+  /// Asks machine [id]'s daemon to update itself to the binaries the server
+  /// currently serves, on its next check-in.
+  _ida.Future<_iwz93qz1.Machine> requestRunnerUpdate(int id) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine>(
+        'machine',
+        'requestRunnerUpdate',
+        {'id': id},
+      );
+
   /// Called by the uninstall script as a deliberate deregistration, so the
   /// server doesn't have to wait for the heartbeat timeout to notice the
   /// machine is gone (design doc §6.8). Marks the machine offline and clears

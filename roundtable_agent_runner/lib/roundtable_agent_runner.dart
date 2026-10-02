@@ -6,6 +6,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 import 'src/claude_code_executor.dart';
 import 'src/github_pull_request_opener.dart';
 import 'src/metrics_collector.dart';
+import 'src/runner_update.dart';
 import 'src/task_dispatcher.dart';
 import 'src/worktree_manager.dart';
 
@@ -13,6 +14,7 @@ export 'src/claude_code_executor.dart';
 export 'src/github_pull_request_opener.dart';
 export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
+export 'src/runner_update.dart';
 export 'src/stream_json_formatter.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_manager.dart';
@@ -37,6 +39,7 @@ class AgentRunnerConfig {
     this.workspaceRoot = 'workspace',
     this.claudeExecutable = 'claude',
     this.permissionPromptToolPath,
+    this.updateFlagPath,
   });
 
   final String registrationToken;
@@ -67,6 +70,12 @@ class AgentRunnerConfig {
   /// daemon has no Dart SDK to do that with, so it needs this precompiled
   /// binary instead (design doc §6.4, §6.8).
   final String? permissionPromptToolPath;
+
+  /// File watched by the root-side updater `scripts/install-agent.sh`
+  /// installs — writing it asks for the binaries to be re-downloaded and the
+  /// service restarted (see [requestRunnerUpdate]). `null` for installs that
+  /// predate in-panel updates, or dev-mode runs.
+  final String? updateFlagPath;
 
   /// Reads REGISTRATION_TOKEN/SERVER_URL/CLAUDE_CODE_OAUTH_TOKEN/WORKSPACE_ROOT.
   ///
@@ -107,6 +116,7 @@ class AgentRunnerConfig {
       workspaceRoot: values['WORKSPACE_ROOT'] ?? 'workspace',
       claudeExecutable: values['CLAUDE_EXECUTABLE'] ?? 'claude',
       permissionPromptToolPath: values['PERMISSION_PROMPT_TOOL_PATH'],
+      updateFlagPath: values['UPDATE_FLAG_PATH'],
     );
   }
 
@@ -149,6 +159,14 @@ class AgentRunnerService {
   Timer? _taskResubscribeTimer;
   final _stopped = Completer<void>();
   final _metricsCollector = MetricsCollector();
+  bool _updateHandedOff = false;
+
+  /// This install's version, reported on every check-in so the panel can
+  /// tell when it's out of date (see [installedRunnerVersion]).
+  late final String? _runnerVersion = installedRunnerVersion(
+    executablePath: Platform.resolvedExecutable,
+    permissionPromptToolPath: _config.permissionPromptToolPath,
+  );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
     worktreeManager: WorktreeManager(workspaceRoot: _config.workspaceRoot),
@@ -307,8 +325,12 @@ class AgentRunnerService {
 
   Future<void> _tick() async {
     try {
-      await _client.machine.heartbeat(_config.registrationToken);
+      final updateRequested = await _client.machine.checkIn(
+        _config.registrationToken,
+        _runnerVersion,
+      );
       _log('heartbeat ok');
+      if (updateRequested) _handOffUpdate();
     } on InvalidTokenException catch (e) {
       _log(
         'FATAL: registration token rejected by server (${e.message}) — '
@@ -319,6 +341,26 @@ class AgentRunnerService {
       _log('heartbeat failed, will retry: $e');
     }
     await _checkClaudeExecutable();
+  }
+
+  /// Triggers the root-side updater once per process — it restarts this
+  /// service, so the next process reports the new version and the server
+  /// clears the request.
+  void _handOffUpdate() {
+    if (_updateHandedOff) return;
+    final flagPath = _config.updateFlagPath;
+    if (flagPath == null) {
+      _log(
+        'update requested, but this install has no updater — re-run '
+        'scripts/install-agent.sh once to enable in-panel updates',
+      );
+    } else if (requestRunnerUpdate(flagPath)) {
+      _log('update requested, handed off to agent-runner-update');
+    } else {
+      _log('update requested, but could not write $flagPath');
+      return;
+    }
+    _updateHandedOff = true;
   }
 
   /// Reads local CPU/RAM usage and reports it to the server (design doc

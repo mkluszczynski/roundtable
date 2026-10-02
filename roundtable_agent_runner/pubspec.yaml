@@ -11,6 +11,7 @@ resolution: workspace
 dependencies:
   roundtable_client:
     path: ../roundtable_client
+  crypto: ^3.0.7
   synchronized: ^3.3.0
   http: ^1.2.0
 
