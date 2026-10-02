@@ -534,10 +534,7 @@ class _LogHistory extends StatelessWidget {
     if (state.logs.isEmpty) {
       return Text('No output yet.', style: AppTypography.body);
     }
-    return SingleChildScrollView(
-      reverse: true,
-      child: TaskLogView(entries: state.logs),
-    );
+    return TaskLogView(entries: state.logs);
   }
 }
 
@@ -740,10 +737,7 @@ class _LiveExecution extends StatelessWidget {
         Expanded(
           child: state.logs.isEmpty
               ? Text('Waiting for output…', style: AppTypography.body)
-              : SingleChildScrollView(
-                  reverse: true,
-                  child: TaskLogView(entries: state.logs),
-                ),
+              : TaskLogView(entries: state.logs),
         ),
       ],
     );

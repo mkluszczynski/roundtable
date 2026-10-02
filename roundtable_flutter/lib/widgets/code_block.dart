@@ -9,7 +9,13 @@ import '../theme/typography.dart';
 /// top-right, per `docs/UI-DESIGN.md` §2. Used for install/uninstall
 /// commands, tokens, and as the diff view's chrome.
 class CodeBlock extends StatefulWidget {
-  const CodeBlock({super.key, required this.code, this.label, this.child});
+  const CodeBlock({
+    super.key,
+    required this.code,
+    this.label,
+    this.child,
+    this.expand = false,
+  });
 
   /// The text copied to the clipboard, and rendered as-is if [child] is null.
   final String code;
@@ -18,6 +24,12 @@ class CodeBlock extends StatefulWidget {
   /// Optional custom rendering (e.g. colored diff lines) instead of plain
   /// [code] text; [code] is still what gets copied.
   final Widget? child;
+
+  /// When true, the block fills the bounded space given by its parent (e.g.
+  /// an [Expanded]) instead of shrinking to [child]'s intrinsic size, and
+  /// scrolls [child] internally if it overflows. Requires a parent that
+  /// supplies bounded constraints.
+  final bool expand;
 
   @override
   State<CodeBlock> createState() => _CodeBlockState();
@@ -37,6 +49,12 @@ class _CodeBlockState extends State<CodeBlock> {
 
   @override
   Widget build(BuildContext context) {
+    final content = DefaultTextStyle.merge(
+      style: AppTypography.code,
+      child:
+          widget.child ?? SelectableText(widget.code, style: AppTypography.code),
+    );
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.codeBg,
@@ -44,6 +62,7 @@ class _CodeBlockState extends State<CodeBlock> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Stack(
+        fit: widget.expand ? StackFit.expand : StackFit.loose,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -52,12 +71,9 @@ class _CodeBlockState extends State<CodeBlock> {
               Spacing.massive,
               Spacing.lg,
             ),
-            child: DefaultTextStyle.merge(
-              style: AppTypography.code,
-              child:
-                  widget.child ??
-                  SelectableText(widget.code, style: AppTypography.code),
-            ),
+            child: widget.expand
+                ? SingleChildScrollView(reverse: true, child: content)
+                : content,
           ),
           Positioned(
             top: Spacing.sm,

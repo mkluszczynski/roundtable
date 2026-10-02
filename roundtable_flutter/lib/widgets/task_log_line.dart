@@ -19,6 +19,7 @@ class TaskLogView extends StatelessWidget {
   Widget build(BuildContext context) {
     return CodeBlock(
       code: entries.map((e) => e.content).join('\n'),
+      expand: true,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

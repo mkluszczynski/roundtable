@@ -53,4 +53,42 @@ void main() {
     // Let the "reset to copy icon" timer fire so no timer is left pending.
     await tester.pump(const Duration(seconds: 2));
   });
+
+  testWidgets('expand mode fills the space offered instead of shrinking to '
+      'content', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 400,
+            height: 400,
+            child: CodeBlock(code: 'x', expand: true, child: Text('x')),
+          ),
+        ),
+      ),
+    );
+
+    final size = tester.getSize(find.byType(CodeBlock));
+    expect(size, const Size(400, 400));
+  });
+
+  testWidgets('default mode shrinks to content size', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 400,
+            height: 400,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: CodeBlock(code: 'x', child: Text('x')),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final size = tester.getSize(find.byType(CodeBlock));
+    expect(size.height, lessThan(400));
+  });
 }
