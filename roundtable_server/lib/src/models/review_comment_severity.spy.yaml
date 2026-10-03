@@ -1,0 +1,7 @@
+### How important a reviewer agent considers one of its comments.
+enum: ReviewCommentSeverity
+values:
+  ### must be fixed before merging
+  - blocker
+  - issue
+  - nit

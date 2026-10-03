@@ -16,6 +16,7 @@ import 'dart:io' as _idi;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
 import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
+import 'package:roundtable_server/src/generated/code_review.dart' as _i42ca4ig;
 import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/greetings/greeting.dart'
@@ -27,6 +28,12 @@ import 'package:roundtable_server/src/generated/machine_metric.dart'
 import 'package:roundtable_server/src/generated/machine_registration.dart'
     as _i1b54xmb;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/review_comment.dart'
+    as _ibdwjaau;
+import 'package:roundtable_server/src/generated/review_comment_draft.dart'
+    as _i245mzjz;
+import 'package:roundtable_server/src/generated/review_comment_state.dart'
+    as _i5cy068t;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:roundtable_server/src/generated/task_deleted.dart' as _iqqmqwi6;
 import 'package:roundtable_server/src/generated/task_feedback.dart'
@@ -175,6 +182,8 @@ class TestEndpoints {
 
   late final _AgentEndpoint agent;
 
+  late final _CodeReviewEndpoint codeReview;
+
   late final _MachineEndpoint machine;
 
   late final _ProjectEndpoint project;
@@ -200,6 +209,10 @@ class _InternalTestEndpoints extends TestEndpoints
       serializationManager,
     );
     agent = _AgentEndpoint(
+      endpoints,
+      serializationManager,
+    );
+    codeReview = _CodeReviewEndpoint(
       endpoints,
       serializationManager,
     );
@@ -713,6 +726,293 @@ class _AgentEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+}
+
+class _CodeReviewEndpoint {
+  _CodeReviewEndpoint(
+    this._endpointDispatch,
+    this._serializationManager,
+  );
+
+  final _is.EndpointDispatch _endpointDispatch;
+
+  final _is.SerializationManager _serializationManager;
+
+  _ida.Future<_i42ca4ig.CodeReview> requestReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    int agentId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'requestReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'requestReview',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'agentId': agentId,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Stream<_i42ca4ig.CodeReview> watchAssignedReviews(
+    _ist.TestSessionBuilder sessionBuilder,
+    int machineId,
+  ) {
+    var _localTestStreamManager =
+        _ist.TestStreamManager<_i42ca4ig.CodeReview>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'codeReview',
+              method: 'watchAssignedReviews',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'codeReview',
+              methodName: 'watchAssignedReviews',
+              arguments: {'machineId': machineId},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
+  _ida.Future<_i77xifuu.Task> startReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'startReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'startReview',
+          parameters: _ist.testObjectToJson({'reviewId': reviewId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i42ca4ig.CodeReview> completeReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+    String summary,
+    List<_i245mzjz.ReviewCommentDraft> drafts,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'completeReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'completeReview',
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'summary': summary,
+            'drafts': drafts,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i42ca4ig.CodeReview> failReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+    String reason,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'failReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'failReview',
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'reason': reason,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Stream<_i42ca4ig.CodeReview> watchReviews(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) {
+    var _localTestStreamManager =
+        _ist.TestStreamManager<_i42ca4ig.CodeReview>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'codeReview',
+              method: 'watchReviews',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'codeReview',
+              methodName: 'watchReviews',
+              arguments: {'taskId': taskId},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
+  _ida.Future<_ibdwjaau.ReviewComment> setCommentState(
+    _ist.TestSessionBuilder sessionBuilder,
+    int commentId,
+    _i5cy068t.ReviewCommentState state,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'setCommentState',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'setCommentState',
+          parameters: _ist.testObjectToJson({
+            'commentId': commentId,
+            'state': state,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ibdwjaau.ReviewComment>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_il2mubb9.TaskFeedback> sendCommentsToFix(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    List<int> commentIds,
+    String? note,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'sendCommentsToFix',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'sendCommentsToFix',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'commentIds': commentIds,
+            'note': note,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_il2mubb9.TaskFeedback>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();
@@ -1522,6 +1822,37 @@ class _TaskEndpoint {
           endpointPath: 'task',
           methodName: 'update',
           parameters: _ist.testObjectToJson({'task': task}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i77xifuu.Task> acceptTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'acceptTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'acceptTask',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
           serializationManager: _serializationManager,
         );
         var _localReturnValue =

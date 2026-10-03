@@ -64,4 +64,28 @@ class TaskRepository {
   /// Streams every task deletion, for the dashboard kanban to drop a
   /// deleted task from its local list — the counterpart of [watchAllTasks].
   Stream<TaskDeleted> watchTaskDeletions() => _client.task.watchTaskDeletions();
+
+  /// Squash-merges [taskId]'s PR and marks it `done`.
+  Future<Task> acceptTask(int taskId) => _client.task.acceptTask(taskId);
+
+  /// Streams [taskId]'s AI code reviews, each with its comments. Each event
+  /// is a single review — merge it into your list by id.
+  Stream<CodeReview> watchReviews(int taskId) =>
+      _client.codeReview.watchReviews(taskId);
+
+  Future<CodeReview> requestReview(int taskId, int agentId) =>
+      _client.codeReview.requestReview(taskId, agentId);
+
+  Future<ReviewComment> setCommentState(
+    int commentId,
+    ReviewCommentState state,
+  ) => _client.codeReview.setCommentState(commentId, state);
+
+  /// Sends [commentIds] (and an optional [note]) to the task's agent as one
+  /// feedback iteration.
+  Future<TaskFeedback> sendCommentsToFix(
+    int taskId,
+    List<int> commentIds,
+    String? note,
+  ) => _client.codeReview.sendCommentsToFix(taskId, commentIds, note);
 }

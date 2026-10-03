@@ -15,6 +15,7 @@ import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
 import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
+import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
@@ -25,6 +26,12 @@ import 'package:roundtable_client/src/protocol/machine_metric.dart'
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
+import 'package:roundtable_client/src/protocol/review_comment.dart'
+    as _ij6tkwdt;
+import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
+    as _ithbrqha;
+import 'package:roundtable_client/src/protocol/review_comment_state.dart'
+    as _i3j6boid;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
 import 'package:roundtable_client/src/protocol/task_deleted.dart' as _iwt28wmq;
 import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
@@ -315,6 +322,130 @@ class EndpointAgent extends _isc.EndpointRef {
     'agent',
     'delete',
     {'id': id},
+  );
+}
+
+/// AI code review of a task's PR: a reviewer agent leaves comments, the dev
+/// triages them and sends the ones worth fixing back to the task's agent.
+/// {@category Endpoint}
+class EndpointCodeReview extends _isc.EndpointRef {
+  EndpointCodeReview(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'codeReview';
+
+  /// Queues a review of [taskId]'s PR by [agentId]. The reviewer's daemon
+  /// picks it up via [watchAssignedReviews].
+  _ida.Future<_i38oxrkr.CodeReview> requestReview(
+    int taskId,
+    int agentId,
+  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'requestReview',
+    {
+      'taskId': taskId,
+      'agentId': agentId,
+    },
+  );
+
+  /// Streams reviews assigned to agents hosted on [machineId], for the
+  /// daemon. Replays the queued ones on subscribe, like
+  /// `TaskEndpoint.watchAssignedTasks`.
+  _ida.Stream<_i38oxrkr.CodeReview> watchAssignedReviews(int machineId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_i38oxrkr.CodeReview>,
+        _i38oxrkr.CodeReview
+      >(
+        'codeReview',
+        'watchAssignedReviews',
+        {'machineId': machineId},
+        {},
+      );
+
+  /// Called by the daemon when it starts [reviewId]: flips it to `running`
+  /// and its reviewer to `busy`. Returns the task under review, which the
+  /// daemon needs for the branch and original prompt.
+  _ida.Future<_iw53rmon.Task> startReview(int reviewId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'codeReview',
+        'startReview',
+        {'reviewId': reviewId},
+      );
+
+  /// Stores the reviewer's findings and mirrors them to the PR as a GitHub
+  /// review. Mirroring is best effort: on failure the comments still live in
+  /// Roundtable, just without `githubCommentId`.
+  _ida.Future<_i38oxrkr.CodeReview> completeReview(
+    int reviewId,
+    String summary,
+    List<_ithbrqha.ReviewCommentDraft> drafts,
+  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'completeReview',
+    {
+      'reviewId': reviewId,
+      'summary': summary,
+      'drafts': drafts,
+    },
+  );
+
+  /// Called by the daemon when the review run couldn't produce findings.
+  _ida.Future<_i38oxrkr.CodeReview> failReview(
+    int reviewId,
+    String reason,
+  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'failReview',
+    {
+      'reviewId': reviewId,
+      'reason': reason,
+    },
+  );
+
+  /// Streams [taskId]'s reviews, each with its comments, for the panel.
+  /// Replays them all on subscribe, then yields a review again whenever it
+  /// or one of its comments changes — merge by id.
+  _ida.Stream<_i38oxrkr.CodeReview> watchReviews(int taskId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_i38oxrkr.CodeReview>,
+        _i38oxrkr.CodeReview
+      >(
+        'codeReview',
+        'watchReviews',
+        {'taskId': taskId},
+        {},
+      );
+
+  /// Triage by hand: dismiss, reopen, or resolve a comment. Resolving also
+  /// resolves its mirrored GitHub thread.
+  _ida.Future<_ij6tkwdt.ReviewComment> setCommentState(
+    int commentId,
+    _i3j6boid.ReviewCommentState state,
+  ) => caller.callServerEndpoint<_ij6tkwdt.ReviewComment>(
+    'codeReview',
+    'setCommentState',
+    {
+      'commentId': commentId,
+      'state': state,
+    },
+  );
+
+  /// Sends [commentIds] — plus an optional [note] from the dev — to
+  /// [taskId]'s agent as one review-feedback iteration. They're marked
+  /// `sentToFix`, then `resolved` once that run finishes
+  /// (`TaskEndpoint.update`).
+  _ida.Future<_ifl2c5cu.TaskFeedback> sendCommentsToFix(
+    int taskId,
+    List<int> commentIds,
+    String? note,
+  ) => caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+    'codeReview',
+    'sendCommentsToFix',
+    {
+      'taskId': taskId,
+      'commentIds': commentIds,
+      'note': note,
+    },
   );
 }
 
@@ -638,6 +769,17 @@ class EndpointTask extends _isc.EndpointRef {
         'task',
         'update',
         {'task': task},
+      );
+
+  /// Squash-merges [taskId]'s PR and marks the task `done`. If GitHub
+  /// refuses the merge (conflicts, failing checks, ...) the task stays in
+  /// `awaitingReview` and the reason is thrown back to the panel. Also wakes
+  /// the agent's daemon so it removes the task's worktree.
+  _ida.Future<_iw53rmon.Task> acceptTask(int taskId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'acceptTask',
+        {'taskId': taskId},
       );
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
@@ -1007,6 +1149,7 @@ class Client extends _isc.ServerpodClientShared {
     emailIdp = EndpointEmailIdp(this);
     jwtRefresh = EndpointJwtRefresh(this);
     agent = EndpointAgent(this);
+    codeReview = EndpointCodeReview(this);
     machine = EndpointMachine(this);
     project = EndpointProject(this);
     task = EndpointTask(this);
@@ -1019,6 +1162,8 @@ class Client extends _isc.ServerpodClientShared {
   late final EndpointJwtRefresh jwtRefresh;
 
   late final EndpointAgent agent;
+
+  late final EndpointCodeReview codeReview;
 
   late final EndpointMachine machine;
 
@@ -1035,6 +1180,7 @@ class Client extends _isc.ServerpodClientShared {
     'emailIdp': emailIdp,
     'jwtRefresh': jwtRefresh,
     'agent': agent,
+    'codeReview': codeReview,
     'machine': machine,
     'project': project,
     'task': task,

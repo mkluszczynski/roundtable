@@ -1,0 +1,8 @@
+### The lifecycle of one AI code review of a task's PR.
+enum: CodeReviewStatus
+values:
+  ### waiting for the reviewer agent's machine to pick it up
+  - queued
+  - running
+  - completed
+  - failed

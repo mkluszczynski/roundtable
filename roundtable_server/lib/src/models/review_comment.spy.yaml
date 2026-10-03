@@ -1,0 +1,16 @@
+### One comment left by a reviewer agent on a task's PR.
+class: ReviewComment
+table: review_comment
+fields:
+  ### onDelete=Cascade: a comment has no meaning independent of its review.
+  review: CodeReview?, relation(name=review_comments, onDelete=Cascade)
+  ### Path of the commented file, relative to the repo root.
+  path: String
+  ### Line in the new version of [path]; null for a file-level comment.
+  line: int?
+  body: String
+  severity: ReviewCommentSeverity, default=issue
+  state: ReviewCommentState, default=open
+  ### Id of the mirrored GitHub review comment, when it could be placed on the diff.
+  githubCommentId: int?
+  createdAt: DateTime, default=now

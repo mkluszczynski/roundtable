@@ -15,6 +15,15 @@ agent:
   - list:
   - update:
   - delete:
+codeReview:
+  - requestReview:
+  - watchAssignedReviews:
+  - startReview:
+  - completeReview:
+  - failReview:
+  - watchReviews:
+  - setCommentState:
+  - sendCommentsToFix:
 machine:
   - register:
   - getScriptUrl:
@@ -42,6 +51,7 @@ project:
 task:
   - createTask:
   - update:
+  - acceptTask:
   - appendLog:
   - cancelTask:
   - retryTask:

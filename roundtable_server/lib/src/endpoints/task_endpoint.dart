@@ -1,11 +1,11 @@
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
+import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Task creation and the daemon's assignment feed (design doc §6.1).
 class TaskEndpoint extends Endpoint {
-  static String _channelForMachine(int machineId) => 'machine-$machineId-tasks';
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
   static String channelForTask(int taskId) => 'task-$taskId';
   static String _channelForQuestion(int questionId) =>
@@ -27,7 +27,7 @@ class TaskEndpoint extends Endpoint {
     TaskStatus.awaitingReview,
   };
 
-  final _github = GitHubRepoClient();
+  GitHubRepoClient get _github => gitHubRepoClient;
 
   /// Creates a [Task] (design doc §6.1 step 1). With an [agentId] it's
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
@@ -61,7 +61,7 @@ class TaskEndpoint extends Endpoint {
 
     if (agent != null) {
       await session.messages.postMessage(
-        _channelForMachine(agent.machineId),
+        taskChannelForMachine(agent.machineId),
         task,
       );
     }
@@ -84,6 +84,7 @@ class TaskEndpoint extends Endpoint {
   /// `lastProgressAt`, since this is the daemon's primary path for
   /// reporting task activity — see [StalledTaskFutureCall].
   Future<Task> update(Session session, Task task) async {
+    var previous = await Task.db.findById(session, task.id!);
     // The daemon sends back the Task it received at dispatch time, so only
     // write the fields it owns — otherwise it reverts server-side changes
     // made during the run (currentPlan, question/plan status transitions).
@@ -103,7 +104,53 @@ class TaskEndpoint extends Endpoint {
     );
     await session.messages.postMessage(channelForTask(updated.id!), updated);
     await session.messages.postMessage(channelForAllTasks(), updated);
+    // A finished fix run addressed the review comments it was sent.
+    if (previous?.status == TaskStatus.running &&
+        updated.status == TaskStatus.awaitingReview) {
+      await resolveCommentsSentToFix(session, updated);
+    }
     return updated;
+  }
+
+  /// Squash-merges [taskId]'s PR and marks the task `done`. If GitHub
+  /// refuses the merge (conflicts, failing checks, ...) the task stays in
+  /// `awaitingReview` and the reason is thrown back to the panel. Also wakes
+  /// the agent's daemon so it removes the task's worktree.
+  Future<Task> acceptTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.awaitingReview) {
+      throw Exception('Task $taskId is not awaiting review (${task.status})');
+    }
+    await requireNoActiveReview(session, taskId);
+
+    final context = await repoContextFor(session, taskId);
+    await _github.mergePullRequest(
+      prUrl: context.prUrl,
+      token: context.token,
+      commitTitle: 'Roundtable task #$taskId',
+    );
+
+    task = await Task.db.updateRow(
+      session,
+      task.copyWith(
+        status: TaskStatus.done,
+        finishedAt: DateTime.now().toUtc(),
+        lastProgressAt: DateTime.now().toUtc(),
+      ),
+    );
+    var agentId = task.agentId;
+    var agent = agentId == null
+        ? null
+        : await Agent.db.findById(session, agentId);
+    if (agent != null) {
+      await session.messages.postMessage(
+        taskChannelForMachine(agent.machineId),
+        task,
+      );
+    }
+    await session.messages.postMessage(channelForTask(taskId), task);
+    await session.messages.postMessage(channelForAllTasks(), task);
+    return task;
   }
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
@@ -208,7 +255,7 @@ class TaskEndpoint extends Endpoint {
     );
 
     await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
+      taskChannelForMachine(agent.machineId),
       task,
     );
     await session.messages.postMessage(channelForTask(taskId), task);
@@ -257,7 +304,7 @@ class TaskEndpoint extends Endpoint {
     // to, since `watchAssignedTasks` only replays already-pending tasks once
     // at subscribe time.
     await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
+      taskChannelForMachine(agent.machineId),
       task,
     );
     await session.messages.postMessage(channelForTask(taskId), task);
@@ -275,41 +322,11 @@ class TaskEndpoint extends Endpoint {
     int taskId,
     String message,
   ) async {
-    var task = await Task.db.findById(session, taskId);
-    if (task == null) {
-      throw Exception('Task $taskId not found');
-    }
-    if (task.status != TaskStatus.awaitingReview) {
-      throw Exception('Task $taskId is not awaiting review (${task.status})');
-    }
-    var agentId = task.agentId;
-    if (agentId == null) {
-      throw Exception('Task $taskId has no assigned agent');
-    }
-    var agent = await Agent.db.findById(session, agentId);
-    if (agent == null) {
-      throw Exception('Agent $agentId not found');
-    }
-
-    var feedback = await TaskFeedback.db.insertRow(
+    return queueReviewFeedback(
       session,
-      TaskFeedback(
-        taskId: taskId,
-        message: message,
-        phase: TaskFeedbackPhase.review,
-      ),
+      await _requireTask(session, taskId),
+      message,
     );
-
-    // Status is deliberately left as `awaitingReview` here — the dispatcher
-    // itself flips it to `running` once it actually picks the resume up,
-    // mirroring how it already does that transition for a fresh `queued`
-    // task.
-    await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
-      task,
-    );
-
-    return feedback;
   }
 
   /// Returns the most recently submitted [TaskFeedback] for [taskId], or
@@ -567,7 +584,7 @@ class TaskEndpoint extends Endpoint {
   /// doc §6.7), fetched from the GitHub API using the project's
   /// `repoAccessToken` — never returned to the panel.
   Future<List<DiffFile>> getChangedFiles(Session session, int taskId) async {
-    final context = await _repoContextFor(session, taskId);
+    final context = await repoContextFor(session, taskId);
     return _github.getChangedFiles(prUrl: context.prUrl, token: context.token);
   }
 
@@ -578,7 +595,7 @@ class TaskEndpoint extends Endpoint {
     int taskId,
     String contentsUrl,
   ) async {
-    final context = await _repoContextFor(session, taskId);
+    final context = await repoContextFor(session, taskId);
     final pr = _github.parsePrUrl(context.prUrl);
     return _github.getFileContent(
       contentsUrl: contentsUrl,
@@ -586,32 +603,6 @@ class TaskEndpoint extends Endpoint {
       owner: pr.owner,
       repo: pr.repo,
     );
-  }
-
-  /// Loads [taskId]'s `prUrl` and its project's `repoAccessToken`, throwing
-  /// if the task, its PR, its project, or the project's token is missing.
-  Future<({String prUrl, String token})> _repoContextFor(
-    Session session,
-    int taskId,
-  ) async {
-    var task = await Task.db.findById(session, taskId);
-    if (task == null) {
-      throw Exception('Task $taskId not found');
-    }
-    var prUrl = task.prUrl;
-    if (prUrl == null) {
-      throw Exception('Task $taskId has no PR yet');
-    }
-    var project = await Project.db.findById(session, task.projectId);
-    if (project == null) {
-      throw Exception('Project ${task.projectId} not found');
-    }
-    var token = project.repoAccessToken;
-    if (token == null || token.isEmpty) {
-      throw Exception('Project ${task.projectId} has no repo access token');
-    }
-
-    return (prUrl: prUrl, token: token);
   }
 
   /// Streams every task, for the panel's dashboard kanban (design doc §4
@@ -649,7 +640,7 @@ class TaskEndpoint extends Endpoint {
     }
 
     var updates = session.messages.createStream<Task>(
-      _channelForMachine(machineId),
+      taskChannelForMachine(machineId),
     );
     await for (var task in updates) {
       yield task;

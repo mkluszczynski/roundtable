@@ -1,0 +1,10 @@
+### Where a review comment is in the dev's triage → fix loop.
+enum: ReviewCommentState
+values:
+  - open
+  ### the dev decided not to act on it
+  - dismissed
+  ### included in feedback sent to the task's agent, fix run pending
+  - sentToFix
+  ### fixed by the agent's follow-up run, or resolved by hand
+  - resolved

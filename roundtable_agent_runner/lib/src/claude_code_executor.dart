@@ -36,6 +36,7 @@ class ClaudeCodeExecutionResult {
     required this.exitCode,
     this.sessionId,
     this.errorSummary,
+    this.resultText,
   });
 
   /// True when the process exited 0 and the final NDJSON `result` message
@@ -52,6 +53,9 @@ class ClaudeCodeExecutionResult {
   /// Set when [success] is false: the process's stderr output, or a fallback
   /// describing the exit code if stderr was empty.
   final String? errorSummary;
+
+  /// The final `result` message's `result` field — the model's last reply.
+  final String? resultText;
 }
 
 /// Spawns `claude` in execution-phase mode (design doc §6.2 "Execution
@@ -177,6 +181,42 @@ class ClaudeCodeExecutor {
     );
   }
 
+  /// Runs one read-only code-review invocation: only tools that can't
+  /// change the working tree are allowed (headless `-p` denies everything
+  /// else), so the reviewer can explore the code and diff but never edit it.
+  Future<ClaudeCodeExecutionResult> runReview({
+    required String prompt,
+    required String workingDirectory,
+    String? oauthToken,
+    String? model,
+    String? effort,
+    required void Function(String line) onLine,
+    void Function(Process process)? onProcessStarted,
+  }) {
+    final args = [
+      '-p',
+      prompt,
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--include-partial-messages',
+      '--allowedTools',
+      'Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)',
+      '--disallowedTools',
+      'Edit,Write,NotebookEdit',
+      if (model != null) ...['--model', model],
+      if (effort != null) ...['--effort', effort],
+    ];
+
+    return _runProcess(
+      args: args,
+      workingDirectory: workingDirectory,
+      oauthToken: oauthToken,
+      onLine: onLine,
+      onProcessStarted: onProcessStarted,
+    );
+  }
+
   Future<ClaudeCodeExecutionResult> _runProcess({
     required List<String> args,
     required String workingDirectory,
@@ -193,6 +233,7 @@ class ClaudeCodeExecutor {
     onProcessStarted?.call(process);
 
     String? sessionId;
+    String? resultText;
     var reportedSuccess = false;
 
     final stdoutSub = process.stdout
@@ -211,6 +252,7 @@ class ClaudeCodeExecutor {
           if (event['type'] == 'result') {
             sessionId = event['session_id'] as String?;
             reportedSuccess = event['subtype'] == 'success';
+            resultText = event['result'] as String?;
           }
         });
     final stdoutDone = stdoutSub.asFuture<void>();
@@ -236,6 +278,7 @@ class ClaudeCodeExecutor {
       success: success,
       exitCode: exitCode,
       sessionId: sessionId,
+      resultText: resultText,
       errorSummary: success
           ? null
           : (stderrBuffer.isEmpty

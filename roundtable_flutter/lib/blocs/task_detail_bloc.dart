@@ -68,6 +68,48 @@ class TaskDeleteRequested extends TaskDetailEvent {
   final int taskId;
 }
 
+class TaskAccepted extends TaskDetailEvent {
+  const TaskAccepted(this.taskId);
+
+  final int taskId;
+}
+
+class ReviewRequested extends TaskDetailEvent {
+  const ReviewRequested(this.taskId, this.agentId);
+
+  final int taskId;
+  final int agentId;
+}
+
+/// Ticks/unticks a review comment for the next "send to agent".
+class CommentSelectionToggled extends TaskDetailEvent {
+  const CommentSelectionToggled(this.commentId);
+
+  final int commentId;
+}
+
+class CommentStateChanged extends TaskDetailEvent {
+  const CommentStateChanged(this.commentId, this.state);
+
+  final int commentId;
+  final ReviewCommentState state;
+}
+
+/// Sends the selected comments (and [note]) to the task's agent.
+class CommentsSentToFix extends TaskDetailEvent {
+  const CommentsSentToFix(this.taskId, this.note);
+
+  final int taskId;
+  final String note;
+}
+
+/// Internal: starts the code-review stream for [taskId]. Added once.
+class _ReviewsSubscribed extends TaskDetailEvent {
+  const _ReviewsSubscribed(this.taskId);
+
+  final int taskId;
+}
+
 /// Internal: starts the log tail (history, then live) for [taskId]. Added
 /// once, on the first task event.
 class _LogsSubscribed extends TaskDetailEvent {
@@ -135,6 +177,11 @@ class TaskDetailLoaded extends TaskDetailState {
     this.fileContent,
     this.fileContentLoading = false,
     this.fileContentError,
+    this.reviews = const [],
+    this.reviewsSubscribed = false,
+    this.selectedCommentIds = const {},
+    this.reviewBusy = false,
+    this.reviewError,
   });
 
   final Task task;
@@ -161,6 +208,26 @@ class TaskDetailLoaded extends TaskDetailState {
   final bool fileContentLoading;
   final String? fileContentError;
 
+  /// AI code reviews of the PR, oldest first, each with its comments.
+  final List<CodeReview> reviews;
+  final bool reviewsSubscribed;
+
+  /// Open comments ticked for the next "send to agent".
+  final Set<int> selectedCommentIds;
+
+  /// A review action (request/triage/send/accept) is in flight. Kept apart
+  /// from [submitting] since most of these don't change the task itself.
+  final bool reviewBusy;
+
+  /// Why the last review action failed (e.g. GitHub refused the merge) —
+  /// shown inline instead of replacing the whole screen with an error.
+  final String? reviewError;
+
+  /// Every comment across [reviews].
+  List<ReviewComment> get reviewComments => [
+    for (final review in reviews) ...?review.comments,
+  ];
+
   TaskDetailLoaded copyWith({
     Task? task,
     Project? project,
@@ -180,6 +247,12 @@ class TaskDetailLoaded extends TaskDetailState {
     bool? fileContentLoading,
     String? fileContentError,
     bool clearFileContent = false,
+    List<CodeReview>? reviews,
+    bool? reviewsSubscribed,
+    Set<int>? selectedCommentIds,
+    bool? reviewBusy,
+    String? reviewError,
+    bool clearReviewError = false,
   }) {
     return TaskDetailLoaded(
       task: task ?? this.task,
@@ -198,6 +271,11 @@ class TaskDetailLoaded extends TaskDetailState {
       fileContent: clearFileContent ? null : (fileContent ?? this.fileContent),
       fileContentLoading: fileContentLoading ?? this.fileContentLoading,
       fileContentError: clearFileContent ? null : fileContentError,
+      reviews: reviews ?? this.reviews,
+      reviewsSubscribed: reviewsSubscribed ?? this.reviewsSubscribed,
+      selectedCommentIds: selectedCommentIds ?? this.selectedCommentIds,
+      reviewBusy: reviewBusy ?? this.reviewBusy,
+      reviewError: clearReviewError ? null : (reviewError ?? this.reviewError),
     );
   }
 }
@@ -228,6 +306,12 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     on<TaskRetried>(_onTaskRetried);
     on<AgentReassigned>(_onAgentReassigned);
     on<TaskDeleteRequested>(_onTaskDeleteRequested);
+    on<TaskAccepted>(_onTaskAccepted);
+    on<ReviewRequested>(_onReviewRequested);
+    on<CommentSelectionToggled>(_onCommentSelectionToggled);
+    on<CommentStateChanged>(_onCommentStateChanged);
+    on<CommentsSentToFix>(_onCommentsSentToFix);
+    on<_ReviewsSubscribed>(_onReviewsSubscribed);
     on<_LogsSubscribed>(_onLogsSubscribed);
     on<_ChangedFilesRequested>(_onChangedFilesRequested);
     on<FileSelected>(_onFileSelected);
@@ -255,6 +339,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         // the Logs tab after the task leaves planning/running.
         if (current is! TaskDetailLoaded || !current.logsSubscribed) {
           add(_LogsSubscribed(event.taskId));
+          add(_ReviewsSubscribed(event.taskId));
         }
         // Refetch each time the task (re-)enters review, e.g. after a
         // feedback iteration pushed new commits.
@@ -518,5 +603,108 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         );
       }
     }
+  }
+
+  Future<void> _onReviewsSubscribed(
+    _ReviewsSubscribed event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final current = state;
+    if (current is TaskDetailLoaded) {
+      if (current.reviewsSubscribed) return;
+      emit(current.copyWith(reviewsSubscribed: true));
+    }
+    final reviews = <int, CodeReview>{};
+    await for (final review in _repository.watchReviews(event.taskId)) {
+      reviews[review.id!] = review;
+      final latest = state;
+      if (latest is TaskDetailLoaded) {
+        final sorted = reviews.values.toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        // Only open comments can be sent; drop ticks that no longer apply.
+        final openIds = {
+          for (final r in sorted)
+            for (final c in r.comments ?? const <ReviewComment>[])
+              if (c.state == ReviewCommentState.open) c.id!,
+        };
+        emit(
+          latest.copyWith(
+            reviews: sorted,
+            selectedCommentIds: latest.selectedCommentIds.intersection(
+              openIds,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Runs a review action, tracking [TaskDetailLoaded.reviewBusy] and
+  /// surfacing a failure as [TaskDetailLoaded.reviewError].
+  Future<void> _reviewAction(
+    Emitter<TaskDetailState> emit,
+    Future<void> Function() action, {
+    TaskDetailLoaded Function(TaskDetailLoaded state)? onSuccess,
+  }) async {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    emit(current.copyWith(reviewBusy: true, clearReviewError: true));
+    String? error;
+    try {
+      await action();
+    } catch (e) {
+      error = e.toString();
+    }
+    final latest = state;
+    if (latest is TaskDetailLoaded) {
+      final next = latest.copyWith(reviewBusy: false, reviewError: error);
+      emit(error == null && onSuccess != null ? onSuccess(next) : next);
+    }
+  }
+
+  Future<void> _onTaskAccepted(
+    TaskAccepted event,
+    Emitter<TaskDetailState> emit,
+  ) => _reviewAction(emit, () => _repository.acceptTask(event.taskId));
+
+  Future<void> _onReviewRequested(
+    ReviewRequested event,
+    Emitter<TaskDetailState> emit,
+  ) => _reviewAction(
+    emit,
+    () => _repository.requestReview(event.taskId, event.agentId),
+  );
+
+  void _onCommentSelectionToggled(
+    CommentSelectionToggled event,
+    Emitter<TaskDetailState> emit,
+  ) {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    final selected = Set.of(current.selectedCommentIds);
+    if (!selected.remove(event.commentId)) selected.add(event.commentId);
+    emit(current.copyWith(selectedCommentIds: selected));
+  }
+
+  Future<void> _onCommentStateChanged(
+    CommentStateChanged event,
+    Emitter<TaskDetailState> emit,
+  ) => _reviewAction(
+    emit,
+    () => _repository.setCommentState(event.commentId, event.state),
+  );
+
+  Future<void> _onCommentsSentToFix(
+    CommentsSentToFix event,
+    Emitter<TaskDetailState> emit,
+  ) {
+    final current = state;
+    if (current is! TaskDetailLoaded) return Future.value();
+    final ids = current.selectedCommentIds.toList();
+    return _reviewAction(
+      emit,
+      () => _repository.sendCommentsToFix(event.taskId, ids, event.note),
+      onSuccess: (s) => s.copyWith(selectedCommentIds: const {}),
+    );
   }
 }

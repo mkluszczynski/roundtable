@@ -8,21 +8,50 @@ import 'code_block.dart';
 /// per `docs/UI-DESIGN.md` §2: a fixed 16px marker column (`+`/`-`/blank)
 /// then the line text, additions/deletions tinted, no diffing algorithm of
 /// our own — GitHub has already computed the diff.
+///
+/// [annotations] are shown right below the diff line that carries the given
+/// new-file line number (e.g. review comments on that line).
 class DiffView extends StatelessWidget {
-  const DiffView({super.key, required this.patch});
+  const DiffView({super.key, required this.patch, this.annotations = const {}});
 
   final String patch;
+  final Map<int, Widget> annotations;
 
   @override
   Widget build(BuildContext context) {
     final lines = patch.split('\n');
+    final hunkHeader = RegExp(r'^@@ -\d+(?:,\d+)? \+(\d+)');
+
+    final children = <Widget>[];
+    int? newLine;
+    for (final line in lines) {
+      children.add(_DiffLine(line: line));
+      final header = hunkHeader.firstMatch(line);
+      if (header != null) {
+        newLine = int.parse(header.group(1)!);
+        continue;
+      }
+      if (newLine == null || line.startsWith('-') || line.startsWith('\\')) {
+        continue;
+      }
+      final annotation = annotations[newLine];
+      if (annotation != null) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: SelectionContainer.disabled(child: annotation),
+          ),
+        );
+      }
+      newLine++;
+    }
 
     return CodeBlock(
       code: patch,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [for (final line in lines) _DiffLine(line: line)],
+          children: children,
         ),
       ),
     );
