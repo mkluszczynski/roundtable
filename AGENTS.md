@@ -1,37 +1,44 @@
 # Roundtable
 
-Roundtable is an AI coding-agent command center (see `docs/DESIGN-DOC.md` for
-the full product/architecture spec and `docs/UI-DESIGN.md` for the design
-system). A developer registers machines (laptop, VPS) that host agents —
+Roundtable is an AI coding-agent command center (start at `docs/README.md`;
+architecture and data model in `docs/ARCHITECTURE.md`, step-by-step flows in
+`docs/FLOWS.md`, design system in `docs/UI-DESIGN.md`, open bugs in
+`docs/KNOWN-ISSUES.md`). A developer registers machines (laptop, VPS) that host agents —
 named personas with a role, model, and effort — assigns them tasks against a
 git repo, and watches the work live (streamed logs, plan approval, diff
 review, PR) from one panel, instead of SSH-ing in and babysitting a terminal.
 
 This project is a Flutter app (frontend, `roundtable_flutter/`) backed by a
 Serverpod server (backend, `roundtable_server/`). Always build the app's
-backend with Serverpod. Build for multiple users, use Serverpod's built-in
-authentication, which is already set up in `lib/server.dart`.
+backend with Serverpod. For now the app is single-tenant with **no user
+login**: don't add authentication or per-user data yet. That comes after the
+MVP, using Serverpod's built-in auth, which is already initialized in
+`lib/server.dart`.
 
 ## App structure
 
-- `roundtable_flutter/lib/screens/` — `panel_shell.dart` (nav rail + tabs:
-  Dashboard, Projects, Machines, Agents, Task Detail), `dashboard_screen.dart`
-  (live kanban board + machines panel), `task_detail_screen.dart` (one screen,
-  4 sub-states switched on `Task.status`: waiting for answer, plan approval,
-  live execution log tail, diff review), `projects_screen.dart`,
-  `machines_screen.dart`, `agents_screen.dart` (CRUD lists).
+- `roundtable_flutter/lib/screens/` — `panel_shell.dart` (nav rail: Dashboard,
+  Projects, Machines), `dashboard_screen.dart` (live kanban board + machines
+  panel), `task_detail_screen.dart` (one screen, 4 sub-states switched on
+  `Task.status`: waiting for answer, plan approval, live execution log tail,
+  diff review + AI code review), `projects_screen.dart` →
+  `project_detail_screen.dart`, `machines_screen.dart` (agents are listed
+  under their machine; no separate Agents screen) → `machine_detail_screen.dart`.
 - `roundtable_flutter/lib/widgets/` — the shared design-system components
   (`status_pill.dart`, `app_card.dart`, `code_block.dart`, `pill_selector.dart`,
   `app_modal.dart`, `diff_view.dart`) plus the add-machine/add-project/
-  add-agent/create-task dialogs built on them. Each shared widget has a
-  matching test under `roundtable_flutter/test/widgets/`.
+  add-agent/create-task dialogs built on them. Widget tests live under
+  `roundtable_flutter/test/widgets/`.
 - `roundtable_flutter/lib/theme/` — dark-only design tokens (`colors.dart`,
   `typography.dart`, `spacing.dart`) and `app_theme.dart`, per
   `docs/UI-DESIGN.md`.
 - `roundtable_flutter/lib/{cubits,blocs,repositories}/` — state management
-  per `docs/DESIGN-DOC.md` §3.3: a repository layer wraps the generated
+  per `docs/ARCHITECTURE.md`: a repository layer wraps the generated
   `client`, Cubits wrap a single stream, `TaskDetailBloc` is the one full Bloc
   (multiple event sources: task status, logs, diff, dev actions).
+- `roundtable_server/lib/src/` — endpoints, `.spy.yaml` models, future calls,
+  `github_repo_client.dart`; `roundtable_agent_runner/` — the machine daemon
+  (see below and `docs/ARCHITECTURE.md`).
 
 The user starts the server and Flutter app with `serverpod start`. There is no need to check if the server is running: make the changes and call the `serverpod` MCP tools as needed. If the server is not running, an informative error message will be received from the MCP server. Then STOP and ask the user to start it. NEVER start the server yourself. The Flutter app is started along with it, or can be launched from the MCP tool `spawn_flutter_app`.
 

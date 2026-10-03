@@ -1,0 +1,187 @@
+# Key flows
+
+Everything below matches the current code. File references are given so you
+can jump straight in.
+
+## 1. Adding a machine
+
+1. Panel → **Add machine** (`widgets/add_machine_dialog.dart`) →
+   `MachineEndpoint.register(name)`. The server generates a random token,
+   stores only `tokenHash`, and returns `MachineRegistration` (token,
+   `serverUrl`, `scriptUrl`). The token is shown **once** with a ready-made
+   command:
+   `curl -fsSL <scriptUrl>/install-agent.sh | sudo bash -s -- --token … --server … --claude-token …`
+2. `scripts/install-agent.sh` (Linux + systemd) does the following:
+   - creates the system user `roundtable-agent` with home `/var/lib/agent-runner`
+   - downloads both binaries from `/agent-runner-bin` and
+     `/permission-prompt-tool-bin`
+   - writes `/etc/agent-runner/config.env` (mode 600), resolving an absolute
+     `CLAUDE_EXECUTABLE` path
+   - installs and starts `agent-runner.service`, plus the root-side updater
+     units `agent-runner-update.{service,path}`
+3. The daemon starts. It calls `identify(token)` to learn its machine id, then
+   subscribes to its task and review streams and starts the `checkIn`/metric
+   loops. The machine goes `online`.
+4. The daemon reports whether `claude` can be launched
+   (`reportClaudeStatus`). If it can't, the machine card shows a warning
+   banner (`widgets/claude_warning_banner.dart`).
+5. Adding agents to the machine after that is only a database write
+   (`widgets/add_agent_dialog.dart` → `AgentEndpoint.create`).
+
+Claude auth: run `claude setup-token` once on any browser-capable device and
+pass the result with `--claude-token`. Details are in `scripts/README.md`.
+
+## 2. Updating the runner on a machine
+
+The server serves binaries built from the current source (in dev they're
+rebuilt automatically whenever runner or client sources change; see
+`agent_runner_binaries.dart`). The version string is the content hashes of
+both binaries.
+
+`checkIn` reports the installed version. The Machines screen compares it with
+`latestRunnerVersion` and shows **Update** (`widgets/runner_update_banner.dart`).
+If an agent on that machine is mid-task, it asks for confirmation first,
+because the restart kills the run.
+
+```
+Update click → requestRunnerUpdate (sets updateRequestedAt)
+→ next checkIn (≤20 s) returns true
+→ daemon writes /var/lib/agent-runner/update-requested
+→ agent-runner-update.path fires as root → re-download binaries → restart service
+→ new version reported → server clears updateRequestedAt
+```
+
+Machines installed before this mechanism existed have to re-run the install
+script once.
+
+## 3. Removing a machine
+
+- `MachineEndpoint.delete` is blocked while the machine is **online**
+  (`DeletionBlockReason.machineOnline`) and while any of its agents has a
+  non-terminal task. In the online case the panel shows the uninstall command
+  (`widgets/machine_online_delete_blocked_dialog.dart`, URL from
+  `getScriptUrl`).
+- `uninstall-agent.sh` stops and removes the service, then calls
+  `deregister(token)`. The server sets the machine `offline` and clears
+  `tokenHash`. The panel can then delete the record.
+- If the machine is simply gone, `MachineOfflineFutureCall` marks it offline
+  within about 60 s.
+
+## 4. Task lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> draft: createTask without agent
+  [*] --> queued: createTask with agent
+  draft --> queued: reassignAgent
+  queued --> planning: runner picks up (skipPlanning = false)
+  queued --> running: runner picks up (skipPlanning = true)
+  planning --> waitingForAnswer: AskUserQuestion
+  waitingForAnswer --> planning: answerQuestion
+  planning --> planReady: ExitPlanMode (setPlanReady)
+  planReady --> planning: submitPlanFeedback
+  planReady --> running: approvePlan
+  running --> awaitingReview: changes committed, PR opened/updated
+  running --> failed: Claude error / no file changes
+  awaitingReview --> running: submitFeedback / sendCommentsToFix / resolveConflicts
+  awaitingReview --> done: acceptTask (squash-merge)
+  failed --> queued: retryTask
+  cancelled --> queued: retryTask
+  done --> [*]
+```
+
+Any non-terminal status can go to `cancelled` (`cancelTask`). It can also go
+to `failed` when the machine goes offline or the task stalls for 15 min
+(stalls apply only to agent-driven states). `deleteTask` is allowed only in
+terminal states.
+
+### Step by step
+
+1. **Create** (`widgets/create_task_dialog.dart` → `TaskEndpoint.createTask`).
+   With an agent, the task is `queued` and gets posted to
+   `machine-<id>-tasks`. Without one, it's a `draft` until `reassignAgent`.
+   On (re)subscribe, `watchAssignedTasks` replays queued tasks so nothing is
+   lost while the daemon is down.
+2. **Dispatch** (`TaskDispatcher.handle`). It gets the clone URL
+   (`getCloneUrl`, token embedded), runs `ensureProjectCloned` (bare clone),
+   then `createWorktree` (`task-<id>`, reused for later iterations). The agent
+   goes `busy`.
+3. **Claude run** (`ClaudeCodeExecutor`). Every run uses
+   `claude -p --output-format stream-json --verbose --include-partial-messages`
+   plus `--model`/`--effort` from the agent, and an `--mcp-config` (written to
+   a temp dir, *not* the worktree) that registers the permission tool.
+   - Planning: `--permission-mode plan --permission-prompt-tool mcp__roundtable-permission__approval_prompt`.
+     **Planning and execution happen in one process.** An approved
+     `ExitPlanMode` doesn't end it; Claude continues straight into
+     implementation.
+   - `skipPlanning` or resume: execution mode, with `--resume <claudeSessionId>`
+     when resuming.
+   - The prompt is `"<role prefix> <task prompt>"` (`role_prompts.dart`). On a
+     resume, the prompt is the feedback text.
+4. **Logs.** Each NDJSON line goes through `StreamJsonFormatter` →
+   `appendLog` → `task-<id>-logs`, which also bumps `lastProgressAt`. The
+   panel tails it in `TaskDetailBloc`.
+5. **Plan mode gates** (`permission_prompt_tool.dart`). Claude calls the MCP
+   tool for every non-read-only tool use:
+   - `AskUserQuestion` → `createQuestion` (task → `waitingForAnswer`, agent →
+     `waitingForResponse`). The tool blocks on `watchAnswer`. The panel
+     answers with `answerQuestion` (task → `planning`), and the answer goes
+     back to Claude in its `answers` map.
+   - `ExitPlanMode` → `setPlanReady(plan)` (task → `planReady`). The tool
+     blocks on `watchPlanDecision`. `approvePlan` → allow (task →
+     `running`). `submitPlanFeedback` → deny with the feedback as the reason,
+     and Claude plans again (task → `planning`).
+   - Every other tool → auto-allow.
+6. **Finish.** Cancelled during the run → `SIGTERM`, reset the worktree,
+   `cancelled`. Success with changes → commit + push `task-<id>`, open a PR
+   on the first run (later runs push to the same PR) → `awaitingReview`.
+   Success with **no changes on the first run** → `failed` ("Agent finished
+   without changing any files."). Every outcome sets the agent back to `idle`.
+7. **Review in the panel** (task detail, diff sub-state). `getChangedFiles`
+   and `getFileContent` are proxied through the server using the project
+   token. `getMergeStatus` asks GitHub whether the PR has conflicts.
+8. **Iterate**:
+   - `submitFeedback(message)` → `TaskFeedback(phase: review)` → the daemon
+     resumes the same Claude session in the same worktree. A replay after a
+     daemon restart is ignored if the feedback is older than `finishedAt`.
+   - `resolveConflicts` sends a fixed prompt: merge `origin/<base>`, resolve
+     the conflicts, build/test, commit, push. It goes through the same resume
+     path.
+9. **Accept** (`acceptTask`). Squash-merge on GitHub → `done`. If GitHub
+   refuses (405/409 with conflicts), the task stays in `awaitingReview` and
+   the panel shows "resolve conflicts". The `done` task is posted to the
+   machine so the daemon removes the worktree. Accepting is blocked while a
+   code review is still queued or running.
+
+Other actions: `retryTask` (failed/cancelled → fresh `queued`, clears
+`claudeSessionId`), `reassignAgent` (allowed in draft/queued/cloning/
+awaitingReview, or when the task has no agent).
+
+## 5. AI code review
+
+1. On a task in `awaitingReview`, **Request review**
+   (`widgets/request_review_dialog.dart`) → `CodeReviewEndpoint.requestReview(taskId, agentId)`.
+   The reviewer must be `idle`, and only one active review is allowed per
+   task. The review is posted to `machine-<id>-reviews`.
+2. `ReviewDispatcher` → `startReview` (review `running`, reviewer `busy`) →
+   `createReviewWorktree` (a detached checkout of the task branch, so it works
+   on any machine) → `runReview`, a read-only Claude run (restricted
+   `--allowedTools`/`--disallowedTools`) using `buildReviewPrompt`
+   (`git diff <mergeBase>...HEAD`, reply ending in one ```json block with
+   `summary` + `comments[]{path,line,severity,body}`).
+3. `completeReview` stores the `ReviewComment`s and mirrors them to the PR as
+   a single GitHub review. Comments on lines outside the diff are folded into
+   the review body. Mirroring is best effort. `failReview` is used when no
+   valid JSON comes back.
+4. Triage in the panel (`widgets/review_comment_card.dart`):
+   `setCommentState` (dismiss / reopen / resolve; resolving also resolves the
+   GitHub thread). `sendCommentsToFix(commentIds, note)` marks them
+   `sentToFix` and queues a review-phase feedback run. When that run reaches
+   `awaitingReview` again, `TaskEndpoint.update` marks them `resolved`.
+
+## 6. Machine metrics
+
+Every 8 s the daemon reads `/proc/stat` and `/proc/meminfo` and calls
+`reportMetric`. `watchLatestMetric` streams the newest row to
+`MachineMetricCubit` → `MetricBar` on the machine cards. Old rows are never
+deleted (see KNOWN-ISSUES).

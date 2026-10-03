@@ -1,19 +1,14 @@
 # UI Design System — Roundtable panel
 
-Companion to `DESIGN-DOC.md` (product/architecture spec). This file is the
-source of truth for **visual design**: colors, typography, component
-patterns, and per-screen layout for `roundtable_flutter`.
+Source of truth for the panel's **visual design**: colors, typography,
+component patterns, and which screen lives in which file of
+`roundtable_flutter`. Architecture and flows are in
+[ARCHITECTURE.md](ARCHITECTURE.md) and [FLOWS.md](FLOWS.md).
 
-The mockups this file describes were built as a Design canvas (7 artboards
-covering the task lifecycle, machine/agent/project onboarding). That canvas
-is a private Claude Artifact, not part of this repo — this file is the
-portable, implementation-ready extract of it. Nothing here depends on
-having access to that canvas.
-
-Currently `roundtable_flutter` uses the stock Serverpod scaffold theme
-(`ColorScheme.fromSeed(seedColor: Colors.blue)` in `lib/main.dart`) and
-default Material widgets throughout. Nothing described below is wired up
-yet — this is the target to implement against.
+All of this is implemented. The tokens are in `lib/theme/` (`colors.dart`,
+`typography.dart`, `spacing.dart`, `app_theme.dart`; dark-only,
+`themeMode: ThemeMode.dark`). The components are in `lib/widgets/`. When you
+change a token, change it here too.
 
 ## 1. Design tokens
 
@@ -41,13 +36,14 @@ red for destructive/error. Avoid introducing other hues.
 | `live` | `#C6FF33` | `Color(0xFFC6FF33)` | "Agent is working" / success / diff additions |
 | `liveInk` | `#0A1400` | `Color(0xFF0A1400)` | Text/icon on top of `live` |
 | `red` | `#FF3D57` | `Color(0xFFFF3D57)` | Cancel/destructive/error, diff deletions |
+| `warning` | `#FFB020` | `Color(0xFFFFB020)` | Degraded-but-not-failed (e.g. `claude` not launchable on a machine) |
+| `codeBg` | `#0B0B0D` | `Color(0xFF0B0B0D)` | Code block / diff background |
 
-Recommended `ColorScheme` mapping (replace the seeded blue in `main.dart`):
+`ColorScheme` mapping (in `app_theme.dart`):
 `primary: accent`, `onPrimary: accentInk`, `secondary: live`,
 `onSecondary: liveInk`, `error: red`, `surface: bg1`, `onSurface: text0`,
 `surfaceContainerHighest: bg2`, `outline: border`. Only build `darkTheme`
-seriously; `themeMode` can stay `ThemeMode.dark` for this app rather than
-following system light/dark.
+seriously. `themeMode` is fixed to `ThemeMode.dark`.
 
 ### Semantic status colors
 
@@ -66,7 +62,7 @@ Map enum values to colors consistently everywhere a status renders
 | | `waitingForAnswer`, `planReady`, `awaitingReview` | `accent` | needs the dev |
 | | `done` | `live` (static) | |
 | | `failed` | `red` | |
-| | `cancelled` | `text2` | |
+| | `cancelled`, `draft` | `text2` | |
 
 "Pulsing" = a `1.6s` opacity tween between `1.0` and `0.35` on the status
 dot only (an `AnimatedOpacity`/`AnimationController` loop), never on the
@@ -75,8 +71,7 @@ whole row/card.
 ### Typography
 
 Google Fonts: **IBM Plex Sans** (UI text) + **IBM Plex Mono** (code, logs,
-diffs, tokens/ids, model names). Add the `google_fonts` package rather than
-bundling font assets.
+diffs, tokens/ids, model names), loaded with `google_fonts`.
 
 | Role | Family | Size | Weight |
 |---|---|---|---|
@@ -132,25 +127,24 @@ lines: `text1` on transparent. Mono font throughout.
 
 ## 3. Screens → files
 
-| Canvas artboard | Target file(s) | Notes |
+Navigation (`screens/panel_shell.dart` + `widgets/nav_rail.dart`):
+**Dashboard · Projects · Machines**, plus a Settings tile with no screen
+behind it. Agents don't have their own screen. They're listed under their
+machine.
+
+| Screen | File | Contents / notes |
 |---|---|---|
-| Dashboard (nav rail + kanban + machines panel) | `screens/panel_shell.dart` (nav rail) + a new `screens/dashboard_screen.dart` | Replace `NavigationRail`'s Material look with the dark nav rail pattern above; kanban is new, doesn't exist yet. `projects_screen.dart`/`machines_screen.dart`/`agents_screen.dart` currently exist as separate top-level tabs — consider folding the machines+agents list into the Dashboard's "Machines" panel per the design, keeping standalone list screens for management (edit/delete). |
-| Task detail — waiting for answer / plan approval / live execution / diff review | New `screens/task_detail_screen.dart` (one screen, four sub-states switched on `Task.status`), replacing/absorbing `screens/task_diff_screen.dart` | The canvas modeled these as 4 separate artboards for review purposes; in code this is **one** screen reacting to `TaskStatus` via `TaskDetailBloc` (already the plan in `DESIGN-DOC.md` §3.3). `task_diff_screen.dart`'s `_ChangedFiles`/`_SelectedFileDiff` split (file list + selected diff) already matches the "Diff review" artboard — keep that structure, restyle it. |
-| Add machine (name → token + install command) | New dialog, e.g. `widgets/add_machine_dialog.dart`, opened from `machines_screen.dart` | Two-step: name form → generated token/command. Token shown once; no back button once generated. |
-| Remove machine — still online guard | `widgets/machine_online_delete_blocked_dialog.dart` | **Already implemented**, plain `AlertDialog`. Restyle to the modal pattern above (dark card, warning icon, code block with copy button) — content/copy is already correct, matches the design almost verbatim. |
-| Add project (name, repo URL, token + help accordion) | New dialog, e.g. `widgets/add_project_dialog.dart`, opened from `projects_screen.dart` | The expandable "How do I do this?" steps (design doc §6.5.1) are the one piece of copy worth lifting verbatim from the canvas — it's already written out in the artboard. |
-| Add agent (name, role, model, effort, execution mode) | New dialog, e.g. `widgets/add_agent_dialog.dart`, opened from `agents_screen.dart` | Role/model/effort as pill selectors, not dropdowns. Execution mode: `native` selected, `docker` rendered disabled with a "Coming soon" tag — don't let the dev pick it yet, the enum value exists but isn't implemented (design doc §6.10). |
+| Dashboard | `screens/dashboard_screen.dart` | Kanban (`kanban_column.dart`, `kanban_card.dart`; columns Backlog / In progress / Review / Done) for the first project, plus a machines panel (`machine_summary_card.dart`, `metric_bar.dart`). The New task button opens `create_task_dialog.dart` |
+| Projects | `screens/projects_screen.dart` → `project_detail_screen.dart` | Project list with 7-day activity. Detail: repo, token status (`update_token_dialog.dart`, `token_help_accordion.dart`), a kanban scoped to the project, delete |
+| Machines | `screens/machines_screen.dart` → `machine_detail_screen.dart` | Machine cards with their agents, CPU/RAM, `claude_warning_banner.dart`, `runner_update_banner.dart`. Add machine/agent dialogs. Delete guard `machine_online_delete_blocked_dialog.dart` |
+| Task detail | `screens/task_detail_screen.dart` (+ `blocs/task_detail_bloc.dart`) | One screen whose sub-state depends on `Task.status`: **waiting for answer** (question + options) · **plan approval** (`plan_content.dart`, approve / feedback) · **live execution** (log tail, `task_log_line.dart`) · **diff review** (file list + `diff_view.dart`, feedback, `request_review_dialog.dart`, `review_comment_card.dart`, accept & merge / resolve conflicts). Side rail: project, agent (`agent_avatar.dart`, `reassign_agent_dialog.dart`), branch, PR. Actions: cancel / retry / delete |
 
-## 4. Suggested build order
+Dialogs: `add_machine_dialog.dart` (two steps: name → one-time token +
+install command with Claude token help, `claude_token_help_accordion.dart`),
+`add_project_dialog.dart` (name, repo URL, token + "How do I do this?"
+accordion), `add_agent_dialog.dart` (role/model/effort as pill selectors;
+execution mode `docker` disabled with a "Coming soon" tag).
 
-1. Theme: add `google_fonts`, replace the seeded blue `ColorScheme` in
-   `main.dart` with the token table above, force dark mode.
-2. Shared widgets: status pill, pill-selector, modal shell, code block —
-   small reusable widgets under `lib/widgets/`, since all four onboarding
-   dialogs and the task detail screen reuse them.
-3. Restyle `machine_online_delete_blocked_dialog.dart` (already
-   functionally correct, smallest visual gap to close).
-4. Restyle `task_diff_screen.dart` into the full task detail screen with
-   its 4 states.
-5. Dashboard (kanban + machines panel) — the biggest net-new screen.
-6. Add machine / Add project / Add agent dialogs.
+Shared building blocks: `status_pill.dart`, `app_card.dart`, `app_modal.dart`,
+`code_block.dart`, `pill_selector.dart`, `tag_chip.dart`. Widget tests are in
+`test/widgets/`.

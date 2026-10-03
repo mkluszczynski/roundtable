@@ -1,15 +1,10 @@
 # roundtable_flutter
 
-A new Flutter project with Serverpod.
+The Roundtable panel (Flutter, desktop/web, dark-only). It's started together
+with the server by `serverpod start` (entrypoint `lib/driver.dart`).
 
-## Getting Started
+- Screens: `lib/screens/`. Shared widgets: `lib/widgets/`. State:
+  `lib/{repositories,cubits,blocs}/`. Design tokens: `lib/theme/`.
+- Tests: `flutter test`.
 
-This project is a starting point for a Flutter application that is using
-Serverpod.
-
-A great starting point for learning Serverpod is our documentation site at:
-[https://docs.serverpod.dev](https://docs.serverpod.dev).
-
-To run the project, first make sure that the server is running, then do:
-
-    flutter run
+See `docs/ARCHITECTURE.md` and `docs/UI-DESIGN.md` at the repo root.
