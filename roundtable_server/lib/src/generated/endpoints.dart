@@ -1161,6 +1161,44 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'getMergeStatus': _is.MethodConnector(
+          name: 'getMergeStatus',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).getMergeStatus(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'resolveConflicts': _is.MethodConnector(
+          name: 'resolveConflicts',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .resolveConflicts(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'appendLog': _is.MethodConnector(
           name: 'appendLog',
           params: {

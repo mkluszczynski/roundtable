@@ -295,6 +295,42 @@ class GitHubRepoClient {
     }
   }
 
+  /// Reads whether the pull request at [prUrl] conflicts with its base
+  /// branch. GitHub computes `mergeable` lazily (null until ready), so this
+  /// polls briefly; `hasConflicts` stays null if it's still unknown.
+  Future<({bool? hasConflicts, String baseRef})> getMergeability({
+    required String prUrl,
+    required String token,
+    int attempts = 5,
+  }) async {
+    final (:owner, :repo, :number) = parsePrUrl(prUrl);
+    String? baseRef;
+    for (var i = 0; i < attempts; i++) {
+      final response = await _http.get(
+        Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+        headers: _headers(token),
+      );
+      if (response.statusCode != 200) {
+        throw GitHubApiException(
+          'Failed to fetch $owner/$repo#$number',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      }
+      final pr = jsonDecode(response.body) as Map<String, dynamic>;
+      baseRef = (pr['base'] as Map<String, dynamic>)['ref'] as String;
+      final mergeable = pr['mergeable'] as bool?;
+      if (mergeable != null) {
+        return (
+          hasConflicts: !mergeable && pr['mergeable_state'] == 'dirty',
+          baseRef: baseRef,
+        );
+      }
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    return (hasConflicts: null, baseRef: baseRef!);
+  }
+
   Future<Map<String, dynamic>> _graphql(
     String token,
     String query,

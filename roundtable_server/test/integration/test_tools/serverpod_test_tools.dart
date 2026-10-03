@@ -27,6 +27,8 @@ import 'package:roundtable_server/src/generated/machine_metric.dart'
     as _idvadg1i;
 import 'package:roundtable_server/src/generated/machine_registration.dart'
     as _i1b54xmb;
+import 'package:roundtable_server/src/generated/pr_merge_status.dart'
+    as _idwnfayv;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/review_comment.dart'
     as _ibdwjaau;
@@ -1861,6 +1863,68 @@ class _TaskEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_idwnfayv.PrMergeStatus> getMergeStatus(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'getMergeStatus',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'getMergeStatus',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_idwnfayv.PrMergeStatus>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_il2mubb9.TaskFeedback> resolveConflicts(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'resolveConflicts',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'resolveConflicts',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_il2mubb9.TaskFeedback>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

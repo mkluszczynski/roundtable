@@ -152,6 +152,40 @@ Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
   }
 }
 
+Future<void> _confirmResolveConflicts(
+  BuildContext context,
+  int taskId,
+  String baseBranch,
+) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final confirmed = await showAppModal<bool>(
+    context,
+    title: 'Resolve conflicts?',
+    subtitle:
+        'The agent will merge $baseBranch into the branch of Task #$taskId, '
+        'resolve the conflicts and push.',
+    child: const SizedBox.shrink(),
+    actions: [
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ),
+      Builder(
+        builder: (context) => FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Resolve conflicts'),
+        ),
+      ),
+    ],
+  );
+  if (confirmed ?? false) {
+    bloc.add(ConflictsResolveRequested(taskId));
+  }
+}
+
 /// One screen driven by `Task.status`, switching between the task lifecycle's
 /// 4 sub-states (design doc §6.4, §6.7): waiting for an answer, plan
 /// approval, live execution (log tail), and diff review. Always entered from
@@ -885,7 +919,30 @@ class _DiffReview extends StatelessWidget {
   Widget build(BuildContext context) {
     final files = state.files;
     if (files == null) {
-      return const Center(child: CircularProgressIndicator());
+      final error = state.filesError;
+      if (error == null) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Couldn't load the PR's changes: $error",
+              style: AppTypography.body.copyWith(color: AppColors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Spacing.md),
+            OutlinedButton.icon(
+              onPressed: () => context.read<TaskDetailBloc>().add(
+                ChangedFilesReloaded(state.task.id!),
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
     }
     if (files.isEmpty) {
       return Center(
@@ -902,6 +959,7 @@ class _DiffReview extends StatelessWidget {
         (latestReview.status == CodeReviewStatus.queued ||
             latestReview.status == CodeReviewStatus.running);
     final comments = state.reviewComments;
+    final mergeStatus = state.mergeStatus;
     final openCount = comments
         .where((c) => c.state == ReviewCommentState.open)
         .length;
@@ -954,16 +1012,39 @@ class _DiffReview extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: Spacing.sm),
-              FilledButton.icon(
-                onPressed: reviewActive || state.reviewBusy
-                    ? null
-                    : () => _confirmAcceptTask(context, state.task.id!),
-                icon: const Icon(Icons.merge, size: 16),
-                label: const Text('Accept & merge'),
-              ),
+              if (mergeStatus?.hasConflicts ?? false)
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.red,
+                  ),
+                  onPressed: reviewActive || state.reviewBusy
+                      ? null
+                      : () => _confirmResolveConflicts(
+                          context,
+                          state.task.id!,
+                          mergeStatus!.baseBranch,
+                        ),
+                  icon: const Icon(Icons.call_merge, size: 16),
+                  label: const Text('Resolve conflicts'),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: reviewActive || state.reviewBusy
+                      ? null
+                      : () => _confirmAcceptTask(context, state.task.id!),
+                  icon: const Icon(Icons.merge, size: 16),
+                  label: const Text('Accept & merge'),
+                ),
             ],
           ],
         ),
+        if (inReview && (mergeStatus?.hasConflicts ?? false)) ...[
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'This branch has conflicts with ${mergeStatus!.baseBranch}.',
+            style: AppTypography.body.copyWith(color: AppColors.red),
+          ),
+        ],
         if (latestReview != null) ...[
           const SizedBox(height: Spacing.md),
           _ReviewStatusRow(review: latestReview),

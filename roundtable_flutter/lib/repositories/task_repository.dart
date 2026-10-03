@@ -68,6 +68,15 @@ class TaskRepository {
   /// Squash-merges [taskId]'s PR and marks it `done`.
   Future<Task> acceptTask(int taskId) => _client.task.acceptTask(taskId);
 
+  /// Whether [taskId]'s PR conflicts with its base branch.
+  Future<PrMergeStatus> getMergeStatus(int taskId) =>
+      _client.task.getMergeStatus(taskId);
+
+  /// Sends the agent a fix run that merges the base branch in and resolves
+  /// the conflicts.
+  Future<TaskFeedback> resolveConflicts(int taskId) =>
+      _client.task.resolveConflicts(taskId);
+
   /// Streams [taskId]'s AI code reviews, each with its comments. Each event
   /// is a single review — merge it into your list by id.
   Stream<CodeReview> watchReviews(int taskId) =>

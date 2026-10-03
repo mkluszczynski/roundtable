@@ -25,6 +25,8 @@ import 'package:roundtable_client/src/protocol/machine_metric.dart'
     as _il2pq5ll;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
+import 'package:roundtable_client/src/protocol/pr_merge_status.dart'
+    as _ikiwas8h;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/review_comment.dart'
     as _ij6tkwdt;
@@ -779,6 +781,25 @@ class EndpointTask extends _isc.EndpointRef {
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
         'acceptTask',
+        {'taskId': taskId},
+      );
+
+  /// Whether [taskId]'s PR conflicts with its base branch, so the panel can
+  /// offer "Resolve conflicts" instead of "Accept & merge".
+  _ida.Future<_ikiwas8h.PrMergeStatus> getMergeStatus(int taskId) =>
+      caller.callServerEndpoint<_ikiwas8h.PrMergeStatus>(
+        'task',
+        'getMergeStatus',
+        {'taskId': taskId},
+      );
+
+  /// Sends the agent a fix run that merges the base branch into the task's
+  /// branch, resolves the conflicts and pushes — the same `--resume` path as
+  /// [submitFeedback].
+  _ida.Future<_ifl2c5cu.TaskFeedback> resolveConflicts(int taskId) =>
+      caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+        'task',
+        'resolveConflicts',
         {'taskId': taskId},
       );
 

@@ -124,11 +124,27 @@ class TaskEndpoint extends Endpoint {
     await requireNoActiveReview(session, taskId);
 
     final context = await repoContextFor(session, taskId);
-    await _github.mergePullRequest(
-      prUrl: context.prUrl,
-      token: context.token,
-      commitTitle: 'Roundtable task #$taskId',
-    );
+    try {
+      await _github.mergePullRequest(
+        prUrl: context.prUrl,
+        token: context.token,
+        commitTitle: 'Roundtable task #$taskId',
+      );
+    } on GitHubApiException catch (e) {
+      if (e.statusCode == 405 || e.statusCode == 409) {
+        final status = await _github.getMergeability(
+          prUrl: context.prUrl,
+          token: context.token,
+        );
+        if (status.hasConflicts ?? false) {
+          throw Exception(
+            'The PR has merge conflicts with ${status.baseRef} — '
+            'resolve them before merging.',
+          );
+        }
+      }
+      rethrow;
+    }
 
     task = await Task.db.updateRow(
       session,
@@ -152,6 +168,45 @@ class TaskEndpoint extends Endpoint {
     await session.messages.postMessage(channelForAllTasks(), task);
     return task;
   }
+
+  /// Whether [taskId]'s PR conflicts with its base branch, so the panel can
+  /// offer "Resolve conflicts" instead of "Accept & merge".
+  Future<PrMergeStatus> getMergeStatus(Session session, int taskId) async {
+    final context = await repoContextFor(session, taskId);
+    final status = await _github.getMergeability(
+      prUrl: context.prUrl,
+      token: context.token,
+    );
+    return PrMergeStatus(
+      hasConflicts: status.hasConflicts,
+      baseBranch: status.baseRef,
+    );
+  }
+
+  /// Sends the agent a fix run that merges the base branch into the task's
+  /// branch, resolves the conflicts and pushes — the same `--resume` path as
+  /// [submitFeedback].
+  Future<TaskFeedback> resolveConflicts(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.awaitingReview) {
+      throw Exception('Task $taskId is not awaiting review (${task.status})');
+    }
+    await requireNoActiveReview(session, taskId);
+    final status = await getMergeStatus(session, taskId);
+    final base = status.baseBranch;
+    return queueReviewFeedback(
+      session,
+      task,
+      conflictResolutionPrompt(base),
+    );
+  }
+
+  /// The fix-run prompt [resolveConflicts] sends for base branch [base].
+  static String conflictResolutionPrompt(String base) =>
+      'This PR has merge conflicts with `$base`. Run '
+      '`git fetch origin && git merge origin/$base`, resolve every conflict '
+      'preserving the intent of both sides, make sure the project still '
+      'builds and its tests pass, then commit the merge and push the branch.';
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (design doc §6.3) and notifies any [watchLogs] subscribers for this

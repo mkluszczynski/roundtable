@@ -74,6 +74,20 @@ class TaskAccepted extends TaskDetailEvent {
   final int taskId;
 }
 
+class ConflictsResolveRequested extends TaskDetailEvent {
+  const ConflictsResolveRequested(this.taskId);
+
+  final int taskId;
+}
+
+/// Refetches the PR's changed files and merge status, e.g. after a failed
+/// load.
+class ChangedFilesReloaded extends TaskDetailEvent {
+  const ChangedFilesReloaded(this.taskId);
+
+  final int taskId;
+}
+
 class ReviewRequested extends TaskDetailEvent {
   const ReviewRequested(this.taskId, this.agentId);
 
@@ -173,6 +187,8 @@ class TaskDetailLoaded extends TaskDetailState {
     this.logsSubscribed = false,
     this.files,
     this.filesRequested = false,
+    this.filesError,
+    this.mergeStatus,
     this.selectedFile,
     this.fileContent,
     this.fileContentLoading = false,
@@ -203,6 +219,12 @@ class TaskDetailLoaded extends TaskDetailState {
   /// Diff-review sub-state (`awaitingReview`/`done`): the PR's changed files.
   final List<DiffFile>? files;
   final bool filesRequested;
+
+  /// Why loading [files] failed — shown with a retry instead of a spinner.
+  final String? filesError;
+
+  /// Whether the PR conflicts with its base branch; null until fetched.
+  final PrMergeStatus? mergeStatus;
   final DiffFile? selectedFile;
   final String? fileContent;
   final bool fileContentLoading;
@@ -242,6 +264,9 @@ class TaskDetailLoaded extends TaskDetailState {
     bool? logsSubscribed,
     List<DiffFile>? files,
     bool? filesRequested,
+    String? filesError,
+    bool clearFilesError = false,
+    PrMergeStatus? mergeStatus,
     DiffFile? selectedFile,
     String? fileContent,
     bool? fileContentLoading,
@@ -267,6 +292,8 @@ class TaskDetailLoaded extends TaskDetailState {
       logsSubscribed: logsSubscribed ?? this.logsSubscribed,
       files: files ?? this.files,
       filesRequested: filesRequested ?? this.filesRequested,
+      filesError: clearFilesError ? null : (filesError ?? this.filesError),
+      mergeStatus: mergeStatus ?? this.mergeStatus,
       selectedFile: selectedFile ?? this.selectedFile,
       fileContent: clearFileContent ? null : (fileContent ?? this.fileContent),
       fileContentLoading: fileContentLoading ?? this.fileContentLoading,
@@ -313,7 +340,13 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     on<CommentsSentToFix>(_onCommentsSentToFix);
     on<_ReviewsSubscribed>(_onReviewsSubscribed);
     on<_LogsSubscribed>(_onLogsSubscribed);
-    on<_ChangedFilesRequested>(_onChangedFilesRequested);
+    on<_ChangedFilesRequested>(
+      (event, emit) => _loadChangedFiles(event.taskId, emit),
+    );
+    on<ChangedFilesReloaded>(
+      (event, emit) => _loadChangedFiles(event.taskId, emit),
+    );
+    on<ConflictsResolveRequested>(_onConflictsResolveRequested);
     on<FileSelected>(_onFileSelected);
     on<FullFileContentRequested>(_onFullFileContentRequested);
   }
@@ -547,23 +580,47 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     }
   }
 
-  Future<void> _onChangedFilesRequested(
-    _ChangedFilesRequested event,
+  /// Fetches the PR's changed files and its merge status. A failure is kept
+  /// in [TaskDetailLoaded.filesError] so the diff tab can offer a retry
+  /// instead of spinning forever.
+  Future<void> _loadChangedFiles(
+    int taskId,
     Emitter<TaskDetailState> emit,
   ) async {
     final current = state;
     if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(filesRequested: true));
+    emit(current.copyWith(filesRequested: true, clearFilesError: true));
+    await Future.wait([
+      _refreshMergeStatus(taskId, emit),
+      () async {
+        try {
+          final files = await _repository.getChangedFiles(taskId);
+          final latest = state;
+          if (latest is TaskDetailLoaded) {
+            emit(latest.copyWith(files: files));
+          }
+        } catch (e) {
+          final latest = state;
+          if (latest is TaskDetailLoaded) {
+            emit(latest.copyWith(filesError: e.toString()));
+          }
+        }
+      }(),
+    ]);
+  }
+
+  /// Best effort: on failure the "Accept & merge" button simply stays.
+  Future<void> _refreshMergeStatus(
+    int taskId,
+    Emitter<TaskDetailState> emit,
+  ) async {
     try {
-      final files = await _repository.getChangedFiles(event.taskId);
+      final status = await _repository.getMergeStatus(taskId);
       final latest = state;
       if (latest is TaskDetailLoaded) {
-        emit(latest.copyWith(files: files));
+        emit(latest.copyWith(mergeStatus: status));
       }
-    } catch (_) {
-      // The PR may not exist yet for a task that just reached this status;
-      // leave `files` unset rather than surfacing a hard error.
-    }
+    } catch (_) {}
   }
 
   void _onFileSelected(FileSelected event, Emitter<TaskDetailState> emit) {
@@ -665,7 +722,20 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   Future<void> _onTaskAccepted(
     TaskAccepted event,
     Emitter<TaskDetailState> emit,
-  ) => _reviewAction(emit, () => _repository.acceptTask(event.taskId));
+  ) async {
+    await _reviewAction(emit, () => _repository.acceptTask(event.taskId));
+    // A refused merge is most often a conflict — re-check so the button
+    // switches to "Resolve conflicts".
+    final latest = state;
+    if (latest is TaskDetailLoaded && latest.reviewError != null) {
+      await _refreshMergeStatus(event.taskId, emit);
+    }
+  }
+
+  Future<void> _onConflictsResolveRequested(
+    ConflictsResolveRequested event,
+    Emitter<TaskDetailState> emit,
+  ) => _reviewAction(emit, () => _repository.resolveConflicts(event.taskId));
 
   Future<void> _onReviewRequested(
     ReviewRequested event,

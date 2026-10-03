@@ -1,0 +1,9 @@
+### Whether a task's PR can be merged into its base branch. Not a database
+### table — fetched on demand from the GitHub API and never persisted.
+class: PrMergeStatus
+fields:
+  ### True when the PR conflicts with its base branch; null while GitHub is
+  ### still computing mergeability.
+  hasConflicts: bool?
+  ### The branch the PR merges into (e.g. `main`).
+  baseBranch: String

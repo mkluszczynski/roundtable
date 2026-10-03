@@ -52,7 +52,8 @@ class _CodeBlockState extends State<CodeBlock> {
     final content = DefaultTextStyle.merge(
       style: AppTypography.code,
       child:
-          widget.child ?? SelectableText(widget.code, style: AppTypography.code),
+          widget.child ??
+          SelectableText(widget.code, style: AppTypography.code),
     );
 
     return DecoratedBox(

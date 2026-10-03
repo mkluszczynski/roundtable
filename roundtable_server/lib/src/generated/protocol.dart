@@ -40,6 +40,7 @@ import 'machine.dart' as _i0hti3f2;
 import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
+import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
 import 'review_comment.dart' as _itpwl327;
 import 'review_comment_draft.dart' as _i6wlz106;
@@ -69,6 +70,7 @@ export 'machine.dart';
 export 'machine_metric.dart';
 export 'machine_registration.dart';
 export 'machine_status.dart';
+export 'pr_merge_status.dart';
 export 'project.dart';
 export 'review_comment.dart';
 export 'review_comment_draft.dart';
@@ -952,6 +954,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i6yugb3s.MachineStatus) {
       return _i6yugb3s.MachineStatus.fromJson(data) as T;
     }
+    if (t == _ixuoipsp.PrMergeStatus) {
+      return _ixuoipsp.PrMergeStatus.fromJson(data) as T;
+    }
     if (t == _ifiazq2p.Project) {
       return _ifiazq2p.Project.fromJson(data) as T;
     }
@@ -1053,6 +1058,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i6yugb3s.MachineStatus?>()) {
       return (data != null ? _i6yugb3s.MachineStatus.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_ixuoipsp.PrMergeStatus?>()) {
+      return (data != null ? _ixuoipsp.PrMergeStatus.fromJson(data) : null)
           as T;
     }
     if (t == _is.getType<_ifiazq2p.Project?>()) {
@@ -1260,6 +1269,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _ixivwx7g.MachineMetric => 'MachineMetric',
       _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
+      _ixuoipsp.PrMergeStatus => 'PrMergeStatus',
       _ifiazq2p.Project => 'Project',
       _itpwl327.ReviewComment => 'ReviewComment',
       _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
@@ -1320,6 +1330,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'MachineRegistration';
       case _i6yugb3s.MachineStatus():
         return 'MachineStatus';
+      case _ixuoipsp.PrMergeStatus():
+        return 'PrMergeStatus';
       case _ifiazq2p.Project():
         return 'Project';
       case _itpwl327.ReviewComment():
@@ -1420,6 +1432,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'MachineStatus') {
       return deserialize<_i6yugb3s.MachineStatus>(data['data']);
+    }
+    if (dataClassName == 'PrMergeStatus') {
+      return deserialize<_ixuoipsp.PrMergeStatus>(data['data']);
     }
     if (dataClassName == 'Project') {
       return deserialize<_ifiazq2p.Project>(data['data']);
