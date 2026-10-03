@@ -1,0 +1,17 @@
+### One AI code review of a task's PR, done by a reviewer agent (possibly on another machine).
+class: CodeReview
+table: code_review
+fields:
+  ### onDelete=Cascade: a review has no meaning independent of its task.
+  task: Task?, relation(onDelete=Cascade)
+  ### onDelete=SetNull: keep the review (and its comments) as history when the reviewer is deleted.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  status: CodeReviewStatus, default=queued
+  ### The reviewer's overall verdict, in its own words.
+  summary: String?
+  failureReason: String?
+  ### Id of the mirrored GitHub PR review, when mirroring succeeded.
+  githubReviewId: int?
+  createdAt: DateTime, default=now
+  finishedAt: DateTime?
+  comments: List<ReviewComment>?, relation(name=review_comments)

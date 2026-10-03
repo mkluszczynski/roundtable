@@ -20,7 +20,10 @@ import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
+import '../widgets/plan_content.dart';
 import '../widgets/reassign_agent_dialog.dart';
+import '../widgets/request_review_dialog.dart';
+import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/task_log_line.dart';
@@ -73,14 +76,18 @@ Future<void> _confirmDeleteTask(BuildContext context, int taskId) async {
     subtitle: 'This permanently removes Task #$taskId and its logs.',
     child: const SizedBox.shrink(),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(false),
-        child: const Text('Cancel'),
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
       ),
-      FilledButton(
-        style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-        onPressed: () => Navigator.of(context).pop(true),
-        child: const Text('Delete'),
+      Builder(
+        builder: (context) => FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Delete'),
+        ),
       ),
     ],
   );
@@ -105,6 +112,45 @@ void _openReassignAgentDialog(
       ),
     ),
   );
+}
+
+void _openRequestReviewDialog(BuildContext context, int taskId) {
+  final bloc = context.read<TaskDetailBloc>();
+  showDialog<void>(
+    context: context,
+    builder: (_) => BlocProvider.value(
+      value: bloc,
+      child: RequestReviewDialog(taskId: taskId),
+    ),
+  );
+}
+
+Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final confirmed = await showAppModal<bool>(
+    context,
+    title: 'Accept and merge?',
+    subtitle:
+        'This squash-merges the PR on GitHub and moves Task #$taskId to Done.',
+    child: const SizedBox.shrink(),
+    actions: [
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ),
+      Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Accept & merge'),
+        ),
+      ),
+    ],
+  );
+  if (confirmed ?? false) {
+    bloc.add(TaskAccepted(taskId));
+  }
 }
 
 /// One screen driven by `Task.status`, switching between the task lifecycle's
@@ -500,6 +546,16 @@ class _SubStateState extends State<_SubState> {
       s == TaskStatus.planning || s == TaskStatus.running;
 
   @override
+  void didUpdateWidget(covariant _SubState oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasLive = _isLive(oldWidget.state.task.status);
+    final isPlanReady = widget.state.task.status == TaskStatus.planReady;
+    if (wasLive && isPlanReady && _showLogs) {
+      setState(() => _showLogs = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = widget.state;
     // Live statuses already show the log; the toggle only matters elsewhere.
@@ -535,10 +591,7 @@ class _LogHistory extends StatelessWidget {
     if (state.logs.isEmpty) {
       return Text('No output yet.', style: AppTypography.body);
     }
-    return SingleChildScrollView(
-      reverse: true,
-      child: TaskLogView(entries: state.logs),
-    );
+    return TaskLogView(entries: state.logs);
   }
 }
 
@@ -550,7 +603,10 @@ class _SubStateBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state.task.status) {
-      TaskStatus.waitingForAnswer => _PendingQuestion(state: state),
+      TaskStatus.waitingForAnswer => _PendingQuestion(
+        key: ValueKey(state.pendingQuestion?.id),
+        state: state,
+      ),
       TaskStatus.planReady => _PlanReview(state: state),
       TaskStatus.planning || TaskStatus.running => _LiveExecution(
         state: state,
@@ -574,13 +630,35 @@ class _SubStateBody extends StatelessWidget {
   }
 }
 
-class _PendingQuestion extends StatelessWidget {
-  const _PendingQuestion({required this.state});
+class _PendingQuestion extends StatefulWidget {
+  const _PendingQuestion({super.key, required this.state});
 
   final TaskDetailLoaded state;
 
   @override
+  State<_PendingQuestion> createState() => _PendingQuestionState();
+}
+
+class _PendingQuestionState extends State<_PendingQuestion> {
+  String? _selectedOption;
+  final _customController = TextEditingController();
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  void _submit(int questionId) {
+    final custom = _customController.text.trim();
+    final answer = custom.isNotEmpty ? custom : _selectedOption;
+    if (answer == null) return;
+    context.read<TaskDetailBloc>().add(AnswerSubmitted(questionId, answer));
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final question = state.pendingQuestion;
     if (question == null) {
       return Text(
@@ -588,6 +666,10 @@ class _PendingQuestion extends StatelessWidget {
         style: AppTypography.body,
       );
     }
+
+    final hasAnswer =
+        _selectedOption != null || _customController.text.trim().isNotEmpty;
+    final canSubmit = hasAnswer && !state.submitting;
 
     return SingleChildScrollView(
       child: Column(
@@ -611,13 +693,38 @@ class _PendingQuestion extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: Spacing.sm),
               child: _OptionRow(
                 label: option,
+                selected: _selectedOption == option,
                 onTap: state.submitting
                     ? null
-                    : () => context.read<TaskDetailBloc>().add(
-                        AnswerSubmitted(question.id!, option),
-                      ),
+                    : () => setState(() {
+                        _selectedOption = option;
+                        _customController.clear();
+                      }),
               ),
             ),
+          const SizedBox(height: Spacing.md),
+          TextField(
+            controller: _customController,
+            enabled: !state.submitting,
+            minLines: 1,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Or write your own answer…',
+            ),
+            onChanged: (value) => setState(() {
+              if (_selectedOption != null && value.trim().isNotEmpty) {
+                _selectedOption = null;
+              }
+            }),
+          ),
+          const SizedBox(height: Spacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: canSubmit ? () => _submit(question.id!) : null,
+              child: const Text('Submit answer'),
+            ),
+          ),
           if (state.submitting) ...[
             const SizedBox(height: Spacing.md),
             Text(
@@ -632,15 +739,20 @@ class _PendingQuestion extends StatelessWidget {
 }
 
 class _OptionRow extends StatelessWidget {
-  const _OptionRow({required this.label, required this.onTap});
+  const _OptionRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
+  final bool selected;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bg2,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
@@ -648,14 +760,36 @@ class _OptionRow extends StatelessWidget {
         child: Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.14)
+                : AppColors.bg2,
+            border: Border.all(
+              color: selected ? AppColors.accent : AppColors.border,
+            ),
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(
             horizontal: Spacing.lg,
             vertical: Spacing.lg,
           ),
-          child: Text(label, style: AppTypography.body),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.body.copyWith(
+                    color: selected ? AppColors.text0 : AppColors.text1,
+                  ),
+                ),
+              ),
+              if (selected)
+                const Icon(
+                  Icons.check_circle,
+                  size: 18,
+                  color: AppColors.accent,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -686,12 +820,7 @@ class _PlanReview extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          AppCard(
-            child: SelectableText(
-              task.currentPlan ?? '',
-              style: AppTypography.body,
-            ),
-          ),
+          AppCard(child: PlanContent(markdown: task.currentPlan ?? '')),
           const SizedBox(height: Spacing.xl),
           _FeedbackRow(
             hint: 'Give feedback',
@@ -741,10 +870,7 @@ class _LiveExecution extends StatelessWidget {
         Expanded(
           child: state.logs.isEmpty
               ? Text('Waiting for output…', style: AppTypography.body)
-              : SingleChildScrollView(
-                  reverse: true,
-                  child: TaskLogView(entries: state.logs),
-                ),
+              : TaskLogView(entries: state.logs),
         ),
       ],
     );
@@ -770,6 +896,20 @@ class _DiffReview extends StatelessWidget {
 
     final additions = files.fold<int>(0, (sum, f) => sum + f.additions);
     final deletions = files.fold<int>(0, (sum, f) => sum + f.deletions);
+    final inReview = state.task.status == TaskStatus.awaitingReview;
+    final latestReview = state.reviews.isEmpty ? null : state.reviews.last;
+    final reviewActive =
+        latestReview != null &&
+        (latestReview.status == CodeReviewStatus.queued ||
+            latestReview.status == CodeReviewStatus.running);
+    final comments = state.reviewComments;
+    final openCount = comments
+        .where((c) => c.state == ReviewCommentState.open)
+        .length;
+    final selectedCount = state.selectedCommentIds.length;
+    int openCommentsOn(String path) => comments
+        .where((c) => c.path == path && c.state == ReviewCommentState.open)
+        .length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,8 +943,39 @@ class _DiffReview extends StatelessWidget {
                 icon: const Icon(Icons.open_in_new, size: 14),
                 label: const Text('View full PR on GitHub'),
               ),
+            if (inReview) ...[
+              const SizedBox(width: Spacing.sm),
+              OutlinedButton.icon(
+                onPressed: reviewActive || state.reviewBusy
+                    ? null
+                    : () => _openRequestReviewDialog(context, state.task.id!),
+                icon: const Icon(Icons.rate_review_outlined, size: 16),
+                label: Text(
+                  state.reviews.isEmpty ? 'Request AI review' : 'Review again',
+                ),
+              ),
+              const SizedBox(width: Spacing.sm),
+              FilledButton.icon(
+                onPressed: reviewActive || state.reviewBusy
+                    ? null
+                    : () => _confirmAcceptTask(context, state.task.id!),
+                icon: const Icon(Icons.merge, size: 16),
+                label: const Text('Accept & merge'),
+              ),
+            ],
           ],
         ),
+        if (latestReview != null) ...[
+          const SizedBox(height: Spacing.md),
+          _ReviewStatusRow(review: latestReview),
+        ],
+        if (state.reviewError != null) ...[
+          const SizedBox(height: Spacing.sm),
+          Text(
+            state.reviewError!,
+            style: AppTypography.body.copyWith(color: AppColors.red),
+          ),
+        ],
         const SizedBox(height: Spacing.md),
         Expanded(
           child: Row(
@@ -831,9 +1002,23 @@ class _DiffReview extends StatelessWidget {
                         style: AppTypography.bodyStrong,
                       ),
                       subtitle: Text(file.status, style: AppTypography.caption),
-                      trailing: Text(
-                        '+${file.additions} -${file.deletions}',
-                        style: AppTypography.code,
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '+${file.additions} -${file.deletions}',
+                            style: AppTypography.code,
+                          ),
+                          if (openCommentsOn(file.filename) case final n
+                              when n > 0)
+                            Text(
+                              '$n comment${n == 1 ? '' : 's'}',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                        ],
                       ),
                       onTap: () => context.read<TaskDetailBloc>().add(
                         FileSelected(file),
@@ -847,19 +1032,142 @@ class _DiffReview extends StatelessWidget {
             ],
           ),
         ),
-        if (state.task.status == TaskStatus.awaitingReview) ...[
+        if (comments.isNotEmpty) ...[
+          const SizedBox(height: Spacing.md),
+          _ReviewCommentsPanel(
+            state: state,
+            openCount: openCount,
+            editable: inReview && !reviewActive,
+          ),
+        ],
+        if (inReview) ...[
           const SizedBox(height: Spacing.md),
           _FeedbackRow(
-            hint: 'Leave feedback for another iteration…',
-            submitting: state.submitting,
+            hint: selectedCount == 0
+                ? 'Leave feedback for another iteration…'
+                : 'Optional note to send with the selected comments…',
+            submitting: state.submitting || state.reviewBusy || reviewActive,
+            submitLabel: selectedCount == 0
+                ? 'Send feedback'
+                : 'Send $selectedCount comment${selectedCount == 1 ? '' : 's'} to agent',
+            allowEmpty: selectedCount > 0,
             onSubmit: (message) => context.read<TaskDetailBloc>().add(
-              ReviewFeedbackSubmitted(state.task.id!, message),
+              selectedCount == 0
+                  ? ReviewFeedbackSubmitted(state.task.id!, message)
+                  : CommentsSentToFix(state.task.id!, message),
             ),
           ),
         ],
       ],
     );
   }
+}
+
+/// The latest review's progress and the reviewer's overall verdict.
+class _ReviewStatusRow extends StatelessWidget {
+  const _ReviewStatusRow({required this.review});
+
+  final CodeReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label, pulsing) = switch (review.status) {
+      CodeReviewStatus.queued => (AppColors.text2, 'Review queued', false),
+      CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
+      CodeReviewStatus.completed => (AppColors.accentSoft, 'AI review', false),
+      CodeReviewStatus.failed => (AppColors.red, 'Review failed', false),
+    };
+    final detail = review.status == CodeReviewStatus.failed
+        ? review.failureReason
+        : review.summary;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        StatusPill(color: color, label: label, pulsing: pulsing),
+        if (detail != null) ...[
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Text(
+              detail,
+              style: AppTypography.body.copyWith(
+                color: review.status == CodeReviewStatus.failed
+                    ? AppColors.red
+                    : AppColors.text1,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Every review comment, newest review first — the overview to triage from.
+/// Comments are also shown inline in the selected file's diff.
+class _ReviewCommentsPanel extends StatelessWidget {
+  const _ReviewCommentsPanel({
+    required this.state,
+    required this.openCount,
+    required this.editable,
+  });
+
+  final TaskDetailLoaded state;
+  final int openCount;
+  final bool editable;
+
+  @override
+  Widget build(BuildContext context) {
+    final comments = state.reviewComments.reversed.toList();
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 240),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Review comments · $openCount open of ${comments.length}',
+            style: AppTypography.bodyStrong,
+          ),
+          const SizedBox(height: Spacing.sm),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: comments.length,
+              separatorBuilder: (_, _) => const SizedBox(height: Spacing.sm),
+              itemBuilder: (context, index) => _commentCard(
+                context,
+                state,
+                comments[index],
+                editable: editable,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _commentCard(
+  BuildContext context,
+  TaskDetailLoaded state,
+  ReviewComment comment, {
+  required bool editable,
+  bool showLocation = true,
+}) {
+  final bloc = context.read<TaskDetailBloc>();
+  return ReviewCommentCard(
+    comment: comment,
+    showLocation: showLocation,
+    selected: state.selectedCommentIds.contains(comment.id),
+    onToggleSelected: editable
+        ? () => bloc.add(CommentSelectionToggled(comment.id!))
+        : null,
+    onStateChanged: editable
+        ? (s) => bloc.add(CommentStateChanged(comment.id!, s))
+        : null,
+  );
 }
 
 enum _FileViewMode { diff, fullFile }
@@ -926,6 +1234,44 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
 
     final patch = file.patch;
     final language = languageForFilename(file.filename);
+    final editable =
+        state.task.status == TaskStatus.awaitingReview &&
+        !state.reviews.any(
+          (r) =>
+              r.status == CodeReviewStatus.queued ||
+              r.status == CodeReviewStatus.running,
+        );
+    final shownLines = patch == null ? const <int>{} : _diffNewLines(patch);
+    final byLine = <int, List<ReviewComment>>{};
+    final unplaced = <ReviewComment>[];
+    for (final comment in state.reviewComments) {
+      if (comment.path != file.filename) continue;
+      final line = comment.line;
+      if (line != null && shownLines.contains(line)) {
+        (byLine[line] ??= []).add(comment);
+      } else {
+        unplaced.add(comment);
+      }
+    }
+    final annotations = {
+      for (final MapEntry(key: line, value: onLine) in byLine.entries)
+        line: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final comment in onLine)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Spacing.xs),
+                child: _commentCard(
+                  context,
+                  state,
+                  comment,
+                  editable: editable,
+                  showLocation: false,
+                ),
+              ),
+          ],
+        ),
+    };
     return Padding(
       padding: const EdgeInsets.all(Spacing.xl),
       child: SingleChildScrollView(
@@ -951,8 +1297,16 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
               ],
             ),
             const SizedBox(height: Spacing.lg),
+            for (final comment in unplaced) ...[
+              _commentCard(context, state, comment, editable: editable),
+              const SizedBox(height: Spacing.sm),
+            ],
             if (_mode == _FileViewMode.diff)
-              DiffView(patch: patch!, language: language)
+              DiffView(
+                patch: patch!,
+                language: language,
+                annotations: annotations,
+              )
             else if (state.fileContentLoading)
               const Center(
                 child: Padding(
@@ -971,6 +1325,7 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
                       patch: patch,
                       fileContent: state.fileContent!,
                       language: language,
+                      annotations: annotations,
                     )
                   : CodeBlock(code: state.fileContent!),
           ],
@@ -989,9 +1344,16 @@ class _FeedbackRow extends StatefulWidget {
     required this.submitting,
     required this.onSubmit,
     this.trailing,
+    this.submitLabel = 'Send feedback',
+    this.allowEmpty = false,
   });
 
   final String hint;
+  final String submitLabel;
+
+  /// Submit even with an empty message (e.g. when sending selected review
+  /// comments, where the note is optional).
+  final bool allowEmpty;
   final bool submitting;
   final ValueChanged<String> onSubmit;
 
@@ -1014,7 +1376,7 @@ class _FeedbackRowState extends State<_FeedbackRow> {
 
   void _submit() {
     final message = _controller.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty && !widget.allowEmpty) return;
     widget.onSubmit(message);
     _controller.clear();
   }
@@ -1039,9 +1401,29 @@ class _FeedbackRowState extends State<_FeedbackRow> {
         ],
         FilledButton(
           onPressed: widget.submitting ? null : _submit,
-          child: const Text('Send feedback'),
+          child: Text(widget.submitLabel),
         ),
       ],
     );
   }
+}
+
+/// New-file line numbers a unified diff shows (added and context lines) —
+/// where [DiffView] can place an inline comment.
+Set<int> _diffNewLines(String patch) {
+  final hunkHeader = RegExp(r'^@@ -\d+(?:,\d+)? \+(\d+)');
+  final lines = <int>{};
+  int? next;
+  for (final line in patch.split('\n')) {
+    final header = hunkHeader.firstMatch(line);
+    if (header != null) {
+      next = int.parse(header.group(1)!);
+      continue;
+    }
+    if (next == null || line.startsWith('-') || line.startsWith('\\')) {
+      continue;
+    }
+    lines.add(next++);
+  }
+  return lines;
 }

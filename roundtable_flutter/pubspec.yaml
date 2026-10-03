@@ -30,6 +30,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
+  flutter_markdown_plus: ^1.0.12
   google_fonts: ^8.1.0
   highlight: ^0.7.0
   roundtable_client:

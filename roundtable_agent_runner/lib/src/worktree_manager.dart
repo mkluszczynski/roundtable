@@ -278,6 +278,91 @@ class WorktreeManager {
     });
   }
 
+  String _reviewDir(String projectId, String reviewId) =>
+      '${_projectDir(projectId)}/reviews/$reviewId';
+
+  /// Fetches [branch] and the remote's default branch from [fetchUrl] and
+  /// checks the branch out, detached, into a worktree for [reviewId] — a
+  /// reviewer may run on a machine that never had the task's worktree, and
+  /// detaching means it never touches the `task-<id>` branch. Returns the
+  /// worktree path and the merge base to diff against.
+  Future<({String path, String baseSha})> createReviewWorktree({
+    required String projectId,
+    required String reviewId,
+    required String branch,
+    required String fetchUrl,
+  }) {
+    _assertSafeSegment(projectId, name: 'projectId');
+    _assertSafeSegment(reviewId, name: 'reviewId');
+    return _lockFor(projectId).synchronized(() async {
+      final repo = _bareRepoDir(projectId);
+      final headRef = 'refs/roundtable-reviews/$reviewId/head';
+      final baseRef = 'refs/roundtable-reviews/$reviewId/base';
+
+      Future<String> git(List<String> args, {String? cwd}) async {
+        final result = await Process.run(
+          'git',
+          args,
+          workingDirectory: cwd ?? repo,
+        );
+        if (result.exitCode != 0) {
+          throw WorktreeException(
+            'git ${args.first} failed for review $reviewId on project $projectId',
+            stderr: result.stderr.toString(),
+          );
+        }
+        return result.stdout.toString().trim();
+      }
+
+      await git([
+        'fetch',
+        fetchUrl,
+        '+refs/heads/$branch:$headRef',
+        '+HEAD:$baseRef',
+      ]);
+
+      final dir = Directory(_reviewDir(projectId, reviewId));
+      if (dir.existsSync()) {
+        await git(['worktree', 'remove', '--force', dir.path]);
+      }
+      await Directory(
+        '${_projectDir(projectId)}/reviews',
+      ).create(recursive: true);
+      await git(['worktree', 'add', '--detach', dir.path, headRef]);
+
+      final baseSha = await git(['merge-base', baseRef, headRef]);
+      return (path: dir.path, baseSha: baseSha);
+    });
+  }
+
+  /// Removes [reviewId]'s worktree and refs. Idempotent.
+  Future<void> removeReviewWorktree({
+    required String projectId,
+    required String reviewId,
+  }) {
+    _assertSafeSegment(projectId, name: 'projectId');
+    _assertSafeSegment(reviewId, name: 'reviewId');
+    return _lockFor(projectId).synchronized(() async {
+      final repo = _bareRepoDir(projectId);
+      final dir = Directory(_reviewDir(projectId, reviewId));
+      if (dir.existsSync()) {
+        await Process.run('git', [
+          'worktree',
+          'remove',
+          '--force',
+          dir.path,
+        ], workingDirectory: repo);
+      }
+      for (final ref in ['head', 'base']) {
+        await Process.run('git', [
+          'update-ref',
+          '-d',
+          'refs/roundtable-reviews/$reviewId/$ref',
+        ], workingDirectory: repo);
+      }
+    });
+  }
+
   /// Returns the worktree path for [taskId] if it currently exists on disk,
   /// else null.
   String? worktreePathIfExists({

@@ -12,23 +12,47 @@ import 'code_block.dart';
 /// `highlight` package language id, see `utils/code_language.dart`) adds
 /// per-token syntax colors on top of that tint; `null` falls back to plain
 /// text, no diffing algorithm of our own — GitHub has already computed it.
+///
+/// [annotations] are shown right below the diff line that carries the given
+/// new-file line number (e.g. review comments on that line).
 class DiffView extends StatelessWidget {
-  const DiffView({super.key, required this.patch, this.language});
+  const DiffView({
+    super.key,
+    required this.patch,
+    this.language,
+    this.annotations = const {},
+  });
 
   final String patch;
   final String? language;
+  final Map<int, Widget> annotations;
 
   @override
   Widget build(BuildContext context) {
-    final lines = [for (final line in patch.split('\n')) _classifyPatchLine(line)];
+    final lines = _classifyPatchLines(patch);
     final rendered = _highlightDiffLines(lines, language);
+
+    final children = <Widget>[];
+    for (var idx = 0; idx < lines.length; idx++) {
+      children.add(_DiffLineRow(line: rendered[idx]));
+      final lineNumber = lines[idx].newLineNumber;
+      final annotation = lineNumber == null ? null : annotations[lineNumber];
+      if (annotation != null) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: SelectionContainer.disabled(child: annotation),
+          ),
+        );
+      }
+    }
 
     return CodeBlock(
       code: patch,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [for (final line in rendered) _DiffLineRow(line: line)],
+          children: children,
         ),
       ),
     );
@@ -40,18 +64,20 @@ class DiffView extends StatelessWidget {
 /// GitHub's "view file" expanded-diff mode. [fileContent] is the new/head
 /// version of the file (per `contents_url`); removed lines don't exist in
 /// it, so they're spliced back in from [patch]. See [DiffView] for
-/// [language].
+/// [language]/[annotations].
 class FullFileDiffView extends StatelessWidget {
   const FullFileDiffView({
     super.key,
     required this.patch,
     required this.fileContent,
     this.language,
+    this.annotations = const {},
   });
 
   final String patch;
   final String fileContent;
   final String? language;
+  final Map<int, Widget> annotations;
 
   @override
   Widget build(BuildContext context) {
@@ -79,12 +105,27 @@ class FullFileDiffView extends StatelessWidget {
     }
 
     final rendered = _highlightDiffLines(merged, language);
+    final children = <Widget>[];
+    for (var idx = 0; idx < merged.length; idx++) {
+      children.add(_DiffLineRow(line: rendered[idx]));
+      final lineNumber = merged[idx].newLineNumber;
+      final annotation = lineNumber == null ? null : annotations[lineNumber];
+      if (annotation != null) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: SelectionContainer.disabled(child: annotation),
+          ),
+        );
+      }
+    }
+
     return CodeBlock(
       code: fileContent,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [for (final line in rendered) _DiffLineRow(line: line)],
+          children: children,
         ),
       ),
     );
@@ -109,11 +150,19 @@ enum DiffLineKind { hunkHeader, context, added, removed }
 /// A single line of a diff/full-file view: unchanged context, or an
 /// added/removed line. Used both for a raw patch line ([DiffView]) and a
 /// [mergeFullFileDiff] result ([FullFileDiffView]).
+///
+/// [newLineNumber] is the new-file (post-change) line number this line
+/// corresponds to — `null` for removed lines (absent from the new file)
+/// and hunk headers — used to place [DiffView.annotations]/
+/// [FullFileDiffView.annotations]. It's excluded from equality/hashing
+/// (and so from tests that compare [MergedDiffLine] values), since it's a
+/// rendering detail, not part of a line's identity.
 class MergedDiffLine {
-  const MergedDiffLine(this.kind, this.text);
+  const MergedDiffLine(this.kind, this.text, {this.newLineNumber});
 
   final DiffLineKind kind;
   final String text;
+  final int? newLineNumber;
 
   @override
   bool operator ==(Object other) =>
@@ -123,7 +172,7 @@ class MergedDiffLine {
   int get hashCode => Object.hash(kind, text);
 
   @override
-  String toString() => 'MergedDiffLine($kind, $text)';
+  String toString() => 'MergedDiffLine($kind, $text, line: $newLineNumber)';
 }
 
 final _hunkHeaderPattern = RegExp(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@');
@@ -148,7 +197,13 @@ List<MergedDiffLine> mergeFullFileDiff({
 
   void copyContextUpTo(int newLineNumExclusiveEnd) {
     while (cursor < newLineNumExclusiveEnd - 1 && cursor < fileLines.length) {
-      result.add(MergedDiffLine(DiffLineKind.context, fileLines[cursor]));
+      result.add(
+        MergedDiffLine(
+          DiffLineKind.context,
+          fileLines[cursor],
+          newLineNumber: cursor + 1,
+        ),
+      );
       cursor++;
     }
     if (cursor != newLineNumExclusiveEnd - 1) {
@@ -185,7 +240,13 @@ List<MergedDiffLine> mergeFullFileDiff({
                 '${cursor + 1}.',
               );
             }
-            result.add(MergedDiffLine(DiffLineKind.context, text));
+            result.add(
+              MergedDiffLine(
+                DiffLineKind.context,
+                text,
+                newLineNumber: cursor + 1,
+              ),
+            );
             cursor++;
           }
           break;
@@ -198,7 +259,13 @@ List<MergedDiffLine> mergeFullFileDiff({
                 '${cursor + 1}.',
               );
             }
-            result.add(MergedDiffLine(DiffLineKind.added, text));
+            result.add(
+              MergedDiffLine(
+                DiffLineKind.added,
+                text,
+                newLineNumber: cursor + 1,
+              ),
+            );
             cursor++;
           }
           break;
@@ -213,7 +280,13 @@ List<MergedDiffLine> mergeFullFileDiff({
   }
 
   while (cursor < fileLines.length) {
-    result.add(MergedDiffLine(DiffLineKind.context, fileLines[cursor]));
+    result.add(
+      MergedDiffLine(
+        DiffLineKind.context,
+        fileLines[cursor],
+        newLineNumber: cursor + 1,
+      ),
+    );
     cursor++;
   }
 
@@ -239,6 +312,39 @@ MergedDiffLine _classifyPatchLine(String line) {
       ? line.substring(1)
       : line;
   return MergedDiffLine(kind, text);
+}
+
+/// Classifies every line of [patch] and, for context/added lines once a
+/// hunk has started, tags them with their new-file line number — the same
+/// "new-file line the diff shows" tracking a standalone `_diffNewLines`
+/// helper used to do, folded in here so [DiffView] can place
+/// [DiffView.annotations] directly off [MergedDiffLine].
+List<MergedDiffLine> _classifyPatchLines(String patch) {
+  final result = <MergedDiffLine>[];
+  int? newLine;
+  for (final line in patch.split('\n')) {
+    final header = _hunkHeaderPattern.firstMatch(line);
+    if (header != null) {
+      newLine = int.parse(header.group(1)!);
+      result.add(_classifyPatchLine(line));
+      continue;
+    }
+
+    final classified = _classifyPatchLine(line);
+    final noNewlineMarker = line.startsWith(r'\');
+    if (classified.kind == DiffLineKind.removed ||
+        noNewlineMarker ||
+        newLine == null) {
+      result.add(classified);
+      continue;
+    }
+
+    result.add(
+      MergedDiffLine(classified.kind, classified.text, newLineNumber: newLine),
+    );
+    newLine++;
+  }
+  return result;
 }
 
 /// A run of text sharing one `highlight` package scope (`className`, e.g.

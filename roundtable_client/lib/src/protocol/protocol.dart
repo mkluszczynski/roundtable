@@ -15,6 +15,8 @@ import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
+import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
+    as _ithbrqha;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -25,6 +27,8 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
+import 'code_review.dart' as _icksttbv;
+import 'code_review_status.dart' as _i4rgwvgz;
 import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'diff_file.dart' as _iji3k3fl;
@@ -36,6 +40,10 @@ import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'project.dart' as _ifiazq2p;
+import 'review_comment.dart' as _itpwl327;
+import 'review_comment_draft.dart' as _i6wlz106;
+import 'review_comment_severity.dart' as _iml08ymk;
+import 'review_comment_state.dart' as _igczzv9q;
 import 'task.dart' as _iwn6t6fs;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
@@ -48,6 +56,8 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role.dart';
 export 'agent_status.dart';
+export 'code_review.dart';
+export 'code_review_status.dart';
 export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'diff_file.dart';
@@ -59,6 +69,10 @@ export 'machine_metric.dart';
 export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'project.dart';
+export 'review_comment.dart';
+export 'review_comment_draft.dart';
+export 'review_comment_severity.dart';
+export 'review_comment_state.dart';
 export 'task.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
@@ -117,6 +131,12 @@ class Protocol extends _isc.SerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _icksttbv.CodeReview) {
+      return _icksttbv.CodeReview.fromJson(data) as T;
+    }
+    if (t == _i4rgwvgz.CodeReviewStatus) {
+      return _i4rgwvgz.CodeReviewStatus.fromJson(data) as T;
+    }
     if (t == _iwa1mea8.DeletionBlockReason) {
       return _iwa1mea8.DeletionBlockReason.fromJson(data) as T;
     }
@@ -149,6 +169,18 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _ifiazq2p.Project) {
       return _ifiazq2p.Project.fromJson(data) as T;
+    }
+    if (t == _itpwl327.ReviewComment) {
+      return _itpwl327.ReviewComment.fromJson(data) as T;
+    }
+    if (t == _i6wlz106.ReviewCommentDraft) {
+      return _i6wlz106.ReviewCommentDraft.fromJson(data) as T;
+    }
+    if (t == _iml08ymk.ReviewCommentSeverity) {
+      return _iml08ymk.ReviewCommentSeverity.fromJson(data) as T;
+    }
+    if (t == _igczzv9q.ReviewCommentState) {
+      return _igczzv9q.ReviewCommentState.fromJson(data) as T;
     }
     if (t == _iwn6t6fs.Task) {
       return _iwn6t6fs.Task.fromJson(data) as T;
@@ -186,6 +218,13 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _isc.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_icksttbv.CodeReview?>()) {
+      return (data != null ? _icksttbv.CodeReview.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_i4rgwvgz.CodeReviewStatus?>()) {
+      return (data != null ? _i4rgwvgz.CodeReviewStatus.fromJson(data) : null)
+          as T;
     }
     if (t == _isc.getType<_iwa1mea8.DeletionBlockReason?>()) {
       return (data != null
@@ -234,6 +273,24 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isc.getType<_ifiazq2p.Project?>()) {
       return (data != null ? _ifiazq2p.Project.fromJson(data) : null) as T;
     }
+    if (t == _isc.getType<_itpwl327.ReviewComment?>()) {
+      return (data != null ? _itpwl327.ReviewComment.fromJson(data) : null)
+          as T;
+    }
+    if (t == _isc.getType<_i6wlz106.ReviewCommentDraft?>()) {
+      return (data != null ? _i6wlz106.ReviewCommentDraft.fromJson(data) : null)
+          as T;
+    }
+    if (t == _isc.getType<_iml08ymk.ReviewCommentSeverity?>()) {
+      return (data != null
+              ? _iml08ymk.ReviewCommentSeverity.fromJson(data)
+              : null)
+          as T;
+    }
+    if (t == _isc.getType<_igczzv9q.ReviewCommentState?>()) {
+      return (data != null ? _igczzv9q.ReviewCommentState.fromJson(data) : null)
+          as T;
+    }
     if (t == _isc.getType<_iwn6t6fs.Task?>()) {
       return (data != null ? _iwn6t6fs.Task.fromJson(data) : null) as T;
     }
@@ -264,6 +321,20 @@ class Protocol extends _isc.SerializationManager {
       return (data != null
               ? (data as List)
                     .map((e) => deserialize<_iwn6t6fs.Task>(e))
+                    .toList()
+              : null)
+          as T;
+    }
+    if (t == List<_itpwl327.ReviewComment>) {
+      return (data as List)
+              .map((e) => deserialize<_itpwl327.ReviewComment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<_itpwl327.ReviewComment>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_itpwl327.ReviewComment>(e))
                     .toList()
               : null)
           as T;
@@ -343,6 +414,15 @@ class Protocol extends _isc.SerializationManager {
       return (data as List).map((e) => deserialize<_ikth53tp.Agent>(e)).toList()
           as T;
     }
+    if (t == List<_ithbrqha.ReviewCommentDraft>) {
+      return (data as List)
+              .map((e) => deserialize<_ithbrqha.ReviewCommentDraft>(e))
+              .toList()
+          as T;
+    }
+    if (t == List<int>) {
+      return (data as List).map((e) => deserialize<int>(e)).toList() as T;
+    }
     if (t == List<_iwz93qz1.Machine>) {
       return (data as List)
               .map((e) => deserialize<_iwz93qz1.Machine>(e))
@@ -380,6 +460,8 @@ class Protocol extends _isc.SerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _idfmm35v.AgentRole => 'AgentRole',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _icksttbv.CodeReview => 'CodeReview',
+      _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
       _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _iji3k3fl.DiffFile => 'DiffFile',
@@ -391,6 +473,10 @@ class Protocol extends _isc.SerializationManager {
       _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _ifiazq2p.Project => 'Project',
+      _itpwl327.ReviewComment => 'ReviewComment',
+      _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
+      _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
+      _igczzv9q.ReviewCommentState => 'ReviewCommentState',
       _iwn6t6fs.Task => 'Task',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
@@ -422,6 +508,10 @@ class Protocol extends _isc.SerializationManager {
         return 'AgentRole';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _icksttbv.CodeReview():
+        return 'CodeReview';
+      case _i4rgwvgz.CodeReviewStatus():
+        return 'CodeReviewStatus';
       case _iwa1mea8.DeletionBlockReason():
         return 'DeletionBlockReason';
       case _i8k4gzq0.DeletionBlockedException():
@@ -444,6 +534,14 @@ class Protocol extends _isc.SerializationManager {
         return 'MachineStatus';
       case _ifiazq2p.Project():
         return 'Project';
+      case _itpwl327.ReviewComment():
+        return 'ReviewComment';
+      case _i6wlz106.ReviewCommentDraft():
+        return 'ReviewCommentDraft';
+      case _iml08ymk.ReviewCommentSeverity():
+        return 'ReviewCommentSeverity';
+      case _igczzv9q.ReviewCommentState():
+        return 'ReviewCommentState';
       case _iwn6t6fs.Task():
         return 'Task';
       case _imh5lex6.TaskDeleted():
@@ -495,6 +593,12 @@ class Protocol extends _isc.SerializationManager {
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
     }
+    if (dataClassName == 'CodeReview') {
+      return deserialize<_icksttbv.CodeReview>(data['data']);
+    }
+    if (dataClassName == 'CodeReviewStatus') {
+      return deserialize<_i4rgwvgz.CodeReviewStatus>(data['data']);
+    }
     if (dataClassName == 'DeletionBlockReason') {
       return deserialize<_iwa1mea8.DeletionBlockReason>(data['data']);
     }
@@ -527,6 +631,18 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'Project') {
       return deserialize<_ifiazq2p.Project>(data['data']);
+    }
+    if (dataClassName == 'ReviewComment') {
+      return deserialize<_itpwl327.ReviewComment>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentDraft') {
+      return deserialize<_i6wlz106.ReviewCommentDraft>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentSeverity') {
+      return deserialize<_iml08ymk.ReviewCommentSeverity>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentState') {
+      return deserialize<_igczzv9q.ReviewCommentState>(data['data']);
     }
     if (dataClassName == 'Task') {
       return deserialize<_iwn6t6fs.Task>(data['data']);
