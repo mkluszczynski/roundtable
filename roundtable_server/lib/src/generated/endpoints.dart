@@ -17,6 +17,10 @@ import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/review_comment_draft.dart'
+    as _i245mzjz;
+import 'package:roundtable_server/src/generated/review_comment_state.dart'
+    as _i5cy068t;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -26,6 +30,7 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
 import '../auth/email_idp_endpoint.dart' as _iuc1hd5t;
 import '../auth/jwt_refresh_endpoint.dart' as _inwq3ztq;
 import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
+import '../endpoints/code_review_endpoint.dart' as _ia5tunx2;
 import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
 import '../endpoints/project_endpoint.dart' as _iemg8ri2;
 import '../endpoints/task_endpoint.dart' as _idmllfay;
@@ -52,6 +57,12 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'agent',
+          null,
+        ),
+      'codeReview': _ia5tunx2.CodeReviewEndpoint()
+        ..initialize(
+          server,
+          'codeReview',
           null,
         ),
       'machine': _ij6wllr0.MachineEndpoint()
@@ -394,6 +405,218 @@ class Endpoints extends _is.EndpointDispatch {
                 session,
                 params['id'],
               ),
+        ),
+      },
+    );
+    connectors['codeReview'] = _is.EndpointConnector(
+      name: 'codeReview',
+      endpoint: endpoints['codeReview']!,
+      methodConnectors: {
+        'requestReview': _is.MethodConnector(
+          name: 'requestReview',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'agentId': _is.ParameterDescription(
+              name: 'agentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .requestReview(
+                        session,
+                        params['taskId'],
+                        params['agentId'],
+                      ),
+        ),
+        'startReview': _is.MethodConnector(
+          name: 'startReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .startReview(
+                        session,
+                        params['reviewId'],
+                      ),
+        ),
+        'completeReview': _is.MethodConnector(
+          name: 'completeReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'summary': _is.ParameterDescription(
+              name: 'summary',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'drafts': _is.ParameterDescription(
+              name: 'drafts',
+              type: _is.getType<List<_i245mzjz.ReviewCommentDraft>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .completeReview(
+                        session,
+                        params['reviewId'],
+                        params['summary'],
+                        params['drafts'],
+                      ),
+        ),
+        'failReview': _is.MethodConnector(
+          name: 'failReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'reason': _is.ParameterDescription(
+              name: 'reason',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .failReview(
+                        session,
+                        params['reviewId'],
+                        params['reason'],
+                      ),
+        ),
+        'setCommentState': _is.MethodConnector(
+          name: 'setCommentState',
+          params: {
+            'commentId': _is.ParameterDescription(
+              name: 'commentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'state': _is.ParameterDescription(
+              name: 'state',
+              type: _is.getType<_i5cy068t.ReviewCommentState>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .setCommentState(
+                        session,
+                        params['commentId'],
+                        params['state'],
+                      ),
+        ),
+        'sendCommentsToFix': _is.MethodConnector(
+          name: 'sendCommentsToFix',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'commentIds': _is.ParameterDescription(
+              name: 'commentIds',
+              type: _is.getType<List<int>>(),
+              nullable: false,
+            ),
+            'note': _is.ParameterDescription(
+              name: 'note',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .sendCommentsToFix(
+                        session,
+                        params['taskId'],
+                        params['commentIds'],
+                        params['note'],
+                      ),
+        ),
+        'watchAssignedReviews': _is.MethodStreamConnector(
+          name: 'watchAssignedReviews',
+          params: {
+            'machineId': _is.ParameterDescription(
+              name: 'machineId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                  .watchAssignedReviews(
+                    session,
+                    params['machineId'],
+                  ),
+        ),
+        'watchReviews': _is.MethodStreamConnector(
+          name: 'watchReviews',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                  .watchReviews(
+                    session,
+                    params['taskId'],
+                  ),
         ),
       },
     );
@@ -918,6 +1141,25 @@ class Endpoints extends _is.EndpointDispatch {
                 session,
                 params['task'],
               ),
+        ),
+        'acceptTask': _is.MethodConnector(
+          name: 'acceptTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).acceptTask(
+                    session,
+                    params['taskId'],
+                  ),
         ),
         'appendLog': _is.MethodConnector(
           name: 'appendLog',

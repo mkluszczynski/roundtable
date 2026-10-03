@@ -1,0 +1,8 @@
+### A comment as produced by the reviewer agent, before it's stored as a [ReviewComment].
+### Not a database table — only the daemon → server upload format.
+class: ReviewCommentDraft
+fields:
+  path: String
+  line: int?
+  body: String
+  severity: ReviewCommentSeverity

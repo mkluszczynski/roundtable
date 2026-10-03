@@ -93,6 +93,16 @@ class TaskDispatcher {
         !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
     String? resumePrompt;
 
+    if (task.status == TaskStatus.done) {
+      // Accepted and merged — the worktree is no longer needed.
+      await worktreeManager.removeWorktree(
+        projectId: '${task.projectId}',
+        taskId: '${task.id}',
+      );
+      log('task ${task.id}: done, worktree removed');
+      return;
+    }
+
     if (!isResume) {
       if (task.status != TaskStatus.queued) {
         log('task ${task.id}: not queued (status=${task.status}), skipping');

@@ -15,6 +15,8 @@ import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/review_comment_draft.dart'
+    as _i245mzjz;
 import 'package:serverpod/protocol.dart' as _isp;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -26,6 +28,8 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role.dart' as _idfmm35v;
 import 'agent_status.dart' as _i69bozh7;
+import 'code_review.dart' as _icksttbv;
+import 'code_review_status.dart' as _i4rgwvgz;
 import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'diff_file.dart' as _iji3k3fl;
@@ -37,6 +41,10 @@ import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'project.dart' as _ifiazq2p;
+import 'review_comment.dart' as _itpwl327;
+import 'review_comment_draft.dart' as _i6wlz106;
+import 'review_comment_severity.dart' as _iml08ymk;
+import 'review_comment_state.dart' as _igczzv9q;
 import 'task.dart' as _iwn6t6fs;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
@@ -49,6 +57,8 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role.dart';
 export 'agent_status.dart';
+export 'code_review.dart';
+export 'code_review_status.dart';
 export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'diff_file.dart';
@@ -60,6 +70,10 @@ export 'machine_metric.dart';
 export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'project.dart';
+export 'review_comment.dart';
+export 'review_comment_draft.dart';
+export 'review_comment_severity.dart';
+export 'review_comment_state.dart';
 export 'task.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
@@ -151,6 +165,95 @@ class Protocol extends _is.DatabaseSerializationManager {
           referenceColumns: ['id'],
           onUpdate: _isp.ForeignKeyAction.noAction,
           onDelete: _isp.ForeignKeyAction.cascade,
+          matchType: null,
+        ),
+      ],
+      indexes: [],
+      managed: true,
+    ),
+    _isp.TableDefinition(
+      name: 'code_review',
+      dartName: 'CodeReview',
+      schema: 'public',
+      module: 'roundtable',
+      columns: [
+        _isp.ColumnDefinition(
+          name: 'id',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _isp.ColumnDefinition(
+          name: 'taskId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int',
+        ),
+        _isp.ColumnDefinition(
+          name: 'reviewerAgentId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'status',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'protocol:CodeReviewStatus',
+          columnDefault: '\'queued\'',
+        ),
+        _isp.ColumnDefinition(
+          name: 'summary',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'failureReason',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'githubReviewId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+        _isp.ColumnDefinition(
+          name: 'finishedAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
+        ),
+      ],
+      foreignKeys: [
+        _isp.ForeignKeyDefinition(
+          constraintName: 'code_review_fk_0',
+          columns: ['taskId'],
+          referenceTable: 'task',
+          referenceTableSchema: 'public',
+          referenceColumns: ['id'],
+          onUpdate: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.cascade,
+          matchType: null,
+        ),
+        _isp.ForeignKeyDefinition(
+          constraintName: 'code_review_fk_1',
+          columns: ['reviewerAgentId'],
+          referenceTable: 'agent',
+          referenceTableSchema: 'public',
+          referenceColumns: ['id'],
+          onUpdate: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.setNull,
           matchType: null,
         ),
       ],
@@ -381,6 +484,86 @@ class Protocol extends _is.DatabaseSerializationManager {
         ),
       ],
       foreignKeys: [],
+      indexes: [],
+      managed: true,
+    ),
+    _isp.TableDefinition(
+      name: 'review_comment',
+      dartName: 'ReviewComment',
+      schema: 'public',
+      module: 'roundtable',
+      columns: [
+        _isp.ColumnDefinition(
+          name: 'id',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _isp.ColumnDefinition(
+          name: 'reviewId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int',
+        ),
+        _isp.ColumnDefinition(
+          name: 'path',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'line',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'body',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'severity',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'protocol:ReviewCommentSeverity',
+          columnDefault: '\'issue\'',
+        ),
+        _isp.ColumnDefinition(
+          name: 'state',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'protocol:ReviewCommentState',
+          columnDefault: '\'open\'',
+        ),
+        _isp.ColumnDefinition(
+          name: 'githubCommentId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+      ],
+      foreignKeys: [
+        _isp.ForeignKeyDefinition(
+          constraintName: 'review_comment_fk_0',
+          columns: ['reviewId'],
+          referenceTable: 'code_review',
+          referenceTableSchema: 'public',
+          referenceColumns: ['id'],
+          onUpdate: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.cascade,
+          matchType: null,
+        ),
+      ],
       indexes: [],
       managed: true,
     ),
@@ -733,6 +916,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _icksttbv.CodeReview) {
+      return _icksttbv.CodeReview.fromJson(data) as T;
+    }
+    if (t == _i4rgwvgz.CodeReviewStatus) {
+      return _i4rgwvgz.CodeReviewStatus.fromJson(data) as T;
+    }
     if (t == _iwa1mea8.DeletionBlockReason) {
       return _iwa1mea8.DeletionBlockReason.fromJson(data) as T;
     }
@@ -765,6 +954,18 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _ifiazq2p.Project) {
       return _ifiazq2p.Project.fromJson(data) as T;
+    }
+    if (t == _itpwl327.ReviewComment) {
+      return _itpwl327.ReviewComment.fromJson(data) as T;
+    }
+    if (t == _i6wlz106.ReviewCommentDraft) {
+      return _i6wlz106.ReviewCommentDraft.fromJson(data) as T;
+    }
+    if (t == _iml08ymk.ReviewCommentSeverity) {
+      return _iml08ymk.ReviewCommentSeverity.fromJson(data) as T;
+    }
+    if (t == _igczzv9q.ReviewCommentState) {
+      return _igczzv9q.ReviewCommentState.fromJson(data) as T;
     }
     if (t == _iwn6t6fs.Task) {
       return _iwn6t6fs.Task.fromJson(data) as T;
@@ -802,6 +1003,13 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_icksttbv.CodeReview?>()) {
+      return (data != null ? _icksttbv.CodeReview.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_i4rgwvgz.CodeReviewStatus?>()) {
+      return (data != null ? _i4rgwvgz.CodeReviewStatus.fromJson(data) : null)
+          as T;
     }
     if (t == _is.getType<_iwa1mea8.DeletionBlockReason?>()) {
       return (data != null
@@ -850,6 +1058,24 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _is.getType<_ifiazq2p.Project?>()) {
       return (data != null ? _ifiazq2p.Project.fromJson(data) : null) as T;
     }
+    if (t == _is.getType<_itpwl327.ReviewComment?>()) {
+      return (data != null ? _itpwl327.ReviewComment.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_i6wlz106.ReviewCommentDraft?>()) {
+      return (data != null ? _i6wlz106.ReviewCommentDraft.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_iml08ymk.ReviewCommentSeverity?>()) {
+      return (data != null
+              ? _iml08ymk.ReviewCommentSeverity.fromJson(data)
+              : null)
+          as T;
+    }
+    if (t == _is.getType<_igczzv9q.ReviewCommentState?>()) {
+      return (data != null ? _igczzv9q.ReviewCommentState.fromJson(data) : null)
+          as T;
+    }
     if (t == _is.getType<_iwn6t6fs.Task?>()) {
       return (data != null ? _iwn6t6fs.Task.fromJson(data) : null) as T;
     }
@@ -880,6 +1106,20 @@ class Protocol extends _is.DatabaseSerializationManager {
       return (data != null
               ? (data as List)
                     .map((e) => deserialize<_iwn6t6fs.Task>(e))
+                    .toList()
+              : null)
+          as T;
+    }
+    if (t == List<_itpwl327.ReviewComment>) {
+      return (data as List)
+              .map((e) => deserialize<_itpwl327.ReviewComment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _is.getType<List<_itpwl327.ReviewComment>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_itpwl327.ReviewComment>(e))
                     .toList()
               : null)
           as T;
@@ -959,6 +1199,15 @@ class Protocol extends _is.DatabaseSerializationManager {
       return (data as List).map((e) => deserialize<_iaucj7w0.Agent>(e)).toList()
           as T;
     }
+    if (t == List<_i245mzjz.ReviewCommentDraft>) {
+      return (data as List)
+              .map((e) => deserialize<_i245mzjz.ReviewCommentDraft>(e))
+              .toList()
+          as T;
+    }
+    if (t == List<int>) {
+      return (data as List).map((e) => deserialize<int>(e)).toList() as T;
+    }
     if (t == List<_ilqrziin.Machine>) {
       return (data as List)
               .map((e) => deserialize<_ilqrziin.Machine>(e))
@@ -999,6 +1248,8 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _idfmm35v.AgentRole => 'AgentRole',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _icksttbv.CodeReview => 'CodeReview',
+      _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
       _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _iji3k3fl.DiffFile => 'DiffFile',
@@ -1010,6 +1261,10 @@ class Protocol extends _is.DatabaseSerializationManager {
       _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _ifiazq2p.Project => 'Project',
+      _itpwl327.ReviewComment => 'ReviewComment',
+      _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
+      _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
+      _igczzv9q.ReviewCommentState => 'ReviewCommentState',
       _iwn6t6fs.Task => 'Task',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
@@ -1041,6 +1296,10 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'AgentRole';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _icksttbv.CodeReview():
+        return 'CodeReview';
+      case _i4rgwvgz.CodeReviewStatus():
+        return 'CodeReviewStatus';
       case _iwa1mea8.DeletionBlockReason():
         return 'DeletionBlockReason';
       case _i8k4gzq0.DeletionBlockedException():
@@ -1063,6 +1322,14 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'MachineStatus';
       case _ifiazq2p.Project():
         return 'Project';
+      case _itpwl327.ReviewComment():
+        return 'ReviewComment';
+      case _i6wlz106.ReviewCommentDraft():
+        return 'ReviewCommentDraft';
+      case _iml08ymk.ReviewCommentSeverity():
+        return 'ReviewCommentSeverity';
+      case _igczzv9q.ReviewCommentState():
+        return 'ReviewCommentState';
       case _iwn6t6fs.Task():
         return 'Task';
       case _imh5lex6.TaskDeleted():
@@ -1118,6 +1385,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
     }
+    if (dataClassName == 'CodeReview') {
+      return deserialize<_icksttbv.CodeReview>(data['data']);
+    }
+    if (dataClassName == 'CodeReviewStatus') {
+      return deserialize<_i4rgwvgz.CodeReviewStatus>(data['data']);
+    }
     if (dataClassName == 'DeletionBlockReason') {
       return deserialize<_iwa1mea8.DeletionBlockReason>(data['data']);
     }
@@ -1150,6 +1423,18 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'Project') {
       return deserialize<_ifiazq2p.Project>(data['data']);
+    }
+    if (dataClassName == 'ReviewComment') {
+      return deserialize<_itpwl327.ReviewComment>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentDraft') {
+      return deserialize<_i6wlz106.ReviewCommentDraft>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentSeverity') {
+      return deserialize<_iml08ymk.ReviewCommentSeverity>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentState') {
+      return deserialize<_igczzv9q.ReviewCommentState>(data['data']);
     }
     if (dataClassName == 'Task') {
       return deserialize<_iwn6t6fs.Task>(data['data']);
@@ -1215,12 +1500,16 @@ class Protocol extends _is.DatabaseSerializationManager {
     switch (t) {
       case _ijo8h3v4.Agent:
         return _ijo8h3v4.Agent.t;
+      case _icksttbv.CodeReview:
+        return _icksttbv.CodeReview.t;
       case _i0hti3f2.Machine:
         return _i0hti3f2.Machine.t;
       case _ixivwx7g.MachineMetric:
         return _ixivwx7g.MachineMetric.t;
       case _ifiazq2p.Project:
         return _ifiazq2p.Project.t;
+      case _itpwl327.ReviewComment:
+        return _itpwl327.ReviewComment.t;
       case _iwn6t6fs.Task:
         return _iwn6t6fs.Task.t;
       case _i5hi2zxr.TaskFeedback:

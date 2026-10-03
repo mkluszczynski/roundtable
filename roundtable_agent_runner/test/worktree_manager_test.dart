@@ -223,6 +223,50 @@ void main() {
       },
     );
 
+    test(
+      'createReviewWorktree checks the branch out detached and finds the base',
+      () async {
+        final baseSha = (await _gitOutput(fixtureRepo.path, [
+          'rev-parse',
+          'HEAD',
+        ])).trim();
+        await _git(fixtureRepo.path, ['checkout', '-b', 'task-7']);
+        File('${fixtureRepo.path}/feature.txt').writeAsStringSync('new\n');
+        await _git(fixtureRepo.path, ['add', '.']);
+        await _git(fixtureRepo.path, ['commit', '-m', 'feature']);
+        final headSha = (await _gitOutput(fixtureRepo.path, [
+          'rev-parse',
+          'HEAD',
+        ])).trim();
+        await _git(fixtureRepo.path, ['checkout', 'main']);
+
+        await manager.ensureProjectCloned(
+          projectId: 'p1',
+          cloneUrl: fixtureRepo.path,
+        );
+        final review = await manager.createReviewWorktree(
+          projectId: 'p1',
+          reviewId: 'r1',
+          branch: 'task-7',
+          fetchUrl: fixtureRepo.path,
+        );
+
+        expect(review.baseSha, baseSha);
+        expect(File('${review.path}/feature.txt').existsSync(), isTrue);
+        final head = await _gitOutput(review.path, ['rev-parse', 'HEAD']);
+        expect(head.trim(), headSha);
+        final branch = await _gitOutput(review.path, [
+          'rev-parse',
+          '--abbrev-ref',
+          'HEAD',
+        ]);
+        expect(branch.trim(), 'HEAD');
+
+        await manager.removeReviewWorktree(projectId: 'p1', reviewId: 'r1');
+        expect(Directory(review.path).existsSync(), isFalse);
+      },
+    );
+
     test('rejects projectId/taskId containing path separators', () {
       expect(
         () => manager.createWorktree(projectId: '../evil', taskId: 't1'),

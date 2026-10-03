@@ -6,6 +6,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 import 'src/claude_code_executor.dart';
 import 'src/github_pull_request_opener.dart';
 import 'src/metrics_collector.dart';
+import 'src/review_dispatcher.dart';
 import 'src/runner_update.dart';
 import 'src/task_dispatcher.dart';
 import 'src/worktree_manager.dart';
@@ -14,6 +15,7 @@ export 'src/claude_code_executor.dart';
 export 'src/github_pull_request_opener.dart';
 export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
+export 'src/review_dispatcher.dart';
 export 'src/runner_update.dart';
 export 'src/stream_json_formatter.dart';
 export 'src/task_dispatcher.dart';
@@ -157,6 +159,8 @@ class AgentRunnerService {
   Timer? _metricsTimer;
   StreamSubscription<Task>? _taskSubscription;
   Timer? _taskResubscribeTimer;
+  StreamSubscription<CodeReview>? _reviewSubscription;
+  Timer? _reviewResubscribeTimer;
   final _stopped = Completer<void>();
   final _metricsCollector = MetricsCollector();
   bool _updateHandedOff = false;
@@ -168,19 +172,42 @@ class AgentRunnerService {
     permissionPromptToolPath: _config.permissionPromptToolPath,
   );
 
-  late final TaskDispatcher _dispatcher = TaskDispatcher(
-    worktreeManager: WorktreeManager(workspaceRoot: _config.workspaceRoot),
+  late final _worktreeManager = WorktreeManager(
+    workspaceRoot: _config.workspaceRoot,
+  );
+
+  Future<Agent> _fetchAgent(int agentId) async {
+    final agent = await _client.agent.get(agentId);
+    if (agent == null) {
+      throw StateError('Agent $agentId not found');
+    }
+    return agent;
+  }
+
+  late final ReviewDispatcher _reviewDispatcher = ReviewDispatcher(
+    worktreeManager: _worktreeManager,
     executorFactory: () =>
         ClaudeCodeExecutor(executable: _config.claudeExecutable),
     oauthToken: _config.claudeCodeOauthToken,
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
-    fetchAgent: (agentId) async {
-      final agent = await _client.agent.get(agentId);
-      if (agent == null) {
-        throw StateError('Agent $agentId not found');
-      }
-      return agent;
-    },
+    fetchAgent: _fetchAgent,
+    startReview: (reviewId) => _client.codeReview.startReview(reviewId),
+    completeReview: (reviewId, summary, comments) =>
+        _client.codeReview.completeReview(reviewId, summary, comments),
+    failReview: (reviewId, reason) =>
+        _client.codeReview.failReview(reviewId, reason),
+    appendLog: (taskId, content) =>
+        _client.task.appendLog(taskId, content, source: LogSource.agent),
+    log: _log,
+  );
+
+  late final TaskDispatcher _dispatcher = TaskDispatcher(
+    worktreeManager: _worktreeManager,
+    executorFactory: () =>
+        ClaudeCodeExecutor(executable: _config.claudeExecutable),
+    oauthToken: _config.claudeCodeOauthToken,
+    getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
+    fetchAgent: _fetchAgent,
     updateTask: (task) => _client.task.update(task),
     updateAgent: (agent) => _client.agent.update(agent),
     appendLog: (taskId, content) =>
@@ -242,6 +269,7 @@ class AgentRunnerService {
     }
 
     _subscribeToAssignedTasks(machine.id!);
+    _subscribeToAssignedReviews(machine.id!);
     await _tick();
     _timer = Timer.periodic(_heartbeatInterval, (_) => _tick());
     unawaited(_reportMetrics());
@@ -323,6 +351,45 @@ class AgentRunnerService {
     });
   }
 
+  /// Like [_subscribeToAssignedTasks], for `watchAssignedReviews`.
+  void _subscribeToAssignedReviews(int machineId) {
+    void resubscribe() {
+      if (_stopped.isCompleted) return;
+      _reviewResubscribeTimer?.cancel();
+      _reviewResubscribeTimer = Timer(_taskStreamResubscribeDelay, () {
+        if (_stopped.isCompleted) return;
+        _subscribeToAssignedReviews(machineId);
+      });
+    }
+
+    _reviewSubscription = _client.codeReview
+        .watchAssignedReviews(machineId)
+        .listen(
+          (review) {
+            _log('assigned review ${review.id} of task ${review.taskId}');
+            unawaited(
+              _reviewDispatcher
+                  .handle(review)
+                  .catchError(
+                    (Object error) =>
+                        _log('review ${review.id} dispatch failed: $error'),
+                  ),
+            );
+          },
+          onError: (Object error) {
+            _log('watchAssignedReviews stream error: $error — resubscribing');
+            resubscribe();
+          },
+          onDone: () {
+            if (_stopped.isCompleted) return;
+            _log(
+              'watchAssignedReviews stream closed unexpectedly — resubscribing',
+            );
+            resubscribe();
+          },
+        );
+  }
+
   Future<void> _tick() async {
     try {
       final updateRequested = await _client.machine.checkIn(
@@ -394,6 +461,10 @@ class AgentRunnerService {
     _taskResubscribeTimer = null;
     _taskSubscription?.cancel();
     _taskSubscription = null;
+    _reviewResubscribeTimer?.cancel();
+    _reviewResubscribeTimer = null;
+    _reviewSubscription?.cancel();
+    _reviewSubscription = null;
     if (!_stopped.isCompleted) {
       _stopped.complete();
     }
