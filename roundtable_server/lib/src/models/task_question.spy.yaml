@@ -10,3 +10,6 @@ fields:
   answer: String?
   answeredAt: DateTime?
   createdAt: DateTime, default=now
+indexes:
+  task_question_task_created_idx:
+    fields: taskId, createdAt

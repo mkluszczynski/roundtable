@@ -34,8 +34,17 @@ class ProjectEndpoint extends Endpoint {
     return Project.db.find(session);
   }
 
+  /// Edits a project's name, repo URL and docker image. The access token
+  /// goes through [updateRepoAccessToken] instead.
   Future<Project> update(Session session, Project project) async {
-    return Project.db.updateRow(session, project);
+    if (await Project.db.findById(session, project.id!) == null) {
+      throw NotFoundException(message: 'Project ${project.id} not found');
+    }
+    return Project.db.updateRow(
+      session,
+      project,
+      columns: (t) => [t.name, t.repoUrl, t.dockerImage],
+    );
   }
 
   /// Sets a new repo access token, keeping `scope=serverOnly` intact — the
@@ -48,7 +57,7 @@ class ProjectEndpoint extends Endpoint {
   ) async {
     var project = await Project.db.findById(session, projectId);
     if (project == null) {
-      throw Exception('Project $projectId not found');
+      throw NotFoundException(message: 'Project $projectId not found');
     }
     await Project.db.updateRow(
       session,
@@ -60,35 +69,42 @@ class ProjectEndpoint extends Endpoint {
   }
 
   Future<void> delete(Session session, int id) async {
-    var project = await Project.db.findById(session, id);
-    if (project == null) {
-      throw Exception('Project $id not found');
-    }
-
-    var nonTerminalTaskCount = await Task.db.count(
-      session,
-      where: (t) =>
-          t.projectId.equals(id) & t.status.inSet(nonTerminalTaskStatuses),
-    );
-    if (nonTerminalTaskCount > 0) {
-      throw DeletionBlockedException(
-        message: 'Cannot delete a project with non-terminal tasks',
-        reason: DeletionBlockReason.nonTerminalTasks,
+    await guardedDelete(session, (transaction) async {
+      var project = await Project.db.findById(
+        session,
+        id,
+        transaction: transaction,
       );
-    }
+      if (project == null) {
+        throw NotFoundException(message: 'Project $id not found');
+      }
 
-    await Project.db.deleteRow(session, project);
+      var nonTerminalTaskCount = await Task.db.count(
+        session,
+        where: (t) =>
+            t.projectId.equals(id) & t.status.inSet(nonTerminalTaskStatuses),
+        transaction: transaction,
+      );
+      if (nonTerminalTaskCount > 0) {
+        throw DeletionBlockedException(
+          message: 'Cannot delete a project with non-terminal tasks',
+          reason: DeletionBlockReason.nonTerminalTasks,
+        );
+      }
+
+      await Project.db.deleteRow(session, project, transaction: transaction);
+    });
   }
 
   /// Returns a ready-to-clone HTTPS URL for [projectId], with
   /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
   /// injected as the userinfo component when present. Called by the agent
   /// daemon only at the moment a task starts, never persisted to disk on the
-  /// agent side (design doc §6.5).
+  /// agent side (docs/ARCHITECTURE.md).
   Future<String> getCloneUrl(Session session, int projectId) async {
     var project = await Project.db.findById(session, projectId);
     if (project == null) {
-      throw Exception('Project $projectId not found');
+      throw NotFoundException(message: 'Project $projectId not found');
     }
 
     var token = project.repoAccessToken;

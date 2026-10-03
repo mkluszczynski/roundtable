@@ -3,7 +3,7 @@ import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// CRUD for [Agent]. Deletion is blocked while the agent has a non-terminal
-/// task (design doc §5, §6.8).
+/// task (docs/ARCHITECTURE.md).
 class AgentEndpoint extends Endpoint {
   Future<Agent> create(
     Session session,
@@ -13,6 +13,9 @@ class AgentEndpoint extends Endpoint {
     String? defaultModel,
     AgentEffort? defaultEffort,
   }) async {
+    if (await Machine.db.findById(session, machineId) == null) {
+      throw NotFoundException(message: 'Machine $machineId not found');
+    }
     return Agent.db.insertRow(
       session,
       Agent(
@@ -33,28 +36,63 @@ class AgentEndpoint extends Endpoint {
     return Agent.db.find(session);
   }
 
+  /// Edits an agent's settings from the panel. The machine it lives on,
+  /// its execution mode and its status can't be changed here — status is
+  /// reported by the daemon through [setStatus].
   Future<Agent> update(Session session, Agent agent) async {
-    return Agent.db.updateRow(session, agent);
+    await _requireAgent(session, agent.id!);
+    return Agent.db.updateRow(
+      session,
+      agent,
+      columns: (t) => [t.name, t.role, t.defaultModel, t.defaultEffort],
+    );
+  }
+
+  /// Reports what an agent is doing (`idle`/`busy`/`waitingForResponse`),
+  /// called by the daemon running its tasks and reviews.
+  Future<Agent> setStatus(
+    Session session,
+    int agentId,
+    AgentStatus status,
+  ) async {
+    var agent = await _requireAgent(session, agentId);
+    return Agent.db.updateRow(
+      session,
+      agent.copyWith(status: status),
+      columns: (t) => [t.status],
+    );
+  }
+
+  Future<Agent> _requireAgent(
+    Session session,
+    int id, {
+    Transaction? transaction,
+  }) async {
+    var agent = await Agent.db.findById(session, id, transaction: transaction);
+    if (agent == null) {
+      throw NotFoundException(message: 'Agent $id not found');
+    }
+    return agent;
   }
 
   Future<void> delete(Session session, int id) async {
-    var agent = await Agent.db.findById(session, id);
-    if (agent == null) {
-      throw Exception('Agent $id not found');
-    }
+    await guardedDelete(session, (transaction) async {
+      var agent = await _requireAgent(session, id, transaction: transaction);
 
-    var nonTerminalTaskCount = await Task.db.count(
-      session,
-      where: (t) =>
-          t.agentId.equals(id) & t.status.inSet(nonTerminalTaskStatuses),
-    );
-    if (nonTerminalTaskCount > 0) {
-      throw DeletionBlockedException(
-        message: 'Cannot delete an agent with non-terminal tasks',
-        reason: DeletionBlockReason.nonTerminalTasks,
+      var nonTerminalTaskCount = await Task.db.count(
+        session,
+        where: (t) =>
+            t.agentId.equals(id) & t.status.inSet(nonTerminalTaskStatuses),
+        transaction: transaction,
       );
-    }
+      if (nonTerminalTaskCount > 0) {
+        throw DeletionBlockedException(
+          message: 'Cannot delete an agent with non-terminal tasks',
+          reason: DeletionBlockReason.nonTerminalTasks,
+        );
+      }
 
-    await Agent.db.deleteRow(session, agent);
+      await Agent.db.deleteRow(session, agent, transaction: transaction);
+    });
   }
 }

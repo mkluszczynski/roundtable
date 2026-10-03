@@ -15,7 +15,7 @@ import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'machine.dart' as _i0hti3f2;
 
 /// Returned once from Machine registration: the persisted Machine plus the raw
-/// registration token, shown to the dev exactly this one time (design doc §6.8).
+/// registration token, shown to the dev exactly this one time (docs/FLOWS.md §1–3).
 /// Not a database table — a transient wrapper for the endpoint response.
 ///
 /// serverUrl and scriptUrl can differ: serverUrl is the API server the

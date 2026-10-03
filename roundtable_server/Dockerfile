@@ -35,14 +35,14 @@ RUN mv build/bundle/bin/main build/bundle/bin/server
 
 # Compile the agent-runner executable and package it under web/static so
 # install-agent.sh can download and install it without a Dart SDK or repo
-# checkout on the target machine (design doc §6.8).
+# checkout on the target machine (docs/FLOWS.md §1–3).
 WORKDIR /app/roundtable_agent_runner
 RUN dart build cli --target bin/roundtable_agent_runner.dart --output build
 RUN mkdir -p /app/roundtable_server/web/static/bin \
   && cp build/bundle/bin/roundtable_agent_runner \
     /app/roundtable_server/web/static/bin/roundtable-agent-runner
 
-# Same for the permission-prompt-tool executable (design doc §6.4) — the
+# Same for the permission-prompt-tool executable (docs/FLOWS.md §4) — the
 # daemon spawns it as an MCP server during planning-phase runs, and it needs
 # its own compiled artifact for the same reason as above. `dart build cli`
 # wipes its whole --output directory on each invocation, so this must run

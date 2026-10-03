@@ -1,4 +1,4 @@
-### One changed file from a task's PR (design doc §6.7). Not a database table
+### One changed file from a task's PR (docs/FLOWS.md §4). Not a database table
 ### — fetched on demand from the GitHub API and never persisted.
 class: DiffFile
 fields:

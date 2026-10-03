@@ -13,6 +13,7 @@
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
 import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
+import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
@@ -387,6 +388,31 @@ class Endpoints extends _is.EndpointDispatch {
                 session,
                 params['agent'],
               ),
+        ),
+        'setStatus': _is.MethodConnector(
+          name: 'setStatus',
+          params: {
+            'agentId': _is.ParameterDescription(
+              name: 'agentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'status': _is.ParameterDescription(
+              name: 'status',
+              type: _is.getType<_ii7o6oli.AgentStatus>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['agent'] as _ik1xrao3.AgentEndpoint).setStatus(
+                    session,
+                    params['agentId'],
+                    params['status'],
+                  ),
         ),
         'delete': _is.MethodConnector(
           name: 'delete',
@@ -795,6 +821,25 @@ class Endpoints extends _is.EndpointDispatch {
                 Map<String, dynamic> params,
               ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
                   .deregister(
+                    session,
+                    params['token'],
+                  ),
+        ),
+        'reportStartup': _is.MethodConnector(
+          name: 'reportStartup',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportStartup(
                     session,
                     params['token'],
                   ),
@@ -1498,6 +1543,25 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['task'] as _idmllfay.TaskEndpoint).deleteTask(
                     session,
                     params['taskId'],
+                  ),
+        ),
+        'findTasks': _is.MethodConnector(
+          name: 'findTasks',
+          params: {
+            'taskIds': _is.ParameterDescription(
+              name: 'taskIds',
+              type: _is.getType<List<int>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).findTasks(
+                    session,
+                    params['taskIds'],
                   ),
         ),
         'getChangedFiles': _is.MethodConnector(

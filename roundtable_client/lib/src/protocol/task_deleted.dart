@@ -12,7 +12,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 
-/// Broadcast on `all-tasks` when a task is deleted (design doc §6.1) — deleting
+/// Broadcast on `all-tasks` when a task is deleted (docs/FLOWS.md §4) — deleting
 /// the row leaves no `Task` to post as an update, so subscribers (the
 /// dashboard kanban) drop it from their local task list by id instead.
 abstract class TaskDeleted

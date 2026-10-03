@@ -12,37 +12,37 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod/serverpod.dart' as _is;
 
-/// Thrown when a machine's registration token doesn't match any known,
-/// currently-valid Machine — unknown, wrong, or already revoked via
-/// MachineEndpoint.deregister (docs/FLOWS.md §1–3).
-abstract class InvalidTokenException
+/// Thrown when an action isn't allowed in the record's current state, e.g.
+/// approving a plan on a task that isn't `planReady`. [message] is meant to
+/// be shown to the developer as-is.
+abstract class InvalidStateException
     implements
         _is.SerializableException,
         _is.SerializableModel,
         _is.ProtocolSerialization {
-  InvalidTokenException._({required this.message});
+  InvalidStateException._({required this.message});
 
-  factory InvalidTokenException({required String message}) =
-      _InvalidTokenExceptionImpl;
+  factory InvalidStateException({required String message}) =
+      _InvalidStateExceptionImpl;
 
-  factory InvalidTokenException.fromJson(
+  factory InvalidStateException.fromJson(
     Map<String, dynamic> jsonSerialization,
   ) {
-    return InvalidTokenException(
+    return InvalidStateException(
       message: jsonSerialization['message'] as String,
     );
   }
 
   String message;
 
-  /// Returns a shallow copy of this [InvalidTokenException]
+  /// Returns a shallow copy of this [InvalidStateException]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
-  InvalidTokenException copyWith({String? message});
+  InvalidStateException copyWith({String? message});
   @override
   Map<String, dynamic> toJson() {
     return {
-      '__className__': 'InvalidTokenException',
+      '__className__': 'InvalidStateException',
       'message': message,
     };
   }
@@ -50,26 +50,26 @@ abstract class InvalidTokenException
   @override
   Map<String, dynamic> toJsonForProtocol() {
     return {
-      '__className__': 'InvalidTokenException',
+      '__className__': 'InvalidStateException',
       'message': message,
     };
   }
 
   @override
   String toString() {
-    return 'InvalidTokenException(message: $message)';
+    return 'InvalidStateException(message: $message)';
   }
 }
 
-class _InvalidTokenExceptionImpl extends InvalidTokenException {
-  _InvalidTokenExceptionImpl({required String message})
+class _InvalidStateExceptionImpl extends InvalidStateException {
+  _InvalidStateExceptionImpl({required String message})
     : super._(message: message);
 
-  /// Returns a shallow copy of this [InvalidTokenException]
+  /// Returns a shallow copy of this [InvalidStateException]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
   @override
-  InvalidTokenException copyWith({String? message}) {
-    return InvalidTokenException(message: message ?? this.message);
+  InvalidStateException copyWith({String? message}) {
+    return InvalidStateException(message: message ?? this.message);
   }
 }

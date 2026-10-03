@@ -7,3 +7,6 @@ fields:
   content: String
   source: LogSource, default=agent
   createdAt: DateTime, default=now
+indexes:
+  task_log_entry_task_created_idx:
+    fields: taskId, createdAt

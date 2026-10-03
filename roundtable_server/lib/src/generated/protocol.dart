@@ -17,6 +17,7 @@ import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
+import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:serverpod/protocol.dart' as _isp;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -33,13 +34,16 @@ import 'code_review_status.dart' as _i4rgwvgz;
 import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'diff_file.dart' as _iji3k3fl;
+import 'git_hub_exception.dart' as _ixcrnhlg;
 import 'greetings/greeting.dart' as _izw8z7ou;
+import 'invalid_state_exception.dart' as _i0q2rwly;
 import 'invalid_token_exception.dart' as _isgtss3z;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
 import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
+import 'not_found_exception.dart' as _i6jvclsf;
 import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
 import 'review_comment.dart' as _itpwl327;
@@ -63,13 +67,16 @@ export 'code_review_status.dart';
 export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'diff_file.dart';
+export 'git_hub_exception.dart';
 export 'greetings/greeting.dart';
+export 'invalid_state_exception.dart';
 export 'invalid_token_exception.dart';
 export 'log_source.dart';
 export 'machine.dart';
 export 'machine_metric.dart';
 export 'machine_registration.dart';
 export 'machine_status.dart';
+export 'not_found_exception.dart';
 export 'pr_merge_status.dart';
 export 'project.dart';
 export 'review_comment.dart';
@@ -170,7 +177,21 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'agent_machine_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'machineId',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -259,7 +280,25 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'code_review_task_created_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'taskId',
+            ),
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'createdAt',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -566,7 +605,21 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'review_comment_review_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'reviewId',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -693,7 +746,51 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'task_project_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'projectId',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+        _isp.IndexDefinition(
+          indexName: 'task_agent_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'agentId',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+        _isp.IndexDefinition(
+          indexName: 'task_status_progress_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'status',
+            ),
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'lastProgressAt',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -747,7 +844,25 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'task_feedback_task_created_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'taskId',
+            ),
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'createdAt',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -802,7 +917,25 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'task_log_entry_task_created_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'taskId',
+            ),
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'createdAt',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     _isp.TableDefinition(
@@ -868,7 +1001,25 @@ class Protocol extends _is.DatabaseSerializationManager {
           matchType: null,
         ),
       ],
-      indexes: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'task_question_task_created_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'taskId',
+            ),
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'createdAt',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
       managed: true,
     ),
     ..._iais.Protocol.targetTableDefinitions,
@@ -933,8 +1084,14 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _iji3k3fl.DiffFile) {
       return _iji3k3fl.DiffFile.fromJson(data) as T;
     }
+    if (t == _ixcrnhlg.GitHubException) {
+      return _ixcrnhlg.GitHubException.fromJson(data) as T;
+    }
     if (t == _izw8z7ou.Greeting) {
       return _izw8z7ou.Greeting.fromJson(data) as T;
+    }
+    if (t == _i0q2rwly.InvalidStateException) {
+      return _i0q2rwly.InvalidStateException.fromJson(data) as T;
     }
     if (t == _isgtss3z.InvalidTokenException) {
       return _isgtss3z.InvalidTokenException.fromJson(data) as T;
@@ -953,6 +1110,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _i6yugb3s.MachineStatus) {
       return _i6yugb3s.MachineStatus.fromJson(data) as T;
+    }
+    if (t == _i6jvclsf.NotFoundException) {
+      return _i6jvclsf.NotFoundException.fromJson(data) as T;
     }
     if (t == _ixuoipsp.PrMergeStatus) {
       return _ixuoipsp.PrMergeStatus.fromJson(data) as T;
@@ -1031,8 +1191,18 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _is.getType<_iji3k3fl.DiffFile?>()) {
       return (data != null ? _iji3k3fl.DiffFile.fromJson(data) : null) as T;
     }
+    if (t == _is.getType<_ixcrnhlg.GitHubException?>()) {
+      return (data != null ? _ixcrnhlg.GitHubException.fromJson(data) : null)
+          as T;
+    }
     if (t == _is.getType<_izw8z7ou.Greeting?>()) {
       return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_i0q2rwly.InvalidStateException?>()) {
+      return (data != null
+              ? _i0q2rwly.InvalidStateException.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _is.getType<_isgtss3z.InvalidTokenException?>()) {
       return (data != null
@@ -1058,6 +1228,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i6yugb3s.MachineStatus?>()) {
       return (data != null ? _i6yugb3s.MachineStatus.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_i6jvclsf.NotFoundException?>()) {
+      return (data != null ? _i6jvclsf.NotFoundException.fromJson(data) : null)
           as T;
     }
     if (t == _is.getType<_ixuoipsp.PrMergeStatus?>()) {
@@ -1232,6 +1406,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
+    if (t == List<_i77xifuu.Task>) {
+      return (data as List).map((e) => deserialize<_i77xifuu.Task>(e)).toList()
+          as T;
+    }
     if (t == List<_i16fkh06.DiffFile>) {
       return (data as List)
               .map((e) => deserialize<_i16fkh06.DiffFile>(e))
@@ -1262,13 +1440,16 @@ class Protocol extends _is.DatabaseSerializationManager {
       _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _iji3k3fl.DiffFile => 'DiffFile',
+      _ixcrnhlg.GitHubException => 'GitHubException',
       _izw8z7ou.Greeting => 'Greeting',
+      _i0q2rwly.InvalidStateException => 'InvalidStateException',
       _isgtss3z.InvalidTokenException => 'InvalidTokenException',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
       _ixivwx7g.MachineMetric => 'MachineMetric',
       _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
+      _i6jvclsf.NotFoundException => 'NotFoundException',
       _ixuoipsp.PrMergeStatus => 'PrMergeStatus',
       _ifiazq2p.Project => 'Project',
       _itpwl327.ReviewComment => 'ReviewComment',
@@ -1316,8 +1497,12 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'DeletionBlockedException';
       case _iji3k3fl.DiffFile():
         return 'DiffFile';
+      case _ixcrnhlg.GitHubException():
+        return 'GitHubException';
       case _izw8z7ou.Greeting():
         return 'Greeting';
+      case _i0q2rwly.InvalidStateException():
+        return 'InvalidStateException';
       case _isgtss3z.InvalidTokenException():
         return 'InvalidTokenException';
       case _ilj2nbps.LogSource():
@@ -1330,6 +1515,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'MachineRegistration';
       case _i6yugb3s.MachineStatus():
         return 'MachineStatus';
+      case _i6jvclsf.NotFoundException():
+        return 'NotFoundException';
       case _ixuoipsp.PrMergeStatus():
         return 'PrMergeStatus';
       case _ifiazq2p.Project():
@@ -1412,8 +1599,14 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (dataClassName == 'DiffFile') {
       return deserialize<_iji3k3fl.DiffFile>(data['data']);
     }
+    if (dataClassName == 'GitHubException') {
+      return deserialize<_ixcrnhlg.GitHubException>(data['data']);
+    }
     if (dataClassName == 'Greeting') {
       return deserialize<_izw8z7ou.Greeting>(data['data']);
+    }
+    if (dataClassName == 'InvalidStateException') {
+      return deserialize<_i0q2rwly.InvalidStateException>(data['data']);
     }
     if (dataClassName == 'InvalidTokenException') {
       return deserialize<_isgtss3z.InvalidTokenException>(data['data']);
@@ -1432,6 +1625,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'MachineStatus') {
       return deserialize<_i6yugb3s.MachineStatus>(data['data']);
+    }
+    if (dataClassName == 'NotFoundException') {
+      return deserialize<_i6jvclsf.NotFoundException>(data['data']);
     }
     if (dataClassName == 'PrMergeStatus') {
       return deserialize<_ixuoipsp.PrMergeStatus>(data['data']);

@@ -1,11 +1,12 @@
 import '../endpoints/non_terminal_task_statuses.dart';
-import '../endpoints/task_endpoint.dart';
 import '../generated/protocol.dart';
+import '../task_lifecycle.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Detects machines whose daemon has stopped heartbeating and marks them
 /// offline, failing any non-terminal tasks belonging to that machine's
-/// agents (design doc §6.8). Scheduled to run recurringly from `server.dart`.
+/// agents (docs/FLOWS.md §1–3). Scheduled to run recurringly from
+/// `server.dart`.
 class MachineOfflineFutureCall extends FutureCall {
   static const _offlineThreshold = Duration(seconds: 60);
 
@@ -35,24 +36,7 @@ class MachineOfflineFutureCall extends FutureCall {
         where: (t) =>
             t.agentId.inSet(agentIds) & t.status.inSet(nonTerminalTaskStatuses),
       );
-      for (final task in staleTasks) {
-        final updated = await Task.db.updateRow(
-          session,
-          task.copyWith(
-            status: TaskStatus.failed,
-            failureReason: 'Machine went offline mid-task',
-            finishedAt: DateTime.now().toUtc(),
-          ),
-        );
-        await session.messages.postMessage(
-          TaskEndpoint.channelForTask(updated.id!),
-          updated,
-        );
-        await session.messages.postMessage(
-          TaskEndpoint.channelForAllTasks(),
-          updated,
-        );
-      }
+      await failTasks(session, staleTasks, 'Machine went offline mid-task');
     }
   }
 }

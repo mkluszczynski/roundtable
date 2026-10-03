@@ -247,8 +247,9 @@ void main() {
           'Do something',
           skipPlanning: true,
         );
-        await endpoints.task.update(
-          sessionBuilder,
+        // `update` can't set `done` (only acceptTask can) — seed it directly.
+        await Task.db.updateRow(
+          sessionBuilder.build(),
           task.copyWith(
             status: TaskStatus.done,
             finishedAt: DateTime.now().toUtc(),
@@ -498,8 +499,9 @@ void main() {
         'Do something',
         skipPlanning: true,
       );
-      await endpoints.task.update(
-        sessionBuilder,
+      // `update` can't set `done` (only acceptTask can) — seed it directly.
+      await Task.db.updateRow(
+        sessionBuilder.build(),
         task.copyWith(
           status: TaskStatus.done,
           finishedAt: DateTime.now().toUtc(),
@@ -982,6 +984,7 @@ void main() {
           dispatched.id!,
         );
         expect(fetched!.currentPlan, 'The plan');
+        expect(fetched.status, TaskStatus.planReady);
         expect(fetched.claudeSessionId, 'sess-1');
       },
     );
@@ -1300,8 +1303,9 @@ void main() {
           'Do something',
           skipPlanning: true,
         );
-        await endpoints.task.update(
-          sessionBuilder,
+        // `update` can't set `done` (only acceptTask can) — seed it directly.
+        await Task.db.updateRow(
+          sessionBuilder.build(),
           task.copyWith(
             status: TaskStatus.done,
             finishedAt: DateTime.now().toUtc(),

@@ -25,7 +25,7 @@ enum AgentRunnerBinary {
 }
 
 /// Resolves the agent-runner binaries served to `install-agent.sh` and the
-/// root-side updater it installs (design doc §6.8), and the version string a
+/// root-side updater it installs (docs/FLOWS.md §1–3), and the version string a
 /// daemon compares itself against.
 ///
 /// Prefers the prebuilt copies in `web/static/bin/`. In development, where

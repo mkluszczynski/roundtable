@@ -3,7 +3,7 @@
 # Stops and removes the roundtable agent-runner daemon installed by
 # install-agent.sh, and asks the server to revoke this machine's token so
 # its status flips to offline immediately instead of waiting for the
-# heartbeat timeout. See design doc §6.8.
+# heartbeat timeout. See docs/FLOWS.md §1–3.
 #
 # Usage:
 #   ./scripts/uninstall-agent.sh [--server <URL>] [--token <TOKEN>]

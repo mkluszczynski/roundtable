@@ -101,7 +101,7 @@ abstract class Agent
   int machineId;
 
   /// onDelete=Cascade: deleting a machine removes the agents hosted on it —
-  /// an agent has no existence independent of its machine (design doc §5).
+  /// an agent has no existence independent of its machine (docs/ARCHITECTURE.md).
   /// Their own tasks are preserved as history: Task.agent is onDelete=SetNull.
   _i0hti3f2.Machine? machine;
 

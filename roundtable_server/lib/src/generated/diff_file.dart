@@ -12,7 +12,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:serverpod/serverpod.dart' as _is;
 
-/// One changed file from a task's PR (design doc §6.7). Not a database table
+/// One changed file from a task's PR (docs/FLOWS.md §4). Not a database table
 /// — fetched on demand from the GitHub API and never persisted.
 abstract class DiffFile
     implements _is.SerializableModel, _is.ProtocolSerialization {

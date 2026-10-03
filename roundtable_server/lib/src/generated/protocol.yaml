@@ -14,6 +14,7 @@ agent:
   - get:
   - list:
   - update:
+  - setStatus:
   - delete:
 codeReview:
   - requestReview:
@@ -35,6 +36,7 @@ machine:
   - latestRunnerVersion:
   - requestRunnerUpdate:
   - deregister:
+  - reportStartup:
   - identify:
   - reportMetric:
   - reportClaudeStatus:
@@ -70,6 +72,7 @@ task:
   - watchPlanDecision:
   - deleteTask:
   - watchTaskDeletions:
+  - findTasks:
   - getChangedFiles:
   - getFileContent:
   - watchAllTasks:

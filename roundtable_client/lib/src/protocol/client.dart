@@ -15,6 +15,7 @@ import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
 import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
+import 'package:roundtable_client/src/protocol/agent_status.dart' as _ijqfzoc4;
 import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
@@ -273,7 +274,7 @@ class EndpointJwtRefresh extends _iacc.EndpointRefreshJwtTokens {
 }
 
 /// CRUD for [Agent]. Deletion is blocked while the agent has a non-terminal
-/// task (design doc §5, §6.8).
+/// task (docs/ARCHITECTURE.md).
 /// {@category Endpoint}
 class EndpointAgent extends _isc.EndpointRef {
   EndpointAgent(_isc.EndpointCaller caller) : super(caller);
@@ -313,12 +314,29 @@ class EndpointAgent extends _isc.EndpointRef {
         {},
       );
 
+  /// Edits an agent's settings from the panel. The machine it lives on,
+  /// its execution mode and its status can't be changed here — status is
+  /// reported by the daemon through [setStatus].
   _ida.Future<_ikth53tp.Agent> update(_ikth53tp.Agent agent) =>
       caller.callServerEndpoint<_ikth53tp.Agent>(
         'agent',
         'update',
         {'agent': agent},
       );
+
+  /// Reports what an agent is doing (`idle`/`busy`/`waitingForResponse`),
+  /// called by the daemon running its tasks and reviews.
+  _ida.Future<_ikth53tp.Agent> setStatus(
+    int agentId,
+    _ijqfzoc4.AgentStatus status,
+  ) => caller.callServerEndpoint<_ikth53tp.Agent>(
+    'agent',
+    'setStatus',
+    {
+      'agentId': agentId,
+      'status': status,
+    },
+  );
 
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'agent',
@@ -452,8 +470,8 @@ class EndpointCodeReview extends _isc.EndpointRef {
 }
 
 /// Registration and CRUD for [Machine]. Deletion is blocked while the machine
-/// is `online`, or while any of its agents has a non-terminal task (design
-/// doc §5, §6.8).
+/// is `online`, or while any of its agents has a non-terminal task
+/// (docs/ARCHITECTURE.md).
 /// {@category Endpoint}
 class EndpointMachine extends _isc.EndpointRef {
   EndpointMachine(_isc.EndpointCaller caller) : super(caller);
@@ -476,7 +494,7 @@ class EndpointMachine extends _isc.EndpointRef {
   /// Base URL the install/uninstall scripts (and the agent-runner binary
   /// install-agent.sh downloads) are served from — the panel's "Delete"
   /// dialog for an online machine uses this to render a working
-  /// `curl | sudo bash` uninstall command (design doc §6.8).
+  /// `curl | sudo bash` uninstall command (docs/FLOWS.md §1–3).
   _ida.Future<String> getScriptUrl() => caller.callServerEndpoint<String>(
     'machine',
     'getScriptUrl',
@@ -497,6 +515,8 @@ class EndpointMachine extends _isc.EndpointRef {
         {},
       );
 
+  /// Renames a machine. Everything else on it (token, status, versions)
+  /// is owned by the daemon-facing methods and can't be written here.
   _ida.Future<_iwz93qz1.Machine> update(_iwz93qz1.Machine machine) =>
       caller.callServerEndpoint<_iwz93qz1.Machine>(
         'machine',
@@ -556,7 +576,7 @@ class EndpointMachine extends _isc.EndpointRef {
 
   /// Called by the uninstall script as a deliberate deregistration, so the
   /// server doesn't have to wait for the heartbeat timeout to notice the
-  /// machine is gone (design doc §6.8). Marks the machine offline and clears
+  /// machine is gone (docs/FLOWS.md §1–3). Marks the machine offline and clears
   /// [Machine.tokenHash] so the raw token can never match again.
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
@@ -567,10 +587,28 @@ class EndpointMachine extends _isc.EndpointRef {
     {'token': token},
   );
 
+  /// Called by the daemon once at startup, right after [identify]. A fresh
+  /// daemon process has no `claude` subprocesses, so any task of this
+  /// machine's agents still in an agent-driven state (planning, waiting on a
+  /// question/plan decision, running) lost its process in the restart —
+  /// fail it with a clear reason instead of leaving it stuck. Code reviews
+  /// that were `running` on it are failed the same way (a stuck review would
+  /// block merging), and the agents are reset to `idle`, since nothing is
+  /// running on them anymore.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportStartup(String token) =>
+      caller.callServerEndpoint<void>(
+        'machine',
+        'reportStartup',
+        {'token': token},
+      );
+
   /// Resolves the [Machine] a registration token belongs to, without
   /// mutating heartbeat state. Used by the agent-runner daemon at startup to
   /// learn its own machine id before subscribing to
-  /// [TaskEndpoint.watchAssignedTasks] (design doc §6.1).
+  /// [TaskEndpoint.watchAssignedTasks] (docs/FLOWS.md §4).
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
@@ -581,7 +619,7 @@ class EndpointMachine extends _isc.EndpointRef {
         {'token': token},
       );
 
-  /// Called periodically by the agent-runner daemon (design doc §6.9). Stores
+  /// Called periodically by the agent-runner daemon (docs/FLOWS.md §4). Stores
   /// a new [MachineMetric] row and notifies [watchLatestMetric] subscribers.
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
@@ -624,7 +662,7 @@ class EndpointMachine extends _isc.EndpointRef {
     },
   );
 
-  /// Streams the latest [MachineMetric] for [machineId] (design doc §6.9
+  /// Streams the latest [MachineMetric] for [machineId] (docs/FLOWS.md §6
   /// snapshot) — replays the current latest row on subscribe, then yields
   /// each new one as [reportMetric] stores it.
   _ida.Stream<_il2pq5ll.MachineMetric> watchLatestMetric(int machineId) =>
@@ -684,6 +722,8 @@ class EndpointProject extends _isc.EndpointRef {
         {},
       );
 
+  /// Edits a project's name, repo URL and docker image. The access token
+  /// goes through [updateRepoAccessToken] instead.
   _ida.Future<_i76mncv2.Project> update(_i76mncv2.Project project) =>
       caller.callServerEndpoint<_i76mncv2.Project>(
         'project',
@@ -716,7 +756,7 @@ class EndpointProject extends _isc.EndpointRef {
   /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
   /// injected as the userinfo component when present. Called by the agent
   /// daemon only at the moment a task starts, never persisted to disk on the
-  /// agent side (design doc §6.5).
+  /// agent side (docs/ARCHITECTURE.md).
   _ida.Future<String> getCloneUrl(int projectId) =>
       caller.callServerEndpoint<String>(
         'project',
@@ -725,7 +765,7 @@ class EndpointProject extends _isc.EndpointRef {
       );
 }
 
-/// Task creation and the daemon's assignment feed (design doc §6.1).
+/// Task creation and the daemon's assignment feed (docs/FLOWS.md §4).
 /// {@category Endpoint}
 class EndpointTask extends _isc.EndpointRef {
   EndpointTask(_isc.EndpointCaller caller) : super(caller);
@@ -733,7 +773,7 @@ class EndpointTask extends _isc.EndpointRef {
   @override
   String get name => 'task';
 
-  /// Creates a [Task] (design doc §6.1 step 1). With an [agentId] it's
+  /// Creates a [Task] (docs/FLOWS.md §4). With an [agentId] it's
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
@@ -753,19 +793,19 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Streams tasks newly assigned to any agent hosted on [machineId] (design
-  /// doc §6.1 step 2 — by machine, not by agent, since one daemon serves
-  /// every agent it hosts). On subscribe, first replays any already-queued,
-  /// non-terminal tasks for that machine — otherwise a task created while the
-  /// daemon was offline/restarting would never surface — then yields each
-  /// task as it's created via [createTask].
-  /// Generic CRUD update, mirroring [ProjectEndpoint.update] /
-  /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
-  /// daemon to move a task through its lifecycle (design doc §6.1) —
-  /// e.g. `running` → `awaitingReview`/`failed` — and to persist
-  /// `claudeSessionId` once Claude Code reports one. Bumps
-  /// `lastProgressAt`, since this is the daemon's primary path for
-  /// reporting task activity — see [StalledTaskFutureCall].
+  /// Used by the agent daemon to report a run's progress and outcome —
+  /// e.g. `queued` → `planning`/`running`, `running` →
+  /// `awaitingReview`/`failed` — and to persist `claudeSessionId`, the branch
+  /// and the PR URL. Only the columns the daemon owns are written, and only
+  /// to a status in [_runnerSettableStatuses] — any other status in [task]
+  /// is ignored and the current one kept. Bumps `lastProgressAt` (see
+  /// [StalledTaskFutureCall]).
+  ///
+  /// A task that already reached a terminal state server-side (cancelled
+  /// from the panel, failed by a future call, merged) is final: a late
+  /// write from the daemon is ignored and the current row returned, rather
+  /// than reviving it or throwing at a daemon that can't do anything about
+  /// it.
   _ida.Future<_iw53rmon.Task> update(_iw53rmon.Task task) =>
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
@@ -804,7 +844,7 @@ class EndpointTask extends _isc.EndpointRef {
       );
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
-  /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
+  /// (docs/FLOWS.md §4) and notifies any [watchLogs] subscribers for this
   /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
   /// activity — see [StalledTaskFutureCall].
   _ida.Future<_inlvye37.TaskLogEntry> appendLog(
@@ -821,8 +861,8 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Cancels a task that hasn't reached a terminal state yet (design doc
-  /// §6.1 "Cancelling mid-run"): marks it `cancelled` and notifies
+  /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
+  /// "Cancelling mid-run"): marks it `cancelled` and notifies
   /// [watchTask] subscribers — the daemon running the task reacts by
   /// sending `SIGTERM` to the Claude Code subprocess and resetting the
   /// worktree.
@@ -866,7 +906,7 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Records feedback on a completed run (design doc §6.1 step 9, §6.4) and
+  /// Records feedback on a completed run (docs/FLOWS.md §4) and
   /// wakes the daemon via the same channel [createTask] uses — the daemon
   /// picks it up through its existing [watchAssignedTasks] subscription and
   /// resumes the same Claude Code session (`TaskDispatcher.handle`).
@@ -894,7 +934,7 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
-  /// Records a plan-mode clarifying question (design doc §6.4
+  /// Records a plan-mode clarifying question (docs/FLOWS.md §4
   /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
   /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the
   /// panel can render it.
@@ -912,7 +952,7 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Answers a plan-mode clarifying question (design doc §6.4), waking the
+  /// Answers a plan-mode clarifying question (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool blocked on [watchAnswer], and moves the task back
   /// to `planning` since Claude Code resumes as soon as the tool returns.
   _ida.Future<_ihmnezqk.TaskQuestion> answerQuestion(
@@ -928,7 +968,7 @@ class EndpointTask extends _isc.EndpointRef {
   );
 
   /// Streams [questionId]'s answer, for the permission-prompt-tool to block
-  /// on while Claude Code waits on `AskUserQuestion` (design doc §6.4). On
+  /// on while Claude Code waits on `AskUserQuestion` (docs/FLOWS.md §4). On
   /// subscribe, replays the question immediately if it was already answered
   /// before the subscriber attached.
   _ida.Stream<_ihmnezqk.TaskQuestion> watchAnswer(int questionId) =>
@@ -954,7 +994,7 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
-  /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
+  /// Stores a ready plan (docs/FLOWS.md §4 `ExitPlanMode`) and flips
   /// `Task.status = planReady`, so the dev can approve it or give feedback.
   _ida.Future<_iw53rmon.Task> setPlanReady(
     int taskId,
@@ -968,7 +1008,7 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Approves the current plan (design doc §6.4), waking the
+  /// Approves the current plan (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool blocked on [watchPlanDecision] so it lets
   /// `ExitPlanMode` through and Claude Code proceeds to implement.
   _ida.Future<_iw53rmon.Task> approvePlan(int taskId) =>
@@ -978,7 +1018,7 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
-  /// Rejects the current plan with feedback (design doc §6.4), waking the
+  /// Rejects the current plan with feedback (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool so it denies `ExitPlanMode` and returns the
   /// feedback message as the reason — Claude Code plans again in the same
   /// process.
@@ -994,8 +1034,8 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Streams the dev's decision on [taskId]'s current plan (design doc
-  /// §6.4), for the permission-prompt-tool to block on while `ExitPlanMode`
+  /// Streams the dev's decision on [taskId]'s current plan (docs/FLOWS.md §4),
+  /// for the permission-prompt-tool to block on while `ExitPlanMode`
   /// is pending. Deliberately doesn't replay on subscribe — the tool always
   /// subscribes right after setting `planReady` itself via [setPlanReady],
   /// so a decision is always a future event, never one already made.
@@ -1037,8 +1077,18 @@ class EndpointTask extends _isc.EndpointRef {
         {},
       );
 
-  /// Returns the list of files changed in [taskId]'s pull request (design
-  /// doc §6.7), fetched from the GitHub API using the project's
+  /// Returns the tasks among [taskIds] that still exist. Used by the
+  /// daemon's worktree cleanup to tell which on-disk worktrees belong to
+  /// deleted or finished tasks.
+  _ida.Future<List<_iw53rmon.Task>> findTasks(List<int> taskIds) =>
+      caller.callServerEndpoint<List<_iw53rmon.Task>>(
+        'task',
+        'findTasks',
+        {'taskIds': taskIds},
+      );
+
+  /// Returns the list of files changed in [taskId]'s pull request
+  /// (docs/FLOWS.md §4), fetched from the GitHub API using the project's
   /// `repoAccessToken` — never returned to the panel.
   _ida.Future<List<_iusyva9a.DiffFile>> getChangedFiles(int taskId) =>
       caller.callServerEndpoint<List<_iusyva9a.DiffFile>>(
@@ -1048,7 +1098,7 @@ class EndpointTask extends _isc.EndpointRef {
       );
 
   /// Returns the raw content of the file at [contentsUrl] (as returned by
-  /// [getChangedFiles]) for [taskId]'s repository (design doc §6.7).
+  /// [getChangedFiles]) for [taskId]'s repository (docs/FLOWS.md §4).
   _ida.Future<String> getFileContent(
     int taskId,
     String contentsUrl,
@@ -1061,7 +1111,7 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
-  /// Streams every task, for the panel's dashboard kanban (design doc §4
+  /// Streams every task, for the panel's dashboard kanban (docs/ARCHITECTURE.md
   /// "Should"), not the daemon, which uses [watchAssignedTasks] instead. On
   /// subscribe, replays every task currently in the database, then yields
   /// each task again whenever any of the status-changing methods above
@@ -1075,6 +1125,12 @@ class EndpointTask extends _isc.EndpointRef {
         {},
       );
 
+  /// Streams tasks newly assigned to any agent hosted on [machineId] — by
+  /// machine, not by agent, since one daemon serves every agent it hosts.
+  /// On subscribe, first replays the machine's non-terminal tasks —
+  /// otherwise a task created while the daemon was offline/restarting would
+  /// never surface — then yields each task posted to the machine's channel
+  /// (created, retried, reassigned, fed back, merged).
   _ida.Stream<_iw53rmon.Task> watchAssignedTasks(int machineId) => caller
       .callStreamingServerEndpoint<_ida.Stream<_iw53rmon.Task>, _iw53rmon.Task>(
         'task',
@@ -1084,7 +1140,7 @@ class EndpointTask extends _isc.EndpointRef {
       );
 
   /// Streams a task's execution output as it's persisted via [appendLog]
-  /// (design doc §6.3), for the panel to render live. On subscribe, first
+  /// (docs/FLOWS.md §4), for the panel to render live. On subscribe, first
   /// replays every already-persisted [TaskLogEntry] for [taskId] in order,
   /// then yields each new entry as it's appended.
   _ida.Stream<_inlvye37.TaskLogEntry> watchLogs(int taskId) =>
@@ -1099,7 +1155,7 @@ class EndpointTask extends _isc.EndpointRef {
       );
 
   /// Streams [taskId]'s status, for the daemon running it (to detect a
-  /// cancellation mid-run, design doc §6.1) and the panel alike. On
+  /// cancellation mid-run, docs/FLOWS.md §4) and the panel alike. On
   /// subscribe, first replays the task's current row, then yields it again
   /// each time [cancelTask] cancels it.
   _ida.Stream<_iw53rmon.Task> watchTask(int taskId) => caller

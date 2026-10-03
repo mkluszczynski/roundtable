@@ -1,31 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import 'generated/protocol.dart';
 
-/// Thrown when the GitHub REST API responds with a non-2xx status.
-class GitHubApiException implements Exception {
-  GitHubApiException(
-    this.message, {
-    required this.statusCode,
-    required this.body,
-  });
-
-  final String message;
-  final int statusCode;
-  final String body;
-
-  @override
-  String toString() => '$message (HTTP $statusCode): $body';
-}
-
 /// Fetches a task's changed files and file contents from the GitHub REST API
-/// on the panel's behalf (design doc §6.7) — `repoAccessToken` never reaches
+/// on the panel's behalf (docs/FLOWS.md §4) — `repoAccessToken` never reaches
 /// the panel, only the already-parsed result does.
 class GitHubRepoClient {
-  GitHubRepoClient({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  GitHubRepoClient({http.Client? httpClient, Duration timeout = _timeout})
+    : _http = _TimeoutClient(httpClient ?? http.Client(), timeout);
+
+  static const _timeout = Duration(seconds: 30);
 
   final http.Client _http;
 
@@ -47,10 +34,9 @@ class GitHubRepoClient {
       headers: _headers(token),
     );
     if (response.statusCode != 200) {
-      throw GitHubApiException(
-        'Failed to fetch changed files for $owner/$repo#$number',
+      throw GitHubException(
+        message: 'Failed to fetch changed files for $owner/$repo#$number',
         statusCode: response.statusCode,
-        body: response.body,
       );
     }
 
@@ -99,10 +85,9 @@ class GitHubRepoClient {
       headers: {..._headers(token), 'Accept': 'application/vnd.github.raw'},
     );
     if (response.statusCode != 200) {
-      throw GitHubApiException(
-        'Failed to fetch file content from $contentsUrl',
+      throw GitHubException(
+        message: 'Failed to fetch file content from $contentsUrl',
         statusCode: response.statusCode,
-        body: response.body,
       );
     }
 
@@ -161,10 +146,9 @@ class GitHubRepoClient {
       }),
     );
     if (response.statusCode != 200) {
-      throw GitHubApiException(
-        'Failed to create a review on $owner/$repo#$number',
+      throw GitHubException(
+        message: 'Failed to create a review on $owner/$repo#$number',
         statusCode: response.statusCode,
-        body: response.body,
       );
     }
     final reviewId =
@@ -242,7 +226,7 @@ class GitHubRepoClient {
         );
         return;
       }
-    } on GitHubApiException {
+    } on GitHubException {
       // Fall through to the reply below.
     }
 
@@ -255,16 +239,16 @@ class GitHubRepoClient {
       body: jsonEncode({'body': 'Resolved in Roundtable.'}),
     );
     if (reply.statusCode != 201) {
-      throw GitHubApiException(
-        'Failed to resolve comment $githubCommentId on $owner/$repo#$number',
+      throw GitHubException(
+        message:
+            'Failed to resolve comment $githubCommentId on $owner/$repo#$number',
         statusCode: reply.statusCode,
-        body: reply.body,
       );
     }
   }
 
   /// Squash-merges the pull request at [prUrl]. Throws a
-  /// [GitHubApiException] when GitHub refuses (conflicts, failing required
+  /// [GitHubException] when GitHub refuses (conflicts, failing required
   /// checks, head changed under us, ...).
   Future<void> mergePullRequest({
     required String prUrl,
@@ -287,10 +271,9 @@ class GitHubRepoClient {
             (jsonDecode(response.body) as Map<String, dynamic>)['message']
                 as String;
       } catch (_) {}
-      throw GitHubApiException(
-        'GitHub refused to merge $owner/$repo#$number: $reason',
+      throw GitHubException(
+        message: 'GitHub refused to merge $owner/$repo#$number: $reason',
         statusCode: response.statusCode,
-        body: response.body,
       );
     }
   }
@@ -311,10 +294,9 @@ class GitHubRepoClient {
         headers: _headers(token),
       );
       if (response.statusCode != 200) {
-        throw GitHubApiException(
-          'Failed to fetch $owner/$repo#$number',
+        throw GitHubException(
+          message: 'Failed to fetch $owner/$repo#$number',
           statusCode: response.statusCode,
-          body: response.body,
         );
       }
       final pr = jsonDecode(response.body) as Map<String, dynamic>;
@@ -345,10 +327,9 @@ class GitHubRepoClient {
         ? jsonDecode(response.body) as Map<String, dynamic>
         : null;
     if (decoded == null || decoded['errors'] != null) {
-      throw GitHubApiException(
-        'GitHub GraphQL request failed',
+      throw GitHubException(
+        message: 'GitHub GraphQL request failed',
         statusCode: response.statusCode,
-        body: response.body,
       );
     }
     return decoded['data'] as Map<String, dynamic>;
@@ -450,3 +431,29 @@ Set<int> commentableLines(String? patch) {
 /// Shared instance used by the endpoints. Tests replace it with one backed
 /// by a `MockClient` to avoid hitting GitHub.
 GitHubRepoClient gitHubRepoClient = GitHubRepoClient();
+
+/// Fails any GitHub request that takes longer than [_timeout] with a
+/// [GitHubException], so a hung API call can't hang the panel request
+/// waiting on it.
+class _TimeoutClient extends http.BaseClient {
+  _TimeoutClient(this._inner, this._timeout);
+
+  final http.Client _inner;
+  final Duration _timeout;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) => _inner
+      .send(request)
+      .timeout(
+        _timeout,
+        onTimeout: () => throw GitHubException(
+          message:
+              'GitHub did not respond within ${_timeout.inSeconds}s '
+              '(${request.method} ${request.url.path})',
+          statusCode: 504,
+        ),
+      );
+
+  @override
+  void close() => _inner.close();
+}

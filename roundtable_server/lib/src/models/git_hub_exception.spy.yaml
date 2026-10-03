@@ -1,0 +1,7 @@
+### Thrown when a GitHub API call made on the panel's behalf fails (non-2xx
+### response or timeout). [message] is meant to be shown as-is;
+### [statusCode] is GitHub's HTTP status (504 for a timeout).
+exception: GitHubException
+fields:
+  message: String
+  statusCode: int

@@ -1,12 +1,12 @@
 import '../endpoints/non_terminal_task_statuses.dart';
-import '../endpoints/task_endpoint.dart';
 import '../generated/protocol.dart';
+import '../task_lifecycle.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Detects tasks that have made no progress for longer than
 /// [_stalledThreshold] — e.g. a hung Claude Code subprocess on a machine
 /// that's still heartbeating, unlike [MachineOfflineFutureCall] which only
-/// catches a machine that's gone entirely (design doc §4 "Timeout for a
+/// catches a machine that's gone entirely (docs/ARCHITECTURE.md "Timeout for a
 /// stuck task"). Scheduled to run recurringly from `server.dart`.
 class StalledTaskFutureCall extends FutureCall {
   static const _stalledThreshold = Duration(minutes: 15);
@@ -32,24 +32,10 @@ class StalledTaskFutureCall extends FutureCall {
           (t.lastProgressAt < cutoff),
     );
 
-    for (final task in stalledTasks) {
-      final updated = await Task.db.updateRow(
-        session,
-        task.copyWith(
-          status: TaskStatus.failed,
-          failureReason:
-              'Task made no progress for over ${_stalledThreshold.inMinutes} minutes',
-          finishedAt: DateTime.now().toUtc(),
-        ),
-      );
-      await session.messages.postMessage(
-        TaskEndpoint.channelForTask(updated.id!),
-        updated,
-      );
-      await session.messages.postMessage(
-        TaskEndpoint.channelForAllTasks(),
-        updated,
-      );
-    }
+    await failTasks(
+      session,
+      stalledTasks,
+      'Task made no progress for over ${_stalledThreshold.inMinutes} minutes',
+    );
   }
 }

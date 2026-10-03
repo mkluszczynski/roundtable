@@ -8,3 +8,6 @@ fields:
   message: String
   phase: TaskFeedbackPhase
   createdAt: DateTime, default=now
+indexes:
+  task_feedback_task_created_idx:
+    fields: taskId, createdAt

@@ -14,3 +14,6 @@ fields:
   ### Id of the mirrored GitHub review comment, when it could be placed on the diff.
   githubCommentId: int?
   createdAt: DateTime, default=now
+indexes:
+  review_comment_review_idx:
+    fields: reviewId

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Installs the roundtable agent-runner daemon as a systemd service on this
-# machine. See design doc §6.8.
+# machine. See docs/FLOWS.md §1–3.
 #
 # This script is self-executing: it downloads a prebuilt agent-runner binary
 # from the server rather than building one from source, so the target
@@ -30,7 +30,7 @@ CONFIG_PATH="${CONFIG_DIR}/config.env"
 BIN_PATH="/usr/local/bin/roundtable-agent-runner"
 PERMISSION_PROMPT_BIN_PATH="/usr/local/bin/roundtable-permission-prompt-tool"
 SERVICE_USER="roundtable-agent"
-# Bare clones + per-task worktrees live here (design doc §6.10). Must be
+# Bare clones + per-task worktrees live here (docs/ARCHITECTURE.md). Must be
 # owned by SERVICE_USER and outside /etc (config.env is 600, this isn't).
 DATA_DIR="/var/lib/agent-runner"
 WORKSPACE_DIR="${DATA_DIR}/workspace"
@@ -163,8 +163,8 @@ chown -R "${SERVICE_USER}:${SERVICE_USER}" "$DATA_DIR"
 # `claude` needs to be reachable by ${SERVICE_USER} at task-run time, not by
 # whoever happens to be running this install script. Reusing a claude
 # installed under a human user's home (nvm/npm's default) would mean
-# ${SERVICE_USER} — a separate, unprivileged system account (design doc
-# §6.8) with no membership in that user's groups — has to be granted
+# ${SERVICE_USER} — a separate, unprivileged system account (docs/FLOWS.md §1–3)
+# with no membership in that user's groups — has to be granted
 # cross-user filesystem access just to traverse into it, which is brittle
 # (breaks again on the next nvm/node upgrade, since the resolved path
 # changes) and unnecessarily broad. Instead, give the service account its

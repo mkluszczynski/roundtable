@@ -73,7 +73,7 @@ void run(List<String> args) async {
   // Serve the uninstall script too — a machine installed via the curl
   // one-liner above has no repo checkout to run `./scripts/uninstall-agent.sh`
   // from, so the panel's "still online" delete dialog points at this route
-  // instead (design doc §6.8).
+  // instead (docs/FLOWS.md §1–3).
   final devUninstallScript = File(
     Uri(path: '../scripts/uninstall-agent.sh').toFilePath(),
   );
@@ -92,7 +92,7 @@ void run(List<String> args) async {
   // Serve prebuilt agent-runner and permission-prompt-tool binaries so
   // install-agent.sh (and the root-side updater it installs) can install a
   // self-executable agent without a Dart SDK or repo checkout on the target
-  // machine (design doc §6.4, §6.8). The packaged Docker image ships them
+  // machine (docs/FLOWS.md §4). The packaged Docker image ships them
   // prebuilt; in development they're compiled from the sibling package and
   // rebuilt whenever its sources change.
   pod.webServer.addRoute(
@@ -169,6 +169,7 @@ void run(List<String> args) async {
       where: (t) => t.name.inSet({
         'MachineOfflineCheckFutureCall',
         'StalledTaskCheckFutureCall',
+        'MachineMetricCleanupCheckFutureCall',
       }),
     );
   } finally {
@@ -176,7 +177,7 @@ void run(List<String> args) async {
   }
 
   // Periodically detect machines whose daemon has stopped heartbeating and
-  // fail their in-progress tasks (design doc §6.8).
+  // fail their in-progress tasks (docs/FLOWS.md §1–3).
   await pod.futureCalls
       .callRecurring(identifier: 'machine-offline-check')
       .every(const Duration(seconds: 30))
@@ -184,11 +185,19 @@ void run(List<String> args) async {
       .check();
 
   // Periodically detect tasks that have made no progress for too long, even
-  // on a machine that's still online (design doc §4 "Timeout for a stuck
+  // on a machine that's still online (docs/ARCHITECTURE.md "Timeout for a stuck
   // task").
   await pod.futureCalls
       .callRecurring(identifier: 'stalled-task-check')
       .every(const Duration(seconds: 30))
       .stalledTask
+      .check();
+
+  // Keep only the last hour of machine metrics — the panel shows just the
+  // latest sample per machine.
+  await pod.futureCalls
+      .callRecurring(identifier: 'machine-metric-cleanup')
+      .every(const Duration(minutes: 10))
+      .machineMetricCleanup
       .check();
 }

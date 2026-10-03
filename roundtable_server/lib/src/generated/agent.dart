@@ -103,7 +103,7 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
   int machineId;
 
   /// onDelete=Cascade: deleting a machine removes the agents hosted on it —
-  /// an agent has no existence independent of its machine (design doc §5).
+  /// an agent has no existence independent of its machine (docs/ARCHITECTURE.md).
   /// Their own tasks are preserved as history: Task.agent is onDelete=SetNull.
   _i0hti3f2.Machine? machine;
 
@@ -389,7 +389,7 @@ class AgentTable extends _is.Table<int?> {
   late final _is.ColumnInt machineId;
 
   /// onDelete=Cascade: deleting a machine removes the agents hosted on it —
-  /// an agent has no existence independent of its machine (design doc §5).
+  /// an agent has no existence independent of its machine (docs/ARCHITECTURE.md).
   /// Their own tasks are preserved as history: Task.agent is onDelete=SetNull.
   _i0hti3f2.MachineTable? _machine;
 

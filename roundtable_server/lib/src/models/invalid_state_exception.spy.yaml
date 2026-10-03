@@ -1,0 +1,6 @@
+### Thrown when an action isn't allowed in the record's current state, e.g.
+### approving a plan on a task that isn't `planReady`. [message] is meant to
+### be shown to the developer as-is.
+exception: InvalidStateException
+fields:
+  message: String

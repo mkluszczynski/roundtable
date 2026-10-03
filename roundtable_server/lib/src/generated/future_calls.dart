@@ -14,6 +14,7 @@
 import 'dart:async' as _ida;
 import 'package:clock/clock.dart' as _io0w16m8;
 import 'package:serverpod/serverpod.dart' as _is;
+import '../future_calls/machine_metric_cleanup_future_call.dart' as _isi0pp7c;
 import '../future_calls/machine_offline_future_call.dart' as _iou5r7kt;
 import '../future_calls/stalled_task_future_call.dart' as _ikbf0ylb;
 
@@ -59,6 +60,8 @@ class FutureCalls extends _is.FutureCallDispatch<_FutureCallRef> {
     String serverId,
   ) {
     var registeredFutureCalls = <String, _is.InvokableFutureCall>{
+      'MachineMetricCleanupCheckFutureCall':
+          MachineMetricCleanupCheckFutureCall(),
       'MachineOfflineCheckFutureCall': MachineOfflineCheckFutureCall(),
       'StalledTaskCheckFutureCall': StalledTaskCheckFutureCall(),
     };
@@ -181,11 +184,28 @@ class _FutureCallRef {
 
   final _InvokeFutureCall _invokeFutureCall;
 
+  late final machineMetricCleanup = _MachineMetricCleanupFutureCallDispatcher(
+    _invokeFutureCall,
+  );
+
   late final machineOffline = _MachineOfflineFutureCallDispatcher(
     _invokeFutureCall,
   );
 
   late final stalledTask = _StalledTaskFutureCallDispatcher(_invokeFutureCall);
+}
+
+class _MachineMetricCleanupFutureCallDispatcher {
+  _MachineMetricCleanupFutureCallDispatcher(this._invokeFutureCall);
+
+  final _InvokeFutureCall _invokeFutureCall;
+
+  Future<void> check() {
+    return _invokeFutureCall(
+      'MachineMetricCleanupCheckFutureCall',
+      null,
+    );
+  }
 }
 
 class _MachineOfflineFutureCallDispatcher {
@@ -211,6 +231,17 @@ class _StalledTaskFutureCallDispatcher {
       'StalledTaskCheckFutureCall',
       null,
     );
+  }
+}
+
+class MachineMetricCleanupCheckFutureCall extends _is.FutureCall
+    implements _is.InvokableFutureCall {
+  @override
+  _ida.Future<void> invoke(
+    _is.Session session,
+    _is.SerializableModel? object,
+  ) async {
+    await _isi0pp7c.MachineMetricCleanupFutureCall().check(session);
   }
 }
 

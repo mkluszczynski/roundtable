@@ -1,0 +1,5 @@
+### Thrown when an endpoint is given the id of a record that doesn't exist
+### (or no longer exists, e.g. deleted from another client).
+exception: NotFoundException
+fields:
+  message: String

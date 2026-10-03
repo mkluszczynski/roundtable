@@ -10,35 +10,48 @@ import 'github_repo_client.dart';
 /// (`TaskEndpoint.watchAssignedTasks`).
 String taskChannelForMachine(int machineId) => 'machine-$machineId-tasks';
 
-/// Records review-phase feedback on [task] (design doc §6.1 step 9, §6.4)
+/// Records review-phase feedback on [task] (docs/FLOWS.md §4)
 /// and wakes its agent's daemon via the same channel `createTask` uses —
 /// the daemon picks it up through its `watchAssignedTasks` subscription and
 /// resumes the same Claude Code session (`TaskDispatcher.handle`).
 Future<TaskFeedback> queueReviewFeedback(
   Session session,
   Task task,
-  String message,
-) async {
+  String message, {
+  Future<void> Function(Transaction transaction)? alsoWrite,
+}) async {
   if (task.status != TaskStatus.awaitingReview) {
-    throw Exception('Task ${task.id} is not awaiting review (${task.status})');
+    throw InvalidStateException(
+      message: 'Task ${task.id} is not awaiting review (${task.status.name})',
+    );
   }
   var agentId = task.agentId;
   if (agentId == null) {
-    throw Exception('Task ${task.id} has no assigned agent');
+    throw InvalidStateException(
+      message: 'Task ${task.id} has no assigned agent',
+    );
   }
   var agent = await Agent.db.findById(session, agentId);
   if (agent == null) {
-    throw Exception('Agent $agentId not found');
+    throw NotFoundException(message: 'Agent $agentId not found');
   }
 
-  var feedback = await TaskFeedback.db.insertRow(
-    session,
-    TaskFeedback(
-      taskId: task.id!,
-      message: message,
-      phase: TaskFeedbackPhase.review,
-    ),
-  );
+  // The feedback row and any caller-side writes (e.g. marking review
+  // comments `sentToFix`) land together, and the daemon is only woken once
+  // they're committed — it reads the feedback back via `latestFeedback`.
+  var feedback = await session.db.transaction((transaction) async {
+    var inserted = await TaskFeedback.db.insertRow(
+      session,
+      TaskFeedback(
+        taskId: task.id!,
+        message: message,
+        phase: TaskFeedbackPhase.review,
+      ),
+      transaction: transaction,
+    );
+    await alsoWrite?.call(transaction);
+    return inserted;
+  });
 
   // Status is deliberately left as `awaitingReview` here — the dispatcher
   // itself flips it to `running` once it actually picks the resume up,
@@ -59,19 +72,21 @@ Future<({String prUrl, String token})> repoContextFor(
 ) async {
   var task = await Task.db.findById(session, taskId);
   if (task == null) {
-    throw Exception('Task $taskId not found');
+    throw NotFoundException(message: 'Task $taskId not found');
   }
   var prUrl = task.prUrl;
   if (prUrl == null) {
-    throw Exception('Task $taskId has no PR yet');
+    throw InvalidStateException(message: 'Task $taskId has no PR yet');
   }
   var project = await Project.db.findById(session, task.projectId);
   if (project == null) {
-    throw Exception('Project ${task.projectId} not found');
+    throw NotFoundException(message: 'Project ${task.projectId} not found');
   }
   var token = project.repoAccessToken;
   if (token == null || token.isEmpty) {
-    throw Exception('Project ${task.projectId} has no repo access token');
+    throw InvalidStateException(
+      message: 'Project ${task.projectId} has no repo access token',
+    );
   }
 
   return (prUrl: prUrl, token: token);
@@ -91,7 +106,9 @@ Future<void> requireNoActiveReview(Session session, int taskId) async {
         r.taskId.equals(taskId) & r.status.inSet(activeCodeReviewStatuses),
   );
   if (active > 0) {
-    throw Exception('Task $taskId has a code review in progress');
+    throw InvalidStateException(
+      message: 'Task $taskId has a code review in progress',
+    );
   }
 }
 
@@ -170,7 +187,7 @@ Future<CodeReview> postReviewChanged(Session session, int reviewId) async {
     ),
   );
   if (review == null) {
-    throw Exception('Code review $reviewId not found');
+    throw NotFoundException(message: 'Code review $reviewId not found');
   }
   await session.messages.postMessage(
     channelForTaskReviews(review.taskId),

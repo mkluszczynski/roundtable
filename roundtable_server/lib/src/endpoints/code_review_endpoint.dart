@@ -19,18 +19,20 @@ class CodeReviewEndpoint extends Endpoint {
   ) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     if (task.status != TaskStatus.awaitingReview || task.prUrl == null) {
-      throw Exception('Task $taskId has no PR awaiting review');
+      throw InvalidStateException(
+        message: 'Task $taskId has no PR awaiting review',
+      );
     }
     await requireNoActiveReview(session, taskId);
     var agent = await Agent.db.findById(session, agentId);
     if (agent == null) {
-      throw Exception('Agent $agentId not found');
+      throw NotFoundException(message: 'Agent $agentId not found');
     }
     if (agent.status != AgentStatus.idle) {
-      throw Exception('${agent.name} is busy');
+      throw InvalidStateException(message: '${agent.name} is busy');
     }
 
     var review = await CodeReview.db.insertRow(
@@ -81,11 +83,13 @@ class CodeReviewEndpoint extends Endpoint {
   Future<Task> startReview(Session session, int reviewId) async {
     var review = await _requireReview(session, reviewId);
     if (review.status != CodeReviewStatus.queued) {
-      throw Exception('Code review $reviewId is already ${review.status.name}');
+      throw InvalidStateException(
+        message: 'Code review $reviewId is already ${review.status.name}',
+      );
     }
     var task = await Task.db.findById(session, review.taskId);
     if (task == null) {
-      throw Exception('Task ${review.taskId} not found');
+      throw NotFoundException(message: 'Task ${review.taskId} not found');
     }
 
     await CodeReview.db.updateRow(
@@ -210,11 +214,13 @@ class CodeReviewEndpoint extends Endpoint {
     ReviewCommentState state,
   ) async {
     if (state == ReviewCommentState.sentToFix) {
-      throw Exception('Use sendCommentsToFix to send a comment to the agent');
+      throw InvalidStateException(
+        message: 'Use sendCommentsToFix to send a comment to the agent',
+      );
     }
     var comment = await ReviewComment.db.findById(session, commentId);
     if (comment == null) {
-      throw Exception('Review comment $commentId not found');
+      throw NotFoundException(message: 'Review comment $commentId not found');
     }
     comment = await ReviewComment.db.updateRow(
       session,
@@ -244,7 +250,7 @@ class CodeReviewEndpoint extends Endpoint {
   ) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     await requireNoActiveReview(session, taskId);
     var reviewIds = (await CodeReview.db.find(
@@ -259,7 +265,9 @@ class CodeReviewEndpoint extends Endpoint {
     );
     var trimmedNote = note?.trim() ?? '';
     if (comments.isEmpty && trimmedNote.isEmpty) {
-      throw Exception('Nothing to send: pick at least one comment');
+      throw InvalidStateException(
+        message: 'Nothing to send: pick at least one comment',
+      );
     }
 
     var message = StringBuffer();
@@ -280,20 +288,21 @@ class CodeReviewEndpoint extends Endpoint {
       session,
       task,
       message.toString().trim(),
+      alsoWrite: comments.isEmpty
+          ? null
+          : (transaction) => ReviewComment.db.update(
+              session,
+              [
+                for (var c in comments)
+                  c.copyWith(state: ReviewCommentState.sentToFix),
+              ],
+              columns: (c) => [c.state],
+              transaction: transaction,
+            ),
     );
 
-    if (comments.isNotEmpty) {
-      await ReviewComment.db.update(
-        session,
-        [
-          for (var c in comments)
-            c.copyWith(state: ReviewCommentState.sentToFix),
-        ],
-        columns: (c) => [c.state],
-      );
-      for (var reviewId in comments.map((c) => c.reviewId).toSet()) {
-        await postReviewChanged(session, reviewId);
-      }
+    for (var reviewId in comments.map((c) => c.reviewId).toSet()) {
+      await postReviewChanged(session, reviewId);
     }
     return feedback;
   }
@@ -301,7 +310,7 @@ class CodeReviewEndpoint extends Endpoint {
   Future<CodeReview> _requireReview(Session session, int reviewId) async {
     var review = await CodeReview.db.findById(session, reviewId);
     if (review == null) {
-      throw Exception('Code review $reviewId not found');
+      throw NotFoundException(message: 'Code review $reviewId not found');
     }
     return review;
   }

@@ -4,7 +4,7 @@ import '../github_repo_client.dart';
 import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
 
-/// Task creation and the daemon's assignment feed (design doc §6.1).
+/// Task creation and the daemon's assignment feed (docs/FLOWS.md §4).
 class TaskEndpoint extends Endpoint {
   static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
   static String channelForTask(int taskId) => 'task-$taskId';
@@ -18,7 +18,7 @@ class TaskEndpoint extends Endpoint {
   /// Statuses [reassignAgent] allows changing `Task.agent` in — the task
   /// isn't actively executing under its current agent, so swapping it is
   /// safe: still sitting in the backlog, or parked in review waiting on the
-  /// dev (design doc §5 — `Task.agent` is optional precisely so a task
+  /// dev (docs/ARCHITECTURE.md — `Task.agent` is optional precisely so a task
   /// survives its agent being deleted).
   static const _reassignableTaskStatuses = {
     TaskStatus.draft,
@@ -29,7 +29,7 @@ class TaskEndpoint extends Endpoint {
 
   GitHubRepoClient get _github => gitHubRepoClient;
 
-  /// Creates a [Task] (design doc §6.1 step 1). With an [agentId] it's
+  /// Creates a [Task] (docs/FLOWS.md §4). With an [agentId] it's
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
@@ -40,11 +40,14 @@ class TaskEndpoint extends Endpoint {
     String prompt, {
     bool skipPlanning = false,
   }) async {
+    if (await Project.db.findById(session, projectId) == null) {
+      throw NotFoundException(message: 'Project $projectId not found');
+    }
     Agent? agent;
     if (agentId != null) {
       agent = await Agent.db.findById(session, agentId);
       if (agent == null) {
-        throw Exception('Agent $agentId not found');
+        throw NotFoundException(message: 'Agent $agentId not found');
       }
     }
 
@@ -70,21 +73,46 @@ class TaskEndpoint extends Endpoint {
     return task;
   }
 
-  /// Streams tasks newly assigned to any agent hosted on [machineId] (design
-  /// doc §6.1 step 2 — by machine, not by agent, since one daemon serves
-  /// every agent it hosts). On subscribe, first replays any already-queued,
-  /// non-terminal tasks for that machine — otherwise a task created while the
-  /// daemon was offline/restarting would never surface — then yields each
-  /// task as it's created via [createTask].
-  /// Generic CRUD update, mirroring [ProjectEndpoint.update] /
-  /// [AgentEndpoint.update] / [MachineEndpoint.update]. Used by the agent
-  /// daemon to move a task through its lifecycle (design doc §6.1) —
-  /// e.g. `running` → `awaitingReview`/`failed` — and to persist
-  /// `claudeSessionId` once Claude Code reports one. Bumps
-  /// `lastProgressAt`, since this is the daemon's primary path for
-  /// reporting task activity — see [StalledTaskFutureCall].
+  /// Statuses the agent daemon may move a task into via [update]. Every
+  /// other transition goes through a dedicated, guarded method
+  /// (`cancelTask`, `approvePlan`, `acceptTask`, ...).
+  static const _runnerSettableStatuses = {
+    TaskStatus.planning,
+    TaskStatus.running,
+    TaskStatus.awaitingReview,
+    TaskStatus.failed,
+    TaskStatus.cancelled,
+  };
+
+  /// Used by the agent daemon to report a run's progress and outcome —
+  /// e.g. `queued` → `planning`/`running`, `running` →
+  /// `awaitingReview`/`failed` — and to persist `claudeSessionId`, the branch
+  /// and the PR URL. Only the columns the daemon owns are written, and only
+  /// to a status in [_runnerSettableStatuses] — any other status in [task]
+  /// is ignored and the current one kept. Bumps `lastProgressAt` (see
+  /// [StalledTaskFutureCall]).
+  ///
+  /// A task that already reached a terminal state server-side (cancelled
+  /// from the panel, failed by a future call, merged) is final: a late
+  /// write from the daemon is ignored and the current row returned, rather
+  /// than reviving it or throwing at a daemon that can't do anything about
+  /// it.
   Future<Task> update(Session session, Task task) async {
-    var previous = await Task.db.findById(session, task.id!);
+    var previous = await _requireTask(session, task.id!);
+    if (!nonTerminalTaskStatuses.contains(previous.status)) {
+      session.log(
+        'Ignoring update to task ${task.id}: already ${previous.status.name}',
+        level: LogLevel.warning,
+      );
+      return previous;
+    }
+    if (!_runnerSettableStatuses.contains(task.status)) {
+      // A stale snapshot (e.g. the `queued` row the daemon got at dispatch)
+      // or a status only a guarded method may set: keep the current status
+      // and write just the other fields.
+      task = task.copyWith(status: previous.status);
+    }
+
     // The daemon sends back the Task it received at dispatch time, so only
     // write the fields it owns — otherwise it reverts server-side changes
     // made during the run (currentPlan, question/plan status transitions).
@@ -105,7 +133,7 @@ class TaskEndpoint extends Endpoint {
     await session.messages.postMessage(channelForTask(updated.id!), updated);
     await session.messages.postMessage(channelForAllTasks(), updated);
     // A finished fix run addressed the review comments it was sent.
-    if (previous?.status == TaskStatus.running &&
+    if (previous.status == TaskStatus.running &&
         updated.status == TaskStatus.awaitingReview) {
       await resolveCommentsSentToFix(session, updated);
     }
@@ -119,7 +147,9 @@ class TaskEndpoint extends Endpoint {
   Future<Task> acceptTask(Session session, int taskId) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.awaitingReview) {
-      throw Exception('Task $taskId is not awaiting review (${task.status})');
+      throw InvalidStateException(
+        message: 'Task $taskId is not awaiting review (${task.status})',
+      );
     }
     await requireNoActiveReview(session, taskId);
 
@@ -130,16 +160,19 @@ class TaskEndpoint extends Endpoint {
         token: context.token,
         commitTitle: 'Roundtable task #$taskId',
       );
-    } on GitHubApiException catch (e) {
+    } on GitHubException catch (e) {
       if (e.statusCode == 405 || e.statusCode == 409) {
-        final status = await _github.getMergeability(
-          prUrl: context.prUrl,
-          token: context.token,
-        );
-        if (status.hasConflicts ?? false) {
-          throw Exception(
-            'The PR has merge conflicts with ${status.baseRef} — '
-            'resolve them before merging.',
+        // Best effort: explain a conflict if GitHub can tell us, otherwise
+        // surface GitHub's own refusal.
+        final status = await _github
+            .getMergeability(prUrl: context.prUrl, token: context.token)
+            .then<({bool? hasConflicts, String baseRef})?>((s) => s)
+            .catchError((Object _) => null);
+        if (status?.hasConflicts ?? false) {
+          throw InvalidStateException(
+            message:
+                'The PR has merge conflicts with ${status!.baseRef} — '
+                'resolve them before merging.',
           );
         }
       }
@@ -189,7 +222,9 @@ class TaskEndpoint extends Endpoint {
   Future<TaskFeedback> resolveConflicts(Session session, int taskId) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.awaitingReview) {
-      throw Exception('Task $taskId is not awaiting review (${task.status})');
+      throw InvalidStateException(
+        message: 'Task $taskId is not awaiting review (${task.status})',
+      );
     }
     await requireNoActiveReview(session, taskId);
     final status = await getMergeStatus(session, taskId);
@@ -209,7 +244,7 @@ class TaskEndpoint extends Endpoint {
       'builds and its tests pass, then commit the merge and push the branch.';
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
-  /// (design doc §6.3) and notifies any [watchLogs] subscribers for this
+  /// (docs/FLOWS.md §4) and notifies any [watchLogs] subscribers for this
   /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
   /// activity — see [StalledTaskFutureCall].
   Future<TaskLogEntry> appendLog(
@@ -237,19 +272,19 @@ class TaskEndpoint extends Endpoint {
     return entry;
   }
 
-  /// Cancels a task that hasn't reached a terminal state yet (design doc
-  /// §6.1 "Cancelling mid-run"): marks it `cancelled` and notifies
+  /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
+  /// "Cancelling mid-run"): marks it `cancelled` and notifies
   /// [watchTask] subscribers — the daemon running the task reacts by
   /// sending `SIGTERM` to the Claude Code subprocess and resetting the
   /// worktree.
   Future<Task> cancelTask(Session session, int taskId) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     if (!nonTerminalTaskStatuses.contains(task.status)) {
-      throw Exception(
-        'Task $taskId is not in a cancellable state (${task.status})',
+      throw InvalidStateException(
+        message: 'Task $taskId is not in a cancellable state (${task.status})',
       );
     }
 
@@ -277,23 +312,23 @@ class TaskEndpoint extends Endpoint {
   Future<Task> retryTask(Session session, int taskId) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     if (task.status != TaskStatus.failed &&
         task.status != TaskStatus.cancelled) {
-      throw Exception(
-        'Task $taskId is not retryable (status=${task.status})',
+      throw InvalidStateException(
+        message: 'Task $taskId is not retryable (status=${task.status})',
       );
     }
     var agentId = task.agentId;
     if (agentId == null) {
-      throw Exception(
-        'Task $taskId has no assigned agent — reassign one first',
+      throw InvalidStateException(
+        message: 'Task $taskId has no assigned agent — reassign one first',
       );
     }
     var agent = await Agent.db.findById(session, agentId);
     if (agent == null) {
-      throw Exception('Agent $agentId not found');
+      throw NotFoundException(message: 'Agent $agentId not found');
     }
 
     task = await Task.db.updateRow(
@@ -329,17 +364,17 @@ class TaskEndpoint extends Endpoint {
   Future<Task> reassignAgent(Session session, int taskId, int agentId) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     if (task.agentId != null &&
         !_reassignableTaskStatuses.contains(task.status)) {
-      throw Exception(
-        'Task $taskId cannot be reassigned while ${task.status.name}',
+      throw InvalidStateException(
+        message: 'Task $taskId cannot be reassigned while ${task.status.name}',
       );
     }
     var agent = await Agent.db.findById(session, agentId);
     if (agent == null) {
-      throw Exception('Agent $agentId not found');
+      throw NotFoundException(message: 'Agent $agentId not found');
     }
 
     // Assigning an agent to a draft is what starts it.
@@ -368,7 +403,7 @@ class TaskEndpoint extends Endpoint {
     return task;
   }
 
-  /// Records feedback on a completed run (design doc §6.1 step 9, §6.4) and
+  /// Records feedback on a completed run (docs/FLOWS.md §4) and
   /// wakes the daemon via the same channel [createTask] uses — the daemon
   /// picks it up through its existing [watchAssignedTasks] subscription and
   /// resumes the same Claude Code session (`TaskDispatcher.handle`).
@@ -399,7 +434,7 @@ class TaskEndpoint extends Endpoint {
     return results.isEmpty ? null : results.first;
   }
 
-  /// Records a plan-mode clarifying question (design doc §6.4
+  /// Records a plan-mode clarifying question (docs/FLOWS.md §4
   /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
   /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the
   /// panel can render it.
@@ -410,23 +445,28 @@ class TaskEndpoint extends Endpoint {
     List<String> options,
   ) async {
     var task = await _requireTask(session, taskId);
-    var created = await TaskQuestion.db.insertRow(
-      session,
-      TaskQuestion(taskId: taskId, question: question, options: options),
-    );
-    task = await Task.db.updateRow(
-      session,
-      task.copyWith(
-        status: TaskStatus.waitingForAnswer,
-        lastProgressAt: DateTime.now().toUtc(),
-      ),
-    );
+    late TaskQuestion created;
+    await session.db.transaction((transaction) async {
+      created = await TaskQuestion.db.insertRow(
+        session,
+        TaskQuestion(taskId: taskId, question: question, options: options),
+        transaction: transaction,
+      );
+      task = await Task.db.updateRow(
+        session,
+        task.copyWith(
+          status: TaskStatus.waitingForAnswer,
+          lastProgressAt: DateTime.now().toUtc(),
+        ),
+        transaction: transaction,
+      );
+    });
     await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
     return created;
   }
 
-  /// Answers a plan-mode clarifying question (design doc §6.4), waking the
+  /// Answers a plan-mode clarifying question (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool blocked on [watchAnswer], and moves the task back
   /// to `planning` since Claude Code resumes as soon as the tool returns.
   Future<TaskQuestion> answerQuestion(
@@ -436,10 +476,12 @@ class TaskEndpoint extends Endpoint {
   ) async {
     var question = await TaskQuestion.db.findById(session, questionId);
     if (question == null) {
-      throw Exception('TaskQuestion $questionId not found');
+      throw NotFoundException(message: 'TaskQuestion $questionId not found');
     }
     if (question.answer != null) {
-      throw Exception('TaskQuestion $questionId is already answered');
+      throw InvalidStateException(
+        message: 'TaskQuestion $questionId is already answered',
+      );
     }
 
     question = await TaskQuestion.db.updateRow(
@@ -467,7 +509,7 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Streams [questionId]'s answer, for the permission-prompt-tool to block
-  /// on while Claude Code waits on `AskUserQuestion` (design doc §6.4). On
+  /// on while Claude Code waits on `AskUserQuestion` (docs/FLOWS.md §4). On
   /// subscribe, replays the question immediately if it was already answered
   /// before the subscriber attached.
   Stream<TaskQuestion> watchAnswer(Session session, int questionId) async* {
@@ -499,7 +541,7 @@ class TaskEndpoint extends Endpoint {
     return results.isEmpty ? null : results.first;
   }
 
-  /// Stores a ready plan (design doc §6.4 `ExitPlanMode`) and flips
+  /// Stores a ready plan (docs/FLOWS.md §4 `ExitPlanMode`) and flips
   /// `Task.status = planReady`, so the dev can approve it or give feedback.
   Future<Task> setPlanReady(Session session, int taskId, String plan) async {
     var task = await _requireTask(session, taskId);
@@ -516,13 +558,15 @@ class TaskEndpoint extends Endpoint {
     return task;
   }
 
-  /// Approves the current plan (design doc §6.4), waking the
+  /// Approves the current plan (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool blocked on [watchPlanDecision] so it lets
   /// `ExitPlanMode` through and Claude Code proceeds to implement.
   Future<Task> approvePlan(Session session, int taskId) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.planReady) {
-      throw Exception('Task $taskId is not planReady (${task.status})');
+      throw InvalidStateException(
+        message: 'Task $taskId is not planReady (${task.status})',
+      );
     }
 
     task = await Task.db.updateRow(
@@ -538,7 +582,7 @@ class TaskEndpoint extends Endpoint {
     return task;
   }
 
-  /// Rejects the current plan with feedback (design doc §6.4), waking the
+  /// Rejects the current plan with feedback (docs/FLOWS.md §4), waking the
   /// permission-prompt-tool so it denies `ExitPlanMode` and returns the
   /// feedback message as the reason — Claude Code plans again in the same
   /// process.
@@ -549,32 +593,39 @@ class TaskEndpoint extends Endpoint {
   ) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.planReady) {
-      throw Exception('Task $taskId is not planReady (${task.status})');
+      throw InvalidStateException(
+        message: 'Task $taskId is not planReady (${task.status})',
+      );
     }
 
-    var feedback = await TaskFeedback.db.insertRow(
-      session,
-      TaskFeedback(
-        taskId: taskId,
-        message: message,
-        phase: TaskFeedbackPhase.plan,
-      ),
-    );
-    task = await Task.db.updateRow(
-      session,
-      task.copyWith(
-        status: TaskStatus.planning,
-        lastProgressAt: DateTime.now().toUtc(),
-      ),
-    );
+    late TaskFeedback feedback;
+    await session.db.transaction((transaction) async {
+      feedback = await TaskFeedback.db.insertRow(
+        session,
+        TaskFeedback(
+          taskId: taskId,
+          message: message,
+          phase: TaskFeedbackPhase.plan,
+        ),
+        transaction: transaction,
+      );
+      task = await Task.db.updateRow(
+        session,
+        task.copyWith(
+          status: TaskStatus.planning,
+          lastProgressAt: DateTime.now().toUtc(),
+        ),
+        transaction: transaction,
+      );
+    });
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
     await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
     return feedback;
   }
 
-  /// Streams the dev's decision on [taskId]'s current plan (design doc
-  /// §6.4), for the permission-prompt-tool to block on while `ExitPlanMode`
+  /// Streams the dev's decision on [taskId]'s current plan (docs/FLOWS.md §4),
+  /// for the permission-prompt-tool to block on while `ExitPlanMode`
   /// is pending. Deliberately doesn't replay on subscribe — the tool always
   /// subscribes right after setting `planReady` itself via [setPlanReady],
   /// so a decision is always a future event, never one already made.
@@ -598,9 +649,10 @@ class TaskEndpoint extends Endpoint {
     // A draft never ran, so it can be deleted without cancelling first.
     if (task.status != TaskStatus.draft &&
         nonTerminalTaskStatuses.contains(task.status)) {
-      throw Exception(
-        'Task $taskId cannot be deleted while ${task.status.name} — cancel '
-        'it first',
+      throw InvalidStateException(
+        message:
+            'Task $taskId cannot be deleted while ${task.status.name} — cancel '
+            'it first',
       );
     }
 
@@ -627,16 +679,24 @@ class TaskEndpoint extends Endpoint {
     }
   }
 
+  /// Returns the tasks among [taskIds] that still exist. Used by the
+  /// daemon's worktree cleanup to tell which on-disk worktrees belong to
+  /// deleted or finished tasks.
+  Future<List<Task>> findTasks(Session session, List<int> taskIds) async {
+    if (taskIds.isEmpty) return [];
+    return Task.db.find(session, where: (t) => t.id.inSet(taskIds.toSet()));
+  }
+
   Future<Task> _requireTask(Session session, int taskId) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
-      throw Exception('Task $taskId not found');
+      throw NotFoundException(message: 'Task $taskId not found');
     }
     return task;
   }
 
-  /// Returns the list of files changed in [taskId]'s pull request (design
-  /// doc §6.7), fetched from the GitHub API using the project's
+  /// Returns the list of files changed in [taskId]'s pull request
+  /// (docs/FLOWS.md §4), fetched from the GitHub API using the project's
   /// `repoAccessToken` — never returned to the panel.
   Future<List<DiffFile>> getChangedFiles(Session session, int taskId) async {
     final context = await repoContextFor(session, taskId);
@@ -644,7 +704,7 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Returns the raw content of the file at [contentsUrl] (as returned by
-  /// [getChangedFiles]) for [taskId]'s repository (design doc §6.7).
+  /// [getChangedFiles]) for [taskId]'s repository (docs/FLOWS.md §4).
   Future<String> getFileContent(
     Session session,
     int taskId,
@@ -660,7 +720,7 @@ class TaskEndpoint extends Endpoint {
     );
   }
 
-  /// Streams every task, for the panel's dashboard kanban (design doc §4
+  /// Streams every task, for the panel's dashboard kanban (docs/ARCHITECTURE.md
   /// "Should"), not the daemon, which uses [watchAssignedTasks] instead. On
   /// subscribe, replays every task currently in the database, then yields
   /// each task again whenever any of the status-changing methods above
@@ -678,6 +738,12 @@ class TaskEndpoint extends Endpoint {
     }
   }
 
+  /// Streams tasks newly assigned to any agent hosted on [machineId] — by
+  /// machine, not by agent, since one daemon serves every agent it hosts.
+  /// On subscribe, first replays the machine's non-terminal tasks —
+  /// otherwise a task created while the daemon was offline/restarting would
+  /// never surface — then yields each task posted to the machine's channel
+  /// (created, retried, reassigned, fed back, merged).
   Stream<Task> watchAssignedTasks(Session session, int machineId) async* {
     var agentIds = (await Agent.db.find(
       session,
@@ -703,7 +769,7 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Streams a task's execution output as it's persisted via [appendLog]
-  /// (design doc §6.3), for the panel to render live. On subscribe, first
+  /// (docs/FLOWS.md §4), for the panel to render live. On subscribe, first
   /// replays every already-persisted [TaskLogEntry] for [taskId] in order,
   /// then yields each new entry as it's appended.
   Stream<TaskLogEntry> watchLogs(Session session, int taskId) async* {
@@ -725,7 +791,7 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Streams [taskId]'s status, for the daemon running it (to detect a
-  /// cancellation mid-run, design doc §6.1) and the panel alike. On
+  /// cancellation mid-run, docs/FLOWS.md §4) and the panel alike. On
   /// subscribe, first replays the task's current row, then yields it again
   /// each time [cancelTask] cancels it.
   Stream<Task> watchTask(Session session, int taskId) async* {
