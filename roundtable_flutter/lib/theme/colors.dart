@@ -35,6 +35,12 @@ abstract final class AppColors {
 
   static const diffAddedText = Color(0xFFE4FFA3);
   static const diffRemovedText = Color(0xFFFFC2CC);
+
+  /// Syntax highlighting roles (`widgets/diff_view.dart`), picked to sit
+  /// alongside [accentSoft]/[warning] without colliding with their status
+  /// meaning elsewhere in the app.
+  static const codeString = Color(0xFF9FE6B4);
+  static const codeFunction = Color(0xFF7FB8FF);
 }
 
 /// A status's rendered color and whether its dot should pulse, per the
