@@ -9,6 +9,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/code_language.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -1169,13 +1170,58 @@ Widget _commentCard(
   );
 }
 
-class _SelectedFileDiff extends StatelessWidget {
+enum _FileViewMode { diff, fullFile }
+
+class _SelectedFileDiff extends StatefulWidget {
   const _SelectedFileDiff({required this.state});
 
   final TaskDetailLoaded state;
 
   @override
+  State<_SelectedFileDiff> createState() => _SelectedFileDiffState();
+}
+
+class _SelectedFileDiffState extends State<_SelectedFileDiff> {
+  late _FileViewMode _mode = _defaultModeFor(widget.state.selectedFile);
+
+  @override
+  void didUpdateWidget(_SelectedFileDiff oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.selectedFile?.filename !=
+        oldWidget.state.selectedFile?.filename) {
+      _mode = _defaultModeFor(widget.state.selectedFile);
+    }
+    _maybeFetchFullFile();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeFetchFullFile();
+  }
+
+  _FileViewMode _defaultModeFor(DiffFile? file) =>
+      file?.patch == null ? _FileViewMode.fullFile : _FileViewMode.diff;
+
+  void _maybeFetchFullFile() {
+    final state = widget.state;
+    if (_mode == _FileViewMode.fullFile &&
+        state.selectedFile != null &&
+        state.fileContent == null &&
+        !state.fileContentLoading &&
+        state.fileContentError == null) {
+      context.read<TaskDetailBloc>().add(const FullFileContentRequested());
+    }
+  }
+
+  void _selectMode(_FileViewMode mode) {
+    setState(() => _mode = mode);
+    _maybeFetchFullFile();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final file = state.selectedFile;
     if (file == null) {
       return Center(
@@ -1187,6 +1233,7 @@ class _SelectedFileDiff extends StatelessWidget {
     }
 
     final patch = file.patch;
+    final language = languageForFilename(file.filename);
     final editable =
         state.task.status == TaskStatus.awaitingReview &&
         !state.reviews.any(
@@ -1206,6 +1253,25 @@ class _SelectedFileDiff extends StatelessWidget {
         unplaced.add(comment);
       }
     }
+    final annotations = {
+      for (final MapEntry(key: line, value: onLine) in byLine.entries)
+        line: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final comment in onLine)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Spacing.xs),
+                child: _commentCard(
+                  context,
+                  state,
+                  comment,
+                  editable: editable,
+                  showLocation: false,
+                ),
+              ),
+          ],
+        ),
+    };
     return Padding(
       padding: const EdgeInsets.all(Spacing.xl),
       child: SingleChildScrollView(
@@ -1217,20 +1283,16 @@ class _SelectedFileDiff extends StatelessWidget {
                 Expanded(
                   child: Text(file.filename, style: AppTypography.cardTitle),
                 ),
-                TextButton.icon(
-                  onPressed: state.fileContentLoading
-                      ? null
-                      : () => context.read<TaskDetailBloc>().add(
-                          const FullFileContentRequested(),
-                        ),
-                  icon: state.fileContentLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.description),
-                  label: const Text('View full file'),
+                PillSelector<_FileViewMode>(
+                  options: _FileViewMode.values,
+                  labelBuilder: (mode) => switch (mode) {
+                    _FileViewMode.diff => 'Diff',
+                    _FileViewMode.fullFile => 'Full file',
+                  },
+                  selected: _mode,
+                  onChanged: _selectMode,
+                  disabledOptions: patch == null ? {_FileViewMode.diff} : {},
+                  disabledHint: 'No diff',
                 ),
               ],
             ),
@@ -1239,52 +1301,33 @@ class _SelectedFileDiff extends StatelessWidget {
               _commentCard(context, state, comment, editable: editable),
               const SizedBox(height: Spacing.sm),
             ],
-            if (patch == null)
-              Text(
-                'No textual diff available for this file (binary?)',
-                style: AppTypography.body,
-              )
-            else
+            if (_mode == _FileViewMode.diff)
               DiffView(
-                patch: patch,
-                annotations: {
-                  for (final MapEntry(key: line, value: onLine)
-                      in byLine.entries)
-                    line: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final comment in onLine)
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: Spacing.xs,
-                            ),
-                            child: _commentCard(
-                              context,
-                              state,
-                              comment,
-                              editable: editable,
-                              showLocation: false,
-                            ),
-                          ),
-                      ],
-                    ),
-                },
-              ),
-            if (state.fileContentError != null) ...[
-              const SizedBox(height: Spacing.lg),
+                patch: patch!,
+                language: language,
+                annotations: annotations,
+              )
+            else if (state.fileContentLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(Spacing.xl),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (state.fileContentError != null)
               Text(
                 'Failed to load file content: ${state.fileContentError}',
                 style: AppTypography.body.copyWith(color: AppColors.red),
-              ),
-            ],
-            if (state.fileContent != null) ...[
-              const SizedBox(height: Spacing.xl),
-              Divider(color: AppColors.border),
-              const SizedBox(height: Spacing.md),
-              Text('Full file', style: AppTypography.cardTitle),
-              const SizedBox(height: Spacing.md),
-              CodeBlock(code: state.fileContent!),
-            ],
+              )
+            else if (state.fileContent != null)
+              patch != null
+                  ? FullFileDiffView(
+                      patch: patch,
+                      fileContent: state.fileContent!,
+                      language: language,
+                      annotations: annotations,
+                    )
+                  : CodeBlock(code: state.fileContent!),
           ],
         ),
       ),
