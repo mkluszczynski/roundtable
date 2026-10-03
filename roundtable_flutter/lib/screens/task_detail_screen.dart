@@ -75,14 +75,18 @@ Future<void> _confirmDeleteTask(BuildContext context, int taskId) async {
     subtitle: 'This permanently removes Task #$taskId and its logs.',
     child: const SizedBox.shrink(),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(false),
-        child: const Text('Cancel'),
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
       ),
-      FilledButton(
-        style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-        onPressed: () => Navigator.of(context).pop(true),
-        child: const Text('Delete'),
+      Builder(
+        builder: (context) => FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Delete'),
+        ),
       ),
     ],
   );
@@ -129,13 +133,17 @@ Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
         'This squash-merges the PR on GitHub and moves Task #$taskId to Done.',
     child: const SizedBox.shrink(),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(false),
-        child: const Text('Cancel'),
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
       ),
-      FilledButton(
-        onPressed: () => Navigator.of(context).pop(true),
-        child: const Text('Accept & merge'),
+      Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Accept & merge'),
+        ),
       ),
     ],
   );
