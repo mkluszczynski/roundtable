@@ -29,7 +29,7 @@ String describeClaudeLaunchFailure(ProcessException e) {
       'path and restart the agent-runner service.';
 }
 
-/// The outcome of one `claude` execution-phase run (design doc §6.2).
+/// The outcome of one `claude` execution-phase run (docs/FLOWS.md §4).
 class ClaudeCodeExecutionResult {
   ClaudeCodeExecutionResult({
     required this.success,
@@ -58,7 +58,7 @@ class ClaudeCodeExecutionResult {
   final String? resultText;
 }
 
-/// Spawns `claude` in execution-phase mode (design doc §6.2 "Execution
+/// Spawns `claude` in execution-phase mode (docs/FLOWS.md §4 "Execution
 /// phase") and parses its `--output-format stream-json` stdout as NDJSON,
 /// one line at a time.
 class ClaudeCodeExecutor {
@@ -75,16 +75,15 @@ class ClaudeCodeExecutor {
 
   /// Runs one execution-phase invocation. [prompt] is always passed to `-p`
   /// as given — the caller decides what it should be (empty for a
-  /// no-message resume, matching the design doc's `<prompt, or empty if
-  /// --resume>`; the feedback text for a review-phase resume).
+  /// no-message resume; the feedback text for a review-phase resume).
   ///
   /// [onLine] is called once per non-blank line of stdout, with the raw
   /// NDJSON text exactly as emitted — that's what the caller persists via
-  /// `TaskEndpoint.appendLog` (design doc §6.3).
+  /// `TaskEndpoint.appendLog` (docs/FLOWS.md §4).
   ///
   /// [onProcessStarted], if given, is called once with the live [Process]
   /// right after it's spawned — so a caller can send it a signal (e.g.
-  /// `SIGTERM` on cancellation, design doc §6.1) without this method
+  /// `SIGTERM` on cancellation, docs/FLOWS.md §4) without this method
   /// otherwise exposing the process.
   Future<ClaudeCodeExecutionResult> run({
     required String prompt,
@@ -131,8 +130,8 @@ class ClaudeCodeExecutor {
     );
   }
 
-  /// Runs one planning-phase invocation (design doc §6.2 "Planning phase",
-  /// §6.4): `--permission-mode plan` routes every non-read-only tool call —
+  /// Runs one planning-phase invocation (docs/FLOWS.md §4):
+  /// `--permission-mode plan routes every non-read-only tool call —
   /// `AskUserQuestion`, `ExitPlanMode`, and (once a plan is approved) the
   /// implementation tools that follow — through [permissionPromptTool], an
   /// MCP tool registered via [mcpConfigPath] (see

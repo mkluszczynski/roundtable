@@ -9,6 +9,7 @@ import 'src/metrics_collector.dart';
 import 'src/review_dispatcher.dart';
 import 'src/runner_update.dart';
 import 'src/task_dispatcher.dart';
+import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
 
 export 'src/claude_code_executor.dart';
@@ -19,10 +20,12 @@ export 'src/review_dispatcher.dart';
 export 'src/runner_update.dart';
 export 'src/stream_json_formatter.dart';
 export 'src/task_dispatcher.dart';
+export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
 
 const _heartbeatInterval = Duration(seconds: 20);
 const _metricsInterval = Duration(seconds: 8);
+const _janitorInterval = Duration(minutes: 30);
 
 /// Delay before resubscribing to `watchAssignedTasks` after the stream
 /// errors or closes unexpectedly (e.g. a transient WebSocket hiccup) — see
@@ -32,7 +35,7 @@ const _taskStreamResubscribeDelay = Duration(seconds: 5);
 /// Config for the agent-runner daemon, read from a `KEY=VALUE` env file
 /// rather than CLI flags — the file is written by `scripts/install-agent.sh`
 /// with restrictive permissions (chmod 600), so the token never shows up in
-/// `ps`/`systemctl status`/the unit file (design doc §6.8).
+/// `ps`/`systemctl status`/the unit file (docs/FLOWS.md §1–3).
 class AgentRunnerConfig {
   AgentRunnerConfig({
     required this.registrationToken,
@@ -47,8 +50,8 @@ class AgentRunnerConfig {
   final String registrationToken;
   final String serverUrl;
 
-  /// Passed as `CLAUDE_CODE_OAUTH_TOKEN` to the `claude` subprocess (design
-  /// doc §6.11) — never sent to the server.
+  /// Passed as `CLAUDE_CODE_OAUTH_TOKEN` to the `claude` subprocess
+  /// (docs/ARCHITECTURE.md) — never sent to the server.
   final String? claudeCodeOauthToken;
 
   /// Path (or bare name resolved via PATH) to the `claude` CLI. Defaults to
@@ -61,7 +64,7 @@ class AgentRunnerConfig {
   final String claudeExecutable;
 
   /// Root directory for [WorktreeManager]'s per-project bare clones and
-  /// per-task worktrees (design doc §6.10).
+  /// per-task worktrees (docs/ARCHITECTURE.md).
   final String workspaceRoot;
 
   /// Path to the compiled `permission_prompt_tool` executable, when
@@ -70,7 +73,7 @@ class AgentRunnerConfig {
   /// launched by re-running `bin/permission_prompt_tool.dart` from source
   /// (see [AgentRunnerService._permissionPromptToolCommand]) — a deployed
   /// daemon has no Dart SDK to do that with, so it needs this precompiled
-  /// binary instead (design doc §6.4, §6.8).
+  /// binary instead (docs/FLOWS.md §4).
   final String? permissionPromptToolPath;
 
   /// File watched by the root-side updater `scripts/install-agent.sh`
@@ -142,13 +145,12 @@ class AgentRunnerConfig {
   }
 }
 
-/// Reports a periodic heartbeat to the roundtable server, and subscribes to
-/// [TaskEndpoint.watchAssignedTasks] for as long as the process runs.
-///
-/// Each assigned task is handed to a [TaskDispatcher], which runs the
-/// execution-phase `claude` invocation for tasks that skip planning (design
-/// doc §6.1 step 5, §6.2) — planning-phase execution and the PR flow remain
-/// separate, not-yet-implemented pieces (§6.4, §6.1 step 7).
+/// The daemon: identifies this machine, subscribes to its assigned tasks
+/// and code reviews (handed to [TaskDispatcher] / [ReviewDispatcher]),
+/// checks in every [_heartbeatInterval] (heartbeat, runner version, update
+/// requests), reports CPU/RAM every [_metricsInterval], and periodically
+/// sweeps leftover worktrees ([WorktreeJanitor]). See
+/// `docs/ARCHITECTURE.md` (Agent runner) and `docs/FLOWS.md`.
 class AgentRunnerService {
   AgentRunnerService(this._config, {Client? client})
     : _client = client ?? Client(_normalizeServerUrl(_config.serverUrl));
@@ -157,6 +159,7 @@ class AgentRunnerService {
   final Client _client;
   Timer? _timer;
   Timer? _metricsTimer;
+  Timer? _janitorTimer;
   StreamSubscription<Task>? _taskSubscription;
   Timer? _taskResubscribeTimer;
   StreamSubscription<CodeReview>? _reviewSubscription;
@@ -209,7 +212,7 @@ class AgentRunnerService {
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: _fetchAgent,
     updateTask: (task) => _client.task.update(task),
-    updateAgent: (agent) => _client.agent.update(agent),
+    updateAgent: (agent) => _client.agent.setStatus(agent.id!, agent.status),
     appendLog: (taskId, content) =>
         _client.task.appendLog(taskId, content, source: LogSource.agent),
     fetchLatestFeedback: (taskId) => _client.task.latestFeedback(taskId),
@@ -220,9 +223,24 @@ class AgentRunnerService {
     permissionPromptToolCommand: _permissionPromptToolCommand(_config),
   );
 
+  late final _janitor = WorktreeJanitor(
+    worktreeManager: _worktreeManager,
+    findTasks: (taskIds) => _client.task.findTasks(taskIds),
+    isActive: _dispatcher.isActive,
+    log: _log,
+  );
+
+  Future<void> _sweepWorktrees() async {
+    try {
+      await _janitor.sweep();
+    } catch (e) {
+      _log('worktree cleanup failed, will retry: $e');
+    }
+  }
+
   /// Prefers `_config.permissionPromptToolPath` — the compiled binary
-  /// `scripts/install-agent.sh` downloads alongside the main daemon (design
-  /// doc §6.4, §6.8), since a deployed machine has no Dart SDK to run
+  /// `scripts/install-agent.sh` downloads alongside the main daemon
+  /// (docs/FLOWS.md §4), since a deployed machine has no Dart SDK to run
   /// `bin/permission_prompt_tool.dart` from source. Falls back to that
   /// dev-mode source invocation, re-running this same Dart SDK against the
   /// sibling script resolved relative to [Platform.script] (this process's
@@ -268,12 +286,23 @@ class AgentRunnerService {
       }
     }
 
+    // A fresh process has no `claude` runs, so tell the server to fail any
+    // task/review this machine was in the middle of before the restart —
+    // before subscribing, so the replayed tasks already reflect that.
+    try {
+      await _client.machine.reportStartup(_config.registrationToken);
+    } catch (e) {
+      _log('reportStartup failed: $e');
+    }
+
     _subscribeToAssignedTasks(machine.id!);
     _subscribeToAssignedReviews(machine.id!);
     await _tick();
     _timer = Timer.periodic(_heartbeatInterval, (_) => _tick());
     unawaited(_reportMetrics());
     _metricsTimer = Timer.periodic(_metricsInterval, (_) => _reportMetrics());
+    unawaited(_sweepWorktrees());
+    _janitorTimer = Timer.periodic(_janitorInterval, (_) => _sweepWorktrees());
     return _stopped.future;
   }
 
@@ -430,8 +459,8 @@ class AgentRunnerService {
     _updateHandedOff = true;
   }
 
-  /// Reads local CPU/RAM usage and reports it to the server (design doc
-  /// §6.9). Deliberately doesn't treat [InvalidTokenException] as fatal here
+  /// Reads local CPU/RAM usage and reports it to the server (docs/FLOWS.md §6).
+  /// Deliberately doesn't treat [InvalidTokenException] as fatal here
   /// — the heartbeat tick already owns that responsibility on its own
   /// cadence; just log and retry.
   Future<void> _reportMetrics() async {
@@ -457,6 +486,8 @@ class AgentRunnerService {
     _timer = null;
     _metricsTimer?.cancel();
     _metricsTimer = null;
+    _janitorTimer?.cancel();
+    _janitorTimer = null;
     _taskResubscribeTimer?.cancel();
     _taskResubscribeTimer = null;
     _taskSubscription?.cancel();

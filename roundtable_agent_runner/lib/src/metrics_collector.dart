@@ -1,6 +1,6 @@
 import 'dart:io';
 
-/// One CPU/RAM reading (design doc §6.9).
+/// One CPU/RAM reading (docs/FLOWS.md §6).
 class MachineMetricReading {
   const MachineMetricReading({
     required this.cpuPercent,
@@ -14,7 +14,7 @@ class MachineMetricReading {
 }
 
 /// Reads `/proc/stat` and `/proc/meminfo` (Linux only, consistent with the
-/// rest of the daemon's design — design doc §6.9).
+/// rest of the daemon's design — docs/FLOWS.md §4).
 class MetricsCollector {
   Future<MachineMetricReading> collect() async {
     final cpuPercent = await _readCpuPercent();

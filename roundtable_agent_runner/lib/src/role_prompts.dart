@@ -1,6 +1,6 @@
 import 'package:roundtable_client/roundtable_client.dart';
 
-/// Static prompt prefixes per [AgentRole] (design doc §6.6) — a plain string
+/// Static prompt prefixes per [AgentRole] (docs/FLOWS.md §4) — a plain string
 /// template, no AI/routing involved. `{name}` is substituted with the
 /// agent's own name.
 const rolePrompts = {

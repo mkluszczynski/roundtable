@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -18,12 +19,14 @@ class GitHubApiException implements Exception {
   String toString() => '$message (HTTP $statusCode): $body';
 }
 
-/// Opens a GitHub pull request for a task's pushed branch (design doc §6.1
-/// step 7, §6.5), using the GitHub REST API directly rather than the `gh`
+/// Opens a GitHub pull request for a task's pushed branch (docs/FLOWS.md §4),
+/// using the GitHub REST API directly rather than the `gh`
 /// CLI or an octokit-style SDK — only two endpoints are needed.
 class GitHubPullRequestOpener {
-  GitHubPullRequestOpener({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  GitHubPullRequestOpener({
+    http.Client? httpClient,
+    Duration timeout = const Duration(seconds: 30),
+  }) : _http = _TimeoutClient(httpClient ?? http.Client(), timeout);
 
   final http.Client _http;
 
@@ -135,4 +138,28 @@ class GitHubPullRequestOpener {
 
     return (owner: owner, repo: repo, token: token);
   }
+}
+
+/// Fails any GitHub request that takes longer than [_timeout], so a hung
+/// API call can't leave a finished task stuck in `running`.
+class _TimeoutClient extends http.BaseClient {
+  _TimeoutClient(this._inner, this._timeout);
+
+  final http.Client _inner;
+  final Duration _timeout;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) => _inner
+      .send(request)
+      .timeout(
+        _timeout,
+        onTimeout: () => throw GitHubApiException(
+          'GitHub did not respond within ${_timeout.inSeconds}s',
+          statusCode: 504,
+          body: '${request.method} ${request.url.path}',
+        ),
+      );
+
+  @override
+  void close() => _inner.close();
 }

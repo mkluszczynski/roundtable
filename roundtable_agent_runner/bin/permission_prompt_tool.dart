@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:roundtable_agent_runner/roundtable_agent_runner.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-/// Entrypoint for the `--permission-prompt-tool` MCP server (design doc
-/// §6.4), spawned by the `claude` CLI itself per the `--mcp-config` JSON
+/// Entrypoint for the `--permission-prompt-tool` MCP server (docs/FLOWS.md §4),
+/// spawned by the `claude` CLI itself per the `--mcp-config` JSON
 /// `TaskDispatcher` writes for a planning-phase run. Reads `SERVER_URL` and
 /// `ROUNDTABLE_TASK_ID` from the environment — set alongside the process by
 /// `TaskDispatcher`, not passed as CLI args, since `--mcp-config` only

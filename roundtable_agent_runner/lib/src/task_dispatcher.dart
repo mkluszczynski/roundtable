@@ -9,8 +9,9 @@ import 'role_prompts.dart';
 import 'stream_json_formatter.dart';
 import 'worktree_manager.dart';
 
-/// Turns an assigned [Task] into a running Claude Code execution-phase
-/// process (design doc §6.1 step 5, §6.2), for tasks that skip planning.
+/// Runs an assigned [Task]: worktree, Claude Code (planning, execution, or a
+/// `--resume` feedback iteration), commit + push, PR, final status — see
+/// `docs/FLOWS.md` §4.
 ///
 /// Server-facing dependencies are injected as plain functions rather than
 /// the concrete generated `Client`, so this class is unit-testable without
@@ -39,22 +40,25 @@ class TaskDispatcher {
   final Future<String> Function(int projectId) getCloneUrl;
   final Future<Agent> Function(int agentId) fetchAgent;
   final Future<void> Function(Task task) updateTask;
+
+  /// Reports the agent's `status` — only that field is sent. Bound to
+  /// `client.agent.setStatus` in production.
   final Future<void> Function(Agent agent) updateAgent;
   final Future<void> Function(int taskId, String content) appendLog;
 
   /// Fetches the most recently submitted [TaskFeedback] for a task, used to
   /// resume an `awaitingReview` task after [TaskEndpoint.submitFeedback]
-  /// wakes the daemon (design doc §6.1 step 9). Bound to
+  /// wakes the daemon (docs/FLOWS.md §4). Bound to
   /// `client.task.latestFeedback` in production.
   final Future<TaskFeedback?> Function(int taskId) fetchLatestFeedback;
 
-  /// Streams a task's status (design doc §6.1 "Cancelling mid-run") —
+  /// Streams a task's status (docs/FLOWS.md §4 "Cancelling mid-run") —
   /// subscribed to for the task currently being executed, to detect a
   /// transition to `cancelled` while [ClaudeCodeExecutor.run] is in flight.
   /// Bound to `client.task.watchTask` in production.
   final Stream<Task> Function(int taskId) watchTask;
 
-  /// Opens a GitHub PR for a pushed task branch (design doc §6.1 step 7) and
+  /// Opens a GitHub PR for a pushed task branch (docs/FLOWS.md §4) and
   /// returns its URL. Bound to [GitHubPullRequestOpener.open] in production.
   final Future<String> Function({
     required String cloneUrl,
@@ -67,7 +71,7 @@ class TaskDispatcher {
   final void Function(String message) log;
 
   /// Base URL of the roundtable server, passed as `SERVER_URL` to the
-  /// spawned permission-prompt-tool process (design doc §6.4) so it can
+  /// spawned permission-prompt-tool process (docs/FLOWS.md §4) so it can
   /// build its own [Client].
   final String serverUrl;
 
@@ -79,15 +83,38 @@ class TaskDispatcher {
   final List<String> permissionPromptToolCommand;
 
   /// Handles one assigned [task]: a fresh `queued` task — planning-phase
-  /// (design doc §6.2, §6.4) unless `skipPlanning` is set — or an
-  /// `awaitingReview` task woken by [TaskEndpoint.submitFeedback] (design
-  /// doc §6.1 step 9), resumed via `--resume` with the feedback message as
+  /// (docs/FLOWS.md §4) unless `skipPlanning` is set — or an
+  /// `awaitingReview` task woken by [TaskEndpoint.submitFeedback]
+  /// (docs/FLOWS.md §4), resumed via `--resume` with the feedback message as
   /// the new prompt. Any other case (e.g. replayed on reconnect while
   /// already running, or `awaitingReview` with no new feedback pending, or a
   /// planning-phase task replayed mid-flight after a daemon restart) is
   /// left untouched — resuming an in-flight planning conversation isn't
   /// supported, matching the existing accepted limitations around restarts.
+  /// How many [handle] calls are in flight per task id — a count, since a
+  /// replayed task can be handed in again while its first run is going.
+  final Map<int, int> _inFlight = {};
+
+  /// Whether a [handle] call for [taskId] is in flight, i.e. its worktree
+  /// may be in use — see `WorktreeJanitor`.
+  bool isActive(int taskId) => _inFlight.containsKey(taskId);
+
   Future<void> handle(Task task) async {
+    final id = task.id!;
+    _inFlight[id] = (_inFlight[id] ?? 0) + 1;
+    try {
+      await _handle(task);
+    } finally {
+      final remaining = _inFlight[id]! - 1;
+      if (remaining == 0) {
+        _inFlight.remove(id);
+      } else {
+        _inFlight[id] = remaining;
+      }
+    }
+  }
+
+  Future<void> _handle(Task task) async {
     final isResume = task.status == TaskStatus.awaitingReview;
     final needsPlanning =
         !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
@@ -176,14 +203,13 @@ class TaskDispatcher {
           : '${buildRolePrompt(agent.role, agent.name)} ${task.prompt}';
 
       // Subscribed for as long as this task is running, to detect a
-      // cancellation requested via `TaskEndpoint.cancelTask` (design doc
-      // §6.1 "Cancelling mid-run"). There's a small window between the
+      // cancellation requested via `TaskEndpoint.cancelTask` (docs/FLOWS.md §4
+      // "Cancelling mid-run"). There's a small window between the
       // `running`/`planning` update above and this subscription starting
       // where a cancellation could be missed — an accepted limitation, not
       // solved here. For a planning-phase task, also mirrors `Task.status`
       // into `Agent.status` (`waitingForResponse` while a question/plan
-      // decision is pending, `busy` once planning resumes) — design doc
-      // §6.1 step 4.
+      // decision is pending, `busy` once planning resumes) — docs/FLOWS.md §4.
       // One formatter per invocation: planning and execution share a single
       // continuous `claude` process (see `runPlanning`'s doc comment), so
       // its content-block buffering must persist across both phases.
@@ -358,7 +384,7 @@ class TaskDispatcher {
   }
 
   /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
-  /// (design doc §6.4) for [taskId]'s planning-phase run. Kept outside the
+  /// (docs/FLOWS.md §4) for [taskId]'s planning-phase run. Kept outside the
   /// worktree so it never ends up in the task's commit. The tool process
   /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
   /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a

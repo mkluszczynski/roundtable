@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 /// Turns the raw `claude --output-format stream-json --include-partial-messages`
-/// NDJSON stdout (design doc §6.2) into human-readable lines, so
+/// NDJSON stdout (docs/FLOWS.md §4) into human-readable lines, so
 /// `TaskDispatcher` can persist readable `TaskLogEntry.content` instead of raw
-/// protocol JSON (design doc §6.3).
+/// protocol JSON (docs/FLOWS.md §4).
 ///
 /// One instance is used per `claude` process invocation — planning and
 /// execution share a single continuous invocation (see

@@ -13,8 +13,9 @@ class WorktreeException implements Exception {
   String toString() => '$message: $stderr';
 }
 
-/// Manages git-worktree-based execution isolation per project (design doc
-/// §6.10): one bare clone per project on disk, and one worktree + branch per
+/// Manages git-worktree-based execution isolation per project
+/// (docs/ARCHITECTURE.md): one bare clone per project on disk, and one worktree
+/// + branch per
 /// task, so concurrent tasks on the same project never share a working
 /// directory.
 ///
@@ -23,12 +24,6 @@ class WorktreeException implements Exception {
 /// <workspaceRoot>/<projectId>/repo.git/            (bare clone)
 /// <workspaceRoot>/<projectId>/worktrees/<taskId>/   (per-task worktree)
 /// ```
-///
-/// Building the task-assignment loop that calls this class, and building an
-/// authenticated clone URL from `Project.repoUrl`/`repoAccessToken`, are both
-/// separate, not-yet-implemented pieces (design doc §6.1, §6.5) — this class
-/// only accepts a ready-to-use [cloneUrl] and never logs or persists it
-/// itself.
 class WorktreeManager {
   WorktreeManager({required this.workspaceRoot});
 
@@ -76,8 +71,9 @@ class WorktreeManager {
 
   /// Creates an isolated worktree + branch (`task-<taskId>`) for [taskId]
   /// under project [projectId], or returns the existing one if it already
-  /// exists on disk (a feedback iteration reuses the same worktree — design
-  /// doc §6.10). Serialized per-project. Returns the absolute worktree path.
+  /// exists on disk (a feedback iteration reuses the same worktree —
+  /// docs/ARCHITECTURE.md). Serialized per-project. Returns the absolute
+  /// worktree path.
   Future<String> createWorktree({
     required String projectId,
     required String taskId,
@@ -111,7 +107,7 @@ class WorktreeManager {
   }
 
   /// Discards uncommitted changes in the worktree for [taskId] (used when
-  /// cancelling a run mid-task — design doc §6.1). No-op if the worktree
+  /// cancelling a run mid-task — docs/FLOWS.md §4). No-op if the worktree
   /// doesn't exist.
   Future<void> resetWorktree({
     required String projectId,
@@ -199,11 +195,11 @@ class WorktreeManager {
   }
 
   /// Commits any pending changes in the task's worktree and pushes the
-  /// resulting branch to [pushUrl] (design doc §6.1 step 7). Returns `false`
+  /// resulting branch to [pushUrl] (docs/FLOWS.md §4). Returns `false`
   /// without committing or pushing if the worktree has no changes — nothing
   /// for the agent to have done. [pushUrl] is used as a one-off push target,
   /// never stored as a named git remote, so any credentials embedded in it
-  /// never touch git config on disk (design doc §6.5).
+  /// never touch git config on disk (docs/ARCHITECTURE.md).
   Future<bool> commitAndPush({
     required String projectId,
     required String taskId,
@@ -361,6 +357,25 @@ class WorktreeManager {
         ], workingDirectory: repo);
       }
     });
+  }
+
+  /// Lists every task worktree currently on disk, across all projects.
+  List<({String projectId, String taskId})> listTaskWorktrees() {
+    final root = Directory(workspaceRoot);
+    if (!root.existsSync()) return const [];
+    return [
+      for (final project in root.listSync().whereType<Directory>())
+        if (Directory('${project.path}/worktrees').existsSync())
+          for (final worktree in Directory(
+            '${project.path}/worktrees',
+          ).listSync().whereType<Directory>())
+            (
+              projectId: project.uri.pathSegments
+                  .where((s) => s.isNotEmpty)
+                  .last,
+              taskId: worktree.uri.pathSegments.where((s) => s.isNotEmpty).last,
+            ),
+    ];
   }
 
   /// Returns the worktree path for [taskId] if it currently exists on disk,

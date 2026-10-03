@@ -5,11 +5,11 @@ import 'dart:io' as io;
 import 'package:roundtable_client/roundtable_client.dart';
 
 /// The `{"behavior": ...}` JSON an MCP permission-prompt-tool call must
-/// answer with (design doc §6.4), confirmed against the real `claude` CLI by
+/// answer with (docs/FLOWS.md §4), confirmed against the real `claude` CLI by
 /// a manual spike: `allow` must echo back a valid `updatedInput` (the tool's
 /// original input, unless deliberately rewritten), `deny` carries the reason
 /// Claude Code reports back to the model (folded into `ExitPlanMode`'s next
-/// attempt as plan feedback, per §6.4).
+/// attempt as plan feedback).
 class PermissionDecision {
   const PermissionDecision.allow({Map<String, dynamic>? updatedInput})
     : allow = true,
@@ -29,8 +29,8 @@ class PermissionDecision {
       : {'behavior': 'deny', 'message': message};
 }
 
-/// Decision logic for the `--permission-prompt-tool` MCP tool (design doc
-/// §6.4), kept free of any MCP/stdio transport concerns so it's testable
+/// Decision logic for the `--permission-prompt-tool` MCP tool (docs/FLOWS.md
+/// §4), kept free of any MCP/stdio transport concerns so it's testable
 /// with injected fakes instead of a real [Client] — mirrors the
 /// `TaskDispatcher` dependency-injection style.
 ///
@@ -89,7 +89,7 @@ class PermissionPromptTool {
     // since `TaskQuestion` models one question at a time. The resolved
     // answer is folded back into `updatedInput` under the same shape it
     // arrived in, since planning must see what the developer actually
-    // picked rather than the original, unanswered input (design doc §6.4).
+    // picked rather than the original, unanswered input (docs/FLOWS.md §4).
     String question;
     List<String> options;
     final questions = input['questions'];
