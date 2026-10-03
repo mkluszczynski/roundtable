@@ -19,6 +19,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
+import '../widgets/plan_content.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
@@ -685,12 +686,7 @@ class _PlanReview extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          AppCard(
-            child: SelectableText(
-              task.currentPlan ?? '',
-              style: AppTypography.body,
-            ),
-          ),
+          AppCard(child: PlanContent(markdown: task.currentPlan ?? '')),
           const SizedBox(height: Spacing.xl),
           _FeedbackRow(
             hint: 'Give feedback',
