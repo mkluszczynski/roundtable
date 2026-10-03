@@ -594,7 +594,10 @@ class _SubStateBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state.task.status) {
-      TaskStatus.waitingForAnswer => _PendingQuestion(state: state),
+      TaskStatus.waitingForAnswer => _PendingQuestion(
+        key: ValueKey(state.pendingQuestion?.id),
+        state: state,
+      ),
       TaskStatus.planReady => _PlanReview(state: state),
       TaskStatus.planning || TaskStatus.running => _LiveExecution(
         state: state,
@@ -618,13 +621,35 @@ class _SubStateBody extends StatelessWidget {
   }
 }
 
-class _PendingQuestion extends StatelessWidget {
-  const _PendingQuestion({required this.state});
+class _PendingQuestion extends StatefulWidget {
+  const _PendingQuestion({super.key, required this.state});
 
   final TaskDetailLoaded state;
 
   @override
+  State<_PendingQuestion> createState() => _PendingQuestionState();
+}
+
+class _PendingQuestionState extends State<_PendingQuestion> {
+  String? _selectedOption;
+  final _customController = TextEditingController();
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  void _submit(int questionId) {
+    final custom = _customController.text.trim();
+    final answer = custom.isNotEmpty ? custom : _selectedOption;
+    if (answer == null) return;
+    context.read<TaskDetailBloc>().add(AnswerSubmitted(questionId, answer));
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final question = state.pendingQuestion;
     if (question == null) {
       return Text(
@@ -632,6 +657,10 @@ class _PendingQuestion extends StatelessWidget {
         style: AppTypography.body,
       );
     }
+
+    final hasAnswer =
+        _selectedOption != null || _customController.text.trim().isNotEmpty;
+    final canSubmit = hasAnswer && !state.submitting;
 
     return SingleChildScrollView(
       child: Column(
@@ -655,13 +684,38 @@ class _PendingQuestion extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: Spacing.sm),
               child: _OptionRow(
                 label: option,
+                selected: _selectedOption == option,
                 onTap: state.submitting
                     ? null
-                    : () => context.read<TaskDetailBloc>().add(
-                        AnswerSubmitted(question.id!, option),
-                      ),
+                    : () => setState(() {
+                        _selectedOption = option;
+                        _customController.clear();
+                      }),
               ),
             ),
+          const SizedBox(height: Spacing.md),
+          TextField(
+            controller: _customController,
+            enabled: !state.submitting,
+            minLines: 1,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Or write your own answer…',
+            ),
+            onChanged: (value) => setState(() {
+              if (_selectedOption != null && value.trim().isNotEmpty) {
+                _selectedOption = null;
+              }
+            }),
+          ),
+          const SizedBox(height: Spacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: canSubmit ? () => _submit(question.id!) : null,
+              child: const Text('Submit answer'),
+            ),
+          ),
           if (state.submitting) ...[
             const SizedBox(height: Spacing.md),
             Text(
@@ -676,15 +730,20 @@ class _PendingQuestion extends StatelessWidget {
 }
 
 class _OptionRow extends StatelessWidget {
-  const _OptionRow({required this.label, required this.onTap});
+  const _OptionRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
+  final bool selected;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bg2,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
@@ -692,14 +751,36 @@ class _OptionRow extends StatelessWidget {
         child: Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.14)
+                : AppColors.bg2,
+            border: Border.all(
+              color: selected ? AppColors.accent : AppColors.border,
+            ),
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(
             horizontal: Spacing.lg,
             vertical: Spacing.lg,
           ),
-          child: Text(label, style: AppTypography.body),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.body.copyWith(
+                    color: selected ? AppColors.text0 : AppColors.text1,
+                  ),
+                ),
+              ),
+              if (selected)
+                const Icon(
+                  Icons.check_circle,
+                  size: 18,
+                  color: AppColors.accent,
+                ),
+            ],
+          ),
         ),
       ),
     );
