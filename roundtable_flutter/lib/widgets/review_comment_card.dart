@@ -18,6 +18,7 @@ class ReviewCommentCard extends StatelessWidget {
     this.selected = false,
     this.onToggleSelected,
     this.onStateChanged,
+    this.onOpenLocation,
   });
 
   final ReviewComment comment;
@@ -27,6 +28,9 @@ class ReviewCommentCard extends StatelessWidget {
   final bool selected;
   final VoidCallback? onToggleSelected;
   final ValueChanged<ReviewCommentState>? onStateChanged;
+
+  /// Makes the `path:line` location a link, e.g. to jump to the file's diff.
+  final VoidCallback? onOpenLocation;
 
   static Color severityColor(ReviewCommentSeverity severity) =>
       switch (severity) {
@@ -89,10 +93,20 @@ class ReviewCommentCard extends StatelessWidget {
                           style: AppTypography.caption,
                         ),
                       if (showLocation)
-                        Text(
-                          line == null ? comment.path : '${comment.path}:$line',
-                          style: AppTypography.code.copyWith(
-                            color: AppColors.text1,
+                        InkWell(
+                          onTap: onOpenLocation,
+                          child: Text(
+                            line == null
+                                ? comment.path
+                                : '${comment.path}:$line',
+                            style: AppTypography.code.copyWith(
+                              color: onOpenLocation == null
+                                  ? AppColors.text1
+                                  : AppColors.accentSoft,
+                              decoration: onOpenLocation == null
+                                  ? null
+                                  : TextDecoration.underline,
+                            ),
                           ),
                         ),
                     ],

@@ -213,16 +213,80 @@ class TaskDetailScreen extends StatelessWidget {
   }
 }
 
-class _TaskDetailView extends StatelessWidget {
+/// What the main area shows — picked from the rail's navigation.
+enum _TaskSection { overview, changes, review, logs }
+
+bool _isLive(TaskStatus s) =>
+    s == TaskStatus.planning || s == TaskStatus.running;
+
+bool _hasPullRequestViews(TaskStatus s) =>
+    s == TaskStatus.awaitingReview || s == TaskStatus.done;
+
+/// The section a task opens on: the live log while the agent works, the
+/// diff once there's a PR, otherwise whatever needs the dev's attention.
+_TaskSection _defaultSectionFor(TaskStatus s) {
+  if (_isLive(s)) return _TaskSection.logs;
+  if (_hasPullRequestViews(s)) return _TaskSection.changes;
+  return _TaskSection.overview;
+}
+
+/// Overview only exists while the status has its own content (question,
+/// plan, failure…) — live tasks have the log, PR tasks have Changes/Review.
+Set<_TaskSection> _availableSectionsFor(TaskStatus s) => {
+  if (!_isLive(s) && !_hasPullRequestViews(s)) _TaskSection.overview,
+  if (_hasPullRequestViews(s)) ...{_TaskSection.changes, _TaskSection.review},
+  _TaskSection.logs,
+};
+
+extension _TaskDetailLoadedX on TaskDetailLoaded {
+  bool get inReview => task.status == TaskStatus.awaitingReview;
+
+  CodeReview? get latestReview => reviews.isEmpty ? null : reviews.last;
+
+  bool get reviewActive => reviews.any(
+    (r) =>
+        r.status == CodeReviewStatus.queued ||
+        r.status == CodeReviewStatus.running,
+  );
+
+  int get openCommentCount =>
+      reviewComments.where((c) => c.state == ReviewCommentState.open).length;
+
+  bool get hasConflicts => mergeStatus?.hasConflicts ?? false;
+}
+
+class _TaskDetailView extends StatefulWidget {
   const _TaskDetailView();
 
   @override
+  State<_TaskDetailView> createState() => _TaskDetailViewState();
+}
+
+class _TaskDetailViewState extends State<_TaskDetailView> {
+  /// Null until the dev picks a section; until then (and after every
+  /// status change) the status's default section is shown.
+  _TaskSection? _section;
+
+  void _select(_TaskSection section) => setState(() => _section = section);
+
+  @override
   Widget build(BuildContext context) {
-    return BlocListener<TaskDetailBloc, TaskDetailState>(
-      listenWhen: (previous, current) => current is TaskDetailDeleted,
-      listener: (context, state) {
-        if (Navigator.canPop(context)) Navigator.of(context).pop();
-      },
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<TaskDetailBloc, TaskDetailState>(
+          listenWhen: (previous, current) => current is TaskDetailDeleted,
+          listener: (context, state) {
+            if (Navigator.canPop(context)) Navigator.of(context).pop();
+          },
+        ),
+        BlocListener<TaskDetailBloc, TaskDetailState>(
+          listenWhen: (previous, current) =>
+              previous is TaskDetailLoaded &&
+              current is TaskDetailLoaded &&
+              previous.task.status != current.task.status,
+          listener: (context, state) => setState(() => _section = null),
+        ),
+      ],
       child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
         builder: (context, state) {
           return switch (state) {
@@ -237,33 +301,56 @@ class _TaskDetailView extends StatelessWidget {
                 style: AppTypography.body.copyWith(color: AppColors.red),
               ),
             ),
-            TaskDetailLoaded() => Column(
-              children: [
-                _Header(state: state),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(width: 320, child: _InfoRail(state: state)),
-                      VerticalDivider(width: 1, color: AppColors.border),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(Spacing.xl),
-                          child: _SubState(state: state),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            TaskDetailLoaded() => _buildLoaded(state),
           };
         },
       ),
     );
   }
+
+  Widget _buildLoaded(TaskDetailLoaded state) {
+    final status = state.task.status;
+    final picked = _section;
+    final section =
+        picked != null && _availableSectionsFor(status).contains(picked)
+        ? picked
+        : _defaultSectionFor(status);
+    return Column(
+      children: [
+        _Header(state: state),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 320,
+                child: _InfoRail(
+                  state: state,
+                  section: section,
+                  onSectionSelected: _select,
+                ),
+              ),
+              VerticalDivider(width: 1, color: AppColors.border),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(Spacing.xl),
+                  child: _SectionContent(
+                    state: state,
+                    section: section,
+                    onSectionSelected: _select,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
+/// Task identity only: back, breadcrumb and the status right next to it.
+/// Everything that manages the task lives in the rail.
 class _Header extends StatelessWidget {
   const _Header({required this.state});
 
@@ -283,21 +370,23 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Navigator.canPop(context)
-              ? IconButton(
-                  tooltip: 'Back',
-                  icon: const Icon(Icons.arrow_back, color: AppColors.text1),
-                  onPressed: () => Navigator.of(context).pop(),
-                  visualDensity: VisualDensity.compact,
-                )
-              : const SizedBox.shrink(),
-          Expanded(
+          if (Navigator.canPop(context)) ...[
+            IconButton(
+              tooltip: 'Back',
+              icon: const Icon(Icons.arrow_back, color: AppColors.text1),
+              onPressed: () => Navigator.of(context).pop(),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: Spacing.sm),
+          ],
+          Flexible(
             child: RichText(
               overflow: TextOverflow.ellipsis,
               text: TextSpan(
-                style: AppTypography.bodyStrong,
+                style: AppTypography.bodyStrong.copyWith(
+                  color: AppColors.text1,
+                ),
                 children: [
-                  const TextSpan(text: 'Roundtable  /  '),
                   TextSpan(text: '${state.project?.name ?? '…'}  /  '),
                   TextSpan(
                     text: 'Task #${task.id}',
@@ -310,83 +399,11 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: Spacing.md),
           StatusPill.fromAppearance(
             taskStatusAppearance(task.status),
             label: task.status.label,
           ),
-          if (state.agent != null) ...[
-            const SizedBox(width: Spacing.lg),
-            AgentAvatar(name: state.agent!.name),
-            const SizedBox(width: Spacing.sm),
-            Text(state.agent!.name, style: AppTypography.body),
-            if (_reassignableStatuses.contains(task.status)) ...[
-              const SizedBox(width: Spacing.xs),
-              IconButton(
-                icon: const Icon(
-                  Icons.swap_horiz,
-                  size: 18,
-                  color: AppColors.text2,
-                ),
-                tooltip: 'Reassign agent',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _openReassignAgentDialog(
-                  context,
-                  task.id!,
-                  task.agentId,
-                ),
-              ),
-            ],
-          ] else ...[
-            const SizedBox(width: Spacing.lg),
-            OutlinedButton(
-              onPressed: () =>
-                  _openReassignAgentDialog(context, task.id!, null),
-              child: Text(
-                task.status == TaskStatus.draft
-                    ? 'Assign & start'
-                    : 'Assign agent',
-              ),
-            ),
-          ],
-          if (_cancellableStatuses.contains(task.status)) ...[
-            const SizedBox(width: Spacing.lg),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.red,
-                side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
-              ),
-              onPressed: state.submitting
-                  ? null
-                  : () => context.read<TaskDetailBloc>().add(
-                      TaskCancelled(task.id!),
-                    ),
-              child: const Text('Cancel task'),
-            ),
-          ],
-          if (_retryableStatuses.contains(task.status)) ...[
-            const SizedBox(width: Spacing.lg),
-            OutlinedButton(
-              onPressed: state.submitting
-                  ? null
-                  : () => context.read<TaskDetailBloc>().add(
-                      TaskRetried(task.id!),
-                    ),
-              child: const Text('Retry task'),
-            ),
-          ],
-          if (_deletableStatuses.contains(task.status)) ...[
-            const SizedBox(width: Spacing.lg),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.red,
-                side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
-              ),
-              onPressed: state.submitting
-                  ? null
-                  : () => _confirmDeleteTask(context, task.id!),
-              child: const Text('Delete task'),
-            ),
-          ],
         ],
       ),
     );
@@ -394,7 +411,95 @@ class _Header extends StatelessWidget {
 }
 
 class _InfoRail extends StatelessWidget {
-  const _InfoRail({required this.state});
+  const _InfoRail({
+    required this.state,
+    required this.section,
+    required this.onSectionSelected,
+  });
+
+  final TaskDetailLoaded state;
+  final _TaskSection section;
+  final ValueChanged<_TaskSection> onSectionSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = state.task;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _AgentSection(state: state),
+                _RailNav(
+                  state: state,
+                  section: section,
+                  onSelected: onSectionSelected,
+                ),
+                if (task.branchName != null || task.prUrl != null)
+                  _RailSection(
+                    label: 'Branch',
+                    child: _BranchRow(task: task),
+                  ),
+                _RailSection(
+                  label: 'Project',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.folder_outlined,
+                        size: 16,
+                        color: AppColors.text1,
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Text(
+                        state.project?.name ?? '…',
+                        style: AppTypography.bodyStrong,
+                      ),
+                    ],
+                  ),
+                ),
+                _RailSection(
+                  label: 'Prompt',
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.bg2,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(Spacing.md),
+                      child: Text(task.prompt, style: AppTypography.body),
+                    ),
+                  ),
+                ),
+                _RailSection(
+                  label: 'Timeline',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TimelineRow('Created', task.createdAt),
+                      if (task.startedAt != null)
+                        _TimelineRow('Started running', task.startedAt),
+                      if (task.finishedAt != null)
+                        _TimelineRow('Finished', task.finishedAt),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        _RailActions(state: state),
+      ],
+    );
+  }
+}
+
+/// Who runs the task, and the one place to (re)assign it.
+class _AgentSection extends StatelessWidget {
+  const _AgentSection({required this.state});
 
   final TaskDetailLoaded state;
 
@@ -402,117 +507,358 @@ class _InfoRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final task = state.task;
     final agent = state.agent;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(Spacing.xl),
+    if (agent == null) {
+      return _RailSection(
+        label: 'Agent',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('No agent assigned', style: AppTypography.caption),
+            const SizedBox(height: Spacing.sm),
+            FilledButton.icon(
+              onPressed: () =>
+                  _openReassignAgentDialog(context, task.id!, null),
+              icon: const Icon(Icons.person_add_alt_1, size: 16),
+              label: Text(
+                task.status == TaskStatus.draft
+                    ? 'Assign & start'
+                    : 'Assign agent',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return _RailSection(
+      label: 'Agent',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RailSection(
-            label: 'Project',
+          Row(
+            children: [
+              AgentAvatar(name: agent.name),
+              const SizedBox(width: Spacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      agent.name,
+                      style: AppTypography.bodyStrong,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${agent.role.name} specialist',
+                      style: AppTypography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              if (_reassignableStatuses.contains(task.status))
+                TextButton.icon(
+                  onPressed: () =>
+                      _openReassignAgentDialog(context, task.id!, agent.id),
+                  icon: const Icon(Icons.swap_horiz, size: 16),
+                  label: const Text('Change'),
+                ),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          Wrap(
+            spacing: Spacing.sm,
+            runSpacing: Spacing.sm,
+            children: [
+              TagChip(agent.defaultModel ?? 'default model'),
+              TagChip('effort: ${agent.defaultEffort?.name ?? 'default'}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Switches the main area between the task's views.
+class _RailNav extends StatelessWidget {
+  const _RailNav({
+    required this.state,
+    required this.section,
+    required this.onSelected,
+  });
+
+  final TaskDetailLoaded state;
+  final _TaskSection section;
+  final ValueChanged<_TaskSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final available = _availableSectionsFor(state.task.status);
+    final files = state.files;
+    final openComments = state.openCommentCount;
+    return _RailSection(
+      label: 'View',
+      child: Column(
+        children: [
+          for (final s in _TaskSection.values)
+            if (available.contains(s))
+              _RailNavItem(
+                icon: switch (s) {
+                  _TaskSection.overview => Icons.dashboard_outlined,
+                  _TaskSection.changes => Icons.difference_outlined,
+                  _TaskSection.review => Icons.rate_review_outlined,
+                  _TaskSection.logs => Icons.terminal,
+                },
+                label: switch (s) {
+                  _TaskSection.overview => switch (state.task.status) {
+                    TaskStatus.waitingForAnswer => 'Question',
+                    TaskStatus.planReady => 'Plan',
+                    _ => 'Details',
+                  },
+                  _TaskSection.changes => 'Changes',
+                  _TaskSection.review => 'AI review',
+                  _TaskSection.logs => 'Logs',
+                },
+                selected: section == s,
+                onTap: () => onSelected(s),
+                trailing: switch (s) {
+                  _TaskSection.changes when files != null => Text.rich(
+                    TextSpan(
+                      style: AppTypography.code,
+                      children: [
+                        TextSpan(
+                          text:
+                              '+${files.fold<int>(0, (n, f) => n + f.additions)} ',
+                          style: const TextStyle(color: AppColors.live),
+                        ),
+                        TextSpan(
+                          text:
+                              '-${files.fold<int>(0, (n, f) => n + f.deletions)}',
+                          style: const TextStyle(color: AppColors.red),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _TaskSection.review when state.reviewActive =>
+                    const StatusDot(color: AppColors.live, pulsing: true),
+                  _TaskSection.review when openComments > 0 => _CountBadge(
+                    openComments,
+                  ),
+                  _TaskSection.logs when _isLive(state.task.status) =>
+                    const StatusDot(color: AppColors.live, pulsing: true),
+                  _ => null,
+                },
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RailNavItem extends StatelessWidget {
+  const _RailNavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.text0 : AppColors.text1;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: selected ? AppColors.bg2 : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border(
+                left: BorderSide(
+                  width: 2,
+                  color: selected ? AppColors.accent : Colors.transparent,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.md,
+              vertical: Spacing.sm,
+            ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.folder_outlined,
+                Icon(
+                  icon,
                   size: 16,
-                  color: AppColors.text1,
+                  color: selected ? AppColors.accent : AppColors.text2,
                 ),
                 const SizedBox(width: Spacing.sm),
-                Text(
-                  state.project?.name ?? '…',
-                  style: AppTypography.bodyStrong,
+                Expanded(
+                  child: Text(
+                    label,
+                    style:
+                        (selected
+                                ? AppTypography.bodyStrong
+                                : AppTypography.body)
+                            .copyWith(color: color),
+                  ),
                 ),
+                ?trailing,
               ],
             ),
           ),
-          if (agent != null)
-            _RailSection(
-              label: 'Agent',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      AgentAvatar(name: agent.name),
-                      const SizedBox(width: Spacing.sm),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(agent.name, style: AppTypography.bodyStrong),
-                          Text(
-                            '${agent.role.name} specialist',
-                            style: AppTypography.caption,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: Spacing.sm),
-                  Wrap(
-                    spacing: Spacing.sm,
-                    runSpacing: Spacing.sm,
-                    children: [
-                      TagChip(agent.defaultModel ?? 'default model'),
-                      TagChip(
-                        'effort: ${agent.defaultEffort?.name ?? 'default'}',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          _RailSection(
-            label: 'Prompt',
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.bg2,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.md),
-                child: Text(task.prompt, style: AppTypography.body),
-              ),
-            ),
-          ),
-          if (task.branchName != null)
-            _RailSection(
-              label: 'Branch',
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.call_split,
-                    size: 14,
-                    color: AppColors.text1,
-                  ),
-                  const SizedBox(width: Spacing.xs),
-                  Text(task.branchName!, style: AppTypography.code),
-                ],
-              ),
-            ),
-          if (task.prUrl != null)
-            _RailSection(
-              label: 'Pull request',
-              child: OutlinedButton.icon(
-                onPressed: () => launchUrl(
-                  Uri.parse(task.prUrl!),
-                  mode: LaunchMode.externalApplication,
-                ),
-                icon: const Icon(Icons.open_in_new, size: 14),
-                label: const Text('Open PR'),
-              ),
-            ),
-          _RailSection(
-            label: 'Timeline',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TimelineRow('Created', task.createdAt),
-                if (task.startedAt != null)
-                  _TimelineRow('Started running', task.startedAt),
-                if (task.finishedAt != null)
-                  _TimelineRow('Finished', task.finishedAt),
-              ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge(this.count);
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count',
+        style: AppTypography.caption.copyWith(color: AppColors.warning),
+      ),
+    );
+  }
+}
+
+/// The task's branch, with the PR it backs one tap away.
+class _BranchRow extends StatelessWidget {
+  const _BranchRow({required this.task});
+
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.call_split, size: 14, color: AppColors.text1),
+        const SizedBox(width: Spacing.xs),
+        Expanded(
+          child: Tooltip(
+            message: task.branchName ?? '',
+            child: Text(
+              task.branchName ?? '—',
+              style: AppTypography.code,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+        ),
+        if (task.prUrl != null)
+          TextButton.icon(
+            onPressed: () => launchUrl(
+              Uri.parse(task.prUrl!),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.open_in_new, size: 14),
+            label: const Text('PR'),
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          ),
+      ],
+    );
+  }
+}
+
+/// Everything that changes the task's lifecycle, pinned under the rail: the
+/// status's primary action first, destructive ones last.
+class _RailActions extends StatelessWidget {
+  const _RailActions({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = state.task;
+    final bloc = context.read<TaskDetailBloc>();
+    final busy = state.reviewActive || state.reviewBusy;
+    final destructive = OutlinedButton.styleFrom(
+      foregroundColor: AppColors.red,
+      side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+    );
+    final actions = <Widget>[
+      if (state.inReview)
+        if (state.hasConflicts)
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: busy
+                ? null
+                : () => _confirmResolveConflicts(
+                    context,
+                    task.id!,
+                    state.mergeStatus!.baseBranch,
+                  ),
+            icon: const Icon(Icons.call_merge, size: 16),
+            label: const Text('Resolve conflicts'),
+          )
+        else
+          FilledButton.icon(
+            onPressed: busy
+                ? null
+                : () => _confirmAcceptTask(context, task.id!),
+            icon: const Icon(Icons.merge, size: 16),
+            label: const Text('Accept & merge'),
+          ),
+      if (_retryableStatuses.contains(task.status))
+        OutlinedButton.icon(
+          onPressed: state.submitting
+              ? null
+              : () => bloc.add(TaskRetried(task.id!)),
+          icon: const Icon(Icons.replay, size: 16),
+          label: const Text('Retry task'),
+        ),
+      if (_cancellableStatuses.contains(task.status))
+        OutlinedButton.icon(
+          style: destructive,
+          onPressed: state.submitting
+              ? null
+              : () => bloc.add(TaskCancelled(task.id!)),
+          icon: const Icon(Icons.stop_circle_outlined, size: 16),
+          label: const Text('Cancel task'),
+        ),
+      if (_deletableStatuses.contains(task.status))
+        OutlinedButton.icon(
+          style: destructive,
+          onPressed: state.submitting
+              ? null
+              : () => _confirmDeleteTask(context, task.id!),
+          icon: const Icon(Icons.delete_outline, size: 16),
+          label: const Text('Delete task'),
+        ),
+    ];
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      padding: const EdgeInsets.all(Spacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, action) in actions.indexed) ...[
+            if (i > 0) const SizedBox(height: Spacing.sm),
+            action,
+          ],
         ],
       ),
     );
@@ -565,54 +911,38 @@ class _TimelineRow extends StatelessWidget {
   }
 }
 
-class _SubState extends StatefulWidget {
-  const _SubState({required this.state});
+class _SectionContent extends StatelessWidget {
+  const _SectionContent({
+    required this.state,
+    required this.section,
+    required this.onSectionSelected,
+  });
 
   final TaskDetailLoaded state;
-
-  @override
-  State<_SubState> createState() => _SubStateState();
-}
-
-class _SubStateState extends State<_SubState> {
-  bool _showLogs = false;
-
-  static bool _isLive(TaskStatus s) =>
-      s == TaskStatus.planning || s == TaskStatus.running;
-
-  @override
-  void didUpdateWidget(covariant _SubState oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final wasLive = _isLive(oldWidget.state.task.status);
-    final isPlanReady = widget.state.task.status == TaskStatus.planReady;
-    if (wasLive && isPlanReady && _showLogs) {
-      setState(() => _showLogs = false);
-    }
-  }
+  final _TaskSection section;
+  final ValueChanged<_TaskSection> onSectionSelected;
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.state;
-    // Live statuses already show the log; the toggle only matters elsewhere.
-    if (_isLive(state.task.status)) return _LiveExecution(state: state);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        PillSelector<bool>(
-          options: const [false, true],
-          labelBuilder: (showLogs) => showLogs ? 'Logs' : 'Details',
-          selected: _showLogs,
-          onChanged: (v) => setState(() => _showLogs = v),
-        ),
-        const SizedBox(height: Spacing.md),
-        Expanded(
-          child: _showLogs
-              ? _LogHistory(state: state)
-              : _SubStateBody(state: state),
-        ),
-      ],
-    );
+    return switch (section) {
+      _TaskSection.overview => _Overview(state: state),
+      _TaskSection.changes => _ChangesView(state: state),
+      _TaskSection.review => _ReviewView(
+        state: state,
+        onOpenFile: (path) {
+          final file = state.files
+              ?.where((f) => f.filename == path)
+              .firstOrNull;
+          if (file == null) return;
+          context.read<TaskDetailBloc>().add(FileSelected(file));
+          onSectionSelected(_TaskSection.changes);
+        },
+      ),
+      _TaskSection.logs =>
+        _isLive(state.task.status)
+            ? _LiveExecution(state: state)
+            : _LogHistory(state: state),
+    };
   }
 }
 
@@ -630,8 +960,9 @@ class _LogHistory extends StatelessWidget {
   }
 }
 
-class _SubStateBody extends StatelessWidget {
-  const _SubStateBody({required this.state});
+/// What needs the dev's attention for the current status.
+class _Overview extends StatelessWidget {
+  const _Overview({required this.state});
 
   final TaskDetailLoaded state;
 
@@ -646,9 +977,8 @@ class _SubStateBody extends StatelessWidget {
       TaskStatus.planning || TaskStatus.running => _LiveExecution(
         state: state,
       ),
-      TaskStatus.awaitingReview || TaskStatus.done => _DiffReview(
-        state: state,
-      ),
+      // Never shown: these statuses have no Overview section.
+      TaskStatus.awaitingReview || TaskStatus.done => const SizedBox.shrink(),
       TaskStatus.failed => Text(
         state.task.failureReason ?? 'This task failed.',
         style: AppTypography.body.copyWith(color: AppColors.red),
@@ -662,6 +992,37 @@ class _SubStateBody extends StatelessWidget {
         style: AppTypography.caption,
       ),
     };
+  }
+}
+
+class _ChangeStats extends StatelessWidget {
+  const _ChangeStats({required this.files});
+
+  final List<DiffFile> files;
+
+  @override
+  Widget build(BuildContext context) {
+    final additions = files.fold<int>(0, (sum, f) => sum + f.additions);
+    final deletions = files.fold<int>(0, (sum, f) => sum + f.deletions);
+    return Text.rich(
+      TextSpan(
+        style: AppTypography.bodyStrong,
+        children: [
+          TextSpan(
+            text:
+                '${files.length} file${files.length == 1 ? '' : 's'} changed  ',
+          ),
+          TextSpan(
+            text: '+$additions ',
+            style: const TextStyle(color: AppColors.live),
+          ),
+          TextSpan(
+            text: '-$deletions',
+            style: const TextStyle(color: AppColors.red),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -912,60 +1273,54 @@ class _LiveExecution extends StatelessWidget {
   }
 }
 
-class _DiffReview extends StatelessWidget {
-  const _DiffReview({required this.state});
+/// Spinner / error-with-retry while the PR's changed files aren't loaded;
+/// null once they are.
+Widget? _filesPlaceholder(BuildContext context, TaskDetailLoaded state) {
+  if (state.files != null) return null;
+  final error = state.filesError;
+  if (error == null) {
+    return const Center(child: CircularProgressIndicator());
+  }
+  return Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          "Couldn't load the PR's changes: $error",
+          style: AppTypography.body.copyWith(color: AppColors.red),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: Spacing.md),
+        OutlinedButton.icon(
+          onPressed: () => context.read<TaskDetailBloc>().add(
+            ChangedFilesReloaded(state.task.id!),
+          ),
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Retry'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// The PR's diff: file list + the selected file with review comments inline.
+class _ChangesView extends StatelessWidget {
+  const _ChangesView({required this.state});
 
   final TaskDetailLoaded state;
 
   @override
   Widget build(BuildContext context) {
-    final files = state.files;
-    if (files == null) {
-      final error = state.filesError;
-      if (error == null) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Couldn't load the PR's changes: $error",
-              style: AppTypography.body.copyWith(color: AppColors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacing.md),
-            OutlinedButton.icon(
-              onPressed: () => context.read<TaskDetailBloc>().add(
-                ChangedFilesReloaded(state.task.id!),
-              ),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
+    final placeholder = _filesPlaceholder(context, state);
+    if (placeholder != null) return placeholder;
+    final files = state.files!;
     if (files.isEmpty) {
       return Center(
         child: Text('No changed files', style: AppTypography.body),
       );
     }
 
-    final additions = files.fold<int>(0, (sum, f) => sum + f.additions);
-    final deletions = files.fold<int>(0, (sum, f) => sum + f.deletions);
-    final inReview = state.task.status == TaskStatus.awaitingReview;
-    final latestReview = state.reviews.isEmpty ? null : state.reviews.last;
-    final reviewActive =
-        latestReview != null &&
-        (latestReview.status == CodeReviewStatus.queued ||
-            latestReview.status == CodeReviewStatus.running);
     final comments = state.reviewComments;
-    final mergeStatus = state.mergeStatus;
-    final openCount = comments
-        .where((c) => c.state == ReviewCommentState.open)
-        .length;
-    final selectedCount = state.selectedCommentIds.length;
     int openCommentsOn(String path) => comments
         .where((c) => c.path == path && c.state == ReviewCommentState.open)
         .length;
@@ -973,88 +1328,11 @@ class _DiffReview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: AppTypography.bodyStrong,
-                  children: [
-                    TextSpan(text: 'Changes across ${files.length} files  '),
-                    TextSpan(
-                      text: '+$additions ',
-                      style: const TextStyle(color: AppColors.live),
-                    ),
-                    TextSpan(
-                      text: '-$deletions',
-                      style: const TextStyle(color: AppColors.red),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (state.task.prUrl != null)
-              TextButton.icon(
-                onPressed: () => launchUrl(
-                  Uri.parse(state.task.prUrl!),
-                  mode: LaunchMode.externalApplication,
-                ),
-                icon: const Icon(Icons.open_in_new, size: 14),
-                label: const Text('View full PR on GitHub'),
-              ),
-            if (inReview) ...[
-              const SizedBox(width: Spacing.sm),
-              OutlinedButton.icon(
-                onPressed: reviewActive || state.reviewBusy
-                    ? null
-                    : () => _openRequestReviewDialog(context, state.task.id!),
-                icon: const Icon(Icons.rate_review_outlined, size: 16),
-                label: Text(
-                  state.reviews.isEmpty ? 'Request AI review' : 'Review again',
-                ),
-              ),
-              const SizedBox(width: Spacing.sm),
-              if (mergeStatus?.hasConflicts ?? false)
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.red,
-                  ),
-                  onPressed: reviewActive || state.reviewBusy
-                      ? null
-                      : () => _confirmResolveConflicts(
-                          context,
-                          state.task.id!,
-                          mergeStatus!.baseBranch,
-                        ),
-                  icon: const Icon(Icons.call_merge, size: 16),
-                  label: const Text('Resolve conflicts'),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: reviewActive || state.reviewBusy
-                      ? null
-                      : () => _confirmAcceptTask(context, state.task.id!),
-                  icon: const Icon(Icons.merge, size: 16),
-                  label: const Text('Accept & merge'),
-                ),
-            ],
-          ],
-        ),
-        if (inReview && (mergeStatus?.hasConflicts ?? false)) ...[
+        _ChangeStats(files: files),
+        if (state.inReview && state.hasConflicts) ...[
           const SizedBox(height: Spacing.sm),
           Text(
-            'This branch has conflicts with ${mergeStatus!.baseBranch}.',
-            style: AppTypography.body.copyWith(color: AppColors.red),
-          ),
-        ],
-        if (latestReview != null) ...[
-          const SizedBox(height: Spacing.md),
-          _ReviewStatusRow(review: latestReview),
-        ],
-        if (state.reviewError != null) ...[
-          const SizedBox(height: Spacing.sm),
-          Text(
-            state.reviewError!,
+            'This branch has conflicts with ${state.mergeStatus!.baseBranch}.',
             style: AppTypography.body.copyWith(color: AppColors.red),
           ),
         ],
@@ -1114,42 +1392,149 @@ class _DiffReview extends StatelessWidget {
             ],
           ),
         ),
-        if (comments.isNotEmpty) ...[
+        if (state.inReview) ...[
           const SizedBox(height: Spacing.md),
-          _ReviewCommentsPanel(
-            state: state,
-            openCount: openCount,
-            editable: inReview && !reviewActive,
-          ),
-        ],
-        if (inReview) ...[
-          const SizedBox(height: Spacing.md),
-          _FeedbackRow(
-            hint: selectedCount == 0
-                ? 'Leave feedback for another iteration…'
-                : 'Optional note to send with the selected comments…',
-            submitting: state.submitting || state.reviewBusy || reviewActive,
-            submitLabel: selectedCount == 0
-                ? 'Send feedback'
-                : 'Send $selectedCount comment${selectedCount == 1 ? '' : 's'} to agent',
-            allowEmpty: selectedCount > 0,
-            onSubmit: (message) => context.read<TaskDetailBloc>().add(
-              selectedCount == 0
-                  ? ReviewFeedbackSubmitted(state.task.id!, message)
-                  : CommentsSentToFix(state.task.id!, message),
-            ),
-          ),
+          _IterationFeedbackRow(state: state),
         ],
       ],
     );
   }
 }
 
+/// The AI code review on its own: verdict, every comment to triage, and
+/// sending the picked ones back to the agent.
+class _ReviewView extends StatelessWidget {
+  const _ReviewView({required this.state, required this.onOpenFile});
+
+  final TaskDetailLoaded state;
+
+  /// Jumps to a comment's file in the Changes view.
+  final ValueChanged<String> onOpenFile;
+
+  @override
+  Widget build(BuildContext context) {
+    final latestReview = state.latestReview;
+    final reviewActive = state.reviewActive;
+    final comments = state.reviewComments.reversed.toList();
+    final editable = state.inReview && !reviewActive;
+    final canOpenFiles = state.files != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('AI code review', style: AppTypography.cardTitle),
+            ),
+            if (state.inReview)
+              OutlinedButton.icon(
+                onPressed: reviewActive || state.reviewBusy
+                    ? null
+                    : () => _openRequestReviewDialog(context, state.task.id!),
+                icon: const Icon(Icons.rate_review_outlined, size: 16),
+                label: Text(
+                  state.reviews.isEmpty ? 'Request AI review' : 'Review again',
+                ),
+              ),
+          ],
+        ),
+        if (latestReview != null) ...[
+          const SizedBox(height: Spacing.md),
+          _ReviewStatusRow(review: latestReview, maxLines: null),
+        ],
+        if (state.reviewError != null) ...[
+          const SizedBox(height: Spacing.sm),
+          Text(
+            state.reviewError!,
+            style: AppTypography.body.copyWith(color: AppColors.red),
+          ),
+        ],
+        const SizedBox(height: Spacing.lg),
+        Expanded(
+          child: comments.isEmpty
+              ? Center(
+                  child: Text(
+                    latestReview == null
+                        ? 'No AI review yet — request one to get comments '
+                              'on this PR.'
+                        : reviewActive
+                        ? 'Review in progress…'
+                        : 'The review left no comments.',
+                    style: AppTypography.body.copyWith(color: AppColors.text1),
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Comments · ${state.openCommentCount} open of '
+                      '${comments.length}',
+                      style: AppTypography.bodyStrong,
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: comments.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: Spacing.sm),
+                        itemBuilder: (context, index) => _commentCard(
+                          context,
+                          state,
+                          comments[index],
+                          editable: editable,
+                          onOpenLocation: canOpenFiles
+                              ? () => onOpenFile(comments[index].path)
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        if (state.inReview) ...[
+          const SizedBox(height: Spacing.md),
+          _IterationFeedbackRow(state: state),
+        ],
+      ],
+    );
+  }
+}
+
+/// Sends the agent another iteration: the comments selected for fixing (with
+/// an optional note), or free-form feedback when none are selected.
+class _IterationFeedbackRow extends StatelessWidget {
+  const _IterationFeedbackRow({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCount = state.selectedCommentIds.length;
+    return _FeedbackRow(
+      hint: selectedCount == 0
+          ? 'Leave feedback for another iteration…'
+          : 'Optional note to send with the selected comments…',
+      submitting: state.submitting || state.reviewBusy || state.reviewActive,
+      submitLabel: selectedCount == 0
+          ? 'Send feedback'
+          : 'Send $selectedCount comment${selectedCount == 1 ? '' : 's'} to agent',
+      allowEmpty: selectedCount > 0,
+      onSubmit: (message) => context.read<TaskDetailBloc>().add(
+        selectedCount == 0
+            ? ReviewFeedbackSubmitted(state.task.id!, message)
+            : CommentsSentToFix(state.task.id!, message),
+      ),
+    );
+  }
+}
+
 /// The latest review's progress and the reviewer's overall verdict.
 class _ReviewStatusRow extends StatelessWidget {
-  const _ReviewStatusRow({required this.review});
+  const _ReviewStatusRow({required this.review, this.maxLines = 3});
 
   final CodeReview review;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1176,57 +1561,12 @@ class _ReviewStatusRow extends StatelessWidget {
                     ? AppColors.red
                     : AppColors.text1,
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+              maxLines: maxLines,
+              overflow: maxLines == null ? null : TextOverflow.ellipsis,
             ),
           ),
         ],
       ],
-    );
-  }
-}
-
-/// Every review comment, newest review first — the overview to triage from.
-/// Comments are also shown inline in the selected file's diff.
-class _ReviewCommentsPanel extends StatelessWidget {
-  const _ReviewCommentsPanel({
-    required this.state,
-    required this.openCount,
-    required this.editable,
-  });
-
-  final TaskDetailLoaded state;
-  final int openCount;
-  final bool editable;
-
-  @override
-  Widget build(BuildContext context) {
-    final comments = state.reviewComments.reversed.toList();
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 240),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Review comments · $openCount open of ${comments.length}',
-            style: AppTypography.bodyStrong,
-          ),
-          const SizedBox(height: Spacing.sm),
-          Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: comments.length,
-              separatorBuilder: (_, _) => const SizedBox(height: Spacing.sm),
-              itemBuilder: (context, index) => _commentCard(
-                context,
-                state,
-                comments[index],
-                editable: editable,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1237,6 +1577,7 @@ Widget _commentCard(
   ReviewComment comment, {
   required bool editable,
   bool showLocation = true,
+  VoidCallback? onOpenLocation,
 }) {
   final bloc = context.read<TaskDetailBloc>();
   return ReviewCommentCard(
@@ -1249,6 +1590,7 @@ Widget _commentCard(
     onStateChanged: editable
         ? (s) => bloc.add(CommentStateChanged(comment.id!, s))
         : null,
+    onOpenLocation: onOpenLocation,
   );
 }
 
