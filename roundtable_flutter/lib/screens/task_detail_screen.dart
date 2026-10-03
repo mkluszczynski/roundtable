@@ -499,6 +499,16 @@ class _SubStateState extends State<_SubState> {
       s == TaskStatus.planning || s == TaskStatus.running;
 
   @override
+  void didUpdateWidget(covariant _SubState oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasLive = _isLive(oldWidget.state.task.status);
+    final isPlanReady = widget.state.task.status == TaskStatus.planReady;
+    if (wasLive && isPlanReady && _showLogs) {
+      setState(() => _showLogs = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = widget.state;
     // Live statuses already show the log; the toggle only matters elsewhere.
