@@ -25,6 +25,34 @@ void main() {
       ]);
     });
 
+    test('throws when the fetched file content no longer matches the patch', () {
+      const patch = '''
+@@ -1,2 +1,2 @@
+ line1
+-line2
++line2 changed''';
+      // Context line "line1" doesn't match what the patch expects.
+      const staleFileContent = 'line1 edited\nline2 changed';
+
+      expect(
+        () => mergeFullFileDiff(patch: patch, fileContent: staleFileContent),
+        throwsA(isA<DiffReconciliationException>()),
+      );
+    });
+
+    test('throws when the fetched file content has fewer lines than expected', () {
+      const patch = '''
+@@ -4,1 +4,1 @@
+-d
++d2''';
+      const shortFileContent = 'a\nb';
+
+      expect(
+        () => mergeFullFileDiff(patch: patch, fileContent: shortFileContent),
+        throwsA(isA<DiffReconciliationException>()),
+      );
+    });
+
     test('keeps lines before and after the hunk as unmodified context', () {
       const patch = '''
 @@ -4,1 +4,1 @@
@@ -94,5 +122,29 @@ void main() {
       expect(find.text('d2'), findsOneWidget);
       expect(find.text('f'), findsOneWidget);
     });
+
+    testWidgets(
+      'falls back to the plain file content when the patch no longer matches',
+      (tester) async {
+        const patch = '''
+@@ -1,1 +1,1 @@
+-d
++d2''';
+        // Doesn't start with "d" like the patch expects.
+        const staleFileContent = 'not d2 at all';
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: FullFileDiffView(
+              patch: patch,
+              fileContent: staleFileContent,
+            ),
+          ),
+        );
+
+        expect(find.textContaining('without highlighting'), findsOneWidget);
+        expect(find.text(staleFileContent), findsOneWidget);
+      },
+    );
   });
 }

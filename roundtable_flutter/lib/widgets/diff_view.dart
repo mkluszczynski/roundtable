@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:highlight/highlight.dart' show Node, highlight;
 
 import '../theme/colors.dart';
+import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'code_block.dart';
 
@@ -54,9 +55,30 @@ class FullFileDiffView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final merged = mergeFullFileDiff(patch: patch, fileContent: fileContent);
-    final rendered = _highlightDiffLines(merged, language);
+    List<MergedDiffLine> merged;
+    try {
+      merged = mergeFullFileDiff(patch: patch, fileContent: fileContent);
+    } catch (_) {
+      // The patch and the fetched file content disagree (e.g. the file
+      // changed again after the diff was computed) — fall back to the
+      // file as-is rather than risk silently misaligned highlighting.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: Spacing.sm),
+            child: Text(
+              "This file has changed since the diff was computed — showing "
+              "it without highlighting.",
+              style: AppTypography.body.copyWith(color: AppColors.warning),
+            ),
+          ),
+          CodeBlock(code: fileContent),
+        ],
+      );
+    }
 
+    final rendered = _highlightDiffLines(merged, language);
     return CodeBlock(
       code: fileContent,
       child: SelectionArea(
@@ -67,6 +89,19 @@ class FullFileDiffView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Thrown by [mergeFullFileDiff] when the fetched file content doesn't
+/// agree with what the patch expects — e.g. it was fetched separately and
+/// is now stale, or the file changed again after the diff was computed —
+/// so reconciling them further would silently mislabel lines.
+class DiffReconciliationException implements Exception {
+  DiffReconciliationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 enum DiffLineKind { hunkHeader, context, added, removed }
@@ -116,6 +151,11 @@ List<MergedDiffLine> mergeFullFileDiff({
       result.add(MergedDiffLine(DiffLineKind.context, fileLines[cursor]));
       cursor++;
     }
+    if (cursor != newLineNumExclusiveEnd - 1) {
+      throw DiffReconciliationException(
+        'Full file content has fewer lines than the diff expects.',
+      );
+    }
   }
 
   var i = 0;
@@ -137,18 +177,34 @@ List<MergedDiffLine> mergeFullFileDiff({
       }
       switch (line[0]) {
         case ' ':
-          result.add(
-            MergedDiffLine(
-              DiffLineKind.context,
-              cursor < fileLines.length ? fileLines[cursor] : line.substring(1),
-            ),
-          );
-          cursor++;
+          {
+            final text = line.substring(1);
+            if (cursor >= fileLines.length || fileLines[cursor] != text) {
+              throw DiffReconciliationException(
+                'Full file content no longer matches the diff at line '
+                '${cursor + 1}.',
+              );
+            }
+            result.add(MergedDiffLine(DiffLineKind.context, text));
+            cursor++;
+          }
+          break;
         case '+':
-          result.add(MergedDiffLine(DiffLineKind.added, line.substring(1)));
-          cursor++;
+          {
+            final text = line.substring(1);
+            if (cursor >= fileLines.length || fileLines[cursor] != text) {
+              throw DiffReconciliationException(
+                'Full file content no longer matches the diff at line '
+                '${cursor + 1}.',
+              );
+            }
+            result.add(MergedDiffLine(DiffLineKind.added, text));
+            cursor++;
+          }
+          break;
         case '-':
           result.add(MergedDiffLine(DiffLineKind.removed, line.substring(1)));
+          break;
         default:
           break;
       }
@@ -236,16 +292,20 @@ List<_RenderLine> _highlightDiffLines(
       switch (line.kind) {
         case DiffLineKind.hunkHeader:
           result.add(_RenderLine(line.kind, [_Token(null, line.text)]));
+          break;
         case DiffLineKind.context:
           result.add(_RenderLine(line.kind, newTokenLines[newIdx]));
           newIdx++;
           oldIdx++;
+          break;
         case DiffLineKind.added:
           result.add(_RenderLine(line.kind, newTokenLines[newIdx]));
           newIdx++;
+          break;
         case DiffLineKind.removed:
           result.add(_RenderLine(line.kind, oldTokenLines[oldIdx]));
           oldIdx++;
+          break;
       }
     }
     return result;
@@ -360,8 +420,10 @@ class _DiffLineRow extends StatelessWidget {
     switch (line.kind) {
       case DiffLineKind.added:
         background = AppColors.live.withValues(alpha: 0.10);
+        break;
       case DiffLineKind.removed:
         background = AppColors.red.withValues(alpha: 0.10);
+        break;
       case DiffLineKind.context:
       case DiffLineKind.hunkHeader:
         break;
