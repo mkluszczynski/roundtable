@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:highlight/highlight.dart' show Node, highlight;
 
 import '../theme/colors.dart';
 import '../theme/typography.dart';
@@ -6,23 +7,27 @@ import 'code_block.dart';
 
 /// Renders a unified diff `patch` (design doc §6.7) inside a [CodeBlock],
 /// per `docs/UI-DESIGN.md` §2: a fixed 16px marker column (`+`/`-`/blank)
-/// then the line text, additions/deletions tinted, no diffing algorithm of
-/// our own — GitHub has already computed the diff.
+/// then the line text, additions/deletions tinted. [language] (a
+/// `highlight` package language id, see `utils/code_language.dart`) adds
+/// per-token syntax colors on top of that tint; `null` falls back to plain
+/// text, no diffing algorithm of our own — GitHub has already computed it.
 class DiffView extends StatelessWidget {
-  const DiffView({super.key, required this.patch});
+  const DiffView({super.key, required this.patch, this.language});
 
   final String patch;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
-    final lines = patch.split('\n');
+    final lines = [for (final line in patch.split('\n')) _classifyPatchLine(line)];
+    final rendered = _highlightDiffLines(lines, language);
 
     return CodeBlock(
       code: patch,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [for (final line in lines) _classifyPatchLine(line)],
+          children: [for (final line in rendered) _DiffLineRow(line: line)],
         ),
       ),
     );
@@ -33,30 +38,31 @@ class DiffView extends StatelessWidget {
 /// in: added/removed lines highlighted at their real position, like
 /// GitHub's "view file" expanded-diff mode. [fileContent] is the new/head
 /// version of the file (per `contents_url`); removed lines don't exist in
-/// it, so they're spliced back in from [patch].
+/// it, so they're spliced back in from [patch]. See [DiffView] for
+/// [language].
 class FullFileDiffView extends StatelessWidget {
   const FullFileDiffView({
     super.key,
     required this.patch,
     required this.fileContent,
+    this.language,
   });
 
   final String patch;
   final String fileContent;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
     final merged = mergeFullFileDiff(patch: patch, fileContent: fileContent);
+    final rendered = _highlightDiffLines(merged, language);
 
     return CodeBlock(
       code: fileContent,
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final line in merged)
-              _DiffLineRow(kind: line.kind, text: line.text),
-          ],
+          children: [for (final line in rendered) _DiffLineRow(line: line)],
         ),
       ),
     );
@@ -65,8 +71,9 @@ class FullFileDiffView extends StatelessWidget {
 
 enum DiffLineKind { hunkHeader, context, added, removed }
 
-/// A single reconciled line of a [FullFileDiffView]: unchanged context
-/// from the full file, or an added/removed line spliced in from the patch.
+/// A single line of a diff/full-file view: unchanged context, or an
+/// added/removed line. Used both for a raw patch line ([DiffView]) and a
+/// [mergeFullFileDiff] result ([FullFileDiffView]).
 class MergedDiffLine {
   const MergedDiffLine(this.kind, this.text);
 
@@ -168,44 +175,199 @@ DiffLineKind _kindOfPatchLine(String line) {
   return DiffLineKind.context;
 }
 
-Widget _classifyPatchLine(String line) {
+MergedDiffLine _classifyPatchLine(String line) {
   final kind = _kindOfPatchLine(line);
   final text = line.isEmpty
       ? line
       : (kind == DiffLineKind.added || kind == DiffLineKind.removed)
       ? line.substring(1)
       : line;
-  return _DiffLineRow(kind: kind, text: text);
+  return MergedDiffLine(kind, text);
+}
+
+/// A run of text sharing one `highlight` package scope (`className`, e.g.
+/// `'keyword'`/`'string'`/`'comment'`) — `null` when unstyled or when
+/// [language] tokenization wasn't attempted/available.
+class _Token {
+  const _Token(this.className, this.text);
+
+  final String? className;
+  final String text;
+}
+
+class _RenderLine {
+  const _RenderLine(this.kind, this.tokens);
+
+  final DiffLineKind kind;
+  final List<_Token> tokens;
+}
+
+/// Splits [lines] into their new-side (context+added) and old-side
+/// (context+removed) text, tokenizes each with [language] separately —
+/// mirroring how GitHub highlights a diff by tokenizing the old and new
+/// file independently then merging — and reassembles one [_RenderLine] per
+/// input line. Falls back to a single unstyled token per line if
+/// [language] is `null` or tokenization fails for any reason.
+List<_RenderLine> _highlightDiffLines(
+  List<MergedDiffLine> lines,
+  String? language,
+) {
+  if (language == null) {
+    return [for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)])];
+  }
+
+  try {
+    final newText = lines
+        .where((l) => l.kind != DiffLineKind.removed && l.kind != DiffLineKind.hunkHeader)
+        .map((l) => l.text)
+        .join('\n');
+    final oldText = lines
+        .where((l) => l.kind != DiffLineKind.added && l.kind != DiffLineKind.hunkHeader)
+        .map((l) => l.text)
+        .join('\n');
+
+    final newTokenLines = _tokenizeLines(newText, language);
+    final oldTokenLines = _tokenizeLines(oldText, language);
+
+    var newIdx = 0;
+    var oldIdx = 0;
+    final result = <_RenderLine>[];
+    for (final line in lines) {
+      switch (line.kind) {
+        case DiffLineKind.hunkHeader:
+          result.add(_RenderLine(line.kind, [_Token(null, line.text)]));
+        case DiffLineKind.context:
+          result.add(_RenderLine(line.kind, newTokenLines[newIdx]));
+          newIdx++;
+          oldIdx++;
+        case DiffLineKind.added:
+          result.add(_RenderLine(line.kind, newTokenLines[newIdx]));
+          newIdx++;
+        case DiffLineKind.removed:
+          result.add(_RenderLine(line.kind, oldTokenLines[oldIdx]));
+          oldIdx++;
+      }
+    }
+    return result;
+  } catch (_) {
+    return [for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)])];
+  }
+}
+
+/// Tokenizes [text] with the `highlight` package and splits the flattened
+/// result back into one token list per line, so it lines up 1:1 with
+/// `text.split('\n')`.
+List<List<_Token>> _tokenizeLines(String text, String language) {
+  final result = highlight.parse(text, language: language);
+
+  final tokens = <_Token>[];
+  void flatten(Node node, String? inheritedClassName) {
+    final className = node.className ?? inheritedClassName;
+    final value = node.value;
+    final children = node.children;
+    if (value != null) {
+      tokens.add(_Token(className, value));
+    } else if (children != null) {
+      for (final child in children) {
+        flatten(child, className);
+      }
+    }
+  }
+
+  for (final node in result.nodes ?? const []) {
+    flatten(node, null);
+  }
+
+  final lines = <List<_Token>>[[]];
+  for (final token in tokens) {
+    final parts = token.text.split('\n');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].isNotEmpty) {
+        lines.last.add(_Token(token.className, parts[i]));
+      }
+      if (i != parts.length - 1) {
+        lines.add(<_Token>[]);
+      }
+    }
+  }
+  return lines;
+}
+
+/// Syntax color/weight for a `highlight` package scope name, picked from
+/// `AppColors`' syntax roles; `null` leaves the line's default color
+/// ([_DiffLineRow._defaultTextColor]) untouched.
+TextStyle? _syntaxStyle(String? className) {
+  switch (className) {
+    case 'keyword':
+    case 'built_in':
+    case 'type':
+    case 'literal':
+      return const TextStyle(color: AppColors.accentSoft);
+    case 'string':
+    case 'symbol':
+    case 'regexp':
+      return const TextStyle(color: AppColors.codeString);
+    case 'number':
+      return const TextStyle(color: AppColors.warning);
+    case 'comment':
+    case 'quote':
+    case 'doctag':
+      return const TextStyle(
+        color: AppColors.text2,
+        fontStyle: FontStyle.italic,
+      );
+    case 'title':
+    case 'section':
+    case 'name':
+    case 'selector-tag':
+    case 'tag':
+      return const TextStyle(color: AppColors.codeFunction);
+    case 'attr':
+    case 'attribute':
+    case 'variable':
+    case 'params':
+      return const TextStyle(color: AppColors.text0);
+    case 'strong':
+      return const TextStyle(fontWeight: FontWeight.bold);
+    case 'emphasis':
+      return const TextStyle(fontStyle: FontStyle.italic);
+    default:
+      return null;
+  }
 }
 
 class _DiffLineRow extends StatelessWidget {
-  const _DiffLineRow({required this.kind, required this.text});
+  const _DiffLineRow({required this.line});
 
-  final DiffLineKind kind;
-  final String text;
+  final _RenderLine line;
+
+  Color _defaultTextColor() => switch (line.kind) {
+    DiffLineKind.added => AppColors.diffAddedText,
+    DiffLineKind.removed => AppColors.diffRemovedText,
+    DiffLineKind.hunkHeader => AppColors.accentSoft,
+    DiffLineKind.context => AppColors.text1,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final marker = switch (kind) {
+    final marker = switch (line.kind) {
       DiffLineKind.added => '+',
       DiffLineKind.removed => '-',
       DiffLineKind.context || DiffLineKind.hunkHeader => '',
     };
 
     Color? background;
-    var textColor = AppColors.text1;
-    switch (kind) {
+    switch (line.kind) {
       case DiffLineKind.added:
         background = AppColors.live.withValues(alpha: 0.10);
-        textColor = AppColors.diffAddedText;
       case DiffLineKind.removed:
         background = AppColors.red.withValues(alpha: 0.10);
-        textColor = AppColors.diffRemovedText;
-      case DiffLineKind.hunkHeader:
-        textColor = AppColors.accentSoft;
       case DiffLineKind.context:
+      case DiffLineKind.hunkHeader:
         break;
     }
+
+    final defaultStyle = AppTypography.code.copyWith(color: _defaultTextColor());
 
     return DecoratedBox(
       decoration: BoxDecoration(color: background),
@@ -220,9 +382,16 @@ class _DiffLineRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              text,
-              style: AppTypography.code.copyWith(color: textColor),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  for (final token in line.tokens)
+                    TextSpan(
+                      text: token.text,
+                      style: defaultStyle.merge(_syntaxStyle(token.className)),
+                    ),
+                ],
+              ),
             ),
           ),
         ],

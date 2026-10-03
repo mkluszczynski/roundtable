@@ -31,6 +31,7 @@ dependencies:
     sdk: flutter
   flutter_bloc: ^9.1.1
   google_fonts: ^8.1.0
+  highlight: ^0.7.0
   roundtable_client:
     path: ../roundtable_client
   serverpod_auth_idp_flutter: 4.0.1

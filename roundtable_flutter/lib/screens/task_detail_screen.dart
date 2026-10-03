@@ -9,6 +9,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/code_language.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -924,6 +925,7 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
     }
 
     final patch = file.patch;
+    final language = languageForFilename(file.filename);
     return Padding(
       padding: const EdgeInsets.all(Spacing.xl),
       child: SingleChildScrollView(
@@ -950,7 +952,7 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
             ),
             const SizedBox(height: Spacing.lg),
             if (_mode == _FileViewMode.diff)
-              DiffView(patch: patch!)
+              DiffView(patch: patch!, language: language)
             else if (state.fileContentLoading)
               const Center(
                 child: Padding(
@@ -968,6 +970,7 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
                   ? FullFileDiffView(
                       patch: patch,
                       fileContent: state.fileContent!,
+                      language: language,
                     )
                   : CodeBlock(code: state.fileContent!),
           ],
