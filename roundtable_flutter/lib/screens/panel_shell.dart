@@ -18,7 +18,7 @@ class PanelShell extends StatefulWidget {
 class _PanelShellState extends State<PanelShell> {
   int _selectedIndex = 0;
 
-  static const _screens = [
+  static const _rootScreens = [
     DashboardScreen(),
     ProjectsScreen(),
     MachinesScreen(),
@@ -55,7 +55,21 @@ class _PanelShellState extends State<PanelShell> {
           ),
           Container(width: 1, color: AppColors.border),
           Expanded(
-            child: IndexedStack(index: _selectedIndex, children: _screens),
+            child: IndexedStack(
+              index: _selectedIndex,
+              // Each tab gets its own Navigator so detail screens it pushes
+              // (project/machine/task detail) stack within that tab's area
+              // instead of covering the nav rail via the app-root Navigator.
+              children: [
+                for (final screen in _rootScreens)
+                  Navigator(
+                    onGenerateRoute: (settings) => MaterialPageRoute(
+                      builder: (_) => screen,
+                      settings: settings,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
