@@ -657,8 +657,10 @@ class _PendingQuestionState extends State<_PendingQuestion> {
             decoration: const InputDecoration(
               hintText: 'Or write your own answer…',
             ),
-            onChanged: (_) => setState(() {
-              if (_selectedOption != null) _selectedOption = null;
+            onChanged: (value) => setState(() {
+              if (_selectedOption != null && value.trim().isNotEmpty) {
+                _selectedOption = null;
+              }
             }),
           ),
           const SizedBox(height: Spacing.md),
