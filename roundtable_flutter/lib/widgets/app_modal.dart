@@ -75,6 +75,7 @@ class AppModal extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, color: AppColors.text1),
                     onPressed: () => Navigator.of(context).pop(),
                     visualDensity: VisualDensity.compact,

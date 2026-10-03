@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/agent_repository.dart';
 
 sealed class AgentListState {
@@ -38,7 +39,20 @@ class AgentListCubit extends Cubit<AgentListState> {
       final agents = await _repository.listAgents();
       emit(AgentListLoaded(agents));
     } catch (e) {
-      emit(AgentListError(e.toString()));
+      emit(AgentListError(errorMessage(e)));
     }
+  }
+
+  /// Deletes agent [id] and refreshes the list. Returns `null` on success,
+  /// or a message to show (e.g. the agent still has unfinished tasks).
+  Future<String?> deleteAgent(int id) async {
+    String? failure;
+    try {
+      await _repository.deleteAgent(id);
+    } catch (e) {
+      failure = errorMessage(e);
+    }
+    await fetchAgents();
+    return failure;
   }
 }

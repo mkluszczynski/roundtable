@@ -29,7 +29,7 @@ import '../widgets/tag_chip.dart';
 import '../widgets/task_log_line.dart';
 import '../utils/relative_time.dart';
 
-/// Mirrors the server's `nonTerminalTaskStatuses` (design doc §5, §6.8) —
+/// Mirrors the server's `nonTerminalTaskStatuses` (docs/ARCHITECTURE.md) —
 /// the header's "Cancel task" button only shows while the task is still
 /// something a `cancelTask` call can act on.
 const _cancellableStatuses = {
@@ -188,7 +188,7 @@ Future<void> _confirmResolveConflicts(
 }
 
 /// One screen driven by `Task.status`, switching between the task lifecycle's
-/// 4 sub-states (design doc §6.4, §6.7): waiting for an answer, plan
+/// 4 sub-states (docs/FLOWS.md §4): waiting for an answer, plan
 /// approval, live execution (log tail), and diff review. Always entered from
 /// a dashboard kanban card with a concrete [initialTaskId].
 class TaskDetailScreen extends StatelessWidget {
@@ -285,6 +285,7 @@ class _Header extends StatelessWidget {
         children: [
           Navigator.canPop(context)
               ? IconButton(
+                  tooltip: 'Back',
                   icon: const Icon(Icons.arrow_back, color: AppColors.text1),
                   onPressed: () => Navigator.of(context).pop(),
                   visualDensity: VisualDensity.compact,

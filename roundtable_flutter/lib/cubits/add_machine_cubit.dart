@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/machine_repository.dart';
 
 sealed class AddMachineState {
@@ -16,7 +17,7 @@ class AddMachineSubmitting extends AddMachineState {
 }
 
 /// The machine is registered — [token] is shown to the dev exactly once and
-/// is never fetchable again (design doc §6.8).
+/// is never fetchable again (docs/FLOWS.md §1–3).
 class AddMachineRegistered extends AddMachineState {
   const AddMachineRegistered(
     this.machine,
@@ -58,7 +59,7 @@ class AddMachineCubit extends Cubit<AddMachineState> {
         ),
       );
     } catch (e) {
-      emit(AddMachineError(e.toString()));
+      emit(AddMachineError(errorMessage(e)));
     }
   }
 }

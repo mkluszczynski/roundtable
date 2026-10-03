@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/task_repository.dart';
+import '../utils/closeable_streams.dart';
 
-/// The kanban's columns (design doc §4 "Should" kanban), grouped from
+/// The kanban's columns, grouped from
 /// [TaskStatus].
 enum KanbanColumn { backlog, inProgress, review, done }
 
@@ -42,11 +44,16 @@ class DashboardLoaded extends DashboardState {
 
   final Map<int, Task> tasks;
 
-  Map<KanbanColumn, List<Task>> get columns {
+  Map<KanbanColumn, List<Task>> get columns => columnsFor();
+
+  /// [tasks] grouped into columns, newest first — only [projectId]'s when
+  /// given.
+  Map<KanbanColumn, List<Task>> columnsFor({int? projectId}) {
     final byColumn = <KanbanColumn, List<Task>>{
       for (final column in KanbanColumn.values) column: [],
     };
     for (final task in tasks.values) {
+      if (projectId != null && task.projectId != projectId) continue;
       byColumn[kanbanColumnFor(task.status)]!.add(task);
     }
     for (final tasks in byColumn.values) {
@@ -60,8 +67,12 @@ class DashboardLoaded extends DashboardState {
 /// — one changed/created/deleted task per event, merged into an in-memory
 /// map by id and regrouped into [KanbanColumn]s on every update. A Cubit,
 /// not a Bloc: both streams feed the same single `Map<int, Task>` state
-/// rather than driving separate concerns (design doc §3.3).
-class DashboardCubit extends Cubit<DashboardState> {
+/// rather than driving separate concerns.
+///
+/// One instance is provided by `PanelShell` and shared by every screen that
+/// shows tasks, so the panel holds a single `watchAllTasks` subscription.
+class DashboardCubit extends Cubit<DashboardState>
+    with CloseableStreams<DashboardState> {
   DashboardCubit(this._repository) : super(const DashboardLoading());
 
   final TaskRepository _repository;
@@ -80,23 +91,25 @@ class DashboardCubit extends Cubit<DashboardState> {
 
   Future<void> _watchTasks() async {
     try {
-      await for (final task in _repository.watchAllTasks()) {
+      await for (final task in untilClosed(_repository.watchAllTasks())) {
         _tasks[task.id!] = task;
         emit(DashboardLoaded(Map.of(_tasks)));
       }
     } catch (e) {
-      emit(DashboardError(e.toString()));
+      emit(DashboardError(errorMessage(e)));
     }
   }
 
   Future<void> _watchDeletions() async {
     try {
-      await for (final deletion in _repository.watchTaskDeletions()) {
+      await for (final deletion in untilClosed(
+        _repository.watchTaskDeletions(),
+      )) {
         _tasks.remove(deletion.taskId);
         emit(DashboardLoaded(Map.of(_tasks)));
       }
     } catch (e) {
-      emit(DashboardError(e.toString()));
+      emit(DashboardError(errorMessage(e)));
     }
   }
 }

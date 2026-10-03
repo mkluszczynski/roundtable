@@ -22,4 +22,10 @@ class AgentRepository {
     defaultModel: defaultModel,
     defaultEffort: defaultEffort,
   );
+
+  /// Saves [agent]'s name, role, model and effort.
+  Future<Agent> updateAgent(Agent agent) => _client.agent.update(agent);
+
+  /// Throws `DeletionBlockedException` while the agent has unfinished tasks.
+  Future<void> deleteAgent(int id) => _client.agent.delete(id);
 }

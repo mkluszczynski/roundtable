@@ -11,7 +11,8 @@ import 'app_modal.dart';
 import 'token_help_accordion.dart';
 
 /// Name, repo URL, and (create-mode only) an optional repo access token
-/// with in-panel help (design doc §6.5.1). Opened from `projects_screen.dart`
+/// with in-panel help (docs/ARCHITECTURE.md). Opened from
+/// `projects_screen.dart`
 /// to create a project, or from `project_detail_screen.dart`'s "Edit" button
 /// with [existingProject] set to rename/repoint one — editing never touches
 /// the token, that's `project_detail_screen.dart`'s separate "Update token"

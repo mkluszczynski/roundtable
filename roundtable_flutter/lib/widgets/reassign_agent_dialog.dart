@@ -12,7 +12,8 @@ import 'pill_selector.dart';
 /// Lets the dev assign or reassign a task's agent — either giving an
 /// agent-less task one (its previous agent was deleted, its `Agent` relation
 /// is `onDelete=Cascade`ing to no agent left) or moving a backlog/review
-/// task to a different agent (design doc §5). Shown via `showDialog` with a
+/// task to a different agent (docs/ARCHITECTURE.md). Shown via `showDialog`
+/// with a
 /// `BlocProvider.value` wrapping the caller's `TaskDetailBloc`, since
 /// `showDialog` uses the root navigator and wouldn't otherwise see it.
 class ReassignAgentDialog extends StatefulWidget {

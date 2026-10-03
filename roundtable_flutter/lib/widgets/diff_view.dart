@@ -6,7 +6,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'code_block.dart';
 
-/// Renders a unified diff `patch` (design doc §6.7) inside a [CodeBlock],
+/// Renders a unified diff `patch` (docs/FLOWS.md §4) inside a [CodeBlock],
 /// per `docs/UI-DESIGN.md` §2: a fixed 16px marker column (`+`/`-`/blank)
 /// then the line text, additions/deletions tinted. [language] (a
 /// `highlight` package language id, see `utils/code_language.dart`) adds
@@ -375,16 +375,25 @@ List<_RenderLine> _highlightDiffLines(
   String? language,
 ) {
   if (language == null) {
-    return [for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)])];
+    return [
+      for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)]),
+    ];
   }
 
   try {
     final newText = lines
-        .where((l) => l.kind != DiffLineKind.removed && l.kind != DiffLineKind.hunkHeader)
+        .where(
+          (l) =>
+              l.kind != DiffLineKind.removed &&
+              l.kind != DiffLineKind.hunkHeader,
+        )
         .map((l) => l.text)
         .join('\n');
     final oldText = lines
-        .where((l) => l.kind != DiffLineKind.added && l.kind != DiffLineKind.hunkHeader)
+        .where(
+          (l) =>
+              l.kind != DiffLineKind.added && l.kind != DiffLineKind.hunkHeader,
+        )
         .map((l) => l.text)
         .join('\n');
 
@@ -416,7 +425,9 @@ List<_RenderLine> _highlightDiffLines(
     }
     return result;
   } catch (_) {
-    return [for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)])];
+    return [
+      for (final l in lines) _RenderLine(l.kind, [_Token(null, l.text)]),
+    ];
   }
 }
 
@@ -535,7 +546,9 @@ class _DiffLineRow extends StatelessWidget {
         break;
     }
 
-    final defaultStyle = AppTypography.code.copyWith(color: _defaultTextColor());
+    final defaultStyle = AppTypography.code.copyWith(
+      color: _defaultTextColor(),
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(color: background),

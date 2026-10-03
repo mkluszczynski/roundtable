@@ -5,7 +5,6 @@ import 'package:roundtable_client/roundtable_client.dart';
 import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
-import '../cubits/machine_metric_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../theme/colors.dart';
@@ -18,7 +17,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/claude_warning_banner.dart';
 import '../widgets/machine_online_delete_blocked_dialog.dart';
-import '../widgets/metric_bar.dart';
+import '../widgets/machine_metrics.dart';
 import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
 import 'machine_detail_screen.dart';
@@ -305,35 +304,7 @@ class _MachineCard extends StatelessWidget {
             ],
             if (online) ...[
               const SizedBox(height: Spacing.md),
-              BlocProvider(
-                create: (_) =>
-                    MachineMetricCubit(MachineRepository(client), machine.id!),
-                child: BlocBuilder<MachineMetricCubit, MachineMetricState>(
-                  builder: (context, state) => switch (state) {
-                    MachineMetricInitial() => const SizedBox.shrink(),
-                    MachineMetricLoaded(:final metric) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        MetricBar(
-                          label: 'CPU',
-                          fraction: metric.cpuPercent / 100,
-                          valueLabel:
-                              '${metric.cpuPercent.toStringAsFixed(0)}%',
-                        ),
-                        const SizedBox(height: Spacing.xs),
-                        MetricBar(
-                          label: 'RAM',
-                          fraction: metric.memoryTotalMb == 0
-                              ? 0
-                              : metric.memoryUsedMb / metric.memoryTotalMb,
-                          valueLabel:
-                              '${(metric.memoryUsedMb / 1024).toStringAsFixed(1)}G',
-                        ),
-                      ],
-                    ),
-                  },
-                ),
-              ),
+              MachineMetrics(machineId: machine.id!),
             ] else ...[
               const SizedBox(height: Spacing.md),
               Text(
@@ -369,6 +340,7 @@ class _MachineCard extends StatelessWidget {
                         child: Text(agent.name, style: AppTypography.body),
                       ),
                       Text(agent.role.name, style: AppTypography.caption),
+                      _AgentMenu(agent: agent, machine: machine),
                     ],
                   ),
                 ),
@@ -410,6 +382,80 @@ class _MachineCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Edit / delete actions for one agent row on a machine card.
+class _AgentMenu extends StatelessWidget {
+  const _AgentMenu({required this.agent, required this.machine});
+
+  final Agent agent;
+  final Machine machine;
+
+  Future<void> _edit(BuildContext context) async {
+    final cubit = context.read<AgentListCubit>();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => AddAgentDialog(
+        machineId: machine.id!,
+        machineName: machine.name,
+        existingAgent: agent,
+      ),
+    );
+    if (saved ?? false) cubit.fetchAgents();
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final cubit = context.read<AgentListCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showAppModal<bool>(
+      context,
+      title: 'Delete ${agent.name}?',
+      subtitle: machine.name,
+      child: Text(
+        'Its finished tasks stay on the board without an agent.',
+        style: AppTypography.body,
+      ),
+      actions: [
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ),
+        Builder(
+          builder: (context) => FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ),
+      ],
+    );
+    if (confirmed != true) return;
+    final failure = await cubit.deleteAgent(agent.id!);
+    if (failure != null) {
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<void Function(BuildContext)>(
+      tooltip: 'Agent actions',
+      color: AppColors.bg2,
+      iconSize: 16,
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_horiz, color: AppColors.text2),
+      onSelected: (action) => action(context),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: _edit, child: const Text('Edit')),
+        PopupMenuItem(
+          value: _delete,
+          child: Text('Delete', style: TextStyle(color: AppColors.red)),
+        ),
+      ],
     );
   }
 }

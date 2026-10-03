@@ -13,7 +13,7 @@ abstract final class AppColors {
 
   static const text0 = Colors.white;
   static const text1 = Color(0xFFA0A0A8);
-  static const text2 = Color(0xFF6B6B72);
+  static const text2 = Color(0xFF8A8A92);
 
   static const accent = Color(0xFF7D39EB);
   static const accentInk = Colors.white;
@@ -26,8 +26,7 @@ abstract final class AppColors {
 
   /// Amber, for a degraded-but-not-failed state (e.g. a machine whose
   /// `claude` executable can't be launched) — distinct from [red]'s hard
-  /// failure. Not yet in `docs/UI-DESIGN.md` §1's palette; added here as the
-  /// first user of a "warning" severity.
+  /// failure (`docs/UI-DESIGN.md` §1).
   static const warning = Color(0xFFFFB020);
 
   /// Near-black background for code blocks/diffs, distinct from [bg0].

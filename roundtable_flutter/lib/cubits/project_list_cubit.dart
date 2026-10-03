@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/project_repository.dart';
 
 sealed class ProjectListState {
@@ -38,12 +39,12 @@ class ProjectListCubit extends Cubit<ProjectListState> {
       final projects = await _repository.listProjects();
       emit(ProjectListLoaded(projects));
     } catch (e) {
-      emit(ProjectListError(e.toString()));
+      emit(ProjectListError(errorMessage(e)));
     }
   }
 
-  /// Deletion is blocked while the project has non-terminal tasks (design
-  /// doc §5) — surfaced as a plain [ProjectListError], unlike
+  /// Deletion is blocked while the project has non-terminal tasks
+  /// (docs/ARCHITECTURE.md) — surfaced as a plain [ProjectListError], unlike
   /// [MachineListCubit.deleteMachine]'s online guard, since there's no
   /// follow-up flow to offer here.
   ///
@@ -52,17 +53,14 @@ class ProjectListCubit extends Cubit<ProjectListState> {
   /// [ProjectListError] state, so callers must use this return value rather
   /// than reading [state] after this call resolves.
   Future<String?> deleteProject(int id) async {
-    String? errorMessage;
+    String? failure;
     try {
       await _repository.deleteProject(id);
-    } on DeletionBlockedException catch (e) {
-      errorMessage = e.message;
-      emit(ProjectListError(e.message));
     } catch (e) {
-      errorMessage = e.toString();
-      emit(ProjectListError(errorMessage));
+      failure = errorMessage(e);
+      emit(ProjectListError(failure));
     }
     await fetchProjects();
-    return errorMessage;
+    return failure;
   }
 }

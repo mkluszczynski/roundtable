@@ -25,33 +25,39 @@ void main() {
       ]);
     });
 
-    test('throws when the fetched file content no longer matches the patch', () {
-      const patch = '''
+    test(
+      'throws when the fetched file content no longer matches the patch',
+      () {
+        const patch = '''
 @@ -1,2 +1,2 @@
  line1
 -line2
 +line2 changed''';
-      // Context line "line1" doesn't match what the patch expects.
-      const staleFileContent = 'line1 edited\nline2 changed';
+        // Context line "line1" doesn't match what the patch expects.
+        const staleFileContent = 'line1 edited\nline2 changed';
 
-      expect(
-        () => mergeFullFileDiff(patch: patch, fileContent: staleFileContent),
-        throwsA(isA<DiffReconciliationException>()),
-      );
-    });
+        expect(
+          () => mergeFullFileDiff(patch: patch, fileContent: staleFileContent),
+          throwsA(isA<DiffReconciliationException>()),
+        );
+      },
+    );
 
-    test('throws when the fetched file content has fewer lines than expected', () {
-      const patch = '''
+    test(
+      'throws when the fetched file content has fewer lines than expected',
+      () {
+        const patch = '''
 @@ -4,1 +4,1 @@
 -d
 +d2''';
-      const shortFileContent = 'a\nb';
+        const shortFileContent = 'a\nb';
 
-      expect(
-        () => mergeFullFileDiff(patch: patch, fileContent: shortFileContent),
-        throwsA(isA<DiffReconciliationException>()),
-      );
-    });
+        expect(
+          () => mergeFullFileDiff(patch: patch, fileContent: shortFileContent),
+          throwsA(isA<DiffReconciliationException>()),
+        );
+      },
+    );
 
     test('keeps lines before and after the hunk as unmodified context', () {
       const patch = '''

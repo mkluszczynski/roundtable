@@ -8,7 +8,7 @@ import 'code_block.dart';
 
 /// Shown instead of a plain error when the dev tries to delete a [Machine]
 /// that's still `online` — the daemon is alive and connected, so we hand
-/// them the exact command to shut it down properly (design doc §6.8).
+/// them the exact command to shut it down properly (docs/FLOWS.md §1–3).
 class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
   const MachineOnlineDeleteBlockedDialog({super.key, this.scriptUrl});
 

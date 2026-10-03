@@ -29,7 +29,7 @@ red for destructive/error. Avoid introducing other hues.
 | `borderStrong` | `rgba(255,255,255,.22)` | `Colors.white.withOpacity(0.22)` | Emphasized border (modals, selected state) |
 | `text0` | `#FFFFFF` | `Colors.white` | Primary text |
 | `text1` | `#A0A0A8` | `Color(0xFFA0A0A8)` | Secondary text, labels |
-| `text2` | `#6B6B72` | `Color(0xFF6B6B72)` | Tertiary/dim text, timestamps, placeholders |
+| `text2` | `#8A8A92` | `Color(0xFF8A8A92)` | Tertiary/dim text, timestamps, placeholders (≥4.5:1 on `bg0`–`bg2`, WCAG AA) |
 | `accent` | `#7D39EB` | `Color(0xFF7D39EB)` | Primary CTA, brand mark, "needs your attention" |
 | `accentInk` | `#FFFFFF` | `Colors.white` | Text/icon on top of `accent` |
 | `accentSoft` | `#A78BFA` | `Color(0xFFA78BFA)` | Accent text on tinted/dark backgrounds, links |
@@ -128,23 +128,27 @@ lines: `text1` on transparent. Mono font throughout.
 ## 3. Screens → files
 
 Navigation (`screens/panel_shell.dart` + `widgets/nav_rail.dart`):
-**Dashboard · Projects · Machines**, plus a Settings tile with no screen
-behind it. Agents don't have their own screen. They're listed under their
-machine.
+**Dashboard · Projects · Machines**. Agents don't have their own screen.
+They're listed under their machine, with a ⋯ menu (Edit / Delete).
 
 | Screen | File | Contents / notes |
 |---|---|---|
-| Dashboard | `screens/dashboard_screen.dart` | Kanban (`kanban_column.dart`, `kanban_card.dart`; columns Backlog / In progress / Review / Done) for the first project, plus a machines panel (`machine_summary_card.dart`, `metric_bar.dart`). The New task button opens `create_task_dialog.dart` |
+| Dashboard | `screens/dashboard_screen.dart` | The title is a project filter ("All projects" or one project). Kanban (`kanban_column.dart`, `kanban_card.dart`; columns Backlog / In progress / Review / Done), plus a machines panel (`machine_summary_card.dart`, `machine_metrics.dart`). The New task button opens `create_task_dialog.dart` with the filtered project preset |
 | Projects | `screens/projects_screen.dart` → `project_detail_screen.dart` | Project list with 7-day activity. Detail: repo, token status (`update_token_dialog.dart`, `token_help_accordion.dart`), a kanban scoped to the project, delete |
-| Machines | `screens/machines_screen.dart` → `machine_detail_screen.dart` | Machine cards with their agents, CPU/RAM, `claude_warning_banner.dart`, `runner_update_banner.dart`. Add machine/agent dialogs. Delete guard `machine_online_delete_blocked_dialog.dart` |
+| Machines | `screens/machines_screen.dart` → `machine_detail_screen.dart` | Machine cards with their agents (Edit / Delete menu), CPU/RAM (`machine_metrics.dart`), `claude_warning_banner.dart`, `runner_update_banner.dart`. Add machine/agent dialogs. Delete guard `machine_online_delete_blocked_dialog.dart` |
 | Task detail | `screens/task_detail_screen.dart` (+ `blocs/task_detail_bloc.dart`) | One screen whose sub-state depends on `Task.status`: **waiting for answer** (question + options) · **plan approval** (`plan_content.dart`, approve / feedback) · **live execution** (log tail, `task_log_line.dart`) · **diff review** (file list + `diff_view.dart`, feedback, `request_review_dialog.dart`, `review_comment_card.dart`, accept & merge / resolve conflicts). Side rail: project, agent (`agent_avatar.dart`, `reassign_agent_dialog.dart`), branch, PR. Actions: cancel / retry / delete |
 
 Dialogs: `add_machine_dialog.dart` (two steps: name → one-time token +
 install command with Claude token help, `claude_token_help_accordion.dart`),
 `add_project_dialog.dart` (name, repo URL, token + "How do I do this?"
-accordion), `add_agent_dialog.dart` (role/model/effort as pill selectors;
-execution mode `docker` disabled with a "Coming soon" tag).
+accordion), `add_agent_dialog.dart` (also used for editing; role/model/effort
+as pill selectors; execution mode `docker` disabled with a "Coming soon"
+tag, and fixed when editing).
 
 Shared building blocks: `status_pill.dart`, `app_card.dart`, `app_modal.dart`,
-`code_block.dart`, `pill_selector.dart`, `tag_chip.dart`. Widget tests are in
-`test/widgets/`.
+`code_block.dart`, `pill_selector.dart`, `tag_chip.dart`, `load_failed_view.dart`
+(a detail screen's error / not-found state with Back + Retry). Widget tests
+are in `test/widgets/`.
+
+Accessibility: every icon-only button has a `tooltip`. Text colors keep at
+least 4.5:1 contrast on `bg0`–`bg2`.

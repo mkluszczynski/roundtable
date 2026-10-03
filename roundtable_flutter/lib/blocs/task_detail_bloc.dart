@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
+import '../utils/closeable_streams.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
@@ -307,14 +309,15 @@ class TaskDetailLoaded extends TaskDetailState {
   }
 }
 
-/// Reacts to a task's live status (design doc §6.4), its log tail while it's
+/// Reacts to a task's live status (docs/FLOWS.md §4), its log tail while it's
 /// executing, its diff once it's up for review, and to the dev's actions on
 /// it (answering a question, approving/feedback on a plan, picking a file) —
-/// a full Bloc rather than a Cubit, per the design doc's own rule of thumb
-/// (§3.3), since there's genuinely more than one event source here. Drives
+/// a full Bloc rather than a Cubit, per the project's rule of thumb
+/// (docs/DEVELOPMENT.md "Conventions"), since there's genuinely more than one event source here. Drives
 /// `task_detail_screen.dart`'s 4 status-driven sub-states in one place,
 /// folding in what used to be the separate `TaskDiffCubit`/`task_diff_screen`.
-class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
+class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
+    with CloseableStreams<TaskDetailState> {
   TaskDetailBloc(
     this._repository, {
     required ProjectRepository projectRepository,
@@ -364,7 +367,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   ) async {
     emit(const TaskDetailLoading());
     try {
-      await for (final task in _repository.watchTask(event.taskId)) {
+      await for (final task in untilClosed(
+        _repository.watchTask(event.taskId),
+      )) {
         final current = state;
         emit(await _stateFor(task, previous: current));
 
@@ -384,7 +389,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         }
       }
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -459,7 +464,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.answerQuestion(event.questionId, event.answer);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -473,7 +478,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.approvePlan(event.taskId);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -487,7 +492,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.submitPlanFeedback(event.taskId, event.message);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -501,7 +506,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.submitFeedback(event.taskId, event.message);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -515,7 +520,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.cancelTask(event.taskId);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -529,7 +534,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.retryTask(event.taskId);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -543,7 +548,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await _repository.reassignAgent(event.taskId, event.agentId);
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -558,7 +563,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       await _repository.deleteTask(event.taskId);
       emit(const TaskDetailDeleted());
     } catch (e) {
-      emit(TaskDetailError(e.toString()));
+      emit(TaskDetailError(errorMessage(e)));
     }
   }
 
@@ -571,7 +576,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       emit(current.copyWith(logsSubscribed: true));
     }
     final logs = <TaskLogEntry>[];
-    await for (final entry in _repository.watchLogs(event.taskId)) {
+    await for (final entry in untilClosed(
+      _repository.watchLogs(event.taskId),
+    )) {
       logs.add(entry);
       final latest = state;
       if (latest is TaskDetailLoaded) {
@@ -602,7 +609,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         } catch (e) {
           final latest = state;
           if (latest is TaskDetailLoaded) {
-            emit(latest.copyWith(filesError: e.toString()));
+            emit(latest.copyWith(filesError: errorMessage(e)));
           }
         }
       }(),
@@ -655,7 +662,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         emit(
           latest.copyWith(
             fileContentLoading: false,
-            fileContentError: e.toString(),
+            fileContentError: errorMessage(e),
           ),
         );
       }
@@ -672,7 +679,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       emit(current.copyWith(reviewsSubscribed: true));
     }
     final reviews = <int, CodeReview>{};
-    await for (final review in _repository.watchReviews(event.taskId)) {
+    await for (final review in untilClosed(
+      _repository.watchReviews(event.taskId),
+    )) {
       reviews[review.id!] = review;
       final latest = state;
       if (latest is TaskDetailLoaded) {
@@ -710,7 +719,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     try {
       await action();
     } catch (e) {
-      error = e.toString();
+      error = errorMessage(e);
     }
     final latest = state;
     if (latest is TaskDetailLoaded) {

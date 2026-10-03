@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/error_message.dart';
 import '../client.dart';
 import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
@@ -7,7 +8,7 @@ import '../theme/spacing.dart';
 import 'app_modal.dart';
 import 'token_help_accordion.dart';
 
-/// Sets a project's repo access token (design doc §6.5.1) — a single write
+/// Sets a project's repo access token (docs/ARCHITECTURE.md) — a single write
 /// call, so this manages its own local submitting/error state rather than a
 /// full cubit. Opened from `project_detail_screen.dart`'s "Update token".
 class UpdateTokenDialog extends StatefulWidget {
@@ -45,7 +46,7 @@ class _UpdateTokenDialogState extends State<UpdateTokenDialog> {
     } catch (e) {
       setState(() {
         _submitting = false;
-        _error = e.toString();
+        _error = errorMessage(e);
       });
     }
   }

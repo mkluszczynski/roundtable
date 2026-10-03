@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/task_repository.dart';
 
 sealed class CreateTaskState {
@@ -48,7 +49,7 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
       );
       emit(CreateTaskSuccess(task));
     } catch (e) {
-      emit(CreateTaskError(e.toString()));
+      emit(CreateTaskError(errorMessage(e)));
     }
   }
 }

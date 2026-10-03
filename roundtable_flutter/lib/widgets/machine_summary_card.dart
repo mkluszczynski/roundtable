@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-import '../client.dart';
-import '../cubits/machine_metric_cubit.dart';
-import '../repositories/machine_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/relative_time.dart';
 import 'app_card.dart';
-import 'metric_bar.dart';
+import 'machine_metrics.dart';
 import 'status_pill.dart';
 
 /// A machine card for the dashboard's machines panel: status + live CPU/RAM
@@ -59,35 +55,7 @@ class MachineSummaryCard extends StatelessWidget {
             ),
             if (online) ...[
               const SizedBox(height: Spacing.md),
-              BlocProvider(
-                create: (_) =>
-                    MachineMetricCubit(MachineRepository(client), machine.id!),
-                child: BlocBuilder<MachineMetricCubit, MachineMetricState>(
-                  builder: (context, state) => switch (state) {
-                    MachineMetricInitial() => const SizedBox.shrink(),
-                    MachineMetricLoaded(:final metric) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        MetricBar(
-                          label: 'CPU',
-                          fraction: metric.cpuPercent / 100,
-                          valueLabel:
-                              '${metric.cpuPercent.toStringAsFixed(0)}%',
-                        ),
-                        const SizedBox(height: Spacing.xs),
-                        MetricBar(
-                          label: 'RAM',
-                          fraction: metric.memoryTotalMb == 0
-                              ? 0
-                              : metric.memoryUsedMb / metric.memoryTotalMb,
-                          valueLabel:
-                              '${(metric.memoryUsedMb / 1024).toStringAsFixed(1)}G',
-                        ),
-                      ],
-                    ),
-                  },
-                ),
-              ),
+              MachineMetrics(machineId: machine.id!),
             ],
             if (agents.isNotEmpty) ...[
               const SizedBox(height: Spacing.md),

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/project_repository.dart';
 
 sealed class AddProjectState {
@@ -46,7 +47,7 @@ class AddProjectCubit extends Cubit<AddProjectState> {
       );
       emit(AddProjectSuccess(project));
     } catch (e) {
-      emit(AddProjectError(e.toString()));
+      emit(AddProjectError(errorMessage(e)));
     }
   }
 
@@ -64,7 +65,7 @@ class AddProjectCubit extends Cubit<AddProjectState> {
       );
       emit(AddProjectSuccess(project));
     } catch (e) {
-      emit(AddProjectError(e.toString()));
+      emit(AddProjectError(errorMessage(e)));
     }
   }
 }

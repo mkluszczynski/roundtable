@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/agent_repository.dart';
 
 sealed class AddAgentState {
@@ -50,7 +51,32 @@ class AddAgentCubit extends Cubit<AddAgentState> {
       );
       emit(AddAgentSuccess(agent));
     } catch (e) {
-      emit(AddAgentError(e.toString()));
+      emit(AddAgentError(errorMessage(e)));
+    }
+  }
+
+  /// Saves edits to [existing]. Its machine and execution mode stay as they
+  /// are.
+  Future<void> update({
+    required Agent existing,
+    required String name,
+    required AgentRole role,
+    String? defaultModel,
+    AgentEffort? defaultEffort,
+  }) async {
+    emit(const AddAgentSubmitting());
+    try {
+      final agent = await _repository.updateAgent(
+        existing.copyWith(
+          name: name,
+          role: role,
+          defaultModel: defaultModel,
+          defaultEffort: defaultEffort,
+        ),
+      );
+      emit(AddAgentSuccess(agent));
+    } catch (e) {
+      emit(AddAgentError(errorMessage(e)));
     }
   }
 }

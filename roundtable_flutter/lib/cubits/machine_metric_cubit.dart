@@ -19,8 +19,8 @@ class MachineMetricLoaded extends MachineMetricState {
   final MachineMetric metric;
 }
 
-/// Wraps [MachineRepository.watchLatestMetric] for a single machine (design
-/// doc §6.9 snapshot).
+/// Wraps [MachineRepository.watchLatestMetric] for a single machine
+/// (docs/FLOWS.md §6 snapshot).
 class MachineMetricCubit extends Cubit<MachineMetricState> {
   MachineMetricCubit(this._repository, this._machineId)
     : super(const MachineMetricInitial()) {

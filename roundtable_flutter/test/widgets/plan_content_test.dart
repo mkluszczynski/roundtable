@@ -9,7 +9,8 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: PlanContent(
-          markdown: '# Add login flow\n\n'
+          markdown:
+              '# Add login flow\n\n'
               'This introduces **OAuth** support.\n\n'
               '- Add the client\n'
               '- Wire up the callback',

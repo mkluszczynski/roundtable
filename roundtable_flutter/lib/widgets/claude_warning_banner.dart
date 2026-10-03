@@ -6,7 +6,7 @@ import '../theme/typography.dart';
 
 /// Shown on a machine's card when `Machine.claudeExecutableOk == false` —
 /// the daemon's `claude` CLI can't be launched, so every task assigned to
-/// this machine will fail (design doc §6.8/§6.2). Reported by
+/// this machine will fail (docs/FLOWS.md §1). Reported by
 /// `AgentRunnerService._checkClaudeExecutable` via
 /// `MachineEndpoint.reportClaudeStatus`, this exists so the failure is
 /// visible in the panel instead of only in `journalctl -u agent-runner`,

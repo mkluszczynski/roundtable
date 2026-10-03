@@ -6,7 +6,6 @@ import '../client.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/project_repository.dart';
-import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -24,9 +23,6 @@ class ProjectsScreen extends StatelessWidget {
         BlocProvider(
           create: (_) =>
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-        BlocProvider(
-          create: (_) => DashboardCubit(TaskRepository(client))..subscribe(),
         ),
       ],
       child: Scaffold(

@@ -18,18 +18,21 @@ const _presetModels = [
 ];
 
 /// Name, role, model, effort, and execution mode (`docker` disabled —
-/// schema-ready but not implemented, design doc §6.10). Opened from
-/// `machines_screen.dart`, scoped to [machineId]/[machineName] — the design
-/// brief shows this dialog as "on \<machine\>", not a machine picker.
+/// schema-ready but not implemented). Opened from `machines_screen.dart`,
+/// scoped to [machineId]/[machineName] — the design brief shows this dialog
+/// as "on \<machine\>", not a machine picker. With [existingAgent] it edits
+/// that agent instead (execution mode is then fixed).
 class AddAgentDialog extends StatelessWidget {
   const AddAgentDialog({
     super.key,
     required this.machineId,
     required this.machineName,
+    this.existingAgent,
   });
 
   final int machineId;
   final String machineName;
+  final Agent? existingAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +41,7 @@ class AddAgentDialog extends StatelessWidget {
       child: _AddAgentDialogContent(
         machineId: machineId,
         machineName: machineName,
+        existingAgent: existingAgent,
       ),
     );
   }
@@ -47,21 +51,28 @@ class _AddAgentDialogContent extends StatefulWidget {
   const _AddAgentDialogContent({
     required this.machineId,
     required this.machineName,
+    this.existingAgent,
   });
 
   final int machineId;
   final String machineName;
+  final Agent? existingAgent;
 
   @override
   State<_AddAgentDialogContent> createState() => _AddAgentDialogContentState();
 }
 
 class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
-  final _nameController = TextEditingController();
-  AgentRole _role = AgentRole.generalist;
-  String? _model;
-  AgentEffort? _effort;
-  AgentExecutionMode _executionMode = AgentExecutionMode.native;
+  late final _nameController = TextEditingController(
+    text: widget.existingAgent?.name,
+  );
+  late AgentRole _role = widget.existingAgent?.role ?? AgentRole.generalist;
+  late String? _model = widget.existingAgent?.defaultModel;
+  late AgentEffort? _effort = widget.existingAgent?.defaultEffort;
+  late AgentExecutionMode _executionMode =
+      widget.existingAgent?.executionMode ?? AgentExecutionMode.native;
+
+  bool get _editing => widget.existingAgent != null;
 
   @override
   void dispose() {
@@ -83,7 +94,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
         builder: (context, state) {
           final submitting = state is AddAgentSubmitting;
           return AppModal(
-            title: 'Add agent',
+            title: _editing ? 'Edit agent' : 'Add agent',
             subtitle: 'on ${widget.machineName}',
             actions: [
               TextButton(
@@ -92,13 +103,21 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
               ),
               FilledButton(
                 onPressed: (_canSubmit && !submitting)
-                    ? () => context.read<AddAgentCubit>().submit(
-                        name: _nameController.text.trim(),
-                        machineId: widget.machineId,
-                        role: _role,
-                        defaultModel: _model,
-                        defaultEffort: _effort,
-                      )
+                    ? () => _editing
+                          ? context.read<AddAgentCubit>().update(
+                              existing: widget.existingAgent!,
+                              name: _nameController.text.trim(),
+                              role: _role,
+                              defaultModel: _model,
+                              defaultEffort: _effort,
+                            )
+                          : context.read<AddAgentCubit>().submit(
+                              name: _nameController.text.trim(),
+                              machineId: widget.machineId,
+                              role: _role,
+                              defaultModel: _model,
+                              defaultEffort: _effort,
+                            )
                     : null,
                 child: submitting
                     ? const SizedBox(
@@ -106,7 +125,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Add agent'),
+                    : Text(_editing ? 'Save' : 'Add agent'),
               ),
             ],
             child: SizedBox(
@@ -140,7 +159,13 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                     ),
                     const SizedBox(height: Spacing.sm),
                     PillSelector<String?>(
-                      options: [null, ..._presetModels],
+                      options: [
+                        null,
+                        ..._presetModels,
+                        // Keep a custom model set elsewhere selectable.
+                        if (_model != null && !_presetModels.contains(_model))
+                          _model,
+                      ],
                       labelBuilder: (model) => model ?? 'Use default',
                       selected: _model,
                       onChanged: (model) => setState(() => _model = model),
@@ -166,8 +191,12 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                       selected: _executionMode,
                       onChanged: (mode) =>
                           setState(() => _executionMode = mode),
-                      disabledOptions: const {AgentExecutionMode.docker},
-                      disabledHint: 'Coming soon',
+                      disabledOptions: _editing
+                          ? AgentExecutionMode.values
+                                .where((m) => m != _executionMode)
+                                .toSet()
+                          : const {AgentExecutionMode.docker},
+                      disabledHint: _editing ? "Can't change" : 'Coming soon',
                     ),
                     if (state is AddAgentError) ...[
                       const SizedBox(height: Spacing.md),

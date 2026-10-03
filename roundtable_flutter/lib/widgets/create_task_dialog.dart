@@ -71,9 +71,18 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     return BlocListener<CreateTaskCubit, CreateTaskState>(
       listener: (context, state) {
         if (state is CreateTaskSuccess) {
+          // Look the messenger up before popping: afterwards this dialog's
+          // context is deactivated and the lookup throws.
+          final messenger = ScaffoldMessenger.of(context);
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Task created')),
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                state.task.status == TaskStatus.draft
+                    ? 'Draft saved'
+                    : 'Task created',
+              ),
+            ),
           );
         }
       },

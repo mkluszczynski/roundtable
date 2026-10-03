@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
@@ -10,7 +11,8 @@ import '../cubits/project_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
-import '../repositories/task_repository.dart';
+import '../utils/error_message.dart';
+import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -56,18 +58,28 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           create: (_) =>
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
         ),
-        BlocProvider(
-          create: (_) => DashboardCubit(TaskRepository(client))..subscribe(),
-        ),
       ],
       child: Scaffold(
         backgroundColor: AppColors.bg0,
         body: FutureBuilder<Project?>(
           future: _projectFuture,
           builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return LoadFailedView(
+                title: "Couldn't load this project",
+                message: errorMessage(snapshot.error!),
+                onRetry: _reload,
+              );
+            }
             final project = snapshot.data;
             if (project == null) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadFailedView(
+                title: 'Project not found',
+                message: 'It may have been deleted.',
+              );
             }
             return _ProjectDetailBody(project: project, onChanged: _reload);
           },
@@ -167,6 +179,7 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Back',
             icon: const Icon(Icons.arrow_back, color: AppColors.text1),
             onPressed: () => Navigator.of(context).pop(),
             visualDensity: VisualDensity.compact,
@@ -193,19 +206,30 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(project.name, style: AppTypography.screenTitle),
-                Row(
-                  children: [
-                    Text(
-                      _displayRepoUrl(project.repoUrl),
-                      style: AppTypography.code,
+                Tooltip(
+                  message: 'Open repository',
+                  child: InkWell(
+                    onTap: () => launchUrl(
+                      Uri.parse(project.repoUrl),
+                      mode: LaunchMode.externalApplication,
                     ),
-                    const SizedBox(width: Spacing.xs),
-                    const Icon(
-                      Icons.open_in_new,
-                      size: 12,
-                      color: AppColors.text2,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _displayRepoUrl(project.repoUrl),
+                          style: AppTypography.code,
+                        ),
+                        const SizedBox(width: Spacing.xs),
+                        const Icon(
+                          Icons.open_in_new,
+                          size: 12,
+                          color: AppColors.text2,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),

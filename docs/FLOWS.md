@@ -19,9 +19,10 @@ can jump straight in.
      `CLAUDE_EXECUTABLE` path
    - installs and starts `agent-runner.service`, plus the root-side updater
      units `agent-runner-update.{service,path}`
-3. The daemon starts. It calls `identify(token)` to learn its machine id, then
-   subscribes to its task and review streams and starts the `checkIn`/metric
-   loops. The machine goes `online`.
+3. The daemon starts. It calls `identify(token)` to learn its machine id,
+   then `reportStartup(token)`, subscribes to its task and review streams,
+   and starts the `checkIn`/metric/worktree-sweep loops. The machine goes
+   `online`.
 4. The daemon reports whether `claude` can be launched
    (`reportClaudeStatus`). If it can't, the machine card shows a warning
    banner (`widgets/claude_warning_banner.dart`).
@@ -90,10 +91,16 @@ stateDiagram-v2
   done --> [*]
 ```
 
-Any non-terminal status can go to `cancelled` (`cancelTask`). It can also go
-to `failed` when the machine goes offline or the task stalls for 15 min
-(stalls apply only to agent-driven states). `deleteTask` is allowed only in
-terminal states.
+Any non-terminal status can go to `cancelled` (`cancelTask`). A task can
+also go to `failed` in three cases:
+- its machine goes offline
+- it stalls for 15 min (agent-driven states only)
+- the runner restarts while the task is in `planning`/`waitingForAnswer`/
+  `planReady`/`running`. `reportStartup` fails such tasks, because their
+  `claude` process is gone, and also fails running code reviews.
+
+`deleteTask` is allowed only in terminal states and drafts. Once a task is
+terminal, the runner can't change it through `update` anymore.
 
 ### Step by step
 
@@ -151,7 +158,9 @@ terminal states.
    refuses (405/409 with conflicts), the task stays in `awaitingReview` and
    the panel shows "resolve conflicts". The `done` task is posted to the
    machine so the daemon removes the worktree. Accepting is blocked while a
-   code review is still queued or running.
+   code review is still queued or running. Worktrees the daemon wasn't told
+   about (deleted tasks, or failures while it was offline) are removed by the
+   30-minute `WorktreeJanitor` sweep.
 
 Other actions: `retryTask` (failed/cancelled → fresh `queued`, clears
 `claudeSessionId`), `reassignAgent` (allowed in draft/queued/cloning/
@@ -183,5 +192,5 @@ awaitingReview, or when the task has no agent).
 
 Every 8 s the daemon reads `/proc/stat` and `/proc/meminfo` and calls
 `reportMetric`. `watchLatestMetric` streams the newest row to
-`MachineMetricCubit` → `MetricBar` on the machine cards. Old rows are never
-deleted (see KNOWN-ISSUES).
+`MachineMetricCubit` → `MachineMetrics` on the machine cards.
+`MachineMetricCleanupFutureCall` keeps one hour of history.

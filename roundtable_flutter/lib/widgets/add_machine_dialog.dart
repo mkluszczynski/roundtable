@@ -11,7 +11,7 @@ import 'app_modal.dart';
 import 'claude_token_help_accordion.dart';
 import 'code_block.dart';
 
-/// Two-step machine registration (design doc §6.8): a name form, then the
+/// Two-step machine registration (docs/FLOWS.md §1–3): a name form, then the
 /// generated one-time token + install command — shown once, no back button
 /// once generated. Opened from `machines_screen.dart`.
 class AddMachineDialog extends StatelessWidget {
@@ -152,7 +152,7 @@ class _RegisteredStep extends StatelessWidget {
   final String scriptUrl;
 
   /// Claude Code OAuth token entered in the form step — never sent to the
-  /// server (design doc §6.11), only folded into the install command below.
+  /// server (docs/ARCHITECTURE.md), only folded into the install command below.
   final String claudeToken;
 
   @override

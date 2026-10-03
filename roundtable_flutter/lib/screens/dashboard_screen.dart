@@ -10,7 +10,6 @@ import '../cubits/project_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
-import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -19,20 +18,25 @@ import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
 import '../widgets/machine_summary_card.dart';
 
-/// Live overview: a kanban board of every task (design doc §4 "Should"
-/// kanban) plus a machines panel. Management (add/edit/delete) stays on the
-/// standalone Projects/Machines screens — this is a landing screen, not a
-/// replacement for them.
-class DashboardScreen extends StatelessWidget {
+/// Live overview: a kanban board of tasks — every project's, or one picked
+/// in the header — plus a machines panel. Management (add/edit/delete) stays
+/// on the standalone Projects/Machines screens — this is a landing screen,
+/// not a replacement for them.
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  /// The project the board is filtered to; null shows every project.
+  int? _projectId;
 
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => DashboardCubit(TaskRepository(client))..subscribe(),
-        ),
         BlocProvider(
           create: (_) =>
               MachineListCubit(MachineRepository(client))..fetchMachines(),
@@ -48,12 +52,15 @@ class DashboardScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _DashboardHeader(),
+          _DashboardHeader(
+            projectId: _projectId,
+            onProjectChanged: (id) => setState(() => _projectId = id),
+          ),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Expanded(flex: 3, child: _KanbanBoard()),
+                Expanded(flex: 3, child: _KanbanBoard(projectId: _projectId)),
                 VerticalDivider(width: 1, color: AppColors.border),
                 const SizedBox(width: 280, child: _MachinesPanel()),
               ],
@@ -65,11 +72,15 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-/// The dashboard shows a single "current" project — the first one returned
-/// by the server. Multi-project dashboards aren't in the Must scope (design
-/// doc §4); once project switching exists this becomes a real selection.
+/// Title doubles as the project filter: "All projects" or one project.
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader();
+  const _DashboardHeader({
+    required this.projectId,
+    required this.onProjectChanged,
+  });
+
+  final int? projectId;
+  final ValueChanged<int?> onProjectChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -82,11 +93,11 @@ class _DashboardHeader extends StatelessWidget {
       ),
       child: BlocBuilder<ProjectListCubit, ProjectListState>(
         builder: (context, projectState) {
-          final project = switch (projectState) {
-            ProjectListLoaded(:final projects) when projects.isNotEmpty =>
-              projects.first,
-            _ => null,
+          final projects = switch (projectState) {
+            ProjectListLoaded(:final projects) => projects,
+            _ => const <Project>[],
           };
+          final project = projects.where((p) => p.id == projectId).firstOrNull;
           return BlocBuilder<MachineListCubit, MachineListState>(
             builder: (context, machineState) {
               final machineCount = switch (machineState) {
@@ -102,7 +113,12 @@ class _DashboardHeader extends StatelessWidget {
                   final taskCount = switch (context
                       .watch<DashboardCubit>()
                       .state) {
-                    DashboardLoaded(:final tasks) => tasks.length,
+                    DashboardLoaded(:final tasks) =>
+                      tasks.values
+                          .where(
+                            (t) => project == null || t.projectId == project.id,
+                          )
+                          .length,
                     _ => 0,
                   };
                   return Row(
@@ -112,9 +128,10 @@ class _DashboardHeader extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              project?.name ?? 'No project yet',
-                              style: AppTypography.screenTitle,
+                            _ProjectFilter(
+                              projects: projects,
+                              selected: project,
+                              onChanged: onProjectChanged,
                             ),
                             const SizedBox(height: Spacing.xs),
                             Text(
@@ -125,15 +142,22 @@ class _DashboardHeader extends StatelessWidget {
                           ],
                         ),
                       ),
-                      FilledButton.icon(
-                        onPressed: project == null
-                            ? null
-                            : () => showDialog<void>(
-                                context: context,
-                                builder: (_) => const CreateTaskDialog(),
-                              ),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('New task'),
+                      Tooltip(
+                        message: projects.isEmpty
+                            ? 'Add a project first (Projects tab)'
+                            : '',
+                        child: FilledButton.icon(
+                          onPressed: projects.isEmpty
+                              ? null
+                              : () => showDialog<void>(
+                                  context: context,
+                                  builder: (_) => CreateTaskDialog(
+                                    initialProjectId: project?.id,
+                                  ),
+                                ),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('New task'),
+                        ),
                       ),
                     ],
                   );
@@ -147,8 +171,53 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
+/// The screen title as a dropdown: "All projects" or a single project.
+class _ProjectFilter extends StatelessWidget {
+  const _ProjectFilter({
+    required this.projects,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final List<Project> projects;
+  final Project? selected;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (projects.isEmpty) {
+      return Text('No project yet', style: AppTypography.screenTitle);
+    }
+    return PopupMenuButton<int>(
+      tooltip: 'Filter by project',
+      color: AppColors.bg2,
+      // -1 stands for "All projects": PopupMenuButton ignores a null value.
+      onSelected: (id) => onChanged(id == -1 ? null : id),
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: -1, child: Text('All projects')),
+        for (final p in projects)
+          PopupMenuItem(value: p.id!, child: Text(p.name)),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            selected?.name ?? 'All projects',
+            style: AppTypography.screenTitle,
+          ),
+          const SizedBox(width: Spacing.xs),
+          Icon(Icons.expand_more, color: AppColors.text1),
+        ],
+      ),
+    );
+  }
+}
+
 class _KanbanBoard extends StatelessWidget {
-  const _KanbanBoard();
+  const _KanbanBoard({required this.projectId});
+
+  /// Null shows every project's tasks.
+  final int? projectId;
 
   static const _titles = {
     KanbanColumn.backlog: 'Backlog',
@@ -171,7 +240,7 @@ class _KanbanBoard extends StatelessWidget {
               style: AppTypography.body.copyWith(color: AppColors.red),
             ),
           ),
-          DashboardLoaded(:final columns) => Padding(
+          DashboardLoaded() => Padding(
             padding: const EdgeInsets.all(Spacing.xl),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,7 +253,7 @@ class _KanbanBoard extends StatelessWidget {
                       ),
                       child: KanbanColumnView(
                         title: _titles[column]!,
-                        tasks: columns[column]!,
+                        tasks: state.columnsFor(projectId: projectId)[column]!,
                       ),
                     ),
                   ),

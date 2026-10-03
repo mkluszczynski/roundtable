@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/error_message.dart';
 import '../repositories/machine_repository.dart';
 
 sealed class MachineListState {
@@ -35,7 +36,7 @@ class MachineListError extends MachineListState {
 }
 
 /// Emitted transiently when a delete attempt is blocked because the machine
-/// is still `online` (design doc §6.8) — the panel reacts by showing the
+/// is still `online` (docs/FLOWS.md §1–3) — the panel reacts by showing the
 /// uninstall-command dialog instead of a plain error. Always followed by a
 /// fresh [MachineListLoaded]/[MachineListError] from a re-fetch.
 class MachineDeletionBlockedOnline extends MachineListState {
@@ -77,7 +78,7 @@ class MachineListCubit extends Cubit<MachineListState> {
       }
     } catch (e) {
       if (isClosed) return;
-      emit(MachineListError(e.toString()));
+      emit(MachineListError(errorMessage(e)));
     }
   }
 
@@ -87,7 +88,7 @@ class MachineListCubit extends Cubit<MachineListState> {
     try {
       await _repository.requestRunnerUpdate(id);
     } catch (e) {
-      emit(MachineListError(e.toString()));
+      emit(MachineListError(errorMessage(e)));
     }
     await fetchMachines(silent: true);
     _updatePollTimer ??= Timer.periodic(
@@ -119,7 +120,7 @@ class MachineListCubit extends Cubit<MachineListState> {
         emit(MachineListError(e.message));
       }
     } catch (e) {
-      emit(MachineListError(e.toString()));
+      emit(MachineListError(errorMessage(e)));
     }
     await fetchMachines();
   }

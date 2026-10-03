@@ -33,7 +33,7 @@ Channels (in `TaskEndpoint`, `CodeReviewEndpoint`, `task_review_support.dart`):
 | `task-question-<id>` | answered `TaskQuestion` | permission tool, blocked on `AskUserQuestion` |
 | `task-<id>-plan-decision` | plan approve/reject | permission tool, blocked on `ExitPlanMode` |
 
-The server also does work in the background with **two recurring future
+The server also does work in the background with **three recurring future
 calls**, registered in `roundtable_server/lib/server.dart`. On every boot it
 deletes the existing rows and schedules them again, so they don't pile up:
 
@@ -43,19 +43,25 @@ deletes the existing rows and schedules them again, so they don't pile up:
 - `StalledTaskFutureCall` (every 30 s): a task in an agent-driven state
   (`queued`, `cloning`, `planning`, `running`) with no progress
   (`lastProgressAt`) for 15 min goes to `failed`.
+- `MachineMetricCleanupFutureCall` (every 10 min): deletes `MachineMetric`
+  rows older than 1 h.
+
+Both failure paths, plus `MachineEndpoint.reportStartup`, go through
+`failTasks` in `lib/src/task_lifecycle.dart`.
 
 ## Server endpoints (`roundtable_server/lib/src/endpoints/`)
 
 | Endpoint | Panel-facing | Runner-facing |
 |---|---|---|
-| `ProjectEndpoint` | CRUD, `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
-| `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/update/delete`, `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` |
-| `AgentEndpoint` | CRUD. `delete` is blocked by non-terminal tasks | `update` (status `idle`/`busy`/`waitingForResponse`) |
-| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `acceptTask` (squash-merge), `getMergeStatus`, `resolveConflicts`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (writes only runner-owned columns), `appendLog`, `latestFeedback`, and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
+| `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage only), `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
+| `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` |
+| `AgentEndpoint` | `create/get/list`, `update` (name/role/model/effort only), `delete` (blocked by non-terminal tasks) | `setStatus` (`idle`/`busy`/`waitingForResponse`) |
+| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `acceptTask` (squash-merge), `getMergeStatus`, `resolveConflicts`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
 | `CodeReviewEndpoint` | `requestReview`, `watchReviews`, `setCommentState`, `sendCommentsToFix` | `watchAssignedReviews`, `startReview`, `completeReview`, `failReview` |
 
 Server-only helpers: `github_repo_client.dart` (PR files, file content,
-create review, resolve thread, merge, mergeability),
+create review, resolve thread, merge, mergeability; every request times out
+after 30 s),
 `task_review_support.dart` (shared review/feedback helpers kept out of the
 endpoints so they aren't exposed as RPC), `agent_runner_binaries.dart`
 (builds the runner binaries, serves them and hashes their version).
@@ -92,9 +98,23 @@ erDiagram
 | `MachineMetric` | `cpuPercent`, `memoryUsedMb/TotalMb`, index on `(machineId, recordedAt)` |
 
 Non-table DTOs: `MachineRegistration`, `DiffFile`, `PrMergeStatus`,
-`ReviewCommentDraft`, `TaskDeleted`. Typed exceptions:
+`ReviewCommentDraft`, `TaskDeleted`.
+
+Typed exceptions (their `message` reaches the panel; a plain `Exception`
+would arrive as a generic internal server error): `NotFoundException`,
+`InvalidStateException`, `GitHubException` (`statusCode`, 504 = timeout),
 `DeletionBlockedException` (`machineOnline` / `nonTerminalTasks`) and
-`InvalidTokenException`.
+`InvalidTokenException`. Endpoints never throw a bare `Exception`.
+
+Multi-row writes run in `session.db.transaction`. Delete guards
+(check-then-delete) run as one serializable transaction (`guardedDelete` in
+`endpoints/non_terminal_task_statuses.dart`).
+
+Indexes: `task(projectId)`, `task(agentId)`, `task(status, lastProgressAt)`,
+`agent(machineId)`, `(taskId, createdAt)` on
+`task_log_entry`/`task_feedback`/`task_question`/`code_review`,
+`review_comment(reviewId)`, unique `machine(tokenHash)`,
+`machine_metric(machineId, recordedAt)`.
 
 **Non-terminal task statuses** (`endpoints/non_terminal_task_statuses.dart`):
 `draft, queued, cloning, planning, waitingForAnswer, planReady, running,
@@ -118,9 +138,10 @@ Design choices worth keeping:
   (`REGISTRATION_TOKEN`, `SERVER_URL`, `CLAUDE_CODE_OAUTH_TOKEN`,
   `WORKSPACE_ROOT`, `CLAUDE_EXECUTABLE`, permission-tool path, update flag
   path). `AgentRunnerService` runs `identify` (exponential backoff up to 30 s
-  while the server is down), subscribes to the assigned task and review
-  streams (resubscribes after 5 s on error), runs `checkIn` every 20 s,
-  reports metrics every 8 s, and checks that `claude` can be launched.
+  while the server is down), then `reportStartup`, subscribes to the
+  assigned task and review streams (resubscribes after 5 s on error), runs
+  `checkIn` every 20 s, reports metrics every 8 s, sweeps worktrees every
+  30 min, and checks that `claude` can be launched.
 - `src/task_dispatcher.dart`: runs one task: worktree → Claude
   (planning or execution/resume) → commit/push → open PR → final status.
 - `src/review_dispatcher.dart`: runs one code review in a read-only
@@ -133,7 +154,11 @@ Design choices worth keeping:
 - `src/worktree_manager.dart`: one bare clone per project at
   `<WORKSPACE_ROOT>/<projectId>/repo.git`, and one worktree per task at
   `worktrees/<taskId>` on branch `task-<taskId>`.
-- `src/github_pull_request_opener.dart`, `src/metrics_collector.dart`
+- `src/worktree_janitor.dart`: removes worktrees of tasks that were deleted,
+  are `done`, or ended `failed`/`cancelled` without pushing a branch (kept
+  otherwise, since a retry pushes onto the existing PR branch). It never
+  touches a task the dispatcher is running (`TaskDispatcher.isActive`).
+- `src/github_pull_request_opener.dart` (30 s timeout), `src/metrics_collector.dart`
   (reads `/proc`, Linux only), `src/stream_json_formatter.dart` (turns NDJSON
   into readable log lines), `src/role_prompts.dart` (fixed persona prefix
   per role), `src/runner_update.dart` (version hash and update flag).
@@ -141,20 +166,23 @@ Design choices worth keeping:
 ## Panel (`roundtable_flutter/lib/`)
 
 - `screens/`: `panel_shell.dart` (nav rail with **Dashboard, Projects,
-  Machines**, plus a Settings tile that does nothing), `dashboard_screen.dart`
-  (kanban + machines panel), `projects_screen.dart` →
+  Machines**; provides the one shared `DashboardCubit`), `dashboard_screen.dart`
+  (kanban filterable by project + machines panel), `projects_screen.dart` →
   `project_detail_screen.dart`, `machines_screen.dart` (machines with their
   agents folded in; there is no separate Agents screen) →
   `machine_detail_screen.dart`, `task_detail_screen.dart`.
 - State (per the Cubit-by-default rule): `repositories/` wrap the generated
   `client`. `cubits/` wrap one stream or one form each. `blocs/task_detail_bloc.dart`
   is the only full Bloc. It combines task status, logs, PR files and merge
-  status, code reviews, and user actions.
+  status, code reviews, and user actions. Long-lived streams go through
+  `utils/closeable_streams.dart` (`CloseableStreams.untilClosed`), so
+  closing a Bloc/Cubit cancels its server subscriptions.
 - Kanban columns (`cubits/dashboard_cubit.dart`): **Backlog** (draft, queued,
   cloning) · **In progress** (planning, waitingForAnswer, planReady, running)
   · **Review** (awaitingReview) · **Done** (done, failed, cancelled).
 - `utils/`: `task_status_label.dart` (human-readable status labels),
-  `relative_time.dart`, `code_language.dart`.
+  `error_message.dart` (shows a typed server exception's `message`),
+  `closeable_streams.dart`, `relative_time.dart`, `code_language.dart`.
 
 ## Auth and secrets
 

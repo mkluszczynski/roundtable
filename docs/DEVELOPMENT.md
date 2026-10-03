@@ -16,7 +16,7 @@ roundtable/
 │   ├── lib/src/generated/    GENERATED, don't edit
 │   ├── migrations/           generated migrations (migration.sql may be hand-edited, see AGENTS.md)
 │   ├── config/               development/test/staging/production yaml, passwords.yaml (gitignored)
-│   └── test/integration/     endpoint + future-call tests (withServerpod)
+│   └── test/{integration,unit}/  endpoint + future-call tests (withServerpod), GitHub client
 ├── roundtable_client/        GENERATED client, don't edit
 ├── roundtable_flutter/       panel; lib/{screens,widgets,blocs,cubits,repositories,theme,utils}
 │   └── test/widgets/         widget tests for shared components
@@ -70,7 +70,7 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 |---|---|---|
 | `roundtable_server` | `dart test` (embedded Postgres via `config/test.yaml`, no Docker) | all endpoints, both future calls, merge conflicts (`test/integration/`) |
 | `roundtable_agent_runner` | `dart test` | dispatcher, review dispatcher, executor (fake `claude`), permission tool, worktrees (real git), PR opener, stream formatter, runner update |
-| `roundtable_flutter` | `flutter test` | shared widgets in `test/widgets/` |
+| `roundtable_flutter` | `flutter test` | shared widgets (`test/widgets/`), utils, kanban grouping |
 
 ## Conventions
 
@@ -87,6 +87,15 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
   dropdowns for small option sets. See [UI-DESIGN.md](UI-DESIGN.md).
 - **Statuses in the UI** go through `utils/task_status_label.dart`, never
   `.name`.
+- **Server errors:** throw `NotFoundException` / `InvalidStateException` /
+  `GitHubException` (or another model-declared exception), never a bare
+  `Exception`, because Serverpod hides those from the client. In the panel,
+  show errors with `utils/error_message.dart`.
+- **Streams in Blocs/Cubits:** wrap them in `untilClosed(...)`
+  (`CloseableStreams` mixin) so they're cancelled on `close()`.
+- **Generated client looks broken** (missing endpoints right after editing an
+  endpoint file)? The incremental generator sometimes runs on a half-written
+  file. Run `serverpod generate` in `roundtable_server/` once.
 
 ## Testing the running app with Flutter driver
 

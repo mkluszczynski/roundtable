@@ -10,8 +10,9 @@ import '../cubits/project_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
-import '../repositories/task_repository.dart';
 import '../utils/task_status_label.dart';
+import '../utils/error_message.dart';
+import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -36,9 +37,15 @@ class MachineDetailScreen extends StatefulWidget {
 
 class _MachineDetailScreenState extends State<MachineDetailScreen> {
   late final _machineRepository = MachineRepository(client);
-  late final Future<Machine?> _machineFuture = _machineRepository.getMachine(
+  late Future<Machine?> _machineFuture = _machineRepository.getMachine(
     widget.machineId,
   );
+
+  void _reload() {
+    setState(
+      () => _machineFuture = _machineRepository.getMachine(widget.machineId),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,9 +59,6 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
         ),
         BlocProvider(
-          create: (_) => DashboardCubit(TaskRepository(client))..subscribe(),
-        ),
-        BlocProvider(
           create: (_) =>
               MachineMetricCubit(_machineRepository, widget.machineId),
         ),
@@ -64,9 +68,22 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
         body: FutureBuilder<Machine?>(
           future: _machineFuture,
           builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return LoadFailedView(
+                title: "Couldn't load this machine",
+                message: errorMessage(snapshot.error!),
+                onRetry: _reload,
+              );
+            }
             final machine = snapshot.data;
             if (machine == null) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadFailedView(
+                title: 'Machine not found',
+                message: 'It may have been deleted.',
+              );
             }
             return _MachineDetailBody(machine: machine);
           },
@@ -142,6 +159,7 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Back',
             icon: const Icon(Icons.arrow_back, color: AppColors.text1),
             onPressed: () => Navigator.of(context).pop(),
             visualDensity: VisualDensity.compact,

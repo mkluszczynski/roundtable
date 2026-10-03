@@ -16,22 +16,19 @@ class NavRailItem {
   final String label;
 }
 
-/// The panel's left navigation rail: brand mark, a stack of nav items, and
-/// "Settings" pinned to the bottom — replaces the stock `NavigationRail` per
-/// `docs/UI-DESIGN.md` §3 (Dashboard artboard).
+/// The panel's left navigation rail: brand mark and a stack of nav items —
+/// replaces the stock `NavigationRail` (see `docs/UI-DESIGN.md` §3).
 class AppNavRail extends StatelessWidget {
   const AppNavRail({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
-    this.onSettingsTap,
   });
 
   final List<NavRailItem> items;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
-  final VoidCallback? onSettingsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -78,16 +75,6 @@ class AppNavRail extends StatelessWidget {
               selected: i == selectedIndex,
               onTap: () => onSelected(i),
             ),
-          const Spacer(),
-          _NavRailTile(
-            item: const NavRailItem(
-              icon: Icons.settings_outlined,
-              selectedIcon: Icons.settings,
-              label: 'Settings',
-            ),
-            selected: false,
-            onTap: onSettingsTap ?? () {},
-          ),
         ],
       ),
     );
