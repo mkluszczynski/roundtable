@@ -607,9 +607,9 @@ class _ProjectFilter extends StatelessWidget {
             subtitle: '${projects.length} projects',
             activeCount: activeIn(null),
             selected: selected == null,
+            dividerBelow: true,
           ),
         ),
-        const PopupMenuDivider(height: 1),
         for (final p in projects)
           PopupMenuItem(
             value: p.id!,
@@ -674,8 +674,12 @@ class _ProjectFilterOption extends StatelessWidget {
     required this.subtitle,
     required this.activeCount,
     required this.selected,
+    this.dividerBelow = false,
   });
 
+  /// Separates "All projects" from the list with the same hairline as the
+  /// menu's border (PopupMenuDivider uses the brighter theme divider).
+  final bool dividerBelow;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -685,7 +689,12 @@ class _ProjectFilterOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: selected ? AppColors.accent.withValues(alpha: 0.12) : null,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.accent.withValues(alpha: 0.12) : null,
+        border: dividerBelow
+            ? Border(bottom: BorderSide(color: AppColors.border))
+            : null,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.lg,
         vertical: Spacing.md,
