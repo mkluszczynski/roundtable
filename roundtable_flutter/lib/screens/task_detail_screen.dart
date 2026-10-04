@@ -851,7 +851,7 @@ class _SectionContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (section) {
       _TaskSection.overview => _Overview(state: state),
-      _TaskSection.plan => _PlanView(state: state),
+      _TaskSection.plan => _ReadingColumn(child: _PlanView(state: state)),
       _TaskSection.changes => _ChangesView(state: state),
       _TaskSection.review => _ReviewView(
         state: state,
@@ -894,6 +894,15 @@ class _Overview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = state.task.status;
+    // The live log uses the full width; prose views get a reading column.
+    if (status == TaskStatus.planning || status == TaskStatus.running) {
+      return _LiveExecution(state: state);
+    }
+    return _ReadingColumn(child: _content());
+  }
+
+  Widget _content() {
     return switch (state.task.status) {
       TaskStatus.waitingForAnswer => _PendingQuestion(
         key: ValueKey(state.pendingQuestion?.id),
@@ -1418,9 +1427,6 @@ class _ReviewView extends StatelessWidget {
   /// Jumps to a comment's file in the Changes view.
   final ValueChanged<String> onOpenFile;
 
-  /// Prose stays readable on wide screens; the column is centered.
-  static const _maxWidth = 960.0;
-
   @override
   Widget build(BuildContext context) {
     final latestReview = state.latestReview;
@@ -1435,123 +1441,139 @@ class _ReviewView extends StatelessWidget {
     final selected = state.selectedCommentIds;
     final bloc = context.read<TaskDetailBloc>();
 
+    return _ReadingColumn(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('AI code review', style: AppTypography.cardTitle),
+              ),
+              if (state.inReview)
+                OutlinedButton.icon(
+                  onPressed: reviewActive || state.reviewBusy
+                      ? null
+                      : () => _openRequestReviewDialog(context, state.task.id!),
+                  icon: const Icon(Icons.rate_review_outlined, size: 16),
+                  label: Text(
+                    state.reviews.isEmpty
+                        ? 'Request AI review'
+                        : 'Review again',
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: Spacing.lg),
+          Expanded(
+            child: ListView(
+              children: [
+                if (latestReview != null) ...[
+                  _VerdictCard(
+                    review: latestReview,
+                    number: state.reviews.length,
+                  ),
+                  const SizedBox(height: Spacing.xl),
+                ],
+                if (state.reviewError != null) ...[
+                  Text(
+                    state.reviewError!,
+                    style: AppTypography.body.copyWith(color: AppColors.red),
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                ],
+                if (comments.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: Spacing.xxl,
+                    ),
+                    child: Text(
+                      latestReview == null
+                          ? 'No AI review yet — request one to get comments '
+                                'on this PR.'
+                          : reviewActive
+                          ? 'Review in progress…'
+                          : 'The review left no comments.',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.body.copyWith(
+                        color: AppColors.text1,
+                      ),
+                    ),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      Text(
+                        'COMMENTS · ${openIds.length} OPEN OF '
+                        '${comments.length}',
+                        style: AppTypography.label,
+                      ),
+                      const Spacer(),
+                      if (editable && openIds.isNotEmpty)
+                        TextButton(
+                          onPressed: () => bloc.add(
+                            CommentsSelectionSet(
+                              selected.containsAll(openIds) ? {} : openIds,
+                            ),
+                          ),
+                          child: Text(
+                            selected.containsAll(openIds)
+                                ? 'Clear selection'
+                                : 'Select all open',
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: Spacing.sm),
+                  for (final comment in comments) ...[
+                    _commentCard(
+                      context,
+                      state,
+                      comment,
+                      editable: editable,
+                      onOpenLocation: canOpenFiles
+                          ? () => onOpenFile(comment.path)
+                          : null,
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          if (state.inReview) ...[
+            const SizedBox(height: Spacing.md),
+            if (selected.isNotEmpty) ...[
+              _SelectionBar(
+                count: selected.length,
+                onClear: () => bloc.add(const CommentsSelectionSet({})),
+              ),
+              const SizedBox(height: Spacing.sm),
+            ],
+            _IterationFeedbackRow(state: state),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Centers prose-heavy views (plan, question, result, AI review) in a
+/// column narrow enough to read on wide screens.
+class _ReadingColumn extends StatelessWidget {
+  const _ReadingColumn({required this.child});
+
+  static const maxWidth = 960.0;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _maxWidth),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('AI code review', style: AppTypography.cardTitle),
-                ),
-                if (state.inReview)
-                  OutlinedButton.icon(
-                    onPressed: reviewActive || state.reviewBusy
-                        ? null
-                        : () =>
-                              _openRequestReviewDialog(context, state.task.id!),
-                    icon: const Icon(Icons.rate_review_outlined, size: 16),
-                    label: Text(
-                      state.reviews.isEmpty
-                          ? 'Request AI review'
-                          : 'Review again',
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Spacing.lg),
-            Expanded(
-              child: ListView(
-                children: [
-                  if (latestReview != null) ...[
-                    _VerdictCard(
-                      review: latestReview,
-                      number: state.reviews.length,
-                    ),
-                    const SizedBox(height: Spacing.xl),
-                  ],
-                  if (state.reviewError != null) ...[
-                    Text(
-                      state.reviewError!,
-                      style: AppTypography.body.copyWith(color: AppColors.red),
-                    ),
-                    const SizedBox(height: Spacing.lg),
-                  ],
-                  if (comments.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: Spacing.xxl,
-                      ),
-                      child: Text(
-                        latestReview == null
-                            ? 'No AI review yet — request one to get comments '
-                                  'on this PR.'
-                            : reviewActive
-                            ? 'Review in progress…'
-                            : 'The review left no comments.',
-                        textAlign: TextAlign.center,
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.text1,
-                        ),
-                      ),
-                    )
-                  else ...[
-                    Row(
-                      children: [
-                        Text(
-                          'COMMENTS · ${openIds.length} OPEN OF '
-                          '${comments.length}',
-                          style: AppTypography.label,
-                        ),
-                        const Spacer(),
-                        if (editable && openIds.isNotEmpty)
-                          TextButton(
-                            onPressed: () => bloc.add(
-                              CommentsSelectionSet(
-                                selected.containsAll(openIds) ? {} : openIds,
-                              ),
-                            ),
-                            child: Text(
-                              selected.containsAll(openIds)
-                                  ? 'Clear selection'
-                                  : 'Select all open',
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: Spacing.sm),
-                    for (final comment in comments) ...[
-                      _commentCard(
-                        context,
-                        state,
-                        comment,
-                        editable: editable,
-                        onOpenLocation: canOpenFiles
-                            ? () => onOpenFile(comment.path)
-                            : null,
-                      ),
-                      const SizedBox(height: Spacing.sm),
-                    ],
-                  ],
-                ],
-              ),
-            ),
-            if (state.inReview) ...[
-              const SizedBox(height: Spacing.md),
-              if (selected.isNotEmpty) ...[
-                _SelectionBar(
-                  count: selected.length,
-                  onClear: () => bloc.add(const CommentsSelectionSet({})),
-                ),
-                const SizedBox(height: Spacing.sm),
-              ],
-              _IterationFeedbackRow(state: state),
-            ],
-          ],
-        ),
+        constraints: const BoxConstraints(maxWidth: maxWidth),
+        child: child,
       ),
     );
   }
