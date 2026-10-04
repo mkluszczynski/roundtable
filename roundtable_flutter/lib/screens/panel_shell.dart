@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
@@ -11,7 +12,12 @@ import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
+import '../theme/spacing.dart';
+import '../theme/typography.dart';
 import '../widgets/nav_rail.dart';
+import '../widgets/rail_nav_item.dart';
+import '../widgets/runner_update_banner.dart';
+import '../widgets/status_pill.dart';
 import 'dashboard_screen.dart';
 import 'machines_screen.dart';
 import 'projects_screen.dart';
@@ -113,7 +119,7 @@ class _PanelShellState extends State<PanelShell> {
           backgroundColor: AppColors.bg0,
           body: Row(
             children: [
-              AppNavRail(
+              _ShellNavRail(
                 items: _items,
                 selectedIndex: _selectedIndex,
                 onSelected: (index) => setState(() => _selectedIndex = index),
@@ -139,6 +145,110 @@ class _PanelShellState extends State<PanelShell> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// [AppNavRail] fed with live signals from the shared cubits: tasks waiting
+/// on the dev, machines needing attention, and the connection state.
+class _ShellNavRail extends StatelessWidget {
+  const _ShellNavRail({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<NavRailItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  static const _dashboardIndex = 0;
+  static const _machinesIndex = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final taskState = context.watch<DashboardCubit>().state;
+    final machineState = context.watch<MachineListCubit>().state;
+    final waiting = taskState is DashboardLoaded
+        ? taskState.tasks.values
+              .where(
+                (t) =>
+                    needsAttentionStatuses.contains(t.status) &&
+                    t.status != TaskStatus.failed,
+              )
+              .length
+        : 0;
+    final machines = machineState is MachineListLoaded
+        ? machineState.machines
+        : const <Machine>[];
+    final online = machines
+        .where((m) => m.status == MachineStatus.online)
+        .length;
+    final machineNeedsAttention =
+        machineState is MachineListLoaded &&
+        machines.any(
+          (m) =>
+              m.claudeExecutableOk == false ||
+              runnerUpdateStatus(
+                    installedVersion: m.runnerVersion,
+                    latestVersion: machineState.latestRunnerVersion,
+                    updateRequestedAt: m.updateRequestedAt,
+                  ) ==
+                  RunnerUpdateStatus.available,
+        );
+
+    return AppNavRail(
+      items: items,
+      selectedIndex: selectedIndex,
+      onSelected: onSelected,
+      badges: {
+        if (waiting > 0)
+          _dashboardIndex: Tooltip(
+            message: '$waiting waiting on you',
+            child: CountBadge(waiting, color: AppColors.accentSoft),
+          ),
+        if (machineNeedsAttention)
+          _machinesIndex: const Tooltip(
+            message: 'A machine needs an update or has a broken claude CLI',
+            child: StatusDot(color: AppColors.warning),
+          ),
+      },
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StatusDot(
+                color: switch (taskState) {
+                  DashboardLoaded() => AppColors.live,
+                  DashboardError() => AppColors.red,
+                  DashboardLoading() => AppColors.text2,
+                },
+              ),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                switch (taskState) {
+                  DashboardLoaded() => 'Live updates on',
+                  DashboardError() => 'Disconnected — reload',
+                  DashboardLoading() => 'Connecting…',
+                },
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.xs),
+          Row(
+            children: [
+              const Icon(Icons.dns_outlined, size: 12, color: AppColors.text2),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                '$online / ${machines.length} machines online',
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

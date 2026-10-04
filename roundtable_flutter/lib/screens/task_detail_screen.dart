@@ -20,6 +20,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
+import '../widgets/rail_nav_item.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/plan_content.dart';
 import '../widgets/reassign_agent_dialog.dart';
@@ -607,7 +608,7 @@ class _RailNav extends StatelessWidget {
         children: [
           for (final s in _TaskSection.values)
             if (available.contains(s))
-              _RailNavItem(
+              RailNavItem(
                 icon: switch (s) {
                   _TaskSection.overview => Icons.dashboard_outlined,
                   _TaskSection.changes => Icons.difference_outlined,
@@ -646,7 +647,7 @@ class _RailNav extends StatelessWidget {
                   ),
                   _TaskSection.review when state.reviewActive =>
                     const StatusDot(color: AppColors.live, pulsing: true),
-                  _TaskSection.review when openComments > 0 => _CountBadge(
+                  _TaskSection.review when openComments > 0 => CountBadge(
                     openComments,
                   ),
                   _TaskSection.logs when _isLive(state.task.status) =>
@@ -655,95 +656,6 @@ class _RailNav extends StatelessWidget {
                 },
               ),
         ],
-      ),
-    );
-  }
-}
-
-class _RailNavItem extends StatelessWidget {
-  const _RailNavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? AppColors.text0 : AppColors.text1;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: selected ? AppColors.bg2 : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border(
-                left: BorderSide(
-                  width: 2,
-                  color: selected ? AppColors.accent : Colors.transparent,
-                ),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.md,
-              vertical: Spacing.sm,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: selected ? AppColors.accent : AppColors.text2,
-                ),
-                const SizedBox(width: Spacing.sm),
-                Expanded(
-                  child: Text(
-                    label,
-                    style:
-                        (selected
-                                ? AppTypography.bodyStrong
-                                : AppTypography.body)
-                            .copyWith(color: color),
-                  ),
-                ),
-                ?trailing,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge(this.count);
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$count',
-        style: AppTypography.caption.copyWith(color: AppColors.warning),
       ),
     );
   }
