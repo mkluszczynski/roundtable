@@ -50,6 +50,7 @@ class _TaskLogLine extends StatelessWidget {
       LogKind.thinking => ('', AppColors.text2, FontStyle.italic),
       LogKind.runStarted => ('▶', AppColors.accentSoft, FontStyle.normal),
       LogKind.message => ('', AppColors.text0, FontStyle.normal),
+      LogKind.event => ('•', AppColors.accentSoft, FontStyle.normal),
     };
 
     final style = AppTypography.code.copyWith(

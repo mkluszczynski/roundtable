@@ -409,6 +409,17 @@ class TaskDispatcher {
         }
       }
 
+      if (failureReason == null) {
+        final event = finishedWithoutCode
+            ? 'Finished without code changes — no pull request'
+            : prUrl != null
+            ? 'Committed and pushed $branchName, opened pull request $prUrl'
+            : branchName != null
+            ? 'Pushed new commits to $branchName'
+            : 'No new changes — the pull request is unchanged';
+        append(LogItem(kind: LogKind.event, content: event));
+      }
+
       final status = failureReason != null
           ? TaskStatus.failed
           : finishedWithoutCode

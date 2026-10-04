@@ -100,7 +100,11 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(logLines, ['Ana started working', 'Done']);
+      expect(logLines, [
+        'Ana started working',
+        'Done',
+        startsWith('Committed and pushed task-1, opened pull request '),
+      ]);
       expect(agentUpdates.map((a) => a.status), [
         AgentStatus.busy,
         AgentStatus.idle,

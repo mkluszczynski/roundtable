@@ -31,6 +31,7 @@ import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/task_attachments_view.dart';
+import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
 import '../utils/relative_time.dart';
 
@@ -1454,6 +1455,12 @@ class _ReviewView extends StatelessWidget {
                     review: latestReview,
                     number: state.reviews.length,
                   ),
+                  const SizedBox(height: Spacing.md),
+                  _ReviewerLog(
+                    key: ValueKey(latestReview.id),
+                    review: latestReview,
+                    logs: state.logs,
+                  ),
                   const SizedBox(height: Spacing.xl),
                 ],
                 if (state.reviewError != null) ...[
@@ -1606,6 +1613,46 @@ class _VerdictCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The reviewer's own log for [review] — what it looked at and said —
+/// collapsed under the verdict.
+class _ReviewerLog extends StatefulWidget {
+  const _ReviewerLog({super.key, required this.review, required this.logs});
+
+  final CodeReview review;
+  final List<TaskLogEntry> logs;
+
+  @override
+  State<_ReviewerLog> createState() => _ReviewerLogState();
+}
+
+class _ReviewerLogState extends State<_ReviewerLog> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reviewRuns = buildLogTimeline(
+      widget.logs,
+    ).where((r) => r.isReview).toList();
+    // Structured runs carry their review; older logs only allow "the
+    // latest review run" for the latest review.
+    final run =
+        reviewRuns.where((r) => r.reviewId == widget.review.id).lastOrNull ??
+        (reviewRuns.every((r) => r.reviewId == null)
+            ? reviewRuns.lastOrNull
+            : null);
+    if (run == null) return const SizedBox.shrink();
+    final active =
+        widget.review.status == CodeReviewStatus.queued ||
+        widget.review.status == CodeReviewStatus.running;
+    return LogRunView(
+      run: run,
+      running: active,
+      expanded: _expanded,
+      onToggle: (open) => setState(() => _expanded = open),
     );
   }
 }

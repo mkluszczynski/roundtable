@@ -31,7 +31,11 @@ enum LogKind implements _isc.SerializableModel {
   runStarted,
 
   /// A run ended; `isError` tells success from failure.
-  runFinished;
+  runFinished,
+
+  /// Something the runner did around the run, e.g. pushed commits and
+  /// opened the PR, or finished without code changes.
+  event;
 
   static LogKind fromJson(String name) {
     switch (name) {
@@ -47,6 +51,8 @@ enum LogKind implements _isc.SerializableModel {
         return LogKind.runStarted;
       case 'runFinished':
         return LogKind.runFinished;
+      case 'event':
+        return LogKind.event;
       default:
         throw ArgumentError('Value "$name" cannot be converted to "LogKind"');
     }
