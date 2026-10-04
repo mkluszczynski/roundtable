@@ -23,6 +23,7 @@ export 'src/stream_json_formatter.dart';
 export 'src/environment_prompt.dart';
 export 'src/log_entries.dart';
 export 'src/task_dispatcher.dart';
+export 'src/usage_limit.dart';
 export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
 

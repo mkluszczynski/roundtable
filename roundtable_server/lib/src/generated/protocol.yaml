@@ -64,6 +64,7 @@ task:
   - resolveConflicts:
   - appendLog:
   - continueTask:
+  - resumeTask:
   - appendLogEntry:
   - cancelTask:
   - retryTask:

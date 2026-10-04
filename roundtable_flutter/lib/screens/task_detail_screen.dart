@@ -49,6 +49,7 @@ const _cancellableStatuses = {
   TaskStatus.planReady,
   TaskStatus.running,
   TaskStatus.awaitingReview,
+  TaskStatus.paused,
 };
 
 /// Mirrors the server's `retryTask` guard — a "Retry task" button lets the
@@ -933,6 +934,7 @@ class _Overview extends StatelessWidget {
       TaskStatus.awaitingReview || TaskStatus.done => _ResultView(
         state: state,
       ),
+      TaskStatus.paused => _PausedView(state: state),
       TaskStatus.failed => SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -959,6 +961,78 @@ class _Overview extends StatelessWidget {
         style: AppTypography.caption,
       ),
     };
+  }
+}
+
+/// A task paused by the Claude usage limit: when it resumes on its own,
+/// and a way to resume now (e.g. after raising the plan's limit).
+class _PausedView extends StatelessWidget {
+  const _PausedView({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = state.task;
+    final until = task.pausedUntil;
+    final remaining = until?.difference(DateTime.now().toUtc());
+    final inText = remaining == null || remaining.isNegative
+        ? 'any moment now'
+        : remaining.inHours > 0
+        ? 'in ${remaining.inHours} h ${remaining.inMinutes % 60} min'
+        : 'in ${remaining.inMinutes.clamp(1, 59)} min';
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.circle, size: 8, color: AppColors.warning),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                'PAUSED — CLAUDE USAGE LIMIT',
+                style: AppTypography.label.copyWith(color: AppColors.warning),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.lg),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  until == null
+                      ? 'Resumes automatically when the limit resets'
+                      : 'Resumes automatically at ${resumeTimeLabel(until)} '
+                            '($inText)',
+                  style: AppTypography.cardTitle,
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  '${state.agent?.name ?? 'The agent'} continues the same '
+                  'session from where it stopped — nothing is lost.',
+                  style: AppTypography.body.copyWith(color: AppColors.text1),
+                ),
+                if (task.pauseReason case final reason?) ...[
+                  const SizedBox(height: Spacing.md),
+                  Text(reason, style: AppTypography.caption),
+                ],
+                const SizedBox(height: Spacing.lg),
+                FilledButton.icon(
+                  onPressed: state.submitting
+                      ? null
+                      : () => context.read<TaskDetailBloc>().add(
+                          TaskResumed(task.id!),
+                        ),
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: const Text('Resume now'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

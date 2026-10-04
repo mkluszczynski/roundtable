@@ -700,6 +700,24 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'String?',
         ),
         _isp.ColumnDefinition(
+          name: 'pausedUntil',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'pauseReason',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'pausedPhase',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:LogPhase?',
+        ),
+        _isp.ColumnDefinition(
           name: 'claudeSessionId',
           columnType: _isp.ColumnType.text,
           isNullable: true,

@@ -2,6 +2,7 @@ import 'non_terminal_task_statuses.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
+import '../task_lifecycle.dart';
 import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -90,6 +91,7 @@ class TaskEndpoint extends Endpoint {
     TaskStatus.awaitingReview,
     TaskStatus.failed,
     TaskStatus.cancelled,
+    TaskStatus.paused,
   };
 
   /// Used by the agent daemon to report a run's progress and outcome —
@@ -139,6 +141,9 @@ class TaskEndpoint extends Endpoint {
         t.status,
         t.failureReason,
         t.resultSummary,
+        t.pausedUntil,
+        t.pauseReason,
+        t.pausedPhase,
         t.claudeSessionId,
         t.branchName,
         t.prUrl,
@@ -329,6 +334,18 @@ class TaskEndpoint extends Endpoint {
     return queueReviewFeedback(session, reopened, message.trim());
   }
 
+  /// Resumes a task paused by a usage limit right away instead of waiting
+  /// for `pausedUntil` — e.g. after the dev raised the plan's limit.
+  Future<Task> resumeTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.paused) {
+      throw InvalidStateException(
+        message: 'Task $taskId is not paused (${task.status.name})',
+      );
+    }
+    return resumePausedTask(session, task);
+  }
+
   /// Persists a structured log entry (kind, run, tool…) from the daemon —
   /// see [TaskLogEntry]. Same side effects as [appendLog]; the server
   /// assigns the id and timestamp.
@@ -421,6 +438,9 @@ class TaskEndpoint extends Endpoint {
         claudeSessionId: null,
         startedAt: null,
         finishedAt: null,
+        pausedUntil: null,
+        pauseReason: null,
+        pausedPhase: null,
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );

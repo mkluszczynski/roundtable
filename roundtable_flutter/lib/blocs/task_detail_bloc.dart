@@ -54,6 +54,13 @@ class TaskContinued extends TaskDetailEvent {
   final String message;
 }
 
+/// Resumes a task paused by a usage limit right away.
+class TaskResumed extends TaskDetailEvent {
+  const TaskResumed(this.taskId);
+
+  final int taskId;
+}
+
 class TaskCancelled extends TaskDetailEvent {
   const TaskCancelled(this.taskId);
 
@@ -354,6 +361,16 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
       emit(current.copyWith(submitting: true));
       try {
         await _repository.continueTask(event.taskId, event.message);
+      } catch (e) {
+        emit(TaskDetailError(errorMessage(e)));
+      }
+    });
+    on<TaskResumed>((event, emit) async {
+      final current = state;
+      if (current is! TaskDetailLoaded) return;
+      emit(current.copyWith(submitting: true));
+      try {
+        await _repository.resumeTask(event.taskId);
       } catch (e) {
         emit(TaskDetailError(errorMessage(e)));
       }
