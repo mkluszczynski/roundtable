@@ -27,6 +27,7 @@ import 'package:roundtable_client/src/protocol/machine_metric.dart'
     as _il2pq5ll;
 import 'package:roundtable_client/src/protocol/machine_registration.dart'
     as _i80z6wcv;
+import 'package:roundtable_client/src/protocol/pr_checks.dart' as _ixcrf414;
 import 'package:roundtable_client/src/protocol/pr_merge_status.dart'
     as _ikiwas8h;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
@@ -39,11 +40,14 @@ import 'package:roundtable_client/src/protocol/review_comment_state.dart'
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
 import 'package:roundtable_client/src/protocol/task_attachment.dart'
     as _iowm7apo;
+import 'package:roundtable_client/src/protocol/task_defaults.dart' as _ik8cj6du;
 import 'package:roundtable_client/src/protocol/task_deleted.dart' as _iwt28wmq;
 import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
 import 'package:roundtable_client/src/protocol/task_log_entry.dart'
     as _inlvye37;
 import 'package:roundtable_client/src/protocol/task_question.dart' as _ihmnezqk;
+import 'package:roundtable_client/src/protocol/workspace_settings.dart'
+    as _ix9sl716;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -757,8 +761,9 @@ class EndpointProject extends _isc.EndpointRef {
         {},
       );
 
-  /// Edits a project's name, repo URL and docker image. The access token
-  /// goes through [updateRepoAccessToken] instead.
+  /// Edits a project's name, repo URL, docker image and CI auto-fix
+  /// settings. The access token goes through [updateRepoAccessToken]
+  /// instead.
   _ida.Future<_i76mncv2.Project> update(_i76mncv2.Project project) =>
       caller.callServerEndpoint<_i76mncv2.Project>(
         'project',
@@ -796,6 +801,56 @@ class EndpointProject extends _isc.EndpointRef {
       caller.callServerEndpoint<String>(
         'project',
         'getCloneUrl',
+        {'projectId': projectId},
+      );
+}
+
+/// Workspace settings and the task defaults resolved from them.
+///
+/// Defaults cascade workspace → project → task: a project's nullable
+/// override wins over the workspace value, and the result only pre-fills the
+/// new-task form — the task stores its own copy, so later settings changes
+/// never affect tasks that already exist.
+/// {@category Endpoint}
+class EndpointSettings extends _isc.EndpointRef {
+  EndpointSettings(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'settings';
+
+  _ida.Future<_ix9sl716.WorkspaceSettings> getWorkspace() =>
+      caller.callServerEndpoint<_ix9sl716.WorkspaceSettings>(
+        'settings',
+        'getWorkspace',
+        {},
+      );
+
+  _ida.Future<_ix9sl716.WorkspaceSettings> updateWorkspace(
+    _ix9sl716.WorkspaceSettings settings,
+  ) => caller.callServerEndpoint<_ix9sl716.WorkspaceSettings>(
+    'settings',
+    'updateWorkspace',
+    {'settings': settings},
+  );
+
+  /// Sets a project's overrides; a null field inherits the workspace value.
+  _ida.Future<_i76mncv2.Project> updateProjectTaskDefaults(
+    int projectId, {
+    bool? skipPlanning,
+  }) => caller.callServerEndpoint<_i76mncv2.Project>(
+    'settings',
+    'updateProjectTaskDefaults',
+    {
+      'projectId': projectId,
+      'skipPlanning': skipPlanning,
+    },
+  );
+
+  /// The options a new task in [projectId] starts with.
+  _ida.Future<_ik8cj6du.TaskDefaults> taskDefaults(int projectId) =>
+      caller.callServerEndpoint<_ik8cj6du.TaskDefaults>(
+        'settings',
+        'taskDefaults',
         {'projectId': projectId},
       );
 }
@@ -900,16 +955,27 @@ class EndpointTask extends _isc.EndpointRef {
         {'task': task},
       );
 
-  /// Squash-merges [taskId]'s PR and marks the task `done`. If GitHub
-  /// refuses the merge (conflicts, failing checks, ...) the task stays in
-  /// `awaitingReview` and the reason is thrown back to the panel. Also wakes
-  /// the agent's daemon so it removes the task's worktree.
-  _ida.Future<_iw53rmon.Task> acceptTask(int taskId) =>
-      caller.callServerEndpoint<_iw53rmon.Task>(
-        'task',
-        'acceptTask',
-        {'taskId': taskId},
-      );
+  /// Squash-merges [taskId]'s PR and marks the task `done` — only once the
+  /// GitHub Actions checks of the PR's current head commit passed (or the
+  /// repo has no CI, or they can't be read), read fresh from GitHub rather
+  /// than trusted from the last poll, no fix run is queued, and only that
+  /// exact commit. With [force] the dev overrides the checks (e.g. a flaky
+  /// or non-required job) — GitHub's branch protection still applies. If
+  /// GitHub refuses the merge (conflicts, a newer commit, a required check,
+  /// ...) the task stays in `awaitingReview` and the reason is thrown back
+  /// to the panel. Also wakes the agent's daemon so it removes the task's
+  /// worktree.
+  _ida.Future<_iw53rmon.Task> acceptTask(
+    int taskId, {
+    required bool force,
+  }) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'acceptTask',
+    {
+      'taskId': taskId,
+      'force': force,
+    },
+  );
 
   /// Whether [taskId]'s PR conflicts with its base branch, so the panel can
   /// offer "Resolve conflicts" instead of "Accept & merge".
@@ -929,6 +995,55 @@ class EndpointTask extends _isc.EndpointRef {
         'resolveConflicts',
         {'taskId': taskId},
       );
+
+  /// Returns [taskId]'s GitHub Actions checks as last synced (see
+  /// [watchChecks]).
+  _ida.Future<_ixcrf414.PrChecks> getChecks(int taskId) =>
+      caller.callServerEndpoint<_ixcrf414.PrChecks>(
+        'task',
+        'getChecks',
+        {'taskId': taskId},
+      );
+
+  /// Streams [taskId]'s GitHub Actions checks: the current snapshot on
+  /// subscribe, then a new one whenever a sync (every 30 s while the task is
+  /// in review, or [refreshChecks]) changes them.
+  _ida.Stream<_ixcrf414.PrChecks> watchChecks(int taskId) =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_ixcrf414.PrChecks>,
+        _ixcrf414.PrChecks
+      >(
+        'task',
+        'watchChecks',
+        {'taskId': taskId},
+        {},
+      );
+
+  /// Reads [taskId]'s checks from GitHub now, instead of waiting for the
+  /// next poll.
+  _ida.Future<_ixcrf414.PrChecks> refreshChecks(int taskId) =>
+      caller.callServerEndpoint<_ixcrf414.PrChecks>(
+        'task',
+        'refreshChecks',
+        {'taskId': taskId},
+      );
+
+  /// Sends the agent a fix run for [taskId]'s failing CI checks — all of
+  /// them, or only [jobIds] — with each job's log in the prompt and the
+  /// dev's optional [note]. Same `--resume` path as [resolveConflicts].
+  _ida.Future<_ifl2c5cu.TaskFeedback> fixFailingChecks(
+    int taskId, {
+    List<int>? jobIds,
+    String? note,
+  }) => caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+    'task',
+    'fixFailingChecks',
+    {
+      'taskId': taskId,
+      'jobIds': jobIds,
+      'note': note,
+    },
+  );
 
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (docs/FLOWS.md §4) and notifies any [watchLogs] subscribers for this
@@ -1354,6 +1469,7 @@ class Client extends _isc.ServerpodClientShared {
     codeReview = EndpointCodeReview(this);
     machine = EndpointMachine(this);
     project = EndpointProject(this);
+    settings = EndpointSettings(this);
     taskAttachment = EndpointTaskAttachment(this);
     task = EndpointTask(this);
     greeting = EndpointGreeting(this);
@@ -1372,6 +1488,8 @@ class Client extends _isc.ServerpodClientShared {
 
   late final EndpointProject project;
 
+  late final EndpointSettings settings;
+
   late final EndpointTaskAttachment taskAttachment;
 
   late final EndpointTask task;
@@ -1388,6 +1506,7 @@ class Client extends _isc.ServerpodClientShared {
     'codeReview': codeReview,
     'machine': machine,
     'project': project,
+    'settings': settings,
     'taskAttachment': taskAttachment,
     'task': task,
     'greeting': greeting,

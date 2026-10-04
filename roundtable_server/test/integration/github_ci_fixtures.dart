@@ -54,7 +54,8 @@ http.Response? fakeCiResponse(
             'name': 'test',
             'status': conclusion == null ? 'in_progress' : 'completed',
             'conclusion': conclusion,
-            'html_url': 'https://github.com/example/roundtable/actions/runs/77/job/901',
+            'html_url':
+                'https://github.com/example/roundtable/actions/runs/77/job/901',
             'started_at': '2026-10-05T10:00:00Z',
             'completed_at': conclusion == null ? null : '2026-10-05T10:02:00Z',
             'steps': [

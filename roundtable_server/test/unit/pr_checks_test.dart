@@ -24,8 +24,7 @@ void main() {
   group('extractLogTail', () {
     test('strips timestamps and ends shortly after the last error', () {
       final log = [
-        for (var i = 0; i < 300; i++)
-          '2026-10-05T10:00:00.1234567Z line $i',
+        for (var i = 0; i < 300; i++) '2026-10-05T10:00:00.1234567Z line $i',
       ];
       log[200] = '2026-10-05T10:00:00.1234567Z ##[error]boom';
       final tail = extractLogTail(log.join('\n'), maxLines: 50);
@@ -149,34 +148,37 @@ void main() {
     expect(prompt, endsWith('Note from the developer: Only the unit tests'));
   });
 
-  test('getJobLogTail follows the redirect without sending the token', () async {
-    final requests = <http.BaseRequest>[];
-    final client = GitHubRepoClient(
-      httpClient: MockClient((request) async {
-        requests.add(request);
-        if (request.url.host == 'api.github.com') {
-          return http.Response(
-            '',
-            302,
-            headers: {'location': 'https://blob.example.com/log.txt'},
-          );
-        }
-        return http.Response('2026-10-05T10:00:00.0Z ##[error]boom\n', 200);
-      }),
-    );
+  test(
+    'getJobLogTail follows the redirect without sending the token',
+    () async {
+      final requests = <http.BaseRequest>[];
+      final client = GitHubRepoClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.url.host == 'api.github.com') {
+            return http.Response(
+              '',
+              302,
+              headers: {'location': 'https://blob.example.com/log.txt'},
+            );
+          }
+          return http.Response('2026-10-05T10:00:00.0Z ##[error]boom\n', 200);
+        }),
+      );
 
-    final tail = await client.getJobLogTail(
-      owner: 'x',
-      repo: 'y',
-      jobId: 1,
-      token: 'secret',
-    );
+      final tail = await client.getJobLogTail(
+        owner: 'x',
+        repo: 'y',
+        jobId: 1,
+        token: 'secret',
+      );
 
-    expect(tail, '##[error]boom');
-    expect(requests, hasLength(2));
-    expect(requests.first.headers['Authorization'], 'Bearer secret');
-    expect(requests.last.headers.containsKey('Authorization'), isFalse);
-  });
+      expect(tail, '##[error]boom');
+      expect(requests, hasLength(2));
+      expect(requests.first.headers['Authorization'], 'Bearer secret');
+      expect(requests.last.headers.containsKey('Authorization'), isFalse);
+    },
+  );
 
   test('a 403 from the Actions API points at the missing permission', () {
     final client = GitHubRepoClient(

@@ -142,18 +142,21 @@ void main() {
       expect(events.map((e) => e.content), contains('CI failed: CI / test'));
     });
 
-    test('when nothing changed then finished runs are not fetched again', () async {
-      final task = await seed();
-      await endpoints.task.refreshChecks(sessionBuilder, task.id!);
-      githubRequests.clear();
+    test(
+      'when nothing changed then finished runs are not fetched again',
+      () async {
+        final task = await seed();
+        await endpoints.task.refreshChecks(sessionBuilder, task.id!);
+        githubRequests.clear();
 
-      await endpoints.task.refreshChecks(sessionBuilder, task.id!);
+        await endpoints.task.refreshChecks(sessionBuilder, task.id!);
 
-      expect(
-        githubRequests.where((r) => r.url.path.endsWith('/jobs')),
-        isEmpty,
-      );
-    });
+        expect(
+          githubRequests.where((r) => r.url.path.endsWith('/jobs')),
+          isEmpty,
+        );
+      },
+    );
 
     test(
       'when the PR gets a new commit then the old checks are replaced and '
@@ -242,7 +245,7 @@ void main() {
         );
 
         await expectLater(
-          endpoints.task.acceptTask(sessionBuilder, task.id!),
+          endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
           throwsA(
             isA<InvalidStateException>().having(
               (e) => e.message,
@@ -272,6 +275,7 @@ void main() {
         final accepted = await endpoints.task.acceptTask(
           sessionBuilder,
           task.id!,
+          force: false,
         );
         expect(accepted.status, TaskStatus.done);
       },
@@ -372,7 +376,7 @@ void main() {
       final task = await seed();
       conclusion = 'failure';
       await expectLater(
-        endpoints.task.acceptTask(sessionBuilder, task.id!),
+        endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
         throwsA(
           isA<InvalidStateException>().having(
             (e) => e.message,
@@ -385,15 +389,18 @@ void main() {
       expect((await reload(task)).status, TaskStatus.awaitingReview);
     });
 
-    test('when the checks are still running then accepting is refused', () async {
-      final task = await seed();
-      conclusion = null;
-      await expectLater(
-        endpoints.task.acceptTask(sessionBuilder, task.id!),
-        throwsA(isA<InvalidStateException>()),
-      );
-      expect(githubRequests.where((r) => r.method == 'PUT'), isEmpty);
-    });
+    test(
+      'when the checks are still running then accepting is refused',
+      () async {
+        final task = await seed();
+        conclusion = null;
+        await expectLater(
+          endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
+          throwsA(isA<InvalidStateException>()),
+        );
+        expect(githubRequests.where((r) => r.method == 'PUT'), isEmpty);
+      },
+    );
 
     test(
       'when a new commit has no workflow yet then accepting waits for the '
@@ -402,7 +409,7 @@ void main() {
         final task = await seed();
         noWorkflows = true;
         await expectLater(
-          endpoints.task.acceptTask(sessionBuilder, task.id!),
+          endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
           throwsA(isA<InvalidStateException>()),
         );
 
@@ -418,6 +425,7 @@ void main() {
         final accepted = await endpoints.task.acceptTask(
           sessionBuilder,
           task.id!,
+          force: false,
         );
         expect(accepted.status, TaskStatus.done);
       },

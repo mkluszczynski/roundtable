@@ -51,6 +51,11 @@ project:
   - updateRepoAccessToken:
   - delete:
   - getCloneUrl:
+settings:
+  - getWorkspace:
+  - updateWorkspace:
+  - updateProjectTaskDefaults:
+  - taskDefaults:
 taskAttachment:
   - upload:
   - list:
@@ -62,6 +67,10 @@ task:
   - acceptTask:
   - getMergeStatus:
   - resolveConflicts:
+  - getChecks:
+  - watchChecks:
+  - refreshChecks:
+  - fixFailingChecks:
   - appendLog:
   - continueTask:
   - resumeTask:

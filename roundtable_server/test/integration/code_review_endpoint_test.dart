@@ -324,6 +324,7 @@ void main() {
       final task = await endpoints.task.acceptTask(
         sessionBuilder,
         seeded.task.id!,
+        force: false,
       );
 
       expect(task.status, TaskStatus.done);
@@ -345,7 +346,11 @@ void main() {
             : fakeCiResponse(request) ?? http.Response('{}', 200);
 
         await expectLater(
-          endpoints.task.acceptTask(sessionBuilder, seeded.task.id!),
+          endpoints.task.acceptTask(
+            sessionBuilder,
+            seeded.task.id!,
+            force: false,
+          ),
           throwsA(
             predicate((e) => e.toString().contains('not mergeable')),
           ),
@@ -367,7 +372,11 @@ void main() {
       );
 
       await expectLater(
-        () => endpoints.task.acceptTask(sessionBuilder, seeded.task.id!),
+        () => endpoints.task.acceptTask(
+          sessionBuilder,
+          seeded.task.id!,
+          force: false,
+        ),
         throwsA(isA<Exception>()),
       );
     });

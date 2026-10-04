@@ -23,9 +23,14 @@ abstract class Project
     required this.repoUrl,
     this.repoAccessTokenUpdatedAt,
     this.dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    this.skipPlanning,
     DateTime? createdAt,
     this.tasks,
-  }) : createdAt = createdAt ?? DateTime.now();
+  }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
+       createdAt = createdAt ?? DateTime.now();
 
   factory Project({
     int? id,
@@ -33,6 +38,9 @@ abstract class Project
     required String repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -49,6 +57,15 @@ abstract class Project
               jsonSerialization['repoAccessTokenUpdatedAt'],
             ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      skipPlanning: jsonSerialization['skipPlanning'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -77,6 +94,17 @@ abstract class Project
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
+  /// Send a task's failing CI checks to its agent automatically, without
+  /// waiting for the dev to click "Send to agent".
+  bool autoFixFailingChecks;
+
+  /// How many fix runs auto-fix sends for a task before leaving the
+  /// failure to the dev; reset once the checks pass.
+  int maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  bool? skipPlanning;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -90,6 +118,9 @@ abstract class Project
     String? repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -103,6 +134,9 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -118,6 +152,9 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -139,6 +176,9 @@ class _ProjectImpl extends Project {
     required String repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -147,6 +187,9 @@ class _ProjectImpl extends Project {
          repoUrl: repoUrl,
          repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
+         skipPlanning: skipPlanning,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -161,6 +204,9 @@ class _ProjectImpl extends Project {
     String? repoUrl,
     Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    Object? skipPlanning = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -172,6 +218,9 @@ class _ProjectImpl extends Project {
           ? repoAccessTokenUpdatedAt
           : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
+      skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks

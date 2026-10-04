@@ -15,6 +15,7 @@ import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent.dart' as _ijo8h3v4;
 import 'log_phase.dart' as _iv8oofn2;
+import 'pr_check_state.dart' as _ivypql97;
 import 'project.dart' as _ifiazq2p;
 import 'task_attachment.dart' as _isyamz65;
 import 'task_feedback.dart' as _i5hi2zxr;
@@ -42,6 +43,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.claudeSessionId,
     this.branchName,
     this.prUrl,
+    this.prHeadSha,
+    this.prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    this.checkError,
+    int? checkFixAttempts,
+    this.checkFixSentForSha,
     DateTime? createdAt,
     this.startedAt,
     this.finishedAt,
@@ -52,6 +59,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
+       checkState = checkState ?? _ivypql97.PrCheckState.none,
+       checkFixAttempts = checkFixAttempts ?? 0,
        createdAt = createdAt ?? DateTime.now(),
        lastProgressAt = lastProgressAt ?? DateTime.now();
 
@@ -73,6 +82,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -124,6 +139,20 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       claudeSessionId: jsonSerialization['claudeSessionId'] as String?,
       branchName: jsonSerialization['branchName'] as String?,
       prUrl: jsonSerialization['prUrl'] as String?,
+      prHeadSha: jsonSerialization['prHeadSha'] as String?,
+      prHeadSeenAt: jsonSerialization['prHeadSeenAt'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['prHeadSeenAt'],
+            ),
+      checkState: jsonSerialization['checkState'] == null
+          ? null
+          : _ivypql97.PrCheckState.fromJson(
+              (jsonSerialization['checkState'] as String),
+            ),
+      checkError: jsonSerialization['checkError'] as String?,
+      checkFixAttempts: jsonSerialization['checkFixAttempts'] as int?,
+      checkFixSentForSha: jsonSerialization['checkFixSentForSha'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -220,6 +249,31 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   String? prUrl;
 
+  /// The PR's head commit the CI checks ([checkState], `PrCheckRun`) belong
+  /// to. A new commit (a fix run, a manual push) resets the checks.
+  String? prHeadSha;
+
+  /// When [prHeadSha] was first seen — a new commit's workflows get a grace
+  /// period to show up before "no CI" counts as mergeable.
+  DateTime? prHeadSeenAt;
+
+  /// Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
+  /// merges on `success` (or `none` after the grace period).
+  _ivypql97.PrCheckState checkState;
+
+  /// Why the checks can't be read (e.g. a token without "Actions: Read"),
+  /// in which case [checkState] stays `none` and GitHub's own branch
+  /// protection decides whether the PR can merge.
+  String? checkError;
+
+  /// Fix runs sent for failing checks since they last passed — caps the
+  /// project's auto-fix (`Project.maxCheckFixAttempts`).
+  int checkFixAttempts;
+
+  /// The head commit whose failing checks were last sent to the agent, so
+  /// the same failure is never auto-sent twice.
+  String? checkFixSentForSha;
+
   DateTime createdAt;
 
   DateTime? startedAt;
@@ -262,6 +316,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -292,6 +352,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
+      if (prHeadSha != null) 'prHeadSha': prHeadSha,
+      if (prHeadSeenAt != null) 'prHeadSeenAt': prHeadSeenAt?.toJson(),
+      'checkState': checkState.toJson(),
+      if (checkError != null) 'checkError': checkError,
+      'checkFixAttempts': checkFixAttempts,
+      if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -327,6 +393,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
+      if (prHeadSha != null) 'prHeadSha': prHeadSha,
+      if (prHeadSeenAt != null) 'prHeadSeenAt': prHeadSeenAt?.toJson(),
+      'checkState': checkState.toJson(),
+      if (checkError != null) 'checkError': checkError,
+      'checkFixAttempts': checkFixAttempts,
+      if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -409,6 +481,12 @@ class _TaskImpl extends Task {
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -435,6 +513,12 @@ class _TaskImpl extends Task {
          claudeSessionId: claudeSessionId,
          branchName: branchName,
          prUrl: prUrl,
+         prHeadSha: prHeadSha,
+         prHeadSeenAt: prHeadSeenAt,
+         checkState: checkState,
+         checkError: checkError,
+         checkFixAttempts: checkFixAttempts,
+         checkFixSentForSha: checkFixSentForSha,
          createdAt: createdAt,
          startedAt: startedAt,
          finishedAt: finishedAt,
@@ -467,6 +551,12 @@ class _TaskImpl extends Task {
     Object? claudeSessionId = _Undefined,
     Object? branchName = _Undefined,
     Object? prUrl = _Undefined,
+    Object? prHeadSha = _Undefined,
+    Object? prHeadSeenAt = _Undefined,
+    _ivypql97.PrCheckState? checkState,
+    Object? checkError = _Undefined,
+    int? checkFixAttempts,
+    Object? checkFixSentForSha = _Undefined,
     DateTime? createdAt,
     Object? startedAt = _Undefined,
     Object? finishedAt = _Undefined,
@@ -504,6 +594,16 @@ class _TaskImpl extends Task {
           : this.claudeSessionId,
       branchName: branchName is String? ? branchName : this.branchName,
       prUrl: prUrl is String? ? prUrl : this.prUrl,
+      prHeadSha: prHeadSha is String? ? prHeadSha : this.prHeadSha,
+      prHeadSeenAt: prHeadSeenAt is DateTime?
+          ? prHeadSeenAt
+          : this.prHeadSeenAt,
+      checkState: checkState ?? this.checkState,
+      checkError: checkError is String? ? checkError : this.checkError,
+      checkFixAttempts: checkFixAttempts ?? this.checkFixAttempts,
+      checkFixSentForSha: checkFixSentForSha is String?
+          ? checkFixSentForSha
+          : this.checkFixSentForSha,
       createdAt: createdAt ?? this.createdAt,
       startedAt: startedAt is DateTime? ? startedAt : this.startedAt,
       finishedAt: finishedAt is DateTime? ? finishedAt : this.finishedAt,
@@ -605,6 +705,40 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
     value,
   );
 
+  _is.ColumnValue<String, String> prHeadSha(String? value) => _is.ColumnValue(
+    table.prHeadSha,
+    value,
+  );
+
+  _is.ColumnValue<DateTime, DateTime> prHeadSeenAt(DateTime? value) =>
+      _is.ColumnValue(
+        table.prHeadSeenAt,
+        value,
+      );
+
+  _is.ColumnValue<_ivypql97.PrCheckState, _ivypql97.PrCheckState> checkState(
+    _ivypql97.PrCheckState value,
+  ) => _is.ColumnValue(
+    table.checkState,
+    value,
+  );
+
+  _is.ColumnValue<String, String> checkError(String? value) => _is.ColumnValue(
+    table.checkError,
+    value,
+  );
+
+  _is.ColumnValue<int, int> checkFixAttempts(int value) => _is.ColumnValue(
+    table.checkFixAttempts,
+    value,
+  );
+
+  _is.ColumnValue<String, String> checkFixSentForSha(String? value) =>
+      _is.ColumnValue(
+        table.checkFixSentForSha,
+        value,
+      );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -693,6 +827,33 @@ class TaskTable extends _is.Table<int?> {
       'prUrl',
       this,
     );
+    prHeadSha = _is.ColumnString(
+      'prHeadSha',
+      this,
+    );
+    prHeadSeenAt = _is.ColumnDateTime(
+      'prHeadSeenAt',
+      this,
+    );
+    checkState = _is.ColumnEnum(
+      'checkState',
+      this,
+      _is.EnumSerialization.byName,
+      hasDefault: true,
+    );
+    checkError = _is.ColumnString(
+      'checkError',
+      this,
+    );
+    checkFixAttempts = _is.ColumnInt(
+      'checkFixAttempts',
+      this,
+      hasDefault: true,
+    );
+    checkFixSentForSha = _is.ColumnString(
+      'checkFixSentForSha',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -766,6 +927,31 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnString branchName;
 
   late final _is.ColumnString prUrl;
+
+  /// The PR's head commit the CI checks ([checkState], `PrCheckRun`) belong
+  /// to. A new commit (a fix run, a manual push) resets the checks.
+  late final _is.ColumnString prHeadSha;
+
+  /// When [prHeadSha] was first seen — a new commit's workflows get a grace
+  /// period to show up before "no CI" counts as mergeable.
+  late final _is.ColumnDateTime prHeadSeenAt;
+
+  /// Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
+  /// merges on `success` (or `none` after the grace period).
+  late final _is.ColumnEnum<_ivypql97.PrCheckState> checkState;
+
+  /// Why the checks can't be read (e.g. a token without "Actions: Read"),
+  /// in which case [checkState] stays `none` and GitHub's own branch
+  /// protection decides whether the PR can merge.
+  late final _is.ColumnString checkError;
+
+  /// Fix runs sent for failing checks since they last passed — caps the
+  /// project's auto-fix (`Project.maxCheckFixAttempts`).
+  late final _is.ColumnInt checkFixAttempts;
+
+  /// The head commit whose failing checks were last sent to the agent, so
+  /// the same failure is never auto-sent twice.
+  late final _is.ColumnString checkFixSentForSha;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -964,6 +1150,12 @@ class TaskTable extends _is.Table<int?> {
     claudeSessionId,
     branchName,
     prUrl,
+    prHeadSha,
+    prHeadSeenAt,
+    checkState,
+    checkError,
+    checkFixAttempts,
+    checkFixSentForSha,
     createdAt,
     startedAt,
     finishedAt,

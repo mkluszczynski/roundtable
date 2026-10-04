@@ -656,8 +656,7 @@ Future<void> _logEvent(Session session, int taskId, String text) async {
         e.taskId.equals(taskId) &
         e.runId.notEquals(null) &
         e.reviewId.equals(null),
-    orderBy: (e) => e.createdAt,
-    orderDescending: true,
+    orderBy: (e) => e.createdAt.desc(),
   );
   final entry = await TaskLogEntry.db.insertRow(
     session,

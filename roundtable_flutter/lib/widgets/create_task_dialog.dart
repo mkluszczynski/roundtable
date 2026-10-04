@@ -9,12 +9,14 @@ import '../cubits/create_task_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/attachment_repository.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/settings_repository.dart';
 import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
 import '../utils/image_paste.dart';
+import '../utils/task_options.dart';
 import 'agent_picker.dart';
 import 'attachment_thumbnail.dart';
 import 'app_modal.dart';
@@ -80,6 +82,13 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   late int? _agentId = widget.initialAgentId;
   bool _skipPlanning = false;
 
+  /// The project's resolved defaults, once loaded — [_skipPlanning] follows
+  /// them until the dev changes it by hand.
+  TaskDefaults? _defaults;
+  bool _optionsEdited = false;
+  bool _advancedOpen = false;
+  late final _settings = SettingsRepository(client);
+
   late final _attachments = AttachmentRepository(client);
   final _images = <_PendingImage>[];
   late final void Function() _stopPasteListener;
@@ -97,6 +106,25 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     _stopPasteListener = listenForPastedImages(
       (image) => _addImage(image.name, image.bytes),
     );
+    if (_projectId != null) _loadDefaults(_projectId!);
+  }
+
+  void _selectProject(int projectId) {
+    setState(() => _projectId = projectId);
+    _loadDefaults(projectId);
+  }
+
+  Future<void> _loadDefaults(int projectId) async {
+    try {
+      final defaults = await _settings.taskDefaults(projectId);
+      if (!mounted || _projectId != projectId) return;
+      setState(() {
+        _defaults = defaults;
+        if (!_optionsEdited) _skipPlanning = defaults.skipPlanning;
+      });
+    } catch (_) {
+      // Keep the current values; the form still works without defaults.
+    }
   }
 
   @override
@@ -112,6 +140,9 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     }
     super.dispose();
   }
+
+  String get _advancedSummary =>
+      _summaryFor(skipPlanning: _skipPlanning, defaults: _defaults);
 
   bool get _uploading => _images.any((i) => i.uploading);
 
@@ -253,8 +284,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                               width: 244,
                               child: SelectableCard(
                                 selected: _projectId == project.id,
-                                onTap: () =>
-                                    setState(() => _projectId = project.id),
+                                onTap: () => _selectProject(project.id!),
                                 child: _ProjectOption(project: project),
                               ),
                             ),
@@ -318,18 +348,24 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                   allowNone: true,
                   onChanged: (id) => setState(() => _agentId = id),
                 ),
-                const SizedBox(height: Spacing.sm),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _skipPlanning,
-                  activeColor: AppColors.accent,
-                  title: const Text('Skip planning'),
-                  subtitle: const Text(
-                    'Go straight to execution — saves usage on trivial tasks',
-                  ),
-                  onChanged: (value) =>
-                      setState(() => _skipPlanning = value ?? false),
+                const SizedBox(height: Spacing.xl),
+                _AdvancedHeader(
+                  open: _advancedOpen,
+                  summary: _advancedSummary,
+                  onTap: () => setState(() => _advancedOpen = !_advancedOpen),
                 ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _skipPlanning,
+                    activeColor: AppColors.accent,
+                    title: Text(skipPlanningOption.title),
+                    subtitle: Text(skipPlanningOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _skipPlanning = value ?? false;
+                    }),
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -347,6 +383,57 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Collapsed by default, so the summary has to say what's on — and whether
+/// it differs from the project's defaults.
+String _summaryFor({required bool skipPlanning, TaskDefaults? defaults}) {
+  final on = [if (skipPlanning) skipPlanningOption.title];
+  final text = on.isEmpty ? 'Plan first' : on.join(' · ');
+  final custom = defaults != null && defaults.skipPlanning != skipPlanning;
+  return custom ? '$text — changed from project defaults' : text;
+}
+
+class _AdvancedHeader extends StatelessWidget {
+  const _AdvancedHeader({
+    required this.open,
+    required this.summary,
+    required this.onTap,
+  });
+
+  final bool open;
+  final String summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Spacing.xs),
+        child: Row(
+          children: [
+            Text('ADVANCED', style: AppTypography.label),
+            const SizedBox(width: Spacing.xs),
+            Icon(
+              open ? Icons.expand_less : Icons.expand_more,
+              size: 16,
+              color: AppColors.text1,
+            ),
+            const SizedBox(width: Spacing.md),
+            Expanded(
+              child: Text(
+                summary,
+                style: AppTypography.caption,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

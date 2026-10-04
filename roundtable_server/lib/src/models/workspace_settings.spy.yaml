@@ -1,0 +1,8 @@
+### Workspace-wide settings — a single row while the app is single-tenant.
+### Holds the defaults a project inherits unless it overrides them.
+class: WorkspaceSettings
+table: workspace_settings
+fields:
+  ### Default for Task.skipPlanning on new tasks.
+  skipPlanning: bool, default=false
+  updatedAt: DateTime, default=now

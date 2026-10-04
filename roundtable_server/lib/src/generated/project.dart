@@ -25,9 +25,14 @@ abstract class Project
     this.repoAccessToken,
     this.repoAccessTokenUpdatedAt,
     this.dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    this.skipPlanning,
     DateTime? createdAt,
     this.tasks,
-  }) : createdAt = createdAt ?? DateTime.now();
+  }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
+       createdAt = createdAt ?? DateTime.now();
 
   factory Project({
     int? id,
@@ -36,6 +41,9 @@ abstract class Project
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -53,6 +61,15 @@ abstract class Project
               jsonSerialization['repoAccessTokenUpdatedAt'],
             ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      skipPlanning: jsonSerialization['skipPlanning'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -86,6 +103,17 @@ abstract class Project
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
+  /// Send a task's failing CI checks to its agent automatically, without
+  /// waiting for the dev to click "Send to agent".
+  bool autoFixFailingChecks;
+
+  /// How many fix runs auto-fix sends for a task before leaving the
+  /// failure to the dev; reset once the checks pass.
+  int maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  bool? skipPlanning;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -103,6 +131,9 @@ abstract class Project
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -117,6 +148,9 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -132,6 +166,9 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -176,6 +213,9 @@ class _ProjectImpl extends Project {
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -185,6 +225,9 @@ class _ProjectImpl extends Project {
          repoAccessToken: repoAccessToken,
          repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
+         skipPlanning: skipPlanning,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -200,6 +243,9 @@ class _ProjectImpl extends Project {
     Object? repoAccessToken = _Undefined,
     Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    Object? skipPlanning = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -214,6 +260,9 @@ class _ProjectImpl extends Project {
           ? repoAccessTokenUpdatedAt
           : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
+      skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -253,6 +302,22 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool value) =>
+      _is.ColumnValue(
+        table.autoFixFailingChecks,
+        value,
+      );
+
+  _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
+    table.maxCheckFixAttempts,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> skipPlanning(bool? value) => _is.ColumnValue(
+    table.skipPlanning,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -283,6 +348,20 @@ class ProjectTable extends _is.Table<int?> {
       'dockerImage',
       this,
     );
+    autoFixFailingChecks = _is.ColumnBool(
+      'autoFixFailingChecks',
+      this,
+      hasDefault: true,
+    );
+    maxCheckFixAttempts = _is.ColumnInt(
+      'maxCheckFixAttempts',
+      this,
+      hasDefault: true,
+    );
+    skipPlanning = _is.ColumnBool(
+      'skipPlanning',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -306,6 +385,17 @@ class ProjectTable extends _is.Table<int?> {
 
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   late final _is.ColumnString dockerImage;
+
+  /// Send a task's failing CI checks to its agent automatically, without
+  /// waiting for the dev to click "Send to agent".
+  late final _is.ColumnBool autoFixFailingChecks;
+
+  /// How many fix runs auto-fix sends for a task before leaving the
+  /// failure to the dev; reset once the checks pass.
+  late final _is.ColumnInt maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  late final _is.ColumnBool skipPlanning;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -353,6 +443,9 @@ class ProjectTable extends _is.Table<int?> {
     repoAccessToken,
     repoAccessTokenUpdatedAt,
     dockerImage,
+    autoFixFailingChecks,
+    maxCheckFixAttempts,
+    skipPlanning,
     createdAt,
   ];
 

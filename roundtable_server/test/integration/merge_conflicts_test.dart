@@ -132,7 +132,7 @@ void main() {
       () async {
         final task = await seed();
         await expectLater(
-          endpoints.task.acceptTask(sessionBuilder, task.id!),
+          endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
           throwsA(
             predicate(
               (e) => e.toString().contains('merge conflicts with main'),

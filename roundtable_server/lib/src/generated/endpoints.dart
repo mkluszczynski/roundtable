@@ -26,6 +26,8 @@ import 'package:roundtable_server/src/generated/review_comment_state.dart'
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:roundtable_server/src/generated/task_log_entry.dart'
     as _in2gwlh7;
+import 'package:roundtable_server/src/generated/workspace_settings.dart'
+    as _ivf29hul;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _iacs;
@@ -37,6 +39,7 @@ import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
 import '../endpoints/code_review_endpoint.dart' as _ia5tunx2;
 import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
 import '../endpoints/project_endpoint.dart' as _iemg8ri2;
+import '../endpoints/settings_endpoint.dart' as _ivmxe84z;
 import '../endpoints/task_attachment_endpoint.dart' as _iqxurivk;
 import '../endpoints/task_endpoint.dart' as _idmllfay;
 import '../greetings/greeting_endpoint.dart' as _il624ik7;
@@ -80,6 +83,12 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'project',
+          null,
+        ),
+      'settings': _ivmxe84z.SettingsEndpoint()
+        ..initialize(
+          server,
+          'settings',
           null,
         ),
       'taskAttachment': _iqxurivk.TaskAttachmentEndpoint()
@@ -1163,6 +1172,85 @@ class Endpoints extends _is.EndpointDispatch {
         ),
       },
     );
+    connectors['settings'] = _is.EndpointConnector(
+      name: 'settings',
+      endpoint: endpoints['settings']!,
+      methodConnectors: {
+        'getWorkspace': _is.MethodConnector(
+          name: 'getWorkspace',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['settings'] as _ivmxe84z.SettingsEndpoint)
+                  .getWorkspace(session),
+        ),
+        'updateWorkspace': _is.MethodConnector(
+          name: 'updateWorkspace',
+          params: {
+            'settings': _is.ParameterDescription(
+              name: 'settings',
+              type: _is.getType<_ivf29hul.WorkspaceSettings>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['settings'] as _ivmxe84z.SettingsEndpoint)
+                  .updateWorkspace(
+                    session,
+                    params['settings'],
+                  ),
+        ),
+        'updateProjectTaskDefaults': _is.MethodConnector(
+          name: 'updateProjectTaskDefaults',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'skipPlanning': _is.ParameterDescription(
+              name: 'skipPlanning',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['settings'] as _ivmxe84z.SettingsEndpoint)
+                  .updateProjectTaskDefaults(
+                    session,
+                    params['projectId'],
+                    skipPlanning: params['skipPlanning'],
+                  ),
+        ),
+        'taskDefaults': _is.MethodConnector(
+          name: 'taskDefaults',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['settings'] as _ivmxe84z.SettingsEndpoint)
+                  .taskDefaults(
+                    session,
+                    params['projectId'],
+                  ),
+        ),
+      },
+    );
     connectors['taskAttachment'] = _is.EndpointConnector(
       name: 'taskAttachment',
       endpoint: endpoints['taskAttachment']!,
@@ -1332,6 +1420,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int>(),
               nullable: false,
             ),
+            'force': _is.ParameterDescription(
+              name: 'force',
+              type: _is.getType<bool>(),
+              nullable: false,
+            ),
           },
           call:
               (
@@ -1341,6 +1434,7 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['task'] as _idmllfay.TaskEndpoint).acceptTask(
                     session,
                     params['taskId'],
+                    force: params['force'],
                   ),
         ),
         'getMergeStatus': _is.MethodConnector(
@@ -1379,6 +1473,75 @@ class Endpoints extends _is.EndpointDispatch {
                   .resolveConflicts(
                     session,
                     params['taskId'],
+                  ),
+        ),
+        'getChecks': _is.MethodConnector(
+          name: 'getChecks',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).getChecks(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'refreshChecks': _is.MethodConnector(
+          name: 'refreshChecks',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).refreshChecks(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
+        'fixFailingChecks': _is.MethodConnector(
+          name: 'fixFailingChecks',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'jobIds': _is.ParameterDescription(
+              name: 'jobIds',
+              type: _is.getType<List<int>?>(),
+              nullable: true,
+            ),
+            'note': _is.ParameterDescription(
+              name: 'note',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .fixFailingChecks(
+                    session,
+                    params['taskId'],
+                    jobIds: params['jobIds'],
+                    note: params['note'],
                   ),
         ),
         'appendLog': _is.MethodConnector(
@@ -1807,6 +1970,27 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                     params['contentsUrl'],
                   ),
+        ),
+        'watchChecks': _is.MethodStreamConnector(
+          name: 'watchChecks',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['task'] as _idmllfay.TaskEndpoint).watchChecks(
+                session,
+                params['taskId'],
+              ),
         ),
         'watchAnswer': _is.MethodStreamConnector(
           name: 'watchAnswer',

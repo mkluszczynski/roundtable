@@ -7,6 +7,8 @@ import '../client.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/settings_repository.dart';
+import '../utils/task_options.dart';
 import '../utils/error_message.dart';
 import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
@@ -17,6 +19,7 @@ import '../widgets/add_project_dialog.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
+import '../widgets/pill_selector.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/update_token_dialog.dart';
@@ -324,6 +327,10 @@ class _ProjectRail extends StatelessWidget {
                   label: 'Tasks',
                   child: _TaskStats(columns: columns),
                 ),
+                RailSection(
+                  label: 'Task defaults',
+                  child: _TaskDefaults(project: project),
+                ),
               ],
             ),
           ),
@@ -512,6 +519,81 @@ class _TaskStats extends StatelessWidget {
             style: AppTypography.caption.copyWith(color: AppColors.accentSoft),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// The project's overrides of the workspace task defaults: each option is
+/// inherited (showing the workspace value) or forced on/off.
+class _TaskDefaults extends StatefulWidget {
+  const _TaskDefaults({required this.project});
+
+  final Project project;
+
+  @override
+  State<_TaskDefaults> createState() => _TaskDefaultsState();
+}
+
+class _TaskDefaultsState extends State<_TaskDefaults> {
+  late final _repository = SettingsRepository(client);
+  late bool? _skipPlanning = widget.project.skipPlanning;
+  WorkspaceSettings? _workspace;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository.getWorkspace().then((w) {
+      if (mounted) setState(() => _workspace = w);
+    }).ignore();
+  }
+
+  Future<void> _setSkipPlanning(bool? value) async {
+    final previous = _skipPlanning;
+    setState(() => _skipPlanning = value);
+    try {
+      await _repository.updateProjectTaskDefaults(
+        widget.project.id!,
+        skipPlanning: value,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _skipPlanning = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't save: ${errorMessage(e)}")),
+      );
+    }
+  }
+
+  String _inheritLabel(bool? workspaceValue) => workspaceValue == null
+      ? 'Workspace'
+      : 'Workspace (${workspaceValue ? 'on' : 'off'})';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pre-filled in the new-task form.',
+          style: AppTypography.caption,
+        ),
+        const SizedBox(height: Spacing.md),
+        Tooltip(
+          message: skipPlanningOption.description,
+          child: Text(skipPlanningOption.title, style: AppTypography.body),
+        ),
+        const SizedBox(height: Spacing.sm),
+        PillSelector<bool?>(
+          options: const [null, true, false],
+          labelBuilder: (v) => switch (v) {
+            null => _inheritLabel(_workspace?.skipPlanning),
+            true => 'On',
+            false => 'Off',
+          },
+          selected: _skipPlanning,
+          onChanged: _setSkipPlanning,
+        ),
       ],
     );
   }

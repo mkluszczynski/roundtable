@@ -185,7 +185,8 @@ class MachineEndpoint extends Endpoint {
       taskReason:
           'The agent runner was uninstalled mid-task, so the Claude Code run '
           'was lost',
-      reviewReason: 'The agent runner was uninstalled before the review finished',
+      reviewReason:
+          'The agent runner was uninstalled before the review finished',
       reviewStatuses: activeCodeReviewStatuses,
     );
 

@@ -51,16 +51,22 @@ void main() {
         expect(updated.prUrl, 'https://github.com/example/rt/pull/1');
       });
 
-      test('when it tries to set done then the status is kept', () async {
+      test('when it tries to set done on a task with code then the status '
+          'is kept', () async {
         final task = await createTask(
           await createAgent(await createMachine()),
           await createProject(),
           TaskStatus.awaitingReview,
         );
 
+        // A branch means there is code to review: only acceptTask may
+        // finish it.
         final updated = await endpoints.task.update(
           sessionBuilder,
-          task.copyWith(status: TaskStatus.done),
+          task.copyWith(
+            status: TaskStatus.done,
+            branchName: 'roundtable/task-${task.id}',
+          ),
         );
 
         expect(updated.status, TaskStatus.awaitingReview);
