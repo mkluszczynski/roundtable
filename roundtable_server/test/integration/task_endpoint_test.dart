@@ -219,6 +219,49 @@ void main() {
       },
     );
 
+    test(
+      'when a task finished without code is continued then it is reopened '
+      'for the agent with the message as feedback; a task with a PR cannot be',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Analyze CI checks',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.done,
+            claudeSessionId: 'sess-1',
+            resultSummary: 'Here is the analysis.',
+          ),
+        );
+
+        final feedback = await endpoints.task.continueTask(
+          sessionBuilder,
+          task.id!,
+          ' Implement it. ',
+        );
+        final reopened = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+
+        expect(feedback.message, 'Implement it.');
+        expect(feedback.phase, TaskFeedbackPhase.review);
+        expect(reopened!.status, TaskStatus.awaitingReview);
+        expect(
+          () => endpoints.task.continueTask(sessionBuilder, task.id!, 'Again'),
+          throwsA(isA<InvalidStateException>()),
+        );
+      },
+    );
+
     test('when updating a task then the change is persisted', () async {
       final machine = await createMachine();
       final project = await createProject();

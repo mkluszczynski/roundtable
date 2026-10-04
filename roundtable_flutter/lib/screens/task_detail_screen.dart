@@ -916,7 +916,7 @@ class _Overview extends StatelessWidget {
       // Only reachable for a task that finished without changing code —
       // with a PR, Changes/AI review replace Overview.
       TaskStatus.awaitingReview || TaskStatus.done => _ResultView(
-        task: state.task,
+        state: state,
       ),
       TaskStatus.failed => SingleChildScrollView(
         child: Column(
@@ -950,44 +950,78 @@ class _Overview extends StatelessWidget {
 /// A task that finished without changing code: the agent's reply (e.g. its
 /// answer to a question) is the whole outcome.
 class _ResultView extends StatelessWidget {
-  const _ResultView({required this.task});
+  const _ResultView({required this.state});
 
-  final Task task;
+  final TaskDetailLoaded state;
 
   @override
   Widget build(BuildContext context) {
+    final task = state.task;
     final result = task.resultSummary;
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.circle, size: 8, color: AppColors.live),
-              const SizedBox(width: Spacing.sm),
-              Text(
-                'FINISHED WITHOUT CODE CHANGES',
-                style: AppTypography.label.copyWith(color: AppColors.live),
-              ),
-            ],
+    // Reopened with a message: the agent is about to resume.
+    final continuing = task.status == TaskStatus.awaitingReview;
+    final canContinue =
+        task.status == TaskStatus.done && task.claudeSessionId != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.circle, size: 8, color: AppColors.live),
+                    const SizedBox(width: Spacing.sm),
+                    Text(
+                      'FINISHED WITHOUT CODE CHANGES',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.live,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  'The agent answered or found nothing to change, so there '
+                  'is no pull request. Its reply:',
+                  style: AppTypography.caption,
+                ),
+                const SizedBox(height: Spacing.lg),
+                AppCard(
+                  child: result == null
+                      ? Text(
+                          'No reply was recorded — see the Logs tab.',
+                          style: AppTypography.body,
+                        )
+                      : PlanContent(markdown: result),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: Spacing.sm),
+        ),
+        if (continuing) ...[
+          const SizedBox(height: Spacing.md),
           Text(
-            'The agent answered or found nothing to change, so there is no '
-            'pull request. Its reply:',
-            style: AppTypography.caption,
+            'Sent — the agent will continue in the same session.',
+            style: AppTypography.body.copyWith(color: AppColors.text1),
           ),
-          const SizedBox(height: Spacing.lg),
-          AppCard(
-            child: result == null
-                ? Text(
-                    'No reply was recorded — see the Logs tab.',
-                    style: AppTypography.body,
-                  )
-                : PlanContent(markdown: result),
+        ] else if (canContinue) ...[
+          const SizedBox(height: Spacing.md),
+          _FeedbackRow(
+            hint:
+                'Continue the conversation, e.g. "Implement it following '
+                'this plan"…',
+            submitLabel: 'Continue',
+            primarySubmit: true,
+            submitting: state.submitting,
+            onSubmit: (message) => context.read<TaskDetailBloc>().add(
+              TaskContinued(task.id!, message),
+            ),
           ),
         ],
-      ),
+      ],
     );
   }
 }

@@ -19,6 +19,7 @@ void main() {
     expect(prompt, contains('No MCP servers'));
     expect(prompt, contains('"Not verified here"'));
     expect(prompt, contains('Do NOT commit, push'));
+    expect(prompt, contains('never blocks the work itself'));
     expect(prompt, contains('final message becomes the pull request'));
   });
 

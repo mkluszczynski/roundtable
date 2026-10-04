@@ -1412,6 +1412,31 @@ class Endpoints extends _is.EndpointDispatch {
                     source: params['source'],
                   ),
         ),
+        'continueTask': _is.MethodConnector(
+          name: 'continueTask',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'message': _is.ParameterDescription(
+              name: 'message',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).continueTask(
+                    session,
+                    params['taskId'],
+                    params['message'],
+                  ),
+        ),
         'appendLogEntry': _is.MethodConnector(
           name: 'appendLogEntry',
           params: {

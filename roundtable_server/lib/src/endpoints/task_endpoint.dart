@@ -289,6 +289,46 @@ class TaskEndpoint extends Endpoint {
     return entry;
   }
 
+  /// Continues a task that finished without code changes (its result is
+  /// the agent's reply, e.g. an analysis or an answer) by resuming the same
+  /// Claude Code session with [message] — "now implement it". The task goes
+  /// back to `awaitingReview` so the daemon's resume path picks it up; it
+  /// ends either with a PR (if the agent changes code) or `done` again with
+  /// a new result.
+  Future<TaskFeedback> continueTask(
+    Session session,
+    int taskId,
+    String message,
+  ) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.done ||
+        task.branchName != null ||
+        task.prUrl != null) {
+      throw InvalidStateException(
+        message:
+            'Only a task that finished without code changes can be '
+            'continued (task $taskId is ${task.status.name})',
+      );
+    }
+    if (task.claudeSessionId == null) {
+      throw InvalidStateException(
+        message: 'Task $taskId has no agent session to continue',
+      );
+    }
+    if (message.trim().isEmpty) {
+      throw InvalidStateException(message: 'Write what the agent should do');
+    }
+
+    var reopened = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.awaitingReview),
+      columns: (t) => [t.status],
+    );
+    await session.messages.postMessage(channelForTask(taskId), reopened);
+    await session.messages.postMessage(channelForAllTasks(), reopened);
+    return queueReviewFeedback(session, reopened, message.trim());
+  }
+
   /// Persists a structured log entry (kind, run, tool…) from the daemon —
   /// see [TaskLogEntry]. Same side effects as [appendLog]; the server
   /// assigns the id and timestamp.

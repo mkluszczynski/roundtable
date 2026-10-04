@@ -47,6 +47,10 @@ class TaskRepository {
   Future<TaskFeedback> submitFeedback(int taskId, String message) =>
       _client.task.submitFeedback(taskId, message);
 
+  /// Resumes a task that finished without code changes with [message].
+  Future<TaskFeedback> continueTask(int taskId, String message) =>
+      _client.task.continueTask(taskId, message);
+
   Future<Task> cancelTask(int taskId) => _client.task.cancelTask(taskId);
 
   /// Re-queues a `failed`/`cancelled` task for another attempt, so testing a

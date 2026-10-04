@@ -45,6 +45,15 @@ class ReviewFeedbackSubmitted extends TaskDetailEvent {
   final String message;
 }
 
+/// Continues a task that finished without code changes, resuming the
+/// agent's session with [message].
+class TaskContinued extends TaskDetailEvent {
+  const TaskContinued(this.taskId, this.message);
+
+  final int taskId;
+  final String message;
+}
+
 class TaskCancelled extends TaskDetailEvent {
   const TaskCancelled(this.taskId);
 
@@ -339,6 +348,16 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     on<PlanApproved>(_onPlanApproved);
     on<PlanFeedbackSubmitted>(_onPlanFeedbackSubmitted);
     on<ReviewFeedbackSubmitted>(_onReviewFeedbackSubmitted);
+    on<TaskContinued>((event, emit) async {
+      final current = state;
+      if (current is! TaskDetailLoaded) return;
+      emit(current.copyWith(submitting: true));
+      try {
+        await _repository.continueTask(event.taskId, event.message);
+      } catch (e) {
+        emit(TaskDetailError(errorMessage(e)));
+      }
+    });
     on<TaskCancelled>(_onTaskCancelled);
     on<TaskRetried>(_onTaskRetried);
     on<AgentReassigned>(_onAgentReassigned);

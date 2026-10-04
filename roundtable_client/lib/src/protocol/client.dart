@@ -933,6 +933,24 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
+  /// Continues a task that finished without code changes (its result is
+  /// the agent's reply, e.g. an analysis or an answer) by resuming the same
+  /// Claude Code session with [message] — "now implement it". The task goes
+  /// back to `awaitingReview` so the daemon's resume path picks it up; it
+  /// ends either with a PR (if the agent changes code) or `done` again with
+  /// a new result.
+  _ida.Future<_ifl2c5cu.TaskFeedback> continueTask(
+    int taskId,
+    String message,
+  ) => caller.callServerEndpoint<_ifl2c5cu.TaskFeedback>(
+    'task',
+    'continueTask',
+    {
+      'taskId': taskId,
+      'message': message,
+    },
+  );
+
   /// Persists a structured log entry (kind, run, tool…) from the daemon —
   /// see [TaskLogEntry]. Same side effects as [appendLog]; the server
   /// assigns the id and timestamp.
