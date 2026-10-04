@@ -11,13 +11,13 @@ resolution: workspace
 dependencies:
   crypto: ^3.0.7
   http: ^1.2.0
-  serverpod: 4.0.1
-  serverpod_auth_idp_server: 4.0.1
-  serverpod_cloud_storage: 4.0.1
+  serverpod: 4.0.3
+  serverpod_auth_idp_server: 4.0.3
+  serverpod_cloud_storage: 4.0.3
 
 dev_dependencies:
   lints: '>=3.0.0 <7.0.0'
-  serverpod_test: 4.0.1
+  serverpod_test: 4.0.3
   test: ^1.25.5
 
 serverpod:
