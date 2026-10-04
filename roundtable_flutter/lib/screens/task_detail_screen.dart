@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1115,7 +1116,8 @@ class _PlanReview extends StatelessWidget {
           AppCard(child: PlanContent(markdown: task.currentPlan ?? '')),
           const SizedBox(height: Spacing.xl),
           _FeedbackRow(
-            hint: 'Give feedback',
+            hint: 'Ask for changes to the plan…',
+            submitLabel: 'Request changes',
             submitting: submitting,
             onSubmit: (message) => context.read<TaskDetailBloc>().add(
               PlanFeedbackSubmitted(task.id!, message),
@@ -1687,6 +1689,7 @@ class _FeedbackRow extends StatefulWidget {
 
 class _FeedbackRowState extends State<_FeedbackRow> {
   final _controller = TextEditingController();
+  bool _focused = false;
 
   @override
   void dispose() {
@@ -1699,31 +1702,84 @@ class _FeedbackRowState extends State<_FeedbackRow> {
     if (message.isEmpty && !widget.allowEmpty) return;
     widget.onSubmit(message);
     _controller.clear();
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _controller,
-            minLines: 1,
-            maxLines: 4,
-            decoration: InputDecoration(hintText: widget.hint),
+    final hasText = _controller.text.trim().isNotEmpty;
+    final canSend = !widget.submitting && (hasText || widget.allowEmpty);
+    // A composer: the text box and its actions in one bordered surface, so
+    // the send action reads as part of the message, not a second primary.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+          if (canSend) _submit();
+        },
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
+          if (canSend) _submit();
+        },
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.bg1,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _focused ? AppColors.accent : AppColors.border,
           ),
         ),
-        const SizedBox(width: Spacing.sm),
-        if (widget.trailing != null) ...[
-          widget.trailing!,
-          const SizedBox(width: Spacing.sm),
-        ],
-        FilledButton(
-          onPressed: widget.submitting ? null : _submit,
-          child: Text(widget.submitLabel),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Focus(
+              onFocusChange: (focused) => setState(() => _focused = focused),
+              child: TextField(
+                controller: _controller,
+                minLines: 1,
+                maxLines: 8,
+                style: AppTypography.body,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: widget.hint,
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.fromLTRB(
+                    Spacing.lg,
+                    Spacing.lg,
+                    Spacing.lg,
+                    Spacing.sm,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.lg,
+                Spacing.xs,
+                Spacing.sm,
+                Spacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Text('Ctrl + Enter to send', style: AppTypography.caption),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: canSend ? _submit : null,
+                    icon: const Icon(Icons.send, size: 14),
+                    label: Text(widget.submitLabel),
+                  ),
+                  if (widget.trailing != null) ...[
+                    const SizedBox(width: Spacing.sm),
+                    widget.trailing!,
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
