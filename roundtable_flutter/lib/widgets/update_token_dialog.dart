@@ -55,6 +55,8 @@ class _UpdateTokenDialogState extends State<UpdateTokenDialog> {
   Widget build(BuildContext context) {
     final canSubmit = _tokenController.text.trim().isNotEmpty;
     return AppModal(
+      icon: Icons.key_outlined,
+
       title: 'Update token',
       actions: [
         TextButton(

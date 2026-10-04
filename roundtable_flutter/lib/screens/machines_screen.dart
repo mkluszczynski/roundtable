@@ -233,6 +233,7 @@ class _MachineCard extends StatelessWidget {
     if (busy) {
       final confirmed = await showAppModal<bool>(
         context,
+        icon: Icons.system_update_alt,
         title: 'Update agent runner?',
         subtitle: machine.name,
         child: Text(
@@ -411,6 +412,8 @@ class _AgentMenu extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showAppModal<bool>(
       context,
+      icon: Icons.delete_outline,
+      tone: AppModalTone.danger,
       title: 'Delete ${agent.name}?',
       subtitle: machine.name,
       child: Text(

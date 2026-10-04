@@ -72,6 +72,8 @@ Future<void> _confirmDeleteTask(BuildContext context, int taskId) async {
   final bloc = context.read<TaskDetailBloc>();
   final confirmed = await showAppModal<bool>(
     context,
+    icon: Icons.delete_outline,
+    tone: AppModalTone.danger,
     title: 'Delete task?',
     subtitle: 'This permanently removes Task #$taskId and its logs.',
     child: const SizedBox.shrink(),
@@ -129,6 +131,7 @@ Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
   final bloc = context.read<TaskDetailBloc>();
   final confirmed = await showAppModal<bool>(
     context,
+    icon: Icons.merge,
     title: 'Accept and merge?',
     subtitle:
         'This squash-merges the PR on GitHub and moves Task #$taskId to Done.',
@@ -161,6 +164,8 @@ Future<void> _confirmResolveConflicts(
   final bloc = context.read<TaskDetailBloc>();
   final confirmed = await showAppModal<bool>(
     context,
+    icon: Icons.call_merge,
+    tone: AppModalTone.danger,
     title: 'Resolve conflicts?',
     subtitle:
         'The agent will merge $baseBranch into the branch of Task #$taskId, '

@@ -3,23 +3,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
-import '../cubits/agent_list_cubit.dart';
 import '../cubits/create_task_cubit.dart';
 import '../cubits/project_list_cubit.dart';
-import '../repositories/agent_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'agent_picker.dart';
 import 'app_modal.dart';
-import 'pill_selector.dart';
 
 class CreateTaskDialog extends StatelessWidget {
   const CreateTaskDialog({super.key, this.initialProjectId});
 
   /// When set (opened from `project_detail_screen.dart`'s "New task"), the
-  /// project is fixed and its `PillSelector` is hidden — same pattern as
+  /// project is fixed and its picker is hidden — same pattern as
   /// `AddAgentDialog`'s scoped machine.
   final int? initialProjectId;
 
@@ -30,9 +28,6 @@ class CreateTaskDialog extends StatelessWidget {
         BlocProvider(
           create: (_) =>
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-        BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
         ),
         BlocProvider(create: (_) => CreateTaskCubit(TaskRepository(client))),
       ],
@@ -87,7 +82,9 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
         }
       },
       child: AppModal(
+        icon: Icons.add_task,
         title: 'New task',
+        subtitle: 'Describe the work, then pick who does it.',
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -117,14 +114,14 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           ),
         ],
         child: SizedBox(
-          width: 480,
+          width: 496,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (widget.initialProjectId == null) ...[
-                  Text('Project', style: AppTypography.label),
+                  Text('PROJECT', style: AppTypography.label),
                   const SizedBox(height: Spacing.sm),
                   BlocBuilder<ProjectListCubit, ProjectListState>(
                     builder: (context, state) {
@@ -132,63 +129,49 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                         ProjectListLoaded(:final projects) => projects,
                         _ => <Project>[],
                       };
-                      return PillSelector<int>(
-                        options: [for (final p in projects) p.id!],
-                        labelBuilder: (id) =>
-                            projects.firstWhere((p) => p.id == id).name,
-                        selected: _projectId,
-                        onChanged: (id) => setState(() => _projectId = id),
+                      return Wrap(
+                        spacing: Spacing.sm,
+                        runSpacing: Spacing.sm,
+                        children: [
+                          for (final project in projects)
+                            SizedBox(
+                              width: 244,
+                              child: SelectableCard(
+                                selected: _projectId == project.id,
+                                onTap: () =>
+                                    setState(() => _projectId = project.id),
+                                child: _ProjectOption(project: project),
+                              ),
+                            ),
+                        ],
                       );
                     },
                   ),
-                  const SizedBox(height: Spacing.lg),
+                  const SizedBox(height: Spacing.xl),
                 ],
-                Text('Agent', style: AppTypography.label),
+                Text('PROMPT', style: AppTypography.label),
                 const SizedBox(height: Spacing.sm),
-                BlocBuilder<AgentListCubit, AgentListState>(
-                  builder: (context, state) {
-                    final agents = switch (state) {
-                      AgentListLoaded(:final agents) => agents,
-                      _ => null,
-                    };
-                    if (state is AgentListError) {
-                      return Text(
-                        'Could not load agents: ${state.message}',
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.red,
-                        ),
-                      );
-                    }
-                    if (agents == null) {
-                      return const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-                    // `null` is "no agent": the task is saved as a draft
-                    // and starts once an agent is assigned from its page.
-                    return PillSelector<int?>(
-                      options: [null, for (final a in agents) a.id!],
-                      labelBuilder: (id) => id == null
-                          ? 'None (draft)'
-                          : agents.firstWhere((a) => a.id == id).name,
-                      selected: _agentId,
-                      onChanged: (id) => setState(() => _agentId = id),
-                    );
-                  },
-                ),
-                const SizedBox(height: Spacing.lg),
                 TextField(
                   controller: _promptController,
                   decoration: const InputDecoration(
-                    labelText: 'Prompt',
+                    hintText:
+                        'What should the agent do? Be as specific as you '
+                        'would be with a teammate…',
                     alignLabelWithHint: true,
                   ),
-                  minLines: 3,
-                  maxLines: 6,
+                  minLines: 4,
+                  maxLines: 8,
                   onChanged: (_) => setState(() {}),
                 ),
+                const SizedBox(height: Spacing.xl),
+                Text('AGENT', style: AppTypography.label),
+                const SizedBox(height: Spacing.sm),
+                AgentPicker(
+                  selected: _agentId,
+                  allowNone: true,
+                  onChanged: (id) => setState(() => _agentId = id),
+                ),
+                const SizedBox(height: Spacing.sm),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _skipPlanning,
@@ -219,6 +202,44 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ProjectOption extends StatelessWidget {
+  const _ProjectOption({required this.project});
+
+  final Project project;
+
+  @override
+  Widget build(BuildContext context) {
+    // `https://github.com/owner/repo(.git)` → `owner/repo`.
+    final repo = Uri.tryParse(project.repoUrl)?.pathSegments
+        .where((s) => s.isNotEmpty)
+        .join('/')
+        .replaceFirst(RegExp(r'\.git$'), '');
+    return Row(
+      children: [
+        const Icon(Icons.folder_outlined, size: 18, color: AppColors.text1),
+        const SizedBox(width: Spacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                project.name,
+                style: AppTypography.bodyStrong,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                (repo == null || repo.isEmpty) ? project.repoUrl : repo,
+                style: AppTypography.caption,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

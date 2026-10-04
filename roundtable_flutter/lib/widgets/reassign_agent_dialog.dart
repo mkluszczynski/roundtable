@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:roundtable_client/roundtable_client.dart';
 
 import '../blocs/task_detail_bloc.dart';
-import '../client.dart';
-import '../cubits/agent_list_cubit.dart';
-import '../repositories/agent_repository.dart';
+import 'agent_picker.dart';
 import 'app_modal.dart';
-import 'pill_selector.dart';
 
 /// Lets the dev assign or reassign a task's agent — either giving an
 /// agent-less task one (its previous agent was deleted, its `Agent` relation
@@ -35,52 +31,40 @@ class _ReassignAgentDialogState extends State<ReassignAgentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
-      child: AppModal(
-        title: widget.currentAgentId == null
-            ? 'Assign agent'
-            : 'Reassign agent',
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          BlocBuilder<TaskDetailBloc, TaskDetailState>(
-            builder: (context, state) {
-              final submitting = state is TaskDetailLoaded && state.submitting;
-              final agentId = _agentId;
-              return FilledButton(
-                onPressed: (agentId != null && !submitting)
-                    ? () {
-                        context.read<TaskDetailBloc>().add(
-                          AgentReassigned(widget.taskId, agentId),
-                        );
-                        Navigator.of(context).pop();
-                      }
-                    : null,
-                child: const Text('Assign'),
-              );
-            },
-          ),
-        ],
-        child: SizedBox(
-          width: 420,
-          child: BlocBuilder<AgentListCubit, AgentListState>(
-            builder: (context, state) {
-              final agents = switch (state) {
-                AgentListLoaded(:final agents) => agents,
-                _ => <Agent>[],
-              };
-              return PillSelector<int>(
-                options: [for (final a in agents) a.id!],
-                labelBuilder: (id) => agents.firstWhere((a) => a.id == id).name,
-                selected: _agentId,
-                onChanged: (id) => setState(() => _agentId = id),
-              );
-            },
-          ),
+    final current = widget.currentAgentId;
+    return AppModal(
+      icon: current == null ? Icons.person_add_alt_1 : Icons.swap_horiz,
+      title: current == null ? 'Assign agent' : 'Reassign agent',
+      subtitle: current == null
+          ? 'Pick who works on Task #${widget.taskId}. It starts right away.'
+          : 'Move Task #${widget.taskId} to another agent.',
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
         ),
+        BlocBuilder<TaskDetailBloc, TaskDetailState>(
+          builder: (context, state) {
+            final submitting = state is TaskDetailLoaded && state.submitting;
+            final agentId = _agentId;
+            return FilledButton(
+              onPressed: (agentId != null && agentId != current && !submitting)
+                  ? () {
+                      context.read<TaskDetailBloc>().add(
+                        AgentReassigned(widget.taskId, agentId),
+                      );
+                      Navigator.of(context).pop();
+                    }
+                  : null,
+              child: Text(current == null ? 'Assign' : 'Reassign'),
+            );
+          },
+        ),
+      ],
+      child: AgentPicker(
+        selected: _agentId,
+        currentAgentId: current,
+        onChanged: (id) => setState(() => _agentId = id),
       ),
     );
   }

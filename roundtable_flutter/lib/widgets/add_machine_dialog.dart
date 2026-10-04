@@ -67,6 +67,8 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
             _nameController.text.trim().isNotEmpty &&
             _claudeTokenController.text.trim().isNotEmpty;
         return AppModal(
+          icon: Icons.dns_outlined,
+
           title: 'Add machine',
           actions: [
             TextButton(
@@ -162,6 +164,7 @@ class _RegisteredStep extends StatelessWidget {
         '--token $token --server $serverUrl --script-url $scriptUrl'
         "${claudeToken.isEmpty ? '' : " --claude-token '$claudeToken'"}";
     return AppModal(
+      icon: Icons.check_circle_outline,
       title: 'Machine registered',
       subtitle: machineName,
       actions: [

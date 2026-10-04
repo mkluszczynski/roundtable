@@ -24,6 +24,8 @@ class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
         ? 'sudo ./scripts/uninstall-agent.sh'
         : 'curl -fsSL $scriptUrl/uninstall-agent.sh | sudo bash';
     return AppModal(
+      icon: Icons.power_settings_new,
+      tone: AppModalTone.danger,
       title: 'Machine is still online',
       actions: [
         TextButton(

@@ -8,8 +8,10 @@ import '../repositories/agent_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'agent_avatar.dart';
 import 'app_modal.dart';
 import 'pill_selector.dart';
+import 'tag_chip.dart';
 
 const _presetModels = [
   'claude-haiku-4-5',
@@ -94,6 +96,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
         builder: (context, state) {
           final submitting = state is AddAgentSubmitting;
           return AppModal(
+            icon: Icons.smart_toy_outlined,
             title: _editing ? 'Edit agent' : 'Add agent',
             subtitle: 'on ${widget.machineName}',
             actions: [
@@ -135,6 +138,13 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _AgentPreview(
+                      name: _nameController.text.trim(),
+                      role: _role,
+                      model: _model,
+                      effort: _effort,
+                    ),
+                    const SizedBox(height: Spacing.xl),
                     TextField(
                       controller: _nameController,
                       decoration: const InputDecoration(labelText: 'Name'),
@@ -211,6 +221,73 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// How the agent will look in pickers, updated as the form changes.
+class _AgentPreview extends StatelessWidget {
+  const _AgentPreview({
+    required this.name,
+    required this.role,
+    required this.model,
+    required this.effort,
+  });
+
+  final String name;
+  final AgentRole role;
+  final String? model;
+  final AgentEffort? effort;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = name.isEmpty ? 'New agent' : name;
+    return Container(
+      padding: const EdgeInsets.all(Spacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accent.withValues(alpha: 0.16),
+            AppColors.bg2,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox.square(
+            dimension: 36,
+            child: FittedBox(child: AgentAvatar(name: displayName)),
+          ),
+          const SizedBox(width: Spacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: AppTypography.cardTitle.copyWith(
+                    color: name.isEmpty ? AppColors.text2 : AppColors.text0,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text('${role.name} specialist', style: AppTypography.caption),
+                const SizedBox(height: Spacing.sm),
+                Wrap(
+                  spacing: Spacing.xs,
+                  runSpacing: Spacing.xs,
+                  children: [
+                    TagChip(model ?? 'default model'),
+                    TagChip('effort: ${effort?.name ?? 'default'}'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

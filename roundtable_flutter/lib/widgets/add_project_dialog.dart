@@ -76,6 +76,8 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
         builder: (context, state) {
           final submitting = state is AddProjectSubmitting;
           return AppModal(
+            icon: Icons.folder_outlined,
+
             title: _editing ? 'Edit project' : 'Add project',
             actions: [
               TextButton(
