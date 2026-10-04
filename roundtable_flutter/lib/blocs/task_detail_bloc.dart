@@ -7,6 +7,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/pr_checks.dart';
 
 sealed class TaskDetailEvent {
   const TaskDetailEvent();
@@ -135,6 +136,41 @@ class CommentsSentToFix extends TaskDetailEvent {
   final String note;
 }
 
+/// Reads the PR's CI checks from GitHub now.
+class ChecksRefreshRequested extends TaskDetailEvent {
+  const ChecksRefreshRequested(this.taskId);
+
+  final int taskId;
+}
+
+/// Ticks/unticks a failing CI job for the next "send to agent".
+class CheckJobSelectionToggled extends TaskDetailEvent {
+  const CheckJobSelectionToggled(this.jobId);
+
+  final int jobId;
+}
+
+/// Unticks every failing CI job, so the next send covers all of them.
+class CheckJobsSelectionCleared extends TaskDetailEvent {
+  const CheckJobsSelectionCleared();
+}
+
+/// Sends the selected failing CI jobs (all of them when none is selected)
+/// and [note] to the task's agent.
+class FailingChecksSentToFix extends TaskDetailEvent {
+  const FailingChecksSentToFix(this.taskId, this.note);
+
+  final int taskId;
+  final String note;
+}
+
+/// Internal: starts the CI checks stream for [taskId]. Added once.
+class _ChecksSubscribed extends TaskDetailEvent {
+  const _ChecksSubscribed(this.taskId);
+
+  final int taskId;
+}
+
 /// Internal: starts the code-review stream for [taskId]. Added once.
 class _ReviewsSubscribed extends TaskDetailEvent {
   const _ReviewsSubscribed(this.taskId);
@@ -216,6 +252,11 @@ class TaskDetailLoaded extends TaskDetailState {
     this.selectedCommentIds = const {},
     this.reviewBusy = false,
     this.reviewError,
+    this.checks,
+    this.checksSubscribed = false,
+    this.selectedCheckJobIds = const {},
+    this.checksBusy = false,
+    this.checksError,
   });
 
   final Task task;
@@ -263,6 +304,19 @@ class TaskDetailLoaded extends TaskDetailState {
   /// shown inline instead of replacing the whole screen with an error.
   final String? reviewError;
 
+  /// The PR's GitHub Actions checks; null until the first snapshot.
+  final PrChecks? checks;
+  final bool checksSubscribed;
+
+  /// Failing jobs ticked for the next "send to agent".
+  final Set<int> selectedCheckJobIds;
+
+  /// A checks action (refresh/send) is in flight.
+  final bool checksBusy;
+
+  /// Why the last checks action failed, shown in the checks view.
+  final String? checksError;
+
   /// Every comment across [reviews].
   List<ReviewComment> get reviewComments => [
     for (final review in reviews) ...?review.comments,
@@ -296,6 +350,12 @@ class TaskDetailLoaded extends TaskDetailState {
     bool? reviewBusy,
     String? reviewError,
     bool clearReviewError = false,
+    PrChecks? checks,
+    bool? checksSubscribed,
+    Set<int>? selectedCheckJobIds,
+    bool? checksBusy,
+    String? checksError,
+    bool clearChecksError = false,
   }) {
     return TaskDetailLoaded(
       task: task ?? this.task,
@@ -321,6 +381,11 @@ class TaskDetailLoaded extends TaskDetailState {
       selectedCommentIds: selectedCommentIds ?? this.selectedCommentIds,
       reviewBusy: reviewBusy ?? this.reviewBusy,
       reviewError: clearReviewError ? null : (reviewError ?? this.reviewError),
+      checks: checks ?? this.checks,
+      checksSubscribed: checksSubscribed ?? this.checksSubscribed,
+      selectedCheckJobIds: selectedCheckJobIds ?? this.selectedCheckJobIds,
+      checksBusy: checksBusy ?? this.checksBusy,
+      checksError: clearChecksError ? null : (checksError ?? this.checksError),
     );
   }
 }
@@ -373,6 +438,26 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     on<CommentStateChanged>(_onCommentStateChanged);
     on<CommentsSentToFix>(_onCommentsSentToFix);
     on<_ReviewsSubscribed>(_onReviewsSubscribed);
+    on<_ChecksSubscribed>(_onChecksSubscribed);
+    on<ChecksRefreshRequested>(
+      (event, emit) => _checksAction(
+        emit,
+        () => _repository.refreshChecks(event.taskId),
+      ),
+    );
+    on<CheckJobSelectionToggled>((event, emit) {
+      final current = state;
+      if (current is! TaskDetailLoaded) return;
+      final selected = Set.of(current.selectedCheckJobIds);
+      if (!selected.remove(event.jobId)) selected.add(event.jobId);
+      emit(current.copyWith(selectedCheckJobIds: selected));
+    });
+    on<CheckJobsSelectionCleared>((event, emit) {
+      final current = state;
+      if (current is! TaskDetailLoaded) return;
+      emit(current.copyWith(selectedCheckJobIds: const {}));
+    });
+    on<FailingChecksSentToFix>(_onFailingChecksSentToFix);
     on<_LogsSubscribed>(_onLogsSubscribed);
     on<_ChangedFilesRequested>(
       (event, emit) => _loadChangedFiles(event.taskId, emit),
@@ -409,6 +494,10 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
         if (current is! TaskDetailLoaded || !current.logsSubscribed) {
           add(_LogsSubscribed(event.taskId));
           add(_ReviewsSubscribed(event.taskId));
+        }
+        if (task.prUrl != null &&
+            (current is! TaskDetailLoaded || !current.checksSubscribed)) {
+          add(_ChecksSubscribed(event.taskId));
         }
         // Refetch each time the task (re-)enters review, e.g. after a
         // feedback iteration pushed new commits.
@@ -736,6 +825,79 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
         );
       }
     }
+  }
+
+  Future<void> _onChecksSubscribed(
+    _ChecksSubscribed event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final current = state;
+    if (current is TaskDetailLoaded) {
+      if (current.checksSubscribed) return;
+      emit(current.copyWith(checksSubscribed: true));
+    }
+    await for (final checks in untilClosed(
+      _repository.watchChecks(event.taskId),
+    )) {
+      final latest = state;
+      if (latest is TaskDetailLoaded) {
+        // Only currently failing jobs can be sent; drop ticks that no
+        // longer apply (e.g. a new commit replaced the jobs).
+        final failingIds = {
+          for (final run in checks.runs)
+            if (isFailedCheckRun(run)) run.jobId,
+        };
+        emit(
+          latest.copyWith(
+            checks: checks,
+            selectedCheckJobIds: latest.selectedCheckJobIds.intersection(
+              failingIds,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Runs a checks action, tracking [TaskDetailLoaded.checksBusy] and
+  /// surfacing a failure as [TaskDetailLoaded.checksError].
+  Future<void> _checksAction(
+    Emitter<TaskDetailState> emit,
+    Future<void> Function() action, {
+    TaskDetailLoaded Function(TaskDetailLoaded state)? onSuccess,
+  }) async {
+    final current = state;
+    if (current is! TaskDetailLoaded) return;
+    emit(current.copyWith(checksBusy: true, clearChecksError: true));
+    String? error;
+    try {
+      await action();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+    final latest = state;
+    if (latest is TaskDetailLoaded) {
+      final next = latest.copyWith(checksBusy: false, checksError: error);
+      emit(error == null && onSuccess != null ? onSuccess(next) : next);
+    }
+  }
+
+  Future<void> _onFailingChecksSentToFix(
+    FailingChecksSentToFix event,
+    Emitter<TaskDetailState> emit,
+  ) {
+    final current = state;
+    if (current is! TaskDetailLoaded) return Future.value();
+    final ids = current.selectedCheckJobIds;
+    return _checksAction(
+      emit,
+      () => _repository.fixFailingChecks(
+        event.taskId,
+        jobIds: ids.isEmpty ? null : ids.toList(),
+        note: event.note.isEmpty ? null : event.note,
+      ),
+      onSuccess: (s) => s.copyWith(selectedCheckJobIds: const {}),
+    );
   }
 
   /// Runs a review action, tracking [TaskDetailLoaded.reviewBusy] and

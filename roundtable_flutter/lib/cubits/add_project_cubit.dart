@@ -51,17 +51,25 @@ class AddProjectCubit extends Cubit<AddProjectState> {
     }
   }
 
-  /// Renames/repoints an existing project — the token stays untouched here,
-  /// it's only ever changed via `ProjectDetailScreen`'s "Update token" flow.
+  /// Renames/repoints an existing project and sets its CI auto-fix — the
+  /// token stays untouched here, it's only ever changed via
+  /// `ProjectDetailScreen`'s "Update token" flow.
   Future<void> update({
     required Project existing,
     required String name,
     required String repoUrl,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
   }) async {
     emit(const AddProjectSubmitting());
     try {
       final project = await _repository.updateProject(
-        existing.copyWith(name: name, repoUrl: repoUrl),
+        existing.copyWith(
+          name: name,
+          repoUrl: repoUrl,
+          autoFixFailingChecks: autoFixFailingChecks,
+          maxCheckFixAttempts: maxCheckFixAttempts,
+        ),
       );
       emit(AddProjectSuccess(project));
     } catch (e) {

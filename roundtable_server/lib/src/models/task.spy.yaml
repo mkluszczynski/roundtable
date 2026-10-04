@@ -27,6 +27,21 @@ fields:
   claudeSessionId: String?
   branchName: String?
   prUrl: String?
+  ### The PR's head commit the CI checks ([checkState], `PrCheckRun`) belong
+  ### to. A new commit (a fix run, a manual push) resets the checks.
+  prHeadSha: String?
+  ### When [prHeadSha] was first seen — a new commit's workflows get a grace
+  ### period to show up before "no CI" counts as mergeable.
+  prHeadSeenAt: DateTime?
+  ### Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
+  ### merges on `success` (or `none` after the grace period).
+  checkState: PrCheckState, default=none
+  ### Fix runs sent for failing checks since they last passed — caps the
+  ### project's auto-fix (`Project.maxCheckFixAttempts`).
+  checkFixAttempts: int, default=0
+  ### The head commit whose failing checks were last sent to the agent, so
+  ### the same failure is never auto-sent twice.
+  checkFixSentForSha: String?
   createdAt: DateTime, default=now
   startedAt: DateTime?
   finishedAt: DateTime?

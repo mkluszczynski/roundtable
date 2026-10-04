@@ -30,10 +30,11 @@ Channels (in `TaskEndpoint`, `CodeReviewEndpoint`, `task_review_support.dart`):
 | `all-tasks` | every `Task` update | dashboard/project/machine kanbans |
 | `task-deletions` | `TaskDeleted` | kanbans |
 | `task-<id>-logs` | `TaskLogEntry` | task detail log tail |
+| `task-<id>-checks` | `PrChecks` snapshot (GitHub Actions jobs + state) | panel `watchChecks` |
 | `task-question-<id>` | answered `TaskQuestion` | permission tool, blocked on `AskUserQuestion` |
 | `task-<id>-plan-decision` | plan approve/reject | permission tool, blocked on `ExitPlanMode` |
 
-The server also does work in the background with **three recurring future
+The server also does work in the background with **four recurring future
 calls**, registered in `roundtable_server/lib/server.dart`. On every boot it
 deletes the existing rows and schedules them again, so they don't pile up:
 
@@ -45,6 +46,10 @@ deletes the existing rows and schedules them again, so they don't pile up:
   (`lastProgressAt`) for 15 min goes to `failed`.
 - `MachineMetricCleanupFutureCall` (every 10 min): deletes `MachineMetric`
   rows older than 1 h.
+- `PrChecksFutureCall` (every 30 s): for each `awaitingReview` task with a PR
+  and a project token, mirrors the GitHub Actions jobs of the PR's head
+  commit (`syncChecks` in `lib/src/pr_checks.dart`). Polling, not a webhook:
+  the server needn't be reachable from GitHub. See docs/FLOWS.md §4 "CI checks".
 
 Both failure paths, plus `MachineEndpoint.reportStartup`, go through
 `failTasks` in `lib/src/task_lifecycle.dart`.
@@ -53,15 +58,16 @@ Both failure paths, plus `MachineEndpoint.reportStartup`, go through
 
 | Endpoint | Panel-facing | Runner-facing |
 |---|---|---|
-| `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage only), `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
+| `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage/CI auto-fix settings only), `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
 | `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` (uninstall: deletes the machine, or marks it offline + revokes the token if unfinished tasks block that) |
 | `AgentEndpoint` | `create/get/list`, `update` (name/role/model/effort only), `delete` (blocked by non-terminal tasks) | `setStatus` (`idle`/`busy`/`waitingForResponse`) |
-| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `acceptTask` (squash-merge), `getMergeStatus`, `resolveConflicts`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
+| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `continueTask`, `acceptTask` (squash-merge, only with passing CI), `getMergeStatus`, `resolveConflicts`, `getChecks`, `watchChecks`, `refreshChecks`, `fixFailingChecks`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
 | `CodeReviewEndpoint` | `requestReview`, `watchReviews`, `setCommentState`, `sendCommentsToFix` | `watchAssignedReviews`, `startReview`, `completeReview`, `failReview` |
 
 Server-only helpers: `github_repo_client.dart` (PR files, file content,
-create review, resolve thread, merge, mergeability; every request times out
-after 30 s),
+create review, resolve thread, merge, mergeability, PR head, Actions runs,
+jobs and job logs; every request times out after 30 s), `pr_checks.dart`
+(CI checks sync, merge gate, fix-run prompt),
 `task_review_support.dart` (shared review/feedback helpers kept out of the
 endpoints so they aren't exposed as RPC), `agent_runner_binaries.dart`
 (builds the runner binaries, serves them and hashes their version).
@@ -80,16 +86,18 @@ erDiagram
   Task ||--o{ TaskQuestion : asks
   Task ||--o{ TaskFeedback : receives
   Task ||--o{ CodeReview : reviewed_by
+  Task ||--o{ PrCheckRun : "CI jobs"
   Agent |o--o{ CodeReview : "reviewer (optional)"
   CodeReview ||--o{ ReviewComment : contains
 ```
 
 | Entity | Notable fields |
 |---|---|
-| `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused) |
+| `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused), `autoFixFailingChecks`, `maxCheckFixAttempts` |
 | `Machine` | `tokenHash` (**serverOnly**, unique index), `status` online/offline, `lastSeenAt`, `claudeExecutableOk/Error`, `runnerVersion`, `updateRequestedAt` |
 | `Agent` | `machine` (cascade on delete), `name`, `role`, `defaultModel`, `defaultEffort`, `executionMode` (only `native` is implemented), `status` |
-| `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt` |
+| `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkFixAttempts`, `checkFixSentForSha` |
+| `PrCheckRun` | one GitHub Actions job of the PR's head commit: `headSha`, `workflowRunId`, `runAttempt`, `workflowName`, `jobId`, `jobName`, `status`, `conclusion`, `failedStep`, `htmlUrl`; replaced when the head commit changes |
 | `TaskLogEntry` | `content`, `source` agent/system |
 | `TaskQuestion` | `question`, `options`, `answer`, `answeredAt` |
 | `TaskFeedback` | `message`, `phase` plan/review |
@@ -97,7 +105,7 @@ erDiagram
 | `ReviewComment` | `path`, `line`, `body`, `severity` blocker/issue/nit, `state` open/dismissed/sentToFix/resolved, `githubCommentId` |
 | `MachineMetric` | `cpuPercent`, `memoryUsedMb/TotalMb`, index on `(machineId, recordedAt)` |
 
-Non-table DTOs: `MachineRegistration`, `DiffFile`, `PrMergeStatus`,
+Non-table DTOs: `MachineRegistration`, `DiffFile`, `PrMergeStatus`, `PrChecks`,
 `ReviewCommentDraft`, `TaskDeleted`.
 
 Typed exceptions (their `message` reaches the panel; a plain `Exception`
@@ -113,7 +121,7 @@ Multi-row writes run in `session.db.transaction`. Delete guards
 Indexes: `task(projectId)`, `task(agentId)`, `task(status, lastProgressAt)`,
 `agent(machineId)`, `(taskId, createdAt)` on
 `task_log_entry`/`task_feedback`/`task_question`/`code_review`,
-`review_comment(reviewId)`, unique `machine(tokenHash)`,
+`review_comment(reviewId)`, `pr_check_run(taskId, jobId)`, unique `machine(tokenHash)`,
 `machine_metric(machineId, recordedAt)`.
 
 **Non-terminal task statuses** (`endpoints/non_terminal_task_statuses.dart`):
@@ -174,7 +182,8 @@ Design choices worth keeping:
 - State (per the Cubit-by-default rule): `repositories/` wrap the generated
   `client`. `cubits/` wrap one stream or one form each. `blocs/task_detail_bloc.dart`
   is the only full Bloc. It combines task status, logs, PR files and merge
-  status, code reviews, and user actions. Long-lived streams go through
+  status, code reviews, CI checks (`watchChecks`, shown by
+  `widgets/pr_checks_view.dart`), and user actions. Long-lived streams go through
   `utils/closeable_streams.dart` (`CloseableStreams.untilClosed`), so
   closing a Bloc/Cubit cancels its server subscriptions.
 - Kanban columns (`cubits/dashboard_cubit.dart`): **Backlog** (draft, queued,
@@ -182,7 +191,8 @@ Design choices worth keeping:
   · **Review** (awaitingReview) · **Done** (done, failed, cancelled).
 - `utils/`: `task_status_label.dart` (human-readable status labels),
   `error_message.dart` (shows a typed server exception's `message`),
-  `closeable_streams.dart`, `relative_time.dart`, `code_language.dart`.
+  `closeable_streams.dart`, `relative_time.dart`, `code_language.dart`,
+  `pr_checks.dart` (CI job/state helpers).
 
 ## Auth and secrets
 

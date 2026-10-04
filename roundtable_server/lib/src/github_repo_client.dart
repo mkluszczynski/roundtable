@@ -247,13 +247,16 @@ class GitHubRepoClient {
     }
   }
 
-  /// Squash-merges the pull request at [prUrl]. Throws a
-  /// [GitHubException] when GitHub refuses (conflicts, failing required
-  /// checks, head changed under us, ...).
+  /// Squash-merges the pull request at [prUrl]. With [sha], GitHub only
+  /// merges if that's still the PR's head — so a commit pushed after the
+  /// checks were read can't slip in. Throws a [GitHubException] when GitHub
+  /// refuses (conflicts, failing required checks, head changed under us,
+  /// ...).
   Future<void> mergePullRequest({
     required String prUrl,
     required String token,
     String? commitTitle,
+    String? sha,
   }) async {
     final (:owner, :repo, :number) = parsePrUrl(prUrl);
     final response = await _http.put(
@@ -262,6 +265,7 @@ class GitHubRepoClient {
       body: jsonEncode({
         'merge_method': 'squash',
         'commit_title': ?commitTitle,
+        'sha': ?sha,
       }),
     );
     if (response.statusCode != 200) {
@@ -311,6 +315,178 @@ class GitHubRepoClient {
       await Future<void>.delayed(const Duration(seconds: 1));
     }
     return (hasConflicts: null, baseRef: baseRef!);
+  }
+
+  /// Reads the head commit and state (`open`/`closed`) of the pull request
+  /// at [prUrl].
+  Future<({String sha, bool open})> getPrHead({
+    required String prUrl,
+    required String token,
+  }) async {
+    final (:owner, :repo, :number) = parsePrUrl(prUrl);
+    final response = await _http.get(
+      Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+      headers: _headers(token),
+    );
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: 'Failed to fetch $owner/$repo#$number',
+        statusCode: response.statusCode,
+      );
+    }
+    final pr = jsonDecode(response.body) as Map<String, dynamic>;
+    return (
+      sha: (pr['head'] as Map<String, dynamic>)['sha'] as String,
+      open: pr['state'] == 'open',
+    );
+  }
+
+  /// Lists the GitHub Actions workflow runs for commit [headSha] of the
+  /// repository [owner]/[repo] (any event — `push` and `pull_request` alike).
+  Future<List<WorkflowRunInfo>> listWorkflowRuns({
+    required String owner,
+    required String repo,
+    required String headSha,
+    required String token,
+  }) async {
+    final response = await _http.get(
+      Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
+        'head_sha': headSha,
+        'per_page': '100',
+      }),
+      headers: _headers(token),
+    );
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: _actionsErrorMessage(
+          'Failed to list workflow runs for $owner/$repo@$headSha',
+          response.statusCode,
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    final runs =
+        (jsonDecode(response.body) as Map<String, dynamic>)['workflow_runs']
+            as List<dynamic>;
+    return [
+      for (final run in runs.cast<Map<String, dynamic>>())
+        if (run['head_sha'] == headSha)
+          WorkflowRunInfo(
+            id: run['id'] as int,
+            name: (run['name'] as String?) ?? 'Workflow',
+            status: run['status'] as String,
+            conclusion: run['conclusion'] as String?,
+            runAttempt: (run['run_attempt'] as int?) ?? 1,
+          ),
+    ];
+  }
+
+  /// Lists the jobs of the latest attempt of workflow run [runId].
+  Future<List<WorkflowJobInfo>> listRunJobs({
+    required String owner,
+    required String repo,
+    required int runId,
+    required String token,
+  }) async {
+    final response = await _http.get(
+      Uri.https(
+        'api.github.com',
+        '/repos/$owner/$repo/actions/runs/$runId/jobs',
+        {'filter': 'latest', 'per_page': '100'},
+      ),
+      headers: _headers(token),
+    );
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: _actionsErrorMessage(
+          'Failed to list the jobs of workflow run $runId in $owner/$repo',
+          response.statusCode,
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    final jobs =
+        (jsonDecode(response.body) as Map<String, dynamic>)['jobs']
+            as List<dynamic>;
+    return [
+      for (final job in jobs.cast<Map<String, dynamic>>())
+        WorkflowJobInfo(
+          id: job['id'] as int,
+          name: job['name'] as String,
+          status: job['status'] as String,
+          conclusion: job['conclusion'] as String?,
+          htmlUrl: job['html_url'] as String?,
+          startedAt: DateTime.tryParse((job['started_at'] as String?) ?? ''),
+          completedAt: DateTime.tryParse(
+            (job['completed_at'] as String?) ?? '',
+          ),
+          failedStep: _firstFailedStep(job['steps']),
+        ),
+    ];
+  }
+
+  /// Fetches the log of Actions job [jobId] and returns the part worth
+  /// showing an agent: up to [maxLines] lines ending a little after the last
+  /// `##[error]` line (or the log's tail when there's none), without
+  /// GitHub's timestamps.
+  Future<String> getJobLogTail({
+    required String owner,
+    required String repo,
+    required int jobId,
+    required String token,
+    int maxLines = 150,
+  }) async {
+    // GitHub answers with a redirect to a short-lived blob URL. Follow it by
+    // hand, so the token is never sent to the blob host.
+    final request =
+        http.Request(
+            'GET',
+            Uri.https(
+              'api.github.com',
+              '/repos/$owner/$repo/actions/jobs/$jobId/logs',
+            ),
+          )
+          ..headers.addAll(_headers(token))
+          ..followRedirects = false;
+    var response = await http.Response.fromStream(await _http.send(request));
+    final location = response.headers['location'];
+    if (response.statusCode >= 300 &&
+        response.statusCode < 400 &&
+        location != null) {
+      response = await _http.get(
+        Uri.parse(location),
+        headers: {'User-Agent': 'roundtable-server'},
+      );
+    }
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: _actionsErrorMessage(
+          'Failed to fetch the log of job $jobId in $owner/$repo',
+          response.statusCode,
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    return extractLogTail(response.body, maxLines: maxLines);
+  }
+
+  /// A GitHub error message, pointing at the token's missing "Actions: read"
+  /// permission when GitHub denies access.
+  static String _actionsErrorMessage(String message, int statusCode) =>
+      statusCode == 403 || statusCode == 404
+      ? '$message — make sure the project\'s token has the '
+            '"Actions: read" permission'
+      : message;
+
+  static String? _firstFailedStep(Object? steps) {
+    if (steps is! List) return null;
+    for (final step in steps.cast<Map<String, dynamic>>()) {
+      final conclusion = step['conclusion'];
+      if (conclusion == 'failure' || conclusion == 'timed_out') {
+        return step['name'] as String?;
+      }
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> _graphql(
@@ -426,6 +602,66 @@ Set<int> commentableLines(String? patch) {
     lines.add(next++);
   }
   return lines;
+}
+
+/// One GitHub Actions workflow run, as [GitHubRepoClient.listWorkflowRuns]
+/// returns it.
+class WorkflowRunInfo {
+  const WorkflowRunInfo({
+    required this.id,
+    required this.name,
+    required this.status,
+    required this.conclusion,
+    required this.runAttempt,
+  });
+
+  final int id;
+  final String name;
+  final String status;
+  final String? conclusion;
+  final int runAttempt;
+}
+
+/// One job of a workflow run, as [GitHubRepoClient.listRunJobs] returns it.
+class WorkflowJobInfo {
+  const WorkflowJobInfo({
+    required this.id,
+    required this.name,
+    required this.status,
+    required this.conclusion,
+    required this.htmlUrl,
+    required this.startedAt,
+    required this.completedAt,
+    required this.failedStep,
+  });
+
+  final int id;
+  final String name;
+  final String status;
+  final String? conclusion;
+  final String? htmlUrl;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final String? failedStep;
+}
+
+final _logTimestamp = RegExp(r'^\d{4}-\d\d-\d\dT[\d:.]+Z ');
+
+/// The part of a GitHub Actions job [log] that explains a failure: up to
+/// [maxLines] lines ending a few lines after the last `##[error]` line, or
+/// the log's last [maxLines] lines when there's no error marker. Strips the
+/// timestamp GitHub prefixes every line with.
+String extractLogTail(String log, {int maxLines = 150}) {
+  final lines = [
+    for (final line in const LineSplitter().convert(log))
+      line.replaceFirst(_logTimestamp, ''),
+  ];
+  final lastError = lines.lastIndexWhere((l) => l.contains('##[error]'));
+  final end = lastError == -1
+      ? lines.length
+      : (lastError + 5).clamp(0, lines.length);
+  final start = (end - maxLines).clamp(0, end);
+  return lines.sublist(start, end).join('\n');
 }
 
 /// Shared instance used by the endpoints. Tests replace it with one backed

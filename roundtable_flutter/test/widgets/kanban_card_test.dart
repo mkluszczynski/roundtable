@@ -67,4 +67,26 @@ void main() {
     expect(find.text('task-7'), findsOneWidget);
     expect(find.text('Unassigned'), findsOneWidget);
   });
+
+  testWidgets('shows the CI result of a PR in review', (tester) async {
+    Future<void> pump(Task t) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KanbanCard(task: t, onTap: () {}),
+        ),
+      ),
+    );
+
+    final inReview = task().copyWith(
+      branchName: 'task-1',
+      prUrl: 'https://github.com/x/y/pull/1',
+      checkState: PrCheckState.failure,
+    );
+    await pump(inReview);
+    expect(find.text('CI failed'), findsOneWidget);
+
+    // A merged task's CI no longer matters.
+    await pump(inReview.copyWith(status: TaskStatus.done));
+    expect(find.text('CI failed'), findsNothing);
+  });
 }

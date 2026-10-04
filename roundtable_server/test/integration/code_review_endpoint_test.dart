@@ -6,6 +6,7 @@ import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:roundtable_server/src/github_repo_client.dart';
 import 'package:test/test.dart';
 
+import 'github_ci_fixtures.dart';
 import 'test_tools/serverpod_test_tools.dart';
 
 const _prUrl = 'https://github.com/example/roundtable/pull/5';
@@ -316,7 +317,9 @@ void main() {
 
     test('when accepting then the PR is merged and the task is done', () async {
       final seeded = await seed(token: 'secret');
-      githubHandler = (_) => http.Response(jsonEncode({'merged': true}), 200);
+      githubHandler = (request) =>
+          fakeCiResponse(request) ??
+          http.Response(jsonEncode({'merged': true}), 200);
 
       final task = await endpoints.task.acceptTask(
         sessionBuilder,
@@ -324,19 +327,22 @@ void main() {
       );
 
       expect(task.status, TaskStatus.done);
-      final merge = githubRequests.single;
-      expect(merge.method, 'PUT');
+      final merge = githubRequests.where((r) => r.method == 'PUT').single;
       expect(merge.url.path, '/repos/example/roundtable/pulls/5/merge');
+      // Only the commit whose checks passed may be merged.
+      expect(jsonDecode(merge.body)['sha'], 'abc1234def');
     });
 
     test(
       'when GitHub refuses the merge then the task stays in review',
       () async {
         final seeded = await seed(token: 'secret');
-        githubHandler = (_) => http.Response(
-          jsonEncode({'message': 'Pull Request is not mergeable'}),
-          405,
-        );
+        githubHandler = (request) => request.method == 'PUT'
+            ? http.Response(
+                jsonEncode({'message': 'Pull Request is not mergeable'}),
+                405,
+              )
+            : fakeCiResponse(request) ?? http.Response('{}', 200);
 
         await expectLater(
           endpoints.task.acceptTask(sessionBuilder, seeded.task.id!),

@@ -93,8 +93,8 @@ stateDiagram-v2
   planReady --> running: approvePlan
   running --> awaitingReview: changes committed, PR opened/updated
   running --> failed: Claude error / no file changes
-  awaitingReview --> running: submitFeedback / sendCommentsToFix / resolveConflicts
-  awaitingReview --> done: acceptTask (squash-merge)
+  awaitingReview --> running: submitFeedback / sendCommentsToFix / resolveConflicts / fixFailingChecks
+  awaitingReview --> done: acceptTask (squash-merge, CI green)
   failed --> queued: retryTask
   cancelled --> queued: retryTask
   done --> [*]
@@ -163,13 +163,45 @@ terminal, the runner can't change it through `update` anymore.
    - `resolveConflicts` sends a fixed prompt: merge `origin/<base>`, resolve
      the conflicts, build/test, commit, push. It goes through the same resume
      path.
-9. **Accept** (`acceptTask`). Squash-merge on GitHub → `done`. If GitHub
+   - `fixFailingChecks(jobIds?, note?)` sends the failing CI jobs (see "CI
+     checks" below) with their log tails. Same resume path.
+9. **Accept** (`acceptTask`). It first re-reads the CI checks from GitHub
+   and refuses while they're `pending` or `failure` (a new commit without
+   any workflow run counts as pending for 2 min, then as "no CI"). Then it
+   squash-merges exactly `prHeadSha` (GitHub's `sha` guard), so a commit
+   pushed after the checks were read can't be merged unchecked. Merged → `done`. If GitHub
    refuses (405/409 with conflicts), the task stays in `awaitingReview` and
    the panel shows "resolve conflicts". The `done` task is posted to the
    machine so the daemon removes the worktree. Accepting is blocked while a
    code review is still queued or running. Worktrees the daemon wasn't told
    about (deleted tasks, or failures while it was offline) are removed by the
    30-minute `WorktreeJanitor` sweep.
+
+### CI checks (GitHub Actions)
+
+`PrChecksFutureCall` (every 30 s) runs `syncChecks` (`lib/src/pr_checks.dart`)
+for every `awaitingReview` task with a PR and a project token. The token
+needs the **Actions: read** permission; without it the sync logs a 403.
+
+1. `GET /pulls/<n>` gives the head commit. A new one (a fix run's push or a
+   manual push) replaces the previous commit's `PrCheckRun` rows, sets
+   `prHeadSha`/`prHeadSeenAt` and logs "New commit … — CI checks restarted".
+2. `GET /actions/runs?head_sha=…`, and for every run that isn't finished
+   (or not stored yet) `GET /actions/runs/<id>/jobs?filter=latest`. Only the
+   latest attempt counts, so a re-run on GitHub resets the job to pending.
+3. `Task.checkState`: `failure` if any job failed/timed out/was cancelled,
+   `pending` if any is still running, `success` when all passed, `none`
+   when no workflow ran. Changes go to `task-<id>`, `all-tasks` and
+   `task-<id>-checks`, and to the timeline ("CI failed: …", "CI passed").
+4. Every fix run (`queueReviewFeedback`: feedback, review comments,
+   conflicts, CI) sets `checkState = pending`: its push makes the current
+   results stale. When the runner reports the task back in `awaitingReview`,
+   `update` syncs right away. A fix run that pushed nothing gets its real
+   state back from the unchanged commit.
+5. Auto-fix (`Project.autoFixFailingChecks`): once all jobs finished and
+   some failed, the failure is sent like `fixFailingChecks` — once per
+   commit (`checkFixSentForSha`) and at most `maxCheckFixAttempts` times
+   until the checks pass (`checkFixAttempts` resets on `success`).
 
 Other actions: `retryTask` (failed/cancelled → fresh `queued`, clears
 `claudeSessionId`), `reassignAgent` (allowed in draft/queued/cloning/

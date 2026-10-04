@@ -7,6 +7,7 @@ import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:roundtable_server/src/github_repo_client.dart';
 import 'package:test/test.dart';
 
+import 'github_ci_fixtures.dart';
 import 'test_tools/serverpod_test_tools.dart';
 
 const _prUrl = 'https://github.com/example/roundtable/pull/5';
@@ -28,8 +29,13 @@ void main() {
               405,
             );
           }
+          if (request.url.path.contains('/actions/')) {
+            return fakeCiResponse(request)!;
+          }
           return http.Response(
             jsonEncode({
+              'state': 'open',
+              'head': {'sha': 'abc1234def'},
               'mergeable': mergeable,
               'mergeable_state': mergeable ? 'clean' : 'dirty',
               'base': {'ref': 'main'},

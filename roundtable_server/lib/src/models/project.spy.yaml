@@ -12,5 +12,11 @@ fields:
   repoAccessTokenUpdatedAt: DateTime?
   ### Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   dockerImage: String?
+  ### Send a task's failing CI checks to its agent automatically, without
+  ### waiting for the dev to click "Send to agent".
+  autoFixFailingChecks: bool, default=false
+  ### How many fix runs auto-fix sends for a task before leaving the
+  ### failure to the dev; reset once the checks pass.
+  maxCheckFixAttempts: int, default=2
   createdAt: DateTime, default=now
   tasks: List<Task>?, relation(name=project_tasks)

@@ -1,5 +1,6 @@
 import 'package:serverpod/serverpod.dart';
 
+import 'endpoints/task_endpoint.dart';
 import 'generated/protocol.dart';
 import 'github_repo_client.dart';
 
@@ -52,6 +53,24 @@ Future<TaskFeedback> queueReviewFeedback(
     await alsoWrite?.call(transaction);
     return inserted;
   });
+
+  // The fix run is about to push a new commit, so the current CI results go
+  // stale — merging stays blocked until the new commit's checks report.
+  if (task.prUrl != null && task.checkState != PrCheckState.pending) {
+    var updated = await Task.db.updateRow(
+      session,
+      task.copyWith(checkState: PrCheckState.pending),
+      columns: (t) => [t.checkState],
+    );
+    await session.messages.postMessage(
+      TaskEndpoint.channelForTask(task.id!),
+      updated,
+    );
+    await session.messages.postMessage(
+      TaskEndpoint.channelForAllTasks(),
+      updated,
+    );
+  }
 
   // Status is deliberately left as `awaitingReview` here — the dispatcher
   // itself flips it to `running` once it actually picks the resume up,

@@ -12,6 +12,7 @@ import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/code_language.dart';
 import '../utils/follow_up_prompt.dart';
+import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
@@ -27,6 +28,7 @@ import '../widgets/pill_selector.dart';
 import '../widgets/rail_nav_item.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/plan_content.dart';
+import '../widgets/pr_checks_view.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/request_review_dialog.dart';
 import '../widgets/review_comment_card.dart';
@@ -200,6 +202,45 @@ Future<void> _confirmResolveConflicts(
   }
 }
 
+Future<void> _confirmFixFailingChecks(
+  BuildContext context,
+  int taskId,
+  int failedCount,
+) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final confirmed = await showAppModal<bool>(
+    context,
+    icon: Icons.build_outlined,
+    tone: AppModalTone.danger,
+    title: 'Send failing CI checks to the agent?',
+    subtitle:
+        'The agent gets the logs of the failing jobs ($failedCount) of Task '
+        '#$taskId, fixes them and pushes. To pick jobs or add a note, use the '
+        'CI checks view.',
+    child: const SizedBox.shrink(),
+    actions: [
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ),
+      Builder(
+        builder: (context) => FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Send to agent'),
+        ),
+      ),
+    ],
+  );
+  if (confirmed ?? false) {
+    bloc
+      ..add(const CheckJobsSelectionCleared())
+      ..add(FailingChecksSentToFix(taskId, ''));
+  }
+}
+
 /// One screen driven by `Task.status`, switching between the task lifecycle's
 /// 4 sub-states (docs/FLOWS.md §4): waiting for an answer, plan
 /// approval, live execution (log tail), and diff review. Always entered from
@@ -227,7 +268,7 @@ class TaskDetailScreen extends StatelessWidget {
 }
 
 /// What the main area shows — picked from the rail's navigation.
-enum _TaskSection { overview, plan, changes, review, logs }
+enum _TaskSection { overview, plan, changes, review, checks, logs }
 
 bool _isLive(TaskStatus s) =>
     s == TaskStatus.planning || s == TaskStatus.running;
@@ -262,6 +303,8 @@ Set<_TaskSection> _availableSectionsFor(Task task) {
       _TaskSection.changes,
       _TaskSection.review,
     },
+    // Also while a fix run is going, so the dev sees what it's fixing.
+    if (task.prUrl != null) _TaskSection.checks,
     _TaskSection.logs,
   };
 }
@@ -281,6 +324,19 @@ extension _TaskDetailLoadedX on TaskDetailLoaded {
       reviewComments.where((c) => c.state == ReviewCommentState.open).length;
 
   bool get hasConflicts => mergeStatus?.hasConflicts ?? false;
+
+  int get failedCheckCount =>
+      checks?.runs.where(isFailedCheckRun).length ??
+      (task.checkState == PrCheckState.failure ? 1 : 0);
+
+  /// Why "Accept & merge" is disabled, or null when the CI checks allow it.
+  /// The server enforces the same rule in `acceptTask`.
+  String? get mergeBlockedByChecks => switch (task.checkState) {
+    PrCheckState.success || PrCheckState.none => null,
+    PrCheckState.pending => 'Waiting for the CI checks to finish',
+    PrCheckState.failure =>
+      'CI checks are failing — send them to the agent or fix them first',
+  };
 }
 
 class _TaskDetailView extends StatefulWidget {
@@ -643,6 +699,7 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.plan => Icons.checklist_outlined,
                   _TaskSection.changes => Icons.difference_outlined,
                   _TaskSection.review => Icons.rate_review_outlined,
+                  _TaskSection.checks => Icons.fact_check_outlined,
                   _TaskSection.logs => Icons.terminal,
                 },
                 label: switch (s) {
@@ -655,6 +712,7 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.plan => 'Plan',
                   _TaskSection.changes => 'Changes',
                   _TaskSection.review => 'AI review',
+                  _TaskSection.checks => 'CI checks',
                   _TaskSection.logs => 'Logs',
                 },
                 selected: section == s,
@@ -682,6 +740,17 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.review when openComments > 0 => CountBadge(
                     openComments,
                   ),
+                  _TaskSection.checks
+                      when state.task.checkState == PrCheckState.failure =>
+                    CountBadge(state.failedCheckCount, color: AppColors.red),
+                  _TaskSection.checks
+                      when state.task.checkState != PrCheckState.none =>
+                    StatusDot(
+                      color: checkStateAppearance(state.task.checkState).color,
+                      pulsing: checkStateAppearance(
+                        state.task.checkState,
+                      ).pulsing,
+                    ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
                   _ => null,
@@ -761,14 +830,22 @@ class _RailActions extends StatelessWidget {
             icon: const Icon(Icons.call_merge, size: 16),
             label: const Text('Resolve conflicts'),
           )
-        else
-          FilledButton.icon(
-            onPressed: busy
-                ? null
-                : () => _confirmAcceptTask(context, task.id!),
-            icon: const Icon(Icons.merge, size: 16),
-            label: const Text('Accept & merge'),
-          ),
+        else ...[
+          if (task.checkState == PrCheckState.failure)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+              onPressed: busy || state.checksBusy
+                  ? null
+                  : () => _confirmFixFailingChecks(
+                      context,
+                      task.id!,
+                      state.failedCheckCount,
+                    ),
+              icon: const Icon(Icons.build_outlined, size: 16),
+              label: const Text('Fix CI checks'),
+            ),
+          _acceptButton(context, state, busy: busy),
+        ],
       if (_retryableStatuses.contains(task.status))
         OutlinedButton.icon(
           onPressed: state.submitting
@@ -828,6 +905,24 @@ class _RailActions extends StatelessWidget {
   }
 }
 
+/// "Accept & merge", disabled (with the reason on hover) until the CI
+/// checks allow merging.
+Widget _acceptButton(
+  BuildContext context,
+  TaskDetailLoaded state, {
+  required bool busy,
+}) {
+  final blocked = state.mergeBlockedByChecks;
+  final button = FilledButton.icon(
+    onPressed: busy || blocked != null
+        ? null
+        : () => _confirmAcceptTask(context, state.task.id!),
+    icon: const Icon(Icons.merge, size: 16),
+    label: const Text('Accept & merge'),
+  );
+  return blocked == null ? button : Tooltip(message: blocked, child: button);
+}
+
 class _TimelineRow extends StatelessWidget {
   const _TimelineRow(this.label, this.at);
 
@@ -880,6 +975,7 @@ class _SectionContent extends StatelessWidget {
           onSectionSelected(_TaskSection.changes);
         },
       ),
+      _TaskSection.checks => _ReadingColumn(child: _ChecksView(state: state)),
       _TaskSection.logs =>
         _isLive(state.task.status)
             ? _LiveExecution(state: state)
@@ -1591,6 +1687,35 @@ class _ReviewView extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The PR's GitHub Actions checks, with failures sendable to the agent.
+class _ChecksView extends StatelessWidget {
+  const _ChecksView({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<TaskDetailBloc>();
+    final taskId = state.task.id!;
+    return PrChecksView(
+      checks: state.checks,
+      selectedJobIds: state.selectedCheckJobIds,
+      canSendToAgent:
+          state.inReview && !state.reviewActive && !state.submitting,
+      agentWorking: state.task.status == TaskStatus.running,
+      busy: state.checksBusy || state.reviewBusy,
+      error: state.checksError,
+      onRefresh: state.inReview
+          ? () => bloc.add(ChecksRefreshRequested(taskId))
+          : null,
+      onToggleJob: (jobId) => bloc.add(CheckJobSelectionToggled(jobId)),
+      onSendToAgent: (note) => bloc.add(FailingChecksSentToFix(taskId, note)),
+      onOpenUrl: (url) =>
+          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
     );
   }
 }

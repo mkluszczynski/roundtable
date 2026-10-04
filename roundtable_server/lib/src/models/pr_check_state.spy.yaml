@@ -1,0 +1,14 @@
+### The aggregated GitHub Actions result for a task PR's current head commit
+### (`Task.prHeadSha`), kept on the task so the kanban needs no extra query.
+enum: PrCheckState
+values:
+  ### No workflow ran for the head commit (a repo without CI), or the PR
+  ### hasn't been checked yet.
+  - none
+  ### At least one job is queued or running, or a new commit's workflows
+  ### haven't started yet.
+  - pending
+  ### Every job finished successfully (or was skipped).
+  - success
+  ### At least one job failed, timed out or was cancelled.
+  - failure
