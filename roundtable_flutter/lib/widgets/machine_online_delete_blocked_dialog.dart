@@ -49,7 +49,9 @@ class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
               Expanded(
                 child: Text(
                   'This machine is still running and connected. Run the '
-                  'following command on it to uninstall the agent runner:',
+                  'following command on it to uninstall the agent runner. '
+                  'Once it finishes, the machine is removed from the panel '
+                  'automatically:',
                   style: AppTypography.body,
                 ),
               ),
@@ -61,7 +63,8 @@ class MachineOnlineDeleteBlockedDialog extends StatelessWidget {
           Text(
             "If this machine no longer physically exists, you don't need "
             'to do anything — its status will switch to offline on its own '
-            'within ~60s once the heartbeat stops arriving.',
+            'within ~60s once the heartbeat stops arriving, and you can '
+            'delete it then.',
             style: AppTypography.caption,
           ),
         ],

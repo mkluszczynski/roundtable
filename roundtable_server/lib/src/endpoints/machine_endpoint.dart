@@ -154,19 +154,42 @@ class MachineEndpoint extends Endpoint {
     );
   }
 
-  /// Called by the uninstall script as a deliberate deregistration, so the
-  /// server doesn't have to wait for the heartbeat timeout to notice the
-  /// machine is gone (docs/FLOWS.md §1–3). Marks the machine offline and clears
-  /// [Machine.tokenHash] so the raw token can never match again.
+  /// Called by the uninstall script once it has stopped the daemon
+  /// (docs/FLOWS.md §3). The uninstall is the dev's deliberate removal of the
+  /// machine, so it's deleted right away. The dev doesn't have to click
+  /// "Delete" again in the panel. Agent runs lost with the daemon are failed
+  /// first, as in [reportStartup].
+  ///
+  /// If the machine's agents still have other non-terminal tasks (queued,
+  /// awaiting review, …), deleting it is blocked as in [delete]. In that case
+  /// the machine is marked offline instead, and [Machine.tokenHash] is cleared
+  /// so the raw token can never match again. The dev deletes it from the
+  /// panel once those tasks are resolved.
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
   Future<void> deregister(Session session, String token) async {
     final machine = await _findByToken(session, token);
-    await Machine.db.updateRow(
+    await _failOrphanedWork(
       session,
-      machine.copyWith(status: MachineStatus.offline, tokenHash: null),
+      machine,
+      taskReason:
+          'The agent runner was uninstalled mid-task, so the Claude Code run '
+          'was lost',
+      reviewReason: 'The agent runner was uninstalled mid-review',
     );
+
+    await guardedDelete(session, (transaction) async {
+      if (await _nonTerminalTaskCount(session, machine.id!, transaction) > 0) {
+        await Machine.db.updateRow(
+          session,
+          machine.copyWith(status: MachineStatus.offline, tokenHash: null),
+          transaction: transaction,
+        );
+      } else {
+        await Machine.db.deleteRow(session, machine, transaction: transaction);
+      }
+    });
   }
 
   /// Called by the daemon once at startup, right after [identify]. A fresh
@@ -182,6 +205,25 @@ class MachineEndpoint extends Endpoint {
   /// registered machine.
   Future<void> reportStartup(Session session, String token) async {
     final machine = await _findByToken(session, token);
+    await _failOrphanedWork(
+      session,
+      machine,
+      taskReason:
+          'The agent runner restarted mid-task, so the Claude Code run was '
+          'lost',
+      reviewReason: 'The agent runner restarted mid-review',
+    );
+  }
+
+  /// Fails the agent-driven tasks and running code reviews of [machine]'s
+  /// agents, whose `claude` processes died with the daemon, and resets the
+  /// agents to `idle`. Shared by [reportStartup] and [deregister].
+  Future<void> _failOrphanedWork(
+    Session session,
+    Machine machine, {
+    required String taskReason,
+    required String reviewReason,
+  }) async {
     final agents = await Agent.db.find(
       session,
       where: (t) => t.machineId.equals(machine.id!),
@@ -194,11 +236,7 @@ class MachineEndpoint extends Endpoint {
           t.agentId.inSet(agents.map((a) => a.id!).toSet()) &
           t.status.inSet(agentDrivenTaskStatuses),
     );
-    await failTasks(
-      session,
-      orphaned,
-      'The agent runner restarted mid-task, so the Claude Code run was lost',
-    );
+    await failTasks(session, orphaned, taskReason);
 
     final orphanedReviews = await CodeReview.db.find(
       session,
@@ -211,7 +249,7 @@ class MachineEndpoint extends Endpoint {
         session,
         review.copyWith(
           status: CodeReviewStatus.failed,
-          failureReason: 'The agent runner restarted mid-review',
+          failureReason: reviewReason,
           finishedAt: DateTime.now().toUtc(),
         ),
       );
@@ -356,19 +394,7 @@ class MachineEndpoint extends Endpoint {
         );
       }
 
-      var agentIds = (await Agent.db.find(
-        session,
-        where: (t) => t.machineId.equals(id),
-        transaction: transaction,
-      )).map((agent) => agent.id!).toSet();
-
-      var nonTerminalTaskCount = await Task.db.count(
-        session,
-        where: (t) =>
-            t.agentId.inSet(agentIds) & t.status.inSet(nonTerminalTaskStatuses),
-        transaction: transaction,
-      );
-      if (nonTerminalTaskCount > 0) {
+      if (await _nonTerminalTaskCount(session, id, transaction) > 0) {
         throw DeletionBlockedException(
           message: 'Cannot delete a machine with non-terminal tasks',
           reason: DeletionBlockReason.nonTerminalTasks,
@@ -377,5 +403,25 @@ class MachineEndpoint extends Endpoint {
 
       await Machine.db.deleteRow(session, machine, transaction: transaction);
     });
+  }
+
+  /// Number of non-terminal tasks assigned to the agents of machine
+  /// [machineId] — the guard shared by [delete] and [deregister].
+  Future<int> _nonTerminalTaskCount(
+    Session session,
+    int machineId,
+    Transaction transaction,
+  ) async {
+    final agentIds = (await Agent.db.find(
+      session,
+      where: (t) => t.machineId.equals(machineId),
+      transaction: transaction,
+    )).map((agent) => agent.id!).toSet();
+    return Task.db.count(
+      session,
+      where: (t) =>
+          t.agentId.inSet(agentIds) & t.status.inSet(nonTerminalTaskStatuses),
+      transaction: transaction,
+    );
   }
 }

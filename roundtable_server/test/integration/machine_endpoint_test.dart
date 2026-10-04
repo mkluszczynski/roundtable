@@ -342,8 +342,8 @@ void main() {
     );
 
     test(
-      'when deregistering with a valid token then the machine is marked '
-      'offline and the token is revoked',
+      'when deregistering an online machine with a valid token then the '
+      'machine is deleted and the token no longer works',
       () async {
         final registration = await endpoints.machine.register(
           sessionBuilder,
@@ -360,10 +360,122 @@ void main() {
           sessionBuilder,
           registration.machine.id!,
         );
-        expect(fetched!.status, MachineStatus.offline);
+        expect(fetched, isNull);
         await expectLater(
           endpoints.machine.heartbeat(sessionBuilder, registration.token),
           throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
+
+    test(
+      'when deregistering a machine whose agent has an in-flight task then '
+      'the task fails, keeps its history, and the machine is deleted',
+      () async {
+        final session = sessionBuilder.build();
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        await endpoints.machine.heartbeat(sessionBuilder, registration.token);
+        final agent = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Ana', machineId: registration.machine.id!),
+        );
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        final task = await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            agentId: agent.id,
+            prompt: 'Do something',
+            status: TaskStatus.running,
+          ),
+        );
+
+        await endpoints.machine.deregister(
+          sessionBuilder,
+          registration.token,
+        );
+
+        expect(
+          await endpoints.machine.get(sessionBuilder, registration.machine.id!),
+          isNull,
+        );
+        expect(await Agent.db.findById(session, agent.id!), isNull);
+        final fetchedTask = await Task.db.findById(session, task.id!);
+        expect(fetchedTask!.status, TaskStatus.failed);
+        expect(fetchedTask.failureReason, contains('uninstalled'));
+        expect(fetchedTask.agentId, isNull);
+      },
+    );
+
+    test(
+      'when deregistering a machine whose agent has a queued task then the '
+      'machine is kept offline with its token revoked, and deleting it is '
+      'blocked only by that task',
+      () async {
+        final session = sessionBuilder.build();
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        await endpoints.machine.heartbeat(sessionBuilder, registration.token);
+        final agent = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Ana', machineId: registration.machine.id!),
+        );
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        final task = await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            agentId: agent.id,
+            prompt: 'Do something',
+            status: TaskStatus.queued,
+          ),
+        );
+
+        await endpoints.machine.deregister(
+          sessionBuilder,
+          registration.token,
+        );
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.status, MachineStatus.offline);
+        expect(fetched.tokenHash, isNull);
+        expect(
+          (await Task.db.findById(session, task.id!))!.status,
+          TaskStatus.queued,
+        );
+        await expectLater(
+          endpoints.machine.heartbeat(sessionBuilder, registration.token),
+          throwsA(isA<InvalidTokenException>()),
+        );
+        await expectLater(
+          endpoints.machine.delete(sessionBuilder, registration.machine.id!),
+          throwsA(
+            isA<DeletionBlockedException>().having(
+              (e) => e.reason,
+              'reason',
+              DeletionBlockReason.nonTerminalTasks,
+            ),
+          ),
         );
       },
     );

@@ -63,8 +63,13 @@ script once.
   (`widgets/machine_online_delete_blocked_dialog.dart`, URL from
   `getScriptUrl`).
 - `uninstall-agent.sh` stops and removes the service, then calls
-  `deregister(token)`. The server sets the machine `offline` and clears
-  `tokenHash`. The panel can then delete the record.
+  `deregister(token)`. The server fails the agent runs that died with the
+  daemon (as `reportStartup` does) and **deletes the machine**, so the dev
+  doesn't click "Delete" a second time. The panel's periodic refresh drops the
+  card. If the machine's agents still have other non-terminal tasks (queued,
+  awaiting review, …), the server sets the machine `offline` and clears
+  `tokenHash` instead. The dev deletes it from the panel once those tasks are
+  resolved.
 - If the machine is simply gone, `MachineOfflineFutureCall` marks it offline
   within about 60 s.
 
