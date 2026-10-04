@@ -47,6 +47,9 @@ class TaskRepository {
   Future<TaskFeedback> submitFeedback(int taskId, String message) =>
       _client.task.submitFeedback(taskId, message);
 
+  /// Resumes a task paused by a usage limit now instead of at the reset.
+  Future<Task> resumeTask(int taskId) => _client.task.resumeTask(taskId);
+
   /// Resumes a task that finished without code changes with [message].
   Future<TaskFeedback> continueTask(int taskId, String message) =>
       _client.task.continueTask(taskId, message);

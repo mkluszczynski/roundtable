@@ -14,6 +14,7 @@
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent.dart' as _ijo8h3v4;
+import 'log_phase.dart' as _iv8oofn2;
 import 'project.dart' as _ifiazq2p;
 import 'task_attachment.dart' as _isyamz65;
 import 'task_feedback.dart' as _i5hi2zxr;
@@ -35,6 +36,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.currentPlan,
     this.failureReason,
     this.resultSummary,
+    this.pausedUntil,
+    this.pauseReason,
+    this.pausedPhase,
     this.claudeSessionId,
     this.branchName,
     this.prUrl,
@@ -63,6 +67,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -103,6 +110,17 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       currentPlan: jsonSerialization['currentPlan'] as String?,
       failureReason: jsonSerialization['failureReason'] as String?,
       resultSummary: jsonSerialization['resultSummary'] as String?,
+      pausedUntil: jsonSerialization['pausedUntil'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['pausedUntil'],
+            ),
+      pauseReason: jsonSerialization['pauseReason'] as String?,
+      pausedPhase: jsonSerialization['pausedPhase'] == null
+          ? null
+          : _iv8oofn2.LogPhase.fromJson(
+              (jsonSerialization['pausedPhase'] as String),
+            ),
       claudeSessionId: jsonSerialization['claudeSessionId'] as String?,
       branchName: jsonSerialization['branchName'] as String?,
       prUrl: jsonSerialization['prUrl'] as String?,
@@ -183,6 +201,18 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// question or found nothing to change.
   String? resultSummary;
 
+  /// Set while `paused`: when the usage limit resets and the task resumes.
+  DateTime? pausedUntil;
+
+  /// The limit message shown while paused, e.g. "You've hit your session
+  /// limit · resets 12:40am".
+  String? pauseReason;
+
+  /// Which kind of run was interrupted, so the resume continues the same
+  /// session the same way (planning keeps plan mode). Cleared by the
+  /// daemon once the resumed run starts.
+  _iv8oofn2.LogPhase? pausedPhase;
+
   /// Claude Code session id, for --resume on feedback.
   String? claudeSessionId;
 
@@ -226,6 +256,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -253,6 +286,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
       if (resultSummary != null) 'resultSummary': resultSummary,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
+      if (pausedPhase != null) 'pausedPhase': pausedPhase?.toJson(),
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -285,6 +321,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
       if (resultSummary != null) 'resultSummary': resultSummary,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
+      if (pausedPhase != null) 'pausedPhase': pausedPhase?.toJson(),
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -364,6 +403,9 @@ class _TaskImpl extends Task {
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -387,6 +429,9 @@ class _TaskImpl extends Task {
          currentPlan: currentPlan,
          failureReason: failureReason,
          resultSummary: resultSummary,
+         pausedUntil: pausedUntil,
+         pauseReason: pauseReason,
+         pausedPhase: pausedPhase,
          claudeSessionId: claudeSessionId,
          branchName: branchName,
          prUrl: prUrl,
@@ -416,6 +461,9 @@ class _TaskImpl extends Task {
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
     Object? resultSummary = _Undefined,
+    Object? pausedUntil = _Undefined,
+    Object? pauseReason = _Undefined,
+    Object? pausedPhase = _Undefined,
     Object? claudeSessionId = _Undefined,
     Object? branchName = _Undefined,
     Object? prUrl = _Undefined,
@@ -446,6 +494,11 @@ class _TaskImpl extends Task {
       resultSummary: resultSummary is String?
           ? resultSummary
           : this.resultSummary,
+      pausedUntil: pausedUntil is DateTime? ? pausedUntil : this.pausedUntil,
+      pauseReason: pauseReason is String? ? pauseReason : this.pauseReason,
+      pausedPhase: pausedPhase is _iv8oofn2.LogPhase?
+          ? pausedPhase
+          : this.pausedPhase,
       claudeSessionId: claudeSessionId is String?
           ? claudeSessionId
           : this.claudeSessionId,
@@ -517,6 +570,24 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
         table.resultSummary,
         value,
       );
+
+  _is.ColumnValue<DateTime, DateTime> pausedUntil(DateTime? value) =>
+      _is.ColumnValue(
+        table.pausedUntil,
+        value,
+      );
+
+  _is.ColumnValue<String, String> pauseReason(String? value) => _is.ColumnValue(
+    table.pauseReason,
+    value,
+  );
+
+  _is.ColumnValue<_iv8oofn2.LogPhase, _iv8oofn2.LogPhase> pausedPhase(
+    _iv8oofn2.LogPhase? value,
+  ) => _is.ColumnValue(
+    table.pausedPhase,
+    value,
+  );
 
   _is.ColumnValue<String, String> claudeSessionId(String? value) =>
       _is.ColumnValue(
@@ -597,6 +668,19 @@ class TaskTable extends _is.Table<int?> {
       'resultSummary',
       this,
     );
+    pausedUntil = _is.ColumnDateTime(
+      'pausedUntil',
+      this,
+    );
+    pauseReason = _is.ColumnString(
+      'pauseReason',
+      this,
+    );
+    pausedPhase = _is.ColumnEnum(
+      'pausedPhase',
+      this,
+      _is.EnumSerialization.byName,
+    );
     claudeSessionId = _is.ColumnString(
       'claudeSessionId',
       this,
@@ -663,6 +747,18 @@ class TaskTable extends _is.Table<int?> {
   /// when the agent finished without changing code, e.g. it answered a
   /// question or found nothing to change.
   late final _is.ColumnString resultSummary;
+
+  /// Set while `paused`: when the usage limit resets and the task resumes.
+  late final _is.ColumnDateTime pausedUntil;
+
+  /// The limit message shown while paused, e.g. "You've hit your session
+  /// limit · resets 12:40am".
+  late final _is.ColumnString pauseReason;
+
+  /// Which kind of run was interrupted, so the resume continues the same
+  /// session the same way (planning keeps plan mode). Cleared by the
+  /// daemon once the resumed run starts.
+  late final _is.ColumnEnum<_iv8oofn2.LogPhase> pausedPhase;
 
   /// Claude Code session id, for --resume on feedback.
   late final _is.ColumnString claudeSessionId;
@@ -862,6 +958,9 @@ class TaskTable extends _is.Table<int?> {
     currentPlan,
     failureReason,
     resultSummary,
+    pausedUntil,
+    pauseReason,
+    pausedPhase,
     claudeSessionId,
     branchName,
     prUrl,

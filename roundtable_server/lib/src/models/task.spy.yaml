@@ -23,6 +23,15 @@ fields:
   ### when the agent finished without changing code, e.g. it answered a
   ### question or found nothing to change.
   resultSummary: String?
+  ### Set while `paused`: when the usage limit resets and the task resumes.
+  pausedUntil: DateTime?
+  ### The limit message shown while paused, e.g. "You've hit your session
+  ### limit · resets 12:40am".
+  pauseReason: String?
+  ### Which kind of run was interrupted, so the resume continues the same
+  ### session the same way (planning keeps plan mode). Cleared by the
+  ### daemon once the resumed run starts.
+  pausedPhase: LogPhase?
   ### Claude Code session id, for --resume on feedback.
   claudeSessionId: String?
   branchName: String?

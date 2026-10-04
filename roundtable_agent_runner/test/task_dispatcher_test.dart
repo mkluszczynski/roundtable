@@ -52,6 +52,83 @@ void main() {
       status: AgentStatus.idle,
     );
 
+    TaskDispatcher dispatcherFor(
+      String claudeScript, {
+      required List<Task> taskUpdates,
+      List<String>? messages,
+    }) => TaskDispatcher(
+      worktreeManager: WorktreeManager(
+        workspaceRoot: '${tempDir.path}/workspace',
+      ),
+      executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+      oauthToken: null,
+      getCloneUrl: (projectId) async => fixtureRepo.path,
+      fetchAgent: (agentId) async => buildAgent(),
+      updateTask: (task) async => taskUpdates.add(task),
+      updateAgent: (agent) async {},
+      appendLog: (_) async {},
+      fetchLatestFeedback: (_) async => null,
+      openPullRequest:
+          ({
+            required cloneUrl,
+            required branchName,
+            required title,
+            body,
+          }) async => 'https://github.com/example/repo/pull/1',
+      watchTask: (_) => const Stream<Task>.empty(),
+      log: messages?.add ?? (_) {},
+      serverUrl: 'https://server.example',
+      permissionPromptToolCommand: const ['echo'],
+    );
+
+    test('a run stopped by the usage limit pauses the task with the reset '
+        'time, its phase and session', () async {
+      final claudeScript = writeFakeClaude('''
+echo '{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"sess-9","result":"You have hit your session limit · resets 3am (Europe/Warsaw)"}'
+exit 1
+''');
+      final taskUpdates = <Task>[];
+
+      await dispatcherFor(
+        claudeScript,
+        taskUpdates: taskUpdates,
+      ).handle(buildTask());
+
+      final paused = taskUpdates.last;
+      expect(paused.status, TaskStatus.paused);
+      expect(paused.pausedPhase, LogPhase.execution);
+      expect(paused.claudeSessionId, 'sess-9');
+      expect(paused.pauseReason, contains('session limit'));
+      expect(paused.pausedUntil!.isAfter(DateTime.now().toUtc()), isTrue);
+    });
+
+    test(
+      'a paused task requeued after the reset resumes its session',
+      () async {
+        final argsFile = '${tempDir.path}/args.txt';
+        final claudeScript = writeFakeClaude('''
+echo "\$@" > $argsFile
+echo "more" > more.txt
+echo '{"type":"result","subtype":"success","session_id":"sess-9"}'
+exit 0
+''');
+        final taskUpdates = <Task>[];
+
+        await dispatcherFor(claudeScript, taskUpdates: taskUpdates).handle(
+          buildTask().copyWith(
+            claudeSessionId: 'sess-9',
+            pausedPhase: LogPhase.execution,
+          ),
+        );
+
+        final args = File(argsFile).readAsStringSync();
+        expect(args, contains('--resume sess-9'));
+        expect(args, contains('usage limit'));
+        expect(taskUpdates.first.pausedPhase, isNull);
+        expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+      },
+    );
+
     test('a skipPlanning task that produces changes commits, pushes, opens a '
         'PR, and reports success', () async {
       final claudeScript = writeFakeClaude('''

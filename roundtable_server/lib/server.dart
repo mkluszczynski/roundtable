@@ -171,6 +171,7 @@ void run(List<String> args) async {
         'StalledTaskCheckFutureCall',
         'MachineMetricCleanupCheckFutureCall',
         'PrChecksCheckFutureCall',
+        'PausedTaskResumeCheckFutureCall',
       }),
     );
   } finally {
@@ -192,6 +193,13 @@ void run(List<String> args) async {
       .callRecurring(identifier: 'stalled-task-check')
       .every(const Duration(seconds: 30))
       .stalledTask
+      .check();
+
+  // Resume tasks paused by a Claude usage limit once it has reset.
+  await pod.futureCalls
+      .callRecurring(identifier: 'paused-task-resume')
+      .every(const Duration(seconds: 30))
+      .pausedTaskResume
       .check();
 
   // Keep only the last hour of machine metrics — the panel shows just the

@@ -50,8 +50,8 @@ class ClaudeCodeExecutionResult {
   /// it back via `--resume`.
   final String? sessionId;
 
-  /// Set when [success] is false: the process's stderr output, or a fallback
-  /// describing the exit code if stderr was empty.
+  /// Set when [success] is false: the final result message (the model's
+  /// error, e.g. a usage limit), else stderr, else the exit code.
   final String? errorSummary;
 
   /// The final `result` message's `result` field — the model's last reply.
@@ -162,6 +162,7 @@ class ClaudeCodeExecutor {
     String? effort,
     List<String> additionalDirectories = const [],
     String? appendSystemPrompt,
+    String? resumeSessionId,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -172,6 +173,7 @@ class ClaudeCodeExecutor {
       'stream-json',
       '--verbose',
       '--include-partial-messages',
+      if (resumeSessionId != null) ...['--resume', resumeSessionId],
       '--permission-mode',
       'plan',
       '--mcp-config',
@@ -251,6 +253,9 @@ class ClaudeCodeExecutor {
       workingDirectory: workingDirectory,
       environment: {'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken},
     );
+    // The prompt goes in via `-p`; an open stdin makes `claude` wait 3s and
+    // print a warning to stderr, which used to become the failure reason.
+    unawaited(process.stdin.close());
     onProcessStarted?.call(process);
 
     String? sessionId;
@@ -300,8 +305,12 @@ class ClaudeCodeExecutor {
       exitCode: exitCode,
       sessionId: sessionId,
       resultText: resultText,
+      // Prefer the model's own error (e.g. "You've hit your session limit")
+      // over stderr noise.
       errorSummary: success
           ? null
+          : (resultText?.trim().isNotEmpty ?? false)
+          ? resultText!.trim()
           : (stderrBuffer.isEmpty
                 ? 'claude exited with code $exitCode'
                 : stderrBuffer.toString().trim()),

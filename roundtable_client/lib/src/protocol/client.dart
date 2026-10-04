@@ -577,10 +577,22 @@ class EndpointMachine extends _isc.EndpointRef {
         {'id': id},
       );
 
-  /// Called by the uninstall script as a deliberate deregistration, so the
-  /// server doesn't have to wait for the heartbeat timeout to notice the
-  /// machine is gone (docs/FLOWS.md §1–3). Marks the machine offline and clears
-  /// [Machine.tokenHash] so the raw token can never match again.
+  /// Called by the uninstall script once it has stopped the daemon
+  /// (docs/FLOWS.md §3). The uninstall is the dev's deliberate removal of the
+  /// machine, so it's deleted right away. The dev doesn't have to click
+  /// "Delete" again in the panel.
+  ///
+  /// The machine is first marked offline and [Machine.tokenHash] is cleared,
+  /// so the raw token can never match again even if the delete doesn't go
+  /// through. Then the agent runs lost with the daemon are failed, as in
+  /// [reportStartup], along with `queued` code reviews: no daemon is left to
+  /// pick them up, and they would block their task forever.
+  ///
+  /// If the machine's agents still have other non-terminal tasks (queued,
+  /// awaiting review, …), deleting it is blocked as in [delete], and the
+  /// machine stays offline. The dev deletes it from the panel once those
+  /// tasks are resolved. The same happens if the delete keeps losing a
+  /// serialization conflict.
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
@@ -696,6 +708,9 @@ class EndpointMachine extends _isc.EndpointRef {
         {},
       );
 
+  /// Deletes an offline machine whose agents have no non-terminal tasks.
+  /// Its agents go with it, so their still-active code reviews are failed
+  /// (see [_deleteMachine]).
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'machine',
     'delete',
@@ -950,6 +965,15 @@ class EndpointTask extends _isc.EndpointRef {
       'message': message,
     },
   );
+
+  /// Resumes a task paused by a usage limit right away instead of waiting
+  /// for `pausedUntil` — e.g. after the dev raised the plan's limit.
+  _ida.Future<_iw53rmon.Task> resumeTask(int taskId) =>
+      caller.callServerEndpoint<_iw53rmon.Task>(
+        'task',
+        'resumeTask',
+        {'taskId': taskId},
+      );
 
   /// Persists a structured log entry (kind, run, tool…) from the daemon —
   /// see [TaskLogEntry]. Same side effects as [appendLog]; the server

@@ -16,3 +16,6 @@ values:
   - cancelled
   ### created without an agent; not dispatched until one is assigned via reassignAgent
   - draft
+  ### The agent hit its Claude usage limit; resumes the same session on its
+  ### own at `Task.pausedUntil` (or when the dev clicks Resume now).
+  - paused

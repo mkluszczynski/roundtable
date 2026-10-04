@@ -56,6 +56,9 @@ class _KanbanCardState extends State<KanbanCard> {
         (task.status == TaskStatus.awaitingReview ||
             task.status == TaskStatus.running);
     final ciFailed = showChecks && task.checkState == PrCheckState.failure;
+    final pausedUntil = task.status == TaskStatus.paused
+        ? task.pausedUntil
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.sm),
@@ -110,6 +113,16 @@ class _KanbanCardState extends State<KanbanCard> {
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.caption.copyWith(
                                 color: AppColors.red,
+                              ),
+                            ),
+                          ],
+                          if (pausedUntil != null) ...[
+                            const SizedBox(height: Spacing.xs),
+                            Text(
+                              'Usage limit — resumes at '
+                              '${resumeTimeLabel(pausedUntil)}',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.warning,
                               ),
                             ),
                           ],

@@ -34,7 +34,7 @@ Channels (in `TaskEndpoint`, `CodeReviewEndpoint`, `task_review_support.dart`):
 | `task-question-<id>` | answered `TaskQuestion` | permission tool, blocked on `AskUserQuestion` |
 | `task-<id>-plan-decision` | plan approve/reject | permission tool, blocked on `ExitPlanMode` |
 
-The server also does work in the background with **four recurring future
+The server also does work in the background with **five recurring future
 calls**, registered in `roundtable_server/lib/server.dart`. On every boot it
 deletes the existing rows and schedules them again, so they don't pile up:
 
@@ -46,6 +46,9 @@ deletes the existing rows and schedules them again, so they don't pile up:
   (`lastProgressAt`) for 15 min goes to `failed`.
 - `MachineMetricCleanupFutureCall` (every 10 min): deletes `MachineMetric`
   rows older than 1 h.
+- `PausedTaskResumeFutureCall` (every 30 s): a task `paused` by a Claude
+  usage limit whose `pausedUntil` has passed is queued again, so its daemon
+  resumes the same session.
 - `PrChecksFutureCall` (every 30 s; settled checks only every 5 min): for
   each `awaitingReview` task with a PR and a project token, mirrors the
   GitHub Actions jobs of the PR's head commit (`syncChecks` in `lib/src/pr_checks.dart`). Polling, not a webhook:

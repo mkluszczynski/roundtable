@@ -257,6 +257,8 @@ class _FutureCalls {
 
   late final machineOffline = _MachineOfflineFutureCall();
 
+  late final pausedTaskResume = _PausedTaskResumeFutureCall();
+
   late final stalledTask = _StalledTaskFutureCall();
 }
 
@@ -2263,6 +2265,37 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_i77xifuu.Task> resumeTask(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'resumeTask',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'resumeTask',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_in2gwlh7.TaskLogEntry> appendLogEntry(
     _ist.TestSessionBuilder sessionBuilder,
     _in2gwlh7.TaskLogEntry entry,
@@ -3078,6 +3111,21 @@ class _MachineOfflineFutureCall {
         (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild();
     try {
       await _iewj8v67.MachineOfflineCheckFutureCall().invoke(
+        _localUniqueSession,
+        null,
+      );
+    } finally {
+      await _localUniqueSession.close();
+    }
+  }
+}
+
+class _PausedTaskResumeFutureCall {
+  Future<void> check(_ist.TestSessionBuilder sessionBuilder) async {
+    var _localUniqueSession =
+        (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild();
+    try {
+      await _iewj8v67.PausedTaskResumeCheckFutureCall().invoke(
         _localUniqueSession,
         null,
       );

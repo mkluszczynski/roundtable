@@ -83,6 +83,7 @@ StatusAppearance taskStatusAppearance(TaskStatus status) {
     TaskStatus.awaitingReview => const StatusAppearance(AppColors.accent),
     TaskStatus.done => const StatusAppearance(AppColors.live),
     TaskStatus.failed => const StatusAppearance(AppColors.red),
+    TaskStatus.paused => const StatusAppearance(AppColors.warning),
     TaskStatus.draft ||
     TaskStatus.cancelled => const StatusAppearance(AppColors.text2),
   };

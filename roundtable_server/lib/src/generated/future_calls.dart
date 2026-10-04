@@ -16,6 +16,7 @@ import 'package:clock/clock.dart' as _io0w16m8;
 import 'package:serverpod/serverpod.dart' as _is;
 import '../future_calls/machine_metric_cleanup_future_call.dart' as _isi0pp7c;
 import '../future_calls/machine_offline_future_call.dart' as _iou5r7kt;
+import '../future_calls/paused_task_resume_future_call.dart' as _i1l5ctmh;
 import '../future_calls/stalled_task_future_call.dart' as _ikbf0ylb;
 
 /// Invokes a future call.
@@ -63,6 +64,7 @@ class FutureCalls extends _is.FutureCallDispatch<_FutureCallRef> {
       'MachineMetricCleanupCheckFutureCall':
           MachineMetricCleanupCheckFutureCall(),
       'MachineOfflineCheckFutureCall': MachineOfflineCheckFutureCall(),
+      'PausedTaskResumeCheckFutureCall': PausedTaskResumeCheckFutureCall(),
       'StalledTaskCheckFutureCall': StalledTaskCheckFutureCall(),
     };
     _futureCallManager = futureCallManager;
@@ -192,6 +194,10 @@ class _FutureCallRef {
     _invokeFutureCall,
   );
 
+  late final pausedTaskResume = _PausedTaskResumeFutureCallDispatcher(
+    _invokeFutureCall,
+  );
+
   late final stalledTask = _StalledTaskFutureCallDispatcher(_invokeFutureCall);
 }
 
@@ -216,6 +222,19 @@ class _MachineOfflineFutureCallDispatcher {
   Future<void> check() {
     return _invokeFutureCall(
       'MachineOfflineCheckFutureCall',
+      null,
+    );
+  }
+}
+
+class _PausedTaskResumeFutureCallDispatcher {
+  _PausedTaskResumeFutureCallDispatcher(this._invokeFutureCall);
+
+  final _InvokeFutureCall _invokeFutureCall;
+
+  Future<void> check() {
+    return _invokeFutureCall(
+      'PausedTaskResumeCheckFutureCall',
       null,
     );
   }
@@ -253,6 +272,17 @@ class MachineOfflineCheckFutureCall extends _is.FutureCall
     _is.SerializableModel? object,
   ) async {
     await _iou5r7kt.MachineOfflineFutureCall().check(session);
+  }
+}
+
+class PausedTaskResumeCheckFutureCall extends _is.FutureCall
+    implements _is.InvokableFutureCall {
+  @override
+  _ida.Future<void> invoke(
+    _is.Session session,
+    _is.SerializableModel? object,
+  ) async {
+    await _i1l5ctmh.PausedTaskResumeFutureCall().check(session);
   }
 }
 

@@ -13,6 +13,7 @@ const nonTerminalTaskStatuses = {
   TaskStatus.planReady,
   TaskStatus.running,
   TaskStatus.awaitingReview,
+  TaskStatus.paused,
 };
 
 /// Runs a delete guard (check for blocking rows, then delete) as one
