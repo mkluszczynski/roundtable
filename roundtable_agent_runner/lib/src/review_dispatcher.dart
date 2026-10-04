@@ -7,7 +7,7 @@ import 'claude_code_executor.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'stream_json_formatter.dart';
-import 'task_dispatcher.dart';
+import 'task_images.dart';
 import 'worktree_manager.dart';
 
 /// Runs an assigned [CodeReview]: checks the task's branch out read-only,
