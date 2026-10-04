@@ -157,39 +157,74 @@ class MachineEndpoint extends Endpoint {
   /// Called by the uninstall script once it has stopped the daemon
   /// (docs/FLOWS.md §3). The uninstall is the dev's deliberate removal of the
   /// machine, so it's deleted right away. The dev doesn't have to click
-  /// "Delete" again in the panel. Agent runs lost with the daemon are failed
-  /// first, as in [reportStartup].
+  /// "Delete" again in the panel.
+  ///
+  /// The machine is first marked offline and [Machine.tokenHash] is cleared,
+  /// so the raw token can never match again even if the delete doesn't go
+  /// through. Then the agent runs lost with the daemon are failed, as in
+  /// [reportStartup], along with `queued` code reviews: no daemon is left to
+  /// pick them up, and they would block their task forever.
   ///
   /// If the machine's agents still have other non-terminal tasks (queued,
-  /// awaiting review, …), deleting it is blocked as in [delete]. In that case
-  /// the machine is marked offline instead, and [Machine.tokenHash] is cleared
-  /// so the raw token can never match again. The dev deletes it from the
-  /// panel once those tasks are resolved.
+  /// awaiting review, …), deleting it is blocked as in [delete], and the
+  /// machine stays offline. The dev deletes it from the panel once those
+  /// tasks are resolved. The same happens if the delete keeps losing a
+  /// serialization conflict.
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
   Future<void> deregister(Session session, String token) async {
-    final machine = await _findByToken(session, token);
+    final registered = await _findByToken(session, token);
+    final machine = await Machine.db.updateRow(
+      session,
+      registered.copyWith(status: MachineStatus.offline, tokenHash: null),
+    );
     await _failOrphanedWork(
       session,
       machine,
       taskReason:
           'The agent runner was uninstalled mid-task, so the Claude Code run '
           'was lost',
-      reviewReason: 'The agent runner was uninstalled mid-review',
+      reviewReason: 'The agent runner was uninstalled before the review finished',
+      reviewStatuses: activeCodeReviewStatuses,
     );
 
-    await guardedDelete(session, (transaction) async {
-      if (await _nonTerminalTaskCount(session, machine.id!, transaction) > 0) {
-        await Machine.db.updateRow(
-          session,
-          machine.copyWith(status: MachineStatus.offline, tokenHash: null),
-          transaction: transaction,
-        );
-      } else {
-        await Machine.db.deleteRow(session, machine, transaction: transaction);
+    // A serializable transaction can be aborted by a concurrent write (e.g.
+    // a task created for one of its agents); retry once, then leave the
+    // machine offline and revoked for the dev to delete from the panel.
+    final failedReviewIds = <int>[];
+    for (var attempt = 1; ; attempt++) {
+      try {
+        await guardedDelete(session, (transaction) async {
+          failedReviewIds.clear();
+          final blockingTasks = await _nonTerminalTaskCount(
+            session,
+            machine.id!,
+            transaction,
+          );
+          if (blockingTasks > 0) return;
+          failedReviewIds.addAll(
+            await _deleteMachine(session, machine, transaction),
+          );
+        });
+        break;
+      } on Exception catch (e, stackTrace) {
+        failedReviewIds.clear();
+        if (attempt >= 2) {
+          session.log(
+            'Deregistered machine ${machine.id} could not be deleted; it '
+            'stays offline with its token revoked',
+            level: LogLevel.warning,
+            exception: e,
+            stackTrace: stackTrace,
+          );
+          break;
+        }
       }
-    });
+    }
+    for (final reviewId in failedReviewIds) {
+      await postReviewChanged(session, reviewId);
+    }
   }
 
   /// Called by the daemon once at startup, right after [identify]. A fresh
@@ -212,17 +247,20 @@ class MachineEndpoint extends Endpoint {
           'The agent runner restarted mid-task, so the Claude Code run was '
           'lost',
       reviewReason: 'The agent runner restarted mid-review',
+      reviewStatuses: const {CodeReviewStatus.running},
     );
   }
 
-  /// Fails the agent-driven tasks and running code reviews of [machine]'s
-  /// agents, whose `claude` processes died with the daemon, and resets the
-  /// agents to `idle`. Shared by [reportStartup] and [deregister].
+  /// Fails the agent-driven tasks of [machine]'s agents, whose `claude`
+  /// processes died with the daemon, and their code reviews in
+  /// [reviewStatuses], and resets the agents to `idle`. Shared by
+  /// [reportStartup] and [deregister].
   Future<void> _failOrphanedWork(
     Session session,
     Machine machine, {
     required String taskReason,
     required String reviewReason,
+    required Set<CodeReviewStatus> reviewStatuses,
   }) async {
     final agents = await Agent.db.find(
       session,
@@ -238,22 +276,14 @@ class MachineEndpoint extends Endpoint {
     );
     await failTasks(session, orphaned, taskReason);
 
-    final orphanedReviews = await CodeReview.db.find(
+    final failedReviewIds = await _failReviews(
       session,
-      where: (t) =>
-          t.reviewerAgentId.inSet(agents.map((a) => a.id!).toSet()) &
-          t.status.equals(CodeReviewStatus.running),
+      agents.map((a) => a.id!).toSet(),
+      reviewStatuses,
+      reviewReason,
     );
-    for (final review in orphanedReviews) {
-      await CodeReview.db.updateRow(
-        session,
-        review.copyWith(
-          status: CodeReviewStatus.failed,
-          failureReason: reviewReason,
-          finishedAt: DateTime.now().toUtc(),
-        ),
-      );
-      await postReviewChanged(session, review.id!);
+    for (final reviewId in failedReviewIds) {
+      await postReviewChanged(session, reviewId);
     }
 
     await Agent.db.update(
@@ -376,8 +406,13 @@ class MachineEndpoint extends Endpoint {
     return machine;
   }
 
+  /// Deletes an offline machine whose agents have no non-terminal tasks.
+  /// Its agents go with it, so their still-active code reviews are failed
+  /// (see [_deleteMachine]).
   Future<void> delete(Session session, int id) async {
+    final failedReviewIds = <int>[];
     await guardedDelete(session, (transaction) async {
+      failedReviewIds.clear();
       var machine = await Machine.db.findById(
         session,
         id,
@@ -401,8 +436,71 @@ class MachineEndpoint extends Endpoint {
         );
       }
 
-      await Machine.db.deleteRow(session, machine, transaction: transaction);
+      failedReviewIds.addAll(
+        await _deleteMachine(session, machine, transaction),
+      );
     });
+    for (final reviewId in failedReviewIds) {
+      await postReviewChanged(session, reviewId);
+    }
+  }
+
+  /// Deletes [machine] (its agents cascade) within [transaction]. Code
+  /// reviews still `queued`/`running` for its agents would otherwise be left
+  /// without a reviewer (`reviewerAgent` is SetNull) and block their task
+  /// forever, so they're failed first. Returns the failed reviews' ids for the
+  /// caller to broadcast once the transaction has committed.
+  Future<List<int>> _deleteMachine(
+    Session session,
+    Machine machine,
+    Transaction transaction,
+  ) async {
+    final agentIds = (await Agent.db.find(
+      session,
+      where: (t) => t.machineId.equals(machine.id!),
+      transaction: transaction,
+    )).map((agent) => agent.id!).toSet();
+    final failedReviewIds = await _failReviews(
+      session,
+      agentIds,
+      activeCodeReviewStatuses,
+      'The reviewer agent was removed along with its machine',
+      transaction: transaction,
+    );
+    await Machine.db.deleteRow(session, machine, transaction: transaction);
+    return failedReviewIds;
+  }
+
+  /// Marks the code reviews of [agentIds] whose status is in [statuses] as
+  /// `failed` with [reason], and returns their ids. Doesn't broadcast; the
+  /// caller posts [postReviewChanged] (after committing, if in a
+  /// [transaction]).
+  Future<List<int>> _failReviews(
+    Session session,
+    Set<int> agentIds,
+    Set<CodeReviewStatus> statuses,
+    String reason, {
+    Transaction? transaction,
+  }) async {
+    if (agentIds.isEmpty) return const [];
+    final reviews = await CodeReview.db.find(
+      session,
+      where: (t) =>
+          t.reviewerAgentId.inSet(agentIds) & t.status.inSet(statuses),
+      transaction: transaction,
+    );
+    for (final review in reviews) {
+      await CodeReview.db.updateRow(
+        session,
+        review.copyWith(
+          status: CodeReviewStatus.failed,
+          failureReason: reason,
+          finishedAt: DateTime.now().toUtc(),
+        ),
+        transaction: transaction,
+      );
+    }
+    return [for (final review in reviews) review.id!];
   }
 
   /// Number of non-terminal tasks assigned to the agents of machine

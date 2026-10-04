@@ -481,6 +481,130 @@ void main() {
     );
 
     test(
+      'when deregistering a machine whose agent has a queued code review then '
+      'the review fails instead of blocking its task forever, and the machine '
+      'is deleted',
+      () async {
+        final session = sessionBuilder.build();
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'Reviewer VPS',
+        );
+        final reviewer = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Rex', machineId: registration.machine.id!),
+        );
+        // The reviewed task belongs to an agent on another machine, so it
+        // doesn't block deleting the reviewer's machine.
+        final otherMachine = await Machine.db.insertRow(
+          session,
+          Machine(name: 'Laptop', status: MachineStatus.offline),
+        );
+        final author = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Ana', machineId: otherMachine.id!),
+        );
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        final task = await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            agentId: author.id,
+            prompt: 'Do something',
+            status: TaskStatus.awaitingReview,
+          ),
+        );
+        final review = await CodeReview.db.insertRow(
+          session,
+          CodeReview(
+            taskId: task.id!,
+            reviewerAgentId: reviewer.id,
+            status: CodeReviewStatus.queued,
+          ),
+        );
+
+        await endpoints.machine.deregister(
+          sessionBuilder,
+          registration.token,
+        );
+
+        expect(
+          await endpoints.machine.get(sessionBuilder, registration.machine.id!),
+          isNull,
+        );
+        final fetchedReview = await CodeReview.db.findById(
+          session,
+          review.id!,
+        );
+        expect(fetchedReview!.status, CodeReviewStatus.failed);
+        expect(fetchedReview.failureReason, contains('uninstalled'));
+        expect(fetchedReview.reviewerAgentId, isNull);
+        expect(
+          (await Task.db.findById(session, task.id!))!.status,
+          TaskStatus.awaitingReview,
+        );
+      },
+    );
+
+    test(
+      'when deleting an offline machine whose agent has a queued code review '
+      'then the review fails instead of being left without a reviewer',
+      () async {
+        final session = sessionBuilder.build();
+        final machine = await Machine.db.insertRow(
+          session,
+          Machine(name: 'Reviewer VPS', status: MachineStatus.offline),
+        );
+        final reviewer = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Rex', machineId: machine.id!),
+        );
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        final task = await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            prompt: 'Do something',
+            status: TaskStatus.awaitingReview,
+          ),
+        );
+        final review = await CodeReview.db.insertRow(
+          session,
+          CodeReview(
+            taskId: task.id!,
+            reviewerAgentId: reviewer.id,
+            status: CodeReviewStatus.queued,
+          ),
+        );
+
+        await endpoints.machine.delete(sessionBuilder, machine.id!);
+
+        expect(
+          await endpoints.machine.get(sessionBuilder, machine.id!),
+          isNull,
+        );
+        final fetchedReview = await CodeReview.db.findById(
+          session,
+          review.id!,
+        );
+        expect(fetchedReview!.status, CodeReviewStatus.failed);
+        expect(fetchedReview.reviewerAgentId, isNull);
+      },
+    );
+
+    test(
       'when deregistering with an unknown token then it throws '
       'InvalidTokenException',
       () async {
