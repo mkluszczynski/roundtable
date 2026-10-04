@@ -1,4 +1,5 @@
 import 'non_terminal_task_statuses.dart';
+import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
 import '../task_review_support.dart';
@@ -39,6 +40,7 @@ class TaskEndpoint extends Endpoint {
     int? agentId,
     String prompt, {
     bool skipPlanning = false,
+    List<int>? attachmentIds,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
       throw NotFoundException(message: 'Project $projectId not found');
@@ -60,6 +62,12 @@ class TaskEndpoint extends Endpoint {
         skipPlanning: skipPlanning,
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
+    );
+    // Linked before the machine is notified, so the runner sees them.
+    await TaskAttachmentEndpoint.link(
+      session,
+      task.id!,
+      attachmentIds ?? const [],
     );
 
     if (agent != null) {
@@ -656,6 +664,14 @@ class TaskEndpoint extends Endpoint {
       );
     }
 
+    // The rows cascade with the task; the stored files don't.
+    await TaskAttachmentEndpoint.deleteStored(
+      session,
+      await TaskAttachment.db.find(
+        session,
+        where: (a) => a.taskId.equals(taskId),
+      ),
+    );
     await Task.db.deleteRow(session, task);
     await session.messages.postMessage(
       _channelForTaskDeletions(),

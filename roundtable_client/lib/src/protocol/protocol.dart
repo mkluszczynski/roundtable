@@ -18,6 +18,8 @@ import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
     as _ithbrqha;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
+import 'package:roundtable_client/src/protocol/task_attachment.dart'
+    as _iowm7apo;
 import 'package:serverpod_auth_core_client/serverpod_auth_core_client.dart'
     as _iacc;
 import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
@@ -50,6 +52,7 @@ import 'review_comment_draft.dart' as _i6wlz106;
 import 'review_comment_severity.dart' as _iml08ymk;
 import 'review_comment_state.dart' as _igczzv9q;
 import 'task.dart' as _iwn6t6fs;
+import 'task_attachment.dart' as _isyamz65;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_feedback_phase.dart' as _iitmdld3;
@@ -83,6 +86,7 @@ export 'review_comment_draft.dart';
 export 'review_comment_severity.dart';
 export 'review_comment_state.dart';
 export 'task.dart';
+export 'task_attachment.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
 export 'task_feedback_phase.dart';
@@ -205,6 +209,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _iwn6t6fs.Task) {
       return _iwn6t6fs.Task.fromJson(data) as T;
+    }
+    if (t == _isyamz65.TaskAttachment) {
+      return _isyamz65.TaskAttachment.fromJson(data) as T;
     }
     if (t == _imh5lex6.TaskDeleted) {
       return _imh5lex6.TaskDeleted.fromJson(data) as T;
@@ -333,6 +340,10 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isc.getType<_iwn6t6fs.Task?>()) {
       return (data != null ? _iwn6t6fs.Task.fromJson(data) : null) as T;
     }
+    if (t == _isc.getType<_isyamz65.TaskAttachment?>()) {
+      return (data != null ? _isyamz65.TaskAttachment.fromJson(data) : null)
+          as T;
+    }
     if (t == _isc.getType<_imh5lex6.TaskDeleted?>()) {
       return (data != null ? _imh5lex6.TaskDeleted.fromJson(data) : null) as T;
     }
@@ -446,6 +457,20 @@ class Protocol extends _isc.SerializationManager {
               : null)
           as T;
     }
+    if (t == List<_isyamz65.TaskAttachment>) {
+      return (data as List)
+              .map((e) => deserialize<_isyamz65.TaskAttachment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<_isyamz65.TaskAttachment>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_isyamz65.TaskAttachment>(e))
+                    .toList()
+              : null)
+          as T;
+    }
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
@@ -472,6 +497,18 @@ class Protocol extends _isc.SerializationManager {
       return (data as List)
               .map((e) => deserialize<_i76mncv2.Project>(e))
               .toList()
+          as T;
+    }
+    if (t == List<_iowm7apo.TaskAttachment>) {
+      return (data as List)
+              .map((e) => deserialize<_iowm7apo.TaskAttachment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<int>?>()) {
+      return (data != null
+              ? (data as List).map((e) => deserialize<int>(e)).toList()
+              : null)
           as T;
     }
     if (t == List<String>) {
@@ -525,6 +562,7 @@ class Protocol extends _isc.SerializationManager {
       _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
       _igczzv9q.ReviewCommentState => 'ReviewCommentState',
       _iwn6t6fs.Task => 'Task',
+      _isyamz65.TaskAttachment => 'TaskAttachment',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
       _iitmdld3.TaskFeedbackPhase => 'TaskFeedbackPhase',
@@ -599,6 +637,8 @@ class Protocol extends _isc.SerializationManager {
         return 'ReviewCommentState';
       case _iwn6t6fs.Task():
         return 'Task';
+      case _isyamz65.TaskAttachment():
+        return 'TaskAttachment';
       case _imh5lex6.TaskDeleted():
         return 'TaskDeleted';
       case _i5hi2zxr.TaskFeedback():
@@ -713,6 +753,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'Task') {
       return deserialize<_iwn6t6fs.Task>(data['data']);
+    }
+    if (dataClassName == 'TaskAttachment') {
+      return deserialize<_isyamz65.TaskAttachment>(data['data']);
     }
     if (dataClassName == 'TaskDeleted') {
       return deserialize<_imh5lex6.TaskDeleted>(data['data']);

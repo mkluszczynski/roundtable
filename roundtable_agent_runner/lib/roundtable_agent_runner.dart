@@ -221,7 +221,21 @@ class AgentRunnerService {
     log: _log,
     serverUrl: _normalizeServerUrl(_config.serverUrl),
     permissionPromptToolCommand: _permissionPromptToolCommand(_config),
+    fetchAttachments: _fetchAttachments,
   );
+
+  Future<List<TaskImage>> _fetchAttachments(int taskId) async {
+    final attachments = await _client.taskAttachment.list(taskId);
+    return [
+      for (final a in attachments)
+        (
+          fileName: a.fileName,
+          bytes: (await _client.taskAttachment.download(
+            a.id!,
+          )).buffer.asUint8List(),
+        ),
+    ];
+  }
 
   late final _janitor = WorktreeJanitor(
     worktreeManager: _worktreeManager,

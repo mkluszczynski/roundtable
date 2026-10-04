@@ -14,6 +14,7 @@ import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent.dart' as _ijo8h3v4;
 import 'project.dart' as _ifiazq2p;
+import 'task_attachment.dart' as _isyamz65;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_log_entry.dart' as _ihv3trno;
 import 'task_question.dart' as _ivtt8ejd;
@@ -43,6 +44,7 @@ abstract class Task
     this.logs,
     this.feedback,
     this.questions,
+    this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        createdAt = createdAt ?? DateTime.now(),
@@ -69,6 +71,7 @@ abstract class Task
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   }) = _TaskImpl;
 
   factory Task.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -131,6 +134,11 @@ abstract class Task
           : _i35hmugi.Protocol().deserialize<List<_ivtt8ejd.TaskQuestion>>(
               jsonSerialization['questions'],
             ),
+      attachments: jsonSerialization['attachments'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<List<_isyamz65.TaskAttachment>>(
+              jsonSerialization['attachments'],
+            ),
     );
   }
 
@@ -189,6 +197,8 @@ abstract class Task
 
   List<_ivtt8ejd.TaskQuestion>? questions;
 
+  List<_isyamz65.TaskAttachment>? attachments;
+
   /// Returns a shallow copy of this [Task]
   /// with some or all fields replaced by the given arguments.
   @_isc.useResult
@@ -213,6 +223,7 @@ abstract class Task
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -240,6 +251,8 @@ abstract class Task
         'feedback': feedback?.toJson(valueToJson: (v) => v.toJson()),
       if (questions != null)
         'questions': questions?.toJson(valueToJson: (v) => v.toJson()),
+      if (attachments != null)
+        'attachments': attachments?.toJson(valueToJson: (v) => v.toJson()),
     };
   }
 
@@ -270,6 +283,10 @@ abstract class Task
         'feedback': feedback?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
       if (questions != null)
         'questions': questions?.toJson(
+          valueToJson: (v) => v.toJsonForProtocol(),
+        ),
+      if (attachments != null)
+        'attachments': attachments?.toJson(
           valueToJson: (v) => v.toJsonForProtocol(),
         ),
     };
@@ -305,6 +322,7 @@ class _TaskImpl extends Task {
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   }) : super._(
          id: id,
          projectId: projectId,
@@ -326,6 +344,7 @@ class _TaskImpl extends Task {
          logs: logs,
          feedback: feedback,
          questions: questions,
+         attachments: attachments,
        );
 
   /// Returns a shallow copy of this [Task]
@@ -353,6 +372,7 @@ class _TaskImpl extends Task {
     Object? logs = _Undefined,
     Object? feedback = _Undefined,
     Object? questions = _Undefined,
+    Object? attachments = _Undefined,
   }) {
     return Task(
       id: id is int? ? id : this.id,
@@ -387,6 +407,9 @@ class _TaskImpl extends Task {
       questions: questions is List<_ivtt8ejd.TaskQuestion>?
           ? questions
           : this.questions?.map((e0) => e0.copyWith()).toList(),
+      attachments: attachments is List<_isyamz65.TaskAttachment>?
+          ? attachments
+          : this.attachments?.map((e0) => e0.copyWith()).toList(),
     );
   }
 }

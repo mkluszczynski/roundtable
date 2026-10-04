@@ -81,6 +81,9 @@ class ClaudeCodeExecutor {
   /// NDJSON text exactly as emitted — that's what the caller persists via
   /// `TaskEndpoint.appendLog` (docs/FLOWS.md §4).
   ///
+  /// [additionalDirectories] are passed as `--add-dir`, granting access
+  /// outside the worktree (e.g. the task's attached images).
+  ///
   /// [onProcessStarted], if given, is called once with the live [Process]
   /// right after it's spawned — so a caller can send it a signal (e.g.
   /// `SIGTERM` on cancellation, docs/FLOWS.md §4) without this method
@@ -94,6 +97,7 @@ class ClaudeCodeExecutor {
     String? resumeSessionId,
     String? permissionPromptTool,
     String? mcpConfigPath,
+    List<String> additionalDirectories = const [],
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -119,6 +123,7 @@ class ClaudeCodeExecutor {
       if (resumeSessionId != null) ...['--resume', resumeSessionId],
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
+      for (final dir in additionalDirectories) ...['--add-dir', dir],
     ];
 
     return _runProcess(
@@ -150,6 +155,7 @@ class ClaudeCodeExecutor {
     String? oauthToken,
     String? model,
     String? effort,
+    List<String> additionalDirectories = const [],
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -169,6 +175,7 @@ class ClaudeCodeExecutor {
       permissionPromptTool,
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
+      for (final dir in additionalDirectories) ...['--add-dir', dir],
     ];
 
     return _runProcess(

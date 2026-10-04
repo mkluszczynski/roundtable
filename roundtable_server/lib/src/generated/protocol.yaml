@@ -50,6 +50,11 @@ project:
   - updateRepoAccessToken:
   - delete:
   - getCloneUrl:
+taskAttachment:
+  - upload:
+  - list:
+  - download:
+  - discard:
 task:
   - createTask:
   - update:

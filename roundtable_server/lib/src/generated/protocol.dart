@@ -18,6 +18,8 @@ import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
+import 'package:roundtable_server/src/generated/task_attachment.dart'
+    as _i8vmihz0;
 import 'package:serverpod/protocol.dart' as _isp;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -51,6 +53,7 @@ import 'review_comment_draft.dart' as _i6wlz106;
 import 'review_comment_severity.dart' as _iml08ymk;
 import 'review_comment_state.dart' as _igczzv9q;
 import 'task.dart' as _iwn6t6fs;
+import 'task_attachment.dart' as _isyamz65;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_feedback_phase.dart' as _iitmdld3;
@@ -84,6 +87,7 @@ export 'review_comment_draft.dart';
 export 'review_comment_severity.dart';
 export 'review_comment_state.dart';
 export 'task.dart';
+export 'task_attachment.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
 export 'task_feedback_phase.dart';
@@ -794,6 +798,86 @@ class Protocol extends _is.DatabaseSerializationManager {
       managed: true,
     ),
     _isp.TableDefinition(
+      name: 'task_attachment',
+      dartName: 'TaskAttachment',
+      schema: 'public',
+      module: 'roundtable',
+      columns: [
+        _isp.ColumnDefinition(
+          name: 'id',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _isp.ColumnDefinition(
+          name: 'taskId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'storagePath',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'fileName',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'mimeType',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'sizeBytes',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int',
+        ),
+        _isp.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+      ],
+      foreignKeys: [
+        _isp.ForeignKeyDefinition(
+          constraintName: 'task_attachment_fk_0',
+          columns: ['taskId'],
+          referenceTable: 'task',
+          referenceTableSchema: 'public',
+          referenceColumns: ['id'],
+          onUpdate: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.cascade,
+          matchType: null,
+        ),
+      ],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'task_attachment_task_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'taskId',
+            ),
+          ],
+          type: 'btree',
+          isUnique: false,
+          isPrimary: false,
+        ),
+      ],
+      managed: true,
+    ),
+    _isp.TableDefinition(
       name: 'task_feedback',
       dartName: 'TaskFeedback',
       schema: 'public',
@@ -1135,6 +1219,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _iwn6t6fs.Task) {
       return _iwn6t6fs.Task.fromJson(data) as T;
     }
+    if (t == _isyamz65.TaskAttachment) {
+      return _isyamz65.TaskAttachment.fromJson(data) as T;
+    }
     if (t == _imh5lex6.TaskDeleted) {
       return _imh5lex6.TaskDeleted.fromJson(data) as T;
     }
@@ -1262,6 +1349,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _is.getType<_iwn6t6fs.Task?>()) {
       return (data != null ? _iwn6t6fs.Task.fromJson(data) : null) as T;
     }
+    if (t == _is.getType<_isyamz65.TaskAttachment?>()) {
+      return (data != null ? _isyamz65.TaskAttachment.fromJson(data) : null)
+          as T;
+    }
     if (t == _is.getType<_imh5lex6.TaskDeleted?>()) {
       return (data != null ? _imh5lex6.TaskDeleted.fromJson(data) : null) as T;
     }
@@ -1375,6 +1466,20 @@ class Protocol extends _is.DatabaseSerializationManager {
               : null)
           as T;
     }
+    if (t == List<_isyamz65.TaskAttachment>) {
+      return (data as List)
+              .map((e) => deserialize<_isyamz65.TaskAttachment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _is.getType<List<_isyamz65.TaskAttachment>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_isyamz65.TaskAttachment>(e))
+                    .toList()
+              : null)
+          as T;
+    }
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
@@ -1401,6 +1506,18 @@ class Protocol extends _is.DatabaseSerializationManager {
       return (data as List)
               .map((e) => deserialize<_ii35q81x.Project>(e))
               .toList()
+          as T;
+    }
+    if (t == List<_i8vmihz0.TaskAttachment>) {
+      return (data as List)
+              .map((e) => deserialize<_i8vmihz0.TaskAttachment>(e))
+              .toList()
+          as T;
+    }
+    if (t == _is.getType<List<int>?>()) {
+      return (data != null
+              ? (data as List).map((e) => deserialize<int>(e)).toList()
+              : null)
           as T;
     }
     if (t == List<String>) {
@@ -1457,6 +1574,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
       _igczzv9q.ReviewCommentState => 'ReviewCommentState',
       _iwn6t6fs.Task => 'Task',
+      _isyamz65.TaskAttachment => 'TaskAttachment',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
       _iitmdld3.TaskFeedbackPhase => 'TaskFeedbackPhase',
@@ -1531,6 +1649,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'ReviewCommentState';
       case _iwn6t6fs.Task():
         return 'Task';
+      case _isyamz65.TaskAttachment():
+        return 'TaskAttachment';
       case _imh5lex6.TaskDeleted():
         return 'TaskDeleted';
       case _i5hi2zxr.TaskFeedback():
@@ -1650,6 +1770,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (dataClassName == 'Task') {
       return deserialize<_iwn6t6fs.Task>(data['data']);
     }
+    if (dataClassName == 'TaskAttachment') {
+      return deserialize<_isyamz65.TaskAttachment>(data['data']);
+    }
     if (dataClassName == 'TaskDeleted') {
       return deserialize<_imh5lex6.TaskDeleted>(data['data']);
     }
@@ -1723,6 +1846,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return _itpwl327.ReviewComment.t;
       case _iwn6t6fs.Task:
         return _iwn6t6fs.Task.t;
+      case _isyamz65.TaskAttachment:
+        return _isyamz65.TaskAttachment.t;
       case _i5hi2zxr.TaskFeedback:
         return _i5hi2zxr.TaskFeedback.t;
       case _ihv3trno.TaskLogEntry:

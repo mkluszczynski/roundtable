@@ -153,6 +153,24 @@ exit 0
       expect(started.single.pid, greaterThan(0));
     });
 
+    test('passes --add-dir for each additional directory', () async {
+      final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+      final executor = ClaudeCodeExecutor(executable: script);
+      final lines = <String>[];
+
+      await executor.run(
+        prompt: 'look at the screenshot',
+        workingDirectory: tempDir.path,
+        additionalDirectories: ['/tmp/a', '/tmp/b'],
+        onLine: lines.add,
+      );
+
+      expect(lines.single, contains('--add-dir /tmp/a --add-dir /tmp/b'));
+    });
+
     test('passes --model and --effort when set', () async {
       final script = writeFakeClaude(r'''
 echo "{\"args\":\"$*\"}"

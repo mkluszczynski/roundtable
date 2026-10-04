@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -5,12 +7,16 @@ import 'package:roundtable_client/roundtable_client.dart';
 import '../client.dart';
 import '../cubits/create_task_cubit.dart';
 import '../cubits/project_list_cubit.dart';
+import '../repositories/attachment_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../utils/error_message.dart';
+import '../utils/image_paste.dart';
 import 'agent_picker.dart';
+import 'attachment_thumbnail.dart';
 import 'app_modal.dart';
 
 class CreateTaskDialog extends StatelessWidget {
@@ -52,14 +58,94 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   int? _agentId;
   bool _skipPlanning = false;
 
+  late final _attachments = AttachmentRepository(client);
+  final _images = <_PendingImage>[];
+  late final void Function() _stopPasteListener;
+
+  /// Set once the task is created — from then on the uploads belong to it
+  /// and must not be discarded when the dialog closes.
+  bool _submitted = false;
+
+  static const _maxImages = 6;
+  static const _maxBytes = 5 * 1024 * 1024;
+
+  @override
+  void initState() {
+    super.initState();
+    _stopPasteListener = listenForPastedImages(
+      (image) => _addImage(image.name, image.bytes),
+    );
+  }
+
   @override
   void dispose() {
+    _stopPasteListener();
     _promptController.dispose();
+    if (!_submitted) {
+      // Closed without creating the task: drop the orphaned uploads.
+      for (final image in _images) {
+        final id = image.id;
+        if (id != null) _attachments.discard(id).ignore();
+      }
+    }
     super.dispose();
   }
 
+  bool get _uploading => _images.any((i) => i.uploading);
+
   bool get _canSubmit =>
-      _projectId != null && _promptController.text.trim().isNotEmpty;
+      _projectId != null &&
+      _promptController.text.trim().isNotEmpty &&
+      !_uploading;
+
+  Future<void> _addImage(String name, Uint8List bytes) async {
+    if (_images.length >= _maxImages) {
+      _showError('A task can have at most $_maxImages images.');
+      return;
+    }
+    if (bytes.lengthInBytes > _maxBytes) {
+      _showError('$name is larger than 5 MB.');
+      return;
+    }
+    final image = _PendingImage(name: name, bytes: bytes);
+    setState(() => _images.add(image));
+    try {
+      final uploaded = await _attachments.upload(name, bytes);
+      if (!mounted) {
+        _attachments.discard(uploaded.id!).ignore();
+        return;
+      }
+      setState(() {
+        image.id = uploaded.id;
+        image.uploading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        image.uploading = false;
+        image.error = errorMessage(e);
+      });
+    }
+  }
+
+  void _removeImage(_PendingImage image) {
+    setState(() => _images.remove(image));
+    final id = image.id;
+    if (id != null) _attachments.discard(id).ignore();
+  }
+
+  Future<void> _pickImages() async {
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    for (final file in files) {
+      await _addImage(file.name, await file.readAsBytes());
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,12 +181,19 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
               final submitting = state is CreateTaskSubmitting;
               return FilledButton(
                 onPressed: (_canSubmit && !submitting)
-                    ? () => context.read<CreateTaskCubit>().submit(
-                        projectId: _projectId!,
-                        agentId: _agentId,
-                        prompt: _promptController.text.trim(),
-                        skipPlanning: _skipPlanning,
-                      )
+                    ? () {
+                        _submitted = true;
+                        context.read<CreateTaskCubit>().submit(
+                          projectId: _projectId!,
+                          agentId: _agentId,
+                          prompt: _promptController.text.trim(),
+                          skipPlanning: _skipPlanning,
+                          attachmentIds: [
+                            for (final i in _images)
+                              if (i.id != null) i.id!,
+                          ],
+                        );
+                      }
                     : null,
                 child: submitting
                     ? const SizedBox(
@@ -162,6 +255,36 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                   minLines: 4,
                   maxLines: 8,
                   onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: Spacing.sm),
+                Wrap(
+                  spacing: Spacing.sm,
+                  runSpacing: Spacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final image in _images)
+                      AttachmentThumbnail(
+                        name: image.name,
+                        bytes: image.bytes,
+                        uploading: image.uploading,
+                        error: image.error,
+                        onRemove: () => _removeImage(image),
+                      ),
+                    if (_images.length < _maxImages)
+                      TextButton.icon(
+                        onPressed: _pickImages,
+                        icon: const Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 16,
+                        ),
+                        label: const Text('Attach image'),
+                      ),
+                    if (kIsWeb && _images.isEmpty)
+                      Text(
+                        'or paste a screenshot (Ctrl+V)',
+                        style: AppTypography.caption,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: Spacing.xl),
                 Text('AGENT', style: AppTypography.label),
@@ -242,4 +365,16 @@ class _ProjectOption extends StatelessWidget {
       ],
     );
   }
+}
+
+/// An image added in the dialog: uploaded right away, linked to the task
+/// on create.
+class _PendingImage {
+  _PendingImage({required this.name, required this.bytes});
+
+  final String name;
+  final Uint8List bytes;
+  int? id;
+  bool uploading = true;
+  String? error;
 }

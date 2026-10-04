@@ -15,6 +15,7 @@ import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent.dart' as _ijo8h3v4;
 import 'project.dart' as _ifiazq2p;
+import 'task_attachment.dart' as _isyamz65;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_log_entry.dart' as _ihv3trno;
 import 'task_question.dart' as _ivtt8ejd;
@@ -43,6 +44,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.logs,
     this.feedback,
     this.questions,
+    this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        createdAt = createdAt ?? DateTime.now(),
@@ -69,6 +71,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   }) = _TaskImpl;
 
   factory Task.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -128,6 +131,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
           ? null
           : _iikm6kmi.Protocol().deserialize<List<_ivtt8ejd.TaskQuestion>>(
               jsonSerialization['questions'],
+            ),
+      attachments: jsonSerialization['attachments'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<List<_isyamz65.TaskAttachment>>(
+              jsonSerialization['attachments'],
             ),
     );
   }
@@ -189,6 +197,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   List<_ivtt8ejd.TaskQuestion>? questions;
 
+  List<_isyamz65.TaskAttachment>? attachments;
+
   @override
   _is.Table<int?> get table => t;
 
@@ -216,6 +226,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -243,6 +254,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
         'feedback': feedback?.toJson(valueToJson: (v) => v.toJson()),
       if (questions != null)
         'questions': questions?.toJson(valueToJson: (v) => v.toJson()),
+      if (attachments != null)
+        'attachments': attachments?.toJson(valueToJson: (v) => v.toJson()),
     };
   }
 
@@ -275,6 +288,10 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
         'questions': questions?.toJson(
           valueToJson: (v) => v.toJsonForProtocol(),
         ),
+      if (attachments != null)
+        'attachments': attachments?.toJson(
+          valueToJson: (v) => v.toJsonForProtocol(),
+        ),
     };
   }
 
@@ -284,6 +301,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ihv3trno.TaskLogEntryIncludeList? logs,
     _i5hi2zxr.TaskFeedbackIncludeList? feedback,
     _ivtt8ejd.TaskQuestionIncludeList? questions,
+    _isyamz65.TaskAttachmentIncludeList? attachments,
   }) {
     return TaskInclude._(
       project: project,
@@ -291,6 +309,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       logs: logs,
       feedback: feedback,
       questions: questions,
+      attachments: attachments,
     );
   }
 
@@ -342,6 +361,7 @@ class _TaskImpl extends Task {
     List<_ihv3trno.TaskLogEntry>? logs,
     List<_i5hi2zxr.TaskFeedback>? feedback,
     List<_ivtt8ejd.TaskQuestion>? questions,
+    List<_isyamz65.TaskAttachment>? attachments,
   }) : super._(
          id: id,
          projectId: projectId,
@@ -363,6 +383,7 @@ class _TaskImpl extends Task {
          logs: logs,
          feedback: feedback,
          questions: questions,
+         attachments: attachments,
        );
 
   /// Returns a shallow copy of this [Task]
@@ -390,6 +411,7 @@ class _TaskImpl extends Task {
     Object? logs = _Undefined,
     Object? feedback = _Undefined,
     Object? questions = _Undefined,
+    Object? attachments = _Undefined,
   }) {
     return Task(
       id: id is int? ? id : this.id,
@@ -424,6 +446,9 @@ class _TaskImpl extends Task {
       questions: questions is List<_ivtt8ejd.TaskQuestion>?
           ? questions
           : this.questions?.map((e0) => e0.copyWith()).toList(),
+      attachments: attachments is List<_isyamz65.TaskAttachment>?
+          ? attachments
+          : this.attachments?.map((e0) => e0.copyWith()).toList(),
     );
   }
 }
@@ -634,6 +659,10 @@ class TaskTable extends _is.Table<int?> {
 
   _is.ManyRelation<_ivtt8ejd.TaskQuestionTable>? _questions;
 
+  _isyamz65.TaskAttachmentTable? ___attachments;
+
+  _is.ManyRelation<_isyamz65.TaskAttachmentTable>? _attachments;
+
   _ifiazq2p.ProjectTable get project {
     if (_project != null) return _project!;
     _project = _is.createRelationTable(
@@ -699,6 +728,19 @@ class TaskTable extends _is.Table<int?> {
     return ___questions!;
   }
 
+  _isyamz65.TaskAttachmentTable get __attachments {
+    if (___attachments != null) return ___attachments!;
+    ___attachments = _is.createRelationTable(
+      relationFieldName: '__attachments',
+      field: Task.t.id,
+      foreignField: _isyamz65.TaskAttachment.t.taskId,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _isyamz65.TaskAttachmentTable(tableRelation: foreignTableRelation),
+    );
+    return ___attachments!;
+  }
+
   _is.ManyRelation<_ihv3trno.TaskLogEntryTable> get logs {
     if (_logs != null) return _logs!;
     var relationTable = _is.createRelationTable(
@@ -756,6 +798,25 @@ class TaskTable extends _is.Table<int?> {
     return _questions!;
   }
 
+  _is.ManyRelation<_isyamz65.TaskAttachmentTable> get attachments {
+    if (_attachments != null) return _attachments!;
+    var relationTable = _is.createRelationTable(
+      relationFieldName: 'attachments',
+      field: Task.t.id,
+      foreignField: _isyamz65.TaskAttachment.t.taskId,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _isyamz65.TaskAttachmentTable(tableRelation: foreignTableRelation),
+    );
+    _attachments = _is.ManyRelation<_isyamz65.TaskAttachmentTable>(
+      tableWithRelations: relationTable,
+      table: _isyamz65.TaskAttachmentTable(
+        tableRelation: relationTable.tableRelation!.lastRelation,
+      ),
+    );
+    return _attachments!;
+  }
+
   @override
   List<_is.Column> get columns => [
     id,
@@ -792,6 +853,9 @@ class TaskTable extends _is.Table<int?> {
     if (relationField == 'questions') {
       return __questions;
     }
+    if (relationField == 'attachments') {
+      return __attachments;
+    }
     return null;
   }
 }
@@ -803,12 +867,14 @@ class TaskInclude extends _is.IncludeObject {
     _ihv3trno.TaskLogEntryIncludeList? logs,
     _i5hi2zxr.TaskFeedbackIncludeList? feedback,
     _ivtt8ejd.TaskQuestionIncludeList? questions,
+    _isyamz65.TaskAttachmentIncludeList? attachments,
   }) {
     _project = project;
     _agent = agent;
     _logs = logs;
     _feedback = feedback;
     _questions = questions;
+    _attachments = attachments;
   }
 
   _ifiazq2p.ProjectInclude? _project;
@@ -821,6 +887,8 @@ class TaskInclude extends _is.IncludeObject {
 
   _ivtt8ejd.TaskQuestionIncludeList? _questions;
 
+  _isyamz65.TaskAttachmentIncludeList? _attachments;
+
   @override
   Map<String, _is.Include?> get includes => {
     'project': _project,
@@ -828,6 +896,7 @@ class TaskInclude extends _is.IncludeObject {
     'logs': _logs,
     'feedback': _feedback,
     'questions': _questions,
+    'attachments': _attachments,
   };
 
   @override
@@ -859,6 +928,8 @@ class TaskRepository {
   final attach = const TaskAttachRepository._();
 
   final attachRow = const TaskAttachRowRepository._();
+
+  final detach = const TaskDetachRepository._();
 
   final detachRow = const TaskDetachRowRepository._();
 
@@ -1337,6 +1408,31 @@ class TaskAttachRepository {
       transaction: transaction,
     );
   }
+
+  /// Creates a relation between this [Task] and the given [TaskAttachment]s
+  /// by setting each [TaskAttachment]'s foreign key `taskId` to refer to this [Task].
+  Future<void> attachments(
+    _is.DatabaseSession session,
+    Task task,
+    List<_isyamz65.TaskAttachment> taskAttachment, {
+    _is.Transaction? transaction,
+  }) async {
+    if (taskAttachment.any((e) => e.id == null)) {
+      throw ArgumentError.notNull('taskAttachment.id');
+    }
+    if (task.id == null) {
+      throw ArgumentError.notNull('task.id');
+    }
+
+    var $taskAttachment = taskAttachment
+        .map((e) => e.copyWith(taskId: task.id))
+        .toList();
+    await session.db.update<_isyamz65.TaskAttachment>(
+      $taskAttachment,
+      columns: [_isyamz65.TaskAttachment.t.taskId],
+      transaction: transaction,
+    );
+  }
 }
 
 class TaskAttachRowRepository {
@@ -1456,6 +1552,57 @@ class TaskAttachRowRepository {
       transaction: transaction,
     );
   }
+
+  /// Creates a relation between this [Task] and the given [TaskAttachment]
+  /// by setting the [TaskAttachment]'s foreign key `taskId` to refer to this [Task].
+  Future<void> attachments(
+    _is.DatabaseSession session,
+    Task task,
+    _isyamz65.TaskAttachment taskAttachment, {
+    _is.Transaction? transaction,
+  }) async {
+    if (taskAttachment.id == null) {
+      throw ArgumentError.notNull('taskAttachment.id');
+    }
+    if (task.id == null) {
+      throw ArgumentError.notNull('task.id');
+    }
+
+    var $taskAttachment = taskAttachment.copyWith(taskId: task.id);
+    await session.db.updateRow<_isyamz65.TaskAttachment>(
+      $taskAttachment,
+      columns: [_isyamz65.TaskAttachment.t.taskId],
+      transaction: transaction,
+    );
+  }
+}
+
+class TaskDetachRepository {
+  const TaskDetachRepository._();
+
+  /// Detaches the relation between this [Task] and the given [TaskAttachment]
+  /// by setting the [TaskAttachment]'s foreign key `taskId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> attachments(
+    _is.DatabaseSession session,
+    List<_isyamz65.TaskAttachment> taskAttachment, {
+    _is.Transaction? transaction,
+  }) async {
+    if (taskAttachment.any((e) => e.id == null)) {
+      throw ArgumentError.notNull('taskAttachment.id');
+    }
+
+    var $taskAttachment = taskAttachment
+        .map((e) => e.copyWith(taskId: null))
+        .toList();
+    await session.db.update<_isyamz65.TaskAttachment>(
+      $taskAttachment,
+      columns: [_isyamz65.TaskAttachment.t.taskId],
+      transaction: transaction,
+    );
+  }
 }
 
 class TaskDetachRowRepository {
@@ -1479,6 +1626,28 @@ class TaskDetachRowRepository {
     await session.db.updateRow<Task>(
       $task,
       columns: [Task.t.agentId],
+      transaction: transaction,
+    );
+  }
+
+  /// Detaches the relation between this [Task] and the given [TaskAttachment]
+  /// by setting the [TaskAttachment]'s foreign key `taskId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> attachments(
+    _is.DatabaseSession session,
+    _isyamz65.TaskAttachment taskAttachment, {
+    _is.Transaction? transaction,
+  }) async {
+    if (taskAttachment.id == null) {
+      throw ArgumentError.notNull('taskAttachment.id');
+    }
+
+    var $taskAttachment = taskAttachment.copyWith(taskId: null);
+    await session.db.updateRow<_isyamz65.TaskAttachment>(
+      $taskAttachment,
+      columns: [_isyamz65.TaskAttachment.t.taskId],
       transaction: transaction,
     );
   }

@@ -38,6 +38,7 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
     int? agentId,
     required String prompt,
     required bool skipPlanning,
+    List<int> attachmentIds = const [],
   }) async {
     emit(const CreateTaskSubmitting());
     try {
@@ -46,6 +47,7 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
         agentId,
         prompt,
         skipPlanning: skipPlanning,
+        attachmentIds: attachmentIds,
       );
       emit(CreateTaskSuccess(task));
     } catch (e) {

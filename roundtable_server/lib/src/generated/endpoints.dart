@@ -10,6 +10,7 @@
 // ignore_for_file: invalid_use_of_internal_member
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'dart:typed_data' as _idt;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
 import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
@@ -34,6 +35,7 @@ import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
 import '../endpoints/code_review_endpoint.dart' as _ia5tunx2;
 import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
 import '../endpoints/project_endpoint.dart' as _iemg8ri2;
+import '../endpoints/task_attachment_endpoint.dart' as _iqxurivk;
 import '../endpoints/task_endpoint.dart' as _idmllfay;
 import '../greetings/greeting_endpoint.dart' as _il624ik7;
 export 'future_calls.dart' show ServerpodFutureCallsGetter;
@@ -76,6 +78,12 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'project',
+          null,
+        ),
+      'taskAttachment': _iqxurivk.TaskAttachmentEndpoint()
+        ..initialize(
+          server,
+          'taskAttachment',
           null,
         ),
       'task': _idmllfay.TaskEndpoint()
@@ -1128,6 +1136,102 @@ class Endpoints extends _is.EndpointDispatch {
         ),
       },
     );
+    connectors['taskAttachment'] = _is.EndpointConnector(
+      name: 'taskAttachment',
+      endpoint: endpoints['taskAttachment']!,
+      methodConnectors: {
+        'upload': _is.MethodConnector(
+          name: 'upload',
+          params: {
+            'fileName': _is.ParameterDescription(
+              name: 'fileName',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'bytes': _is.ParameterDescription(
+              name: 'bytes',
+              type: _is.getType<_idt.ByteData>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['taskAttachment']
+                          as _iqxurivk.TaskAttachmentEndpoint)
+                      .upload(
+                        session,
+                        params['fileName'],
+                        params['bytes'],
+                      ),
+        ),
+        'list': _is.MethodConnector(
+          name: 'list',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['taskAttachment']
+                          as _iqxurivk.TaskAttachmentEndpoint)
+                      .list(
+                        session,
+                        params['taskId'],
+                      ),
+        ),
+        'download': _is.MethodConnector(
+          name: 'download',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['taskAttachment']
+                          as _iqxurivk.TaskAttachmentEndpoint)
+                      .download(
+                        session,
+                        params['id'],
+                      ),
+        ),
+        'discard': _is.MethodConnector(
+          name: 'discard',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['taskAttachment']
+                          as _iqxurivk.TaskAttachmentEndpoint)
+                      .discard(
+                        session,
+                        params['id'],
+                      ),
+        ),
+      },
+    );
     connectors['task'] = _is.EndpointConnector(
       name: 'task',
       endpoint: endpoints['task']!,
@@ -1155,6 +1259,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<bool>(),
               nullable: false,
             ),
+            'attachmentIds': _is.ParameterDescription(
+              name: 'attachmentIds',
+              type: _is.getType<List<int>?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -1167,6 +1276,7 @@ class Endpoints extends _is.EndpointDispatch {
                     params['agentId'],
                     params['prompt'],
                     skipPlanning: params['skipPlanning'],
+                    attachmentIds: params['attachmentIds'],
                   ),
         ),
         'update': _is.MethodConnector(

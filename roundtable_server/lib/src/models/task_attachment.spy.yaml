@@ -1,0 +1,18 @@
+### An image the dev attached to a task's prompt (e.g. a pasted screenshot).
+### The bytes live in the private cloud storage under [storagePath]; the
+### runner downloads them and points Claude Code at the files.
+class: TaskAttachment
+table: task_attachment
+fields:
+  ### Null between upload and the task's creation — attachments are
+  ### uploaded while the dev is still writing the prompt.
+  ### onDelete=Cascade: an attachment means nothing without its task.
+  task: Task?, relation(name=task_attachments, optional, onDelete=Cascade)
+  storagePath: String
+  fileName: String
+  mimeType: String
+  sizeBytes: int
+  createdAt: DateTime, default=now
+indexes:
+  task_attachment_task_idx:
+    fields: taskId

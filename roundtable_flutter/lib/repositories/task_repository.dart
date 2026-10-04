@@ -10,11 +10,13 @@ class TaskRepository {
     int? agentId,
     String prompt, {
     required bool skipPlanning,
+    List<int> attachmentIds = const [],
   }) => _client.task.createTask(
     projectId,
     agentId,
     prompt,
     skipPlanning: skipPlanning,
+    attachmentIds: attachmentIds,
   );
 
   Future<List<DiffFile>> getChangedFiles(int taskId) =>

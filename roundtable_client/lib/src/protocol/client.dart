@@ -11,6 +11,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _ida;
+import 'dart:typed_data' as _idt;
 import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
@@ -36,6 +37,8 @@ import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
 import 'package:roundtable_client/src/protocol/review_comment_state.dart'
     as _i3j6boid;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
+import 'package:roundtable_client/src/protocol/task_attachment.dart'
+    as _iowm7apo;
 import 'package:roundtable_client/src/protocol/task_deleted.dart' as _iwt28wmq;
 import 'package:roundtable_client/src/protocol/task_feedback.dart' as _ifl2c5cu;
 import 'package:roundtable_client/src/protocol/task_log_entry.dart'
@@ -765,6 +768,56 @@ class EndpointProject extends _isc.EndpointRef {
       );
 }
 
+/// Images attached to a task's prompt. The panel uploads them while the dev
+/// writes the prompt ([upload]) and links them on `TaskEndpoint.createTask`;
+/// the panel and the agent runner read them back by id.
+/// {@category Endpoint}
+class EndpointTaskAttachment extends _isc.EndpointRef {
+  EndpointTaskAttachment(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'taskAttachment';
+
+  /// Stores [bytes] and returns the not-yet-linked attachment. The type is
+  /// sniffed from the bytes rather than trusted from the client, and the
+  /// storage path is generated here.
+  _ida.Future<_iowm7apo.TaskAttachment> upload(
+    String fileName,
+    _idt.ByteData bytes,
+  ) => caller.callServerEndpoint<_iowm7apo.TaskAttachment>(
+    'taskAttachment',
+    'upload',
+    {
+      'fileName': fileName,
+      'bytes': bytes,
+    },
+  );
+
+  /// The attachments of [taskId], oldest first.
+  _ida.Future<List<_iowm7apo.TaskAttachment>> list(int taskId) =>
+      caller.callServerEndpoint<List<_iowm7apo.TaskAttachment>>(
+        'taskAttachment',
+        'list',
+        {'taskId': taskId},
+      );
+
+  /// The image bytes of attachment [id].
+  _ida.Future<_idt.ByteData> download(int id) =>
+      caller.callServerEndpoint<_idt.ByteData>(
+        'taskAttachment',
+        'download',
+        {'id': id},
+      );
+
+  /// Removes an attachment that isn't linked to a task yet — the dev took
+  /// it out of the prompt before creating the task.
+  _ida.Future<void> discard(int id) => caller.callServerEndpoint<void>(
+    'taskAttachment',
+    'discard',
+    {'id': id},
+  );
+}
+
 /// Task creation and the daemon's assignment feed (docs/FLOWS.md §4).
 /// {@category Endpoint}
 class EndpointTask extends _isc.EndpointRef {
@@ -782,6 +835,7 @@ class EndpointTask extends _isc.EndpointRef {
     int? agentId,
     String prompt, {
     required bool skipPlanning,
+    List<int>? attachmentIds,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
     'createTask',
@@ -790,6 +844,7 @@ class EndpointTask extends _isc.EndpointRef {
       'agentId': agentId,
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'attachmentIds': attachmentIds,
     },
   );
 
@@ -1229,6 +1284,7 @@ class Client extends _isc.ServerpodClientShared {
     codeReview = EndpointCodeReview(this);
     machine = EndpointMachine(this);
     project = EndpointProject(this);
+    taskAttachment = EndpointTaskAttachment(this);
     task = EndpointTask(this);
     greeting = EndpointGreeting(this);
     modules = Modules(this);
@@ -1246,6 +1302,8 @@ class Client extends _isc.ServerpodClientShared {
 
   late final EndpointProject project;
 
+  late final EndpointTaskAttachment taskAttachment;
+
   late final EndpointTask task;
 
   late final EndpointGreeting greeting;
@@ -1260,6 +1318,7 @@ class Client extends _isc.ServerpodClientShared {
     'codeReview': codeReview,
     'machine': machine,
     'project': project,
+    'taskAttachment': taskAttachment,
     'task': task,
     'greeting': greeting,
   };

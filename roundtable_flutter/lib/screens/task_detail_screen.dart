@@ -29,6 +29,7 @@ import '../widgets/request_review_dialog.dart';
 import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
+import '../widgets/task_attachments_view.dart';
 import '../widgets/task_log_line.dart';
 import '../utils/relative_time.dart';
 
@@ -482,15 +483,24 @@ class _InfoRail extends StatelessWidget {
                 ),
                 RailSection(
                   label: 'Prompt',
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.bg2,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(Spacing.md),
-                      child: Text(task.prompt, style: AppTypography.body),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.bg2,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(Spacing.md),
+                          child: Text(task.prompt, style: AppTypography.body),
+                        ),
+                      ),
+                      TaskAttachmentsView(
+                        key: ValueKey(task.id),
+                        taskId: task.id!,
+                      ),
+                    ],
                   ),
                 ),
                 RailSection(
