@@ -41,9 +41,16 @@ class WorktreeManager {
   String _worktreeDir(String projectId, String taskId) =>
       '${_projectDir(projectId)}/worktrees/$taskId';
 
+  /// Where the remote's default branch is fetched to — new task branches
+  /// start from it. A dedicated ref rather than `refs/heads/<default>`:
+  /// fetching into a branch a worktree may have checked out is refused.
+  static const baseRef = 'refs/roundtable/base';
+
   /// Ensures a bare clone for [projectId] exists, cloning from [cloneUrl] if
-  /// it doesn't. Idempotent — safe to call every time a task for this
-  /// project starts.
+  /// it doesn't, then fetches the remote's current default branch into
+  /// [baseRef]. Without the fetch every task would branch from the commit
+  /// the project had when it was first cloned on this machine. Idempotent —
+  /// safe to call every time a task for this project starts.
   Future<void> ensureProjectCloned({
     required String projectId,
     required String cloneUrl,
@@ -51,25 +58,38 @@ class WorktreeManager {
     _assertSafeSegment(projectId, name: 'projectId');
     return _lockFor(projectId).synchronized(() async {
       final repoDir = Directory(_bareRepoDir(projectId));
-      if (repoDir.existsSync()) return;
+      if (!repoDir.existsSync()) {
+        await Directory(_projectDir(projectId)).create(recursive: true);
+        final result = await Process.run('git', [
+          'clone',
+          '--bare',
+          cloneUrl,
+          repoDir.path,
+        ]);
+        if (result.exitCode != 0) {
+          throw WorktreeException(
+            'git clone --bare failed for project $projectId',
+            stderr: result.stderr.toString(),
+          );
+        }
+      }
 
-      await Directory(_projectDir(projectId)).create(recursive: true);
-      final result = await Process.run('git', [
-        'clone',
-        '--bare',
+      final fetch = await Process.run('git', [
+        'fetch',
         cloneUrl,
-        repoDir.path,
-      ]);
-      if (result.exitCode != 0) {
+        '+HEAD:$baseRef',
+      ], workingDirectory: repoDir.path);
+      if (fetch.exitCode != 0) {
         throw WorktreeException(
-          'git clone --bare failed for project $projectId',
-          stderr: result.stderr.toString(),
+          'git fetch of the default branch failed for project $projectId',
+          stderr: fetch.stderr.toString(),
         );
       }
     });
   }
 
-  /// Creates an isolated worktree + branch (`task-<taskId>`) for [taskId]
+  /// Creates an isolated worktree + branch (`task-<taskId>`), starting from
+  /// the remote's latest default branch, for [taskId]
   /// under project [projectId], or returns the existing one if it already
   /// exists on disk (a feedback iteration reuses the same worktree —
   /// docs/ARCHITECTURE.md). Serialized per-project. Returns the absolute
@@ -95,6 +115,9 @@ class WorktreeManager {
         worktreeDir.path,
         '-b',
         'task-$taskId',
+        // Branch from the freshly fetched default branch (see
+        // [ensureProjectCloned]), not the bare clone's stale HEAD.
+        baseRef,
       ], workingDirectory: _bareRepoDir(projectId));
       if (result.exitCode != 0) {
         throw WorktreeException(

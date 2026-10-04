@@ -63,6 +63,32 @@ void main() {
       expect(branch.trim(), 'task-t1');
     });
 
+    test('a new task branches from the latest default branch', () async {
+      await manager.ensureProjectCloned(
+        projectId: 'p1',
+        cloneUrl: fixtureRepo.path,
+      );
+      final first = await manager.createWorktree(projectId: 'p1', taskId: 't1');
+      expect(File('$first/NEW.md').existsSync(), isFalse);
+
+      // main moves on after the project was cloned on this machine.
+      File('${fixtureRepo.path}/NEW.md').writeAsStringSync('new\n');
+      await _git(fixtureRepo.path, ['add', '.']);
+      await _git(fixtureRepo.path, ['commit', '-m', 'second']);
+
+      await manager.ensureProjectCloned(
+        projectId: 'p1',
+        cloneUrl: fixtureRepo.path,
+      );
+      final second = await manager.createWorktree(
+        projectId: 'p1',
+        taskId: 't2',
+      );
+      expect(File('$second/NEW.md').existsSync(), isTrue);
+      // An existing task's worktree keeps its own base.
+      expect(File('$first/NEW.md').existsSync(), isFalse);
+    });
+
     test(
       'createWorktree is idempotent for an already-existing task worktree',
       () async {
