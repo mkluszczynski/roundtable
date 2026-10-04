@@ -170,6 +170,7 @@ void run(List<String> args) async {
         'MachineOfflineCheckFutureCall',
         'StalledTaskCheckFutureCall',
         'MachineMetricCleanupCheckFutureCall',
+        'PrChecksCheckFutureCall',
         'PausedTaskResumeCheckFutureCall',
       }),
     );
@@ -207,5 +208,13 @@ void run(List<String> args) async {
       .callRecurring(identifier: 'machine-metric-cleanup')
       .every(const Duration(minutes: 10))
       .machineMetricCleanup
+      .check();
+
+  // Mirror the GitHub Actions checks of tasks in review, so the panel shows
+  // them and can send failures to the agent (docs/FLOWS.md §4 "CI checks").
+  await pod.futureCalls
+      .callRecurring(identifier: 'pr-checks')
+      .every(const Duration(seconds: 30))
+      .prChecks
       .check();
 }

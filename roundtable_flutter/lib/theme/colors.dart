@@ -88,3 +88,29 @@ StatusAppearance taskStatusAppearance(TaskStatus status) {
     TaskStatus.cancelled => const StatusAppearance(AppColors.text2),
   };
 }
+
+/// A PR's aggregated CI result (`Task.checkState`).
+StatusAppearance checkStateAppearance(PrCheckState state) {
+  return switch (state) {
+    PrCheckState.none => const StatusAppearance(AppColors.text2),
+    PrCheckState.pending => const StatusAppearance(
+      AppColors.warning,
+      pulsing: true,
+    ),
+    PrCheckState.success => const StatusAppearance(AppColors.live),
+    PrCheckState.failure => const StatusAppearance(AppColors.red),
+  };
+}
+
+/// One GitHub Actions job: running is amber, passed (or skipped) lime,
+/// anything else that finished red.
+StatusAppearance checkRunAppearance(PrCheckRun run) {
+  if (run.status != 'completed') {
+    return const StatusAppearance(AppColors.warning, pulsing: true);
+  }
+  return switch (run.conclusion) {
+    'success' => const StatusAppearance(AppColors.live),
+    'skipped' || 'neutral' => const StatusAppearance(AppColors.text2),
+    _ => const StatusAppearance(AppColors.red),
+  };
+}

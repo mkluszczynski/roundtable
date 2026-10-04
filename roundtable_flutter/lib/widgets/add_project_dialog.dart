@@ -7,11 +7,14 @@ import '../cubits/add_project_cubit.dart';
 import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
+import '../theme/typography.dart';
 import 'app_modal.dart';
+import 'pill_selector.dart';
 import 'token_help_accordion.dart';
 
 /// Name, repo URL, and (create-mode only) an optional repo access token
-/// with in-panel help (docs/ARCHITECTURE.md). Opened from
+/// with in-panel help (docs/ARCHITECTURE.md), or (edit-mode only) the CI
+/// auto-fix settings (docs/FLOWS.md §4 "CI checks"). Opened from
 /// `projects_screen.dart`
 /// to create a project, or from `project_detail_screen.dart`'s "Edit" button
 /// with [existingProject] set to rename/repoint one — editing never touches
@@ -49,6 +52,10 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
     text: widget.existingProject?.repoUrl,
   );
   final _tokenController = TextEditingController();
+  late bool _autoFixFailingChecks =
+      widget.existingProject?.autoFixFailingChecks ?? false;
+  late int _maxCheckFixAttempts =
+      widget.existingProject?.maxCheckFixAttempts ?? 2;
 
   bool get _editing => widget.existingProject != null;
 
@@ -91,6 +98,8 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
                               existing: widget.existingProject!,
                               name: _nameController.text.trim(),
                               repoUrl: _repoUrlController.text.trim(),
+                              autoFixFailingChecks: _autoFixFailingChecks,
+                              maxCheckFixAttempts: _maxCheckFixAttempts,
                             )
                           : context.read<AddProjectCubit>().submit(
                               name: _nameController.text.trim(),
@@ -141,6 +150,39 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
                       ),
                       const SizedBox(height: Spacing.sm),
                       const TokenHelpAccordion(),
+                    ],
+                    if (_editing) ...[
+                      const SizedBox(height: Spacing.lg),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _autoFixFailingChecks,
+                        onChanged: (value) =>
+                            setState(() => _autoFixFailingChecks = value),
+                        title: Text(
+                          'Send failing CI checks to the agent automatically',
+                          style: AppTypography.body,
+                        ),
+                        subtitle: Text(
+                          'When a task\'s GitHub Actions fail, its agent gets '
+                          'the logs and a fix run — without waiting for you.',
+                          style: AppTypography.caption,
+                        ),
+                      ),
+                      if (_autoFixFailingChecks) ...[
+                        const SizedBox(height: Spacing.sm),
+                        Text(
+                          'AUTOMATIC ATTEMPTS PER TASK',
+                          style: AppTypography.label,
+                        ),
+                        const SizedBox(height: Spacing.sm),
+                        PillSelector<int>(
+                          options: const [1, 2, 3, 5],
+                          labelBuilder: (n) => '$n',
+                          selected: _maxCheckFixAttempts,
+                          onChanged: (n) =>
+                              setState(() => _maxCheckFixAttempts = n),
+                        ),
+                      ],
                     ],
                     if (state is AddProjectError) ...[
                       const SizedBox(height: Spacing.md),

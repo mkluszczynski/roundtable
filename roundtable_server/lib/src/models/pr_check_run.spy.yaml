@@ -1,0 +1,31 @@
+### One GitHub Actions job run for a task PR's head commit. Mirrored from the
+### Actions API by `syncChecks` (lib/src/pr_checks.dart); the rows of a
+### previous head commit are replaced once the PR gets a new one.
+class: PrCheckRun
+table: pr_check_run
+fields:
+  ### onDelete=Cascade: a check has no meaning independent of its task.
+  task: Task?, relation(onDelete=Cascade)
+  ### The commit the job ran on — always the task's `prHeadSha`.
+  headSha: String
+  ### The workflow run the job belongs to, and which attempt of it (a
+  ### re-run on GitHub bumps it).
+  workflowRunId: int
+  runAttempt: int
+  workflowName: String
+  ### GitHub's job id, used to fetch the job's log.
+  jobId: int
+  jobName: String
+  ### `queued`, `in_progress`, `completed`, ... as GitHub reports it.
+  status: String
+  ### Set once completed: `success`, `failure`, `cancelled`, `skipped`, ...
+  conclusion: String?
+  ### Name of the first step that failed, if any.
+  failedStep: String?
+  ### The job's page on GitHub.
+  htmlUrl: String?
+  startedAt: DateTime?
+  completedAt: DateTime?
+indexes:
+  pr_check_run_task_idx:
+    fields: taskId, jobId

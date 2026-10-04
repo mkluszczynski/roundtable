@@ -29,7 +29,8 @@ class _TokenHelpAccordionState extends State<TokenHelpAccordion> {
             Expanded(
               child: Text(
                 'A fine-grained token with Contents and Pull requests: '
-                'Read and write, scoped to this repository.',
+                'Read and write, plus Actions: Read, scoped to this '
+                'repository.',
                 style: AppTypography.caption,
               ),
             ),
@@ -62,7 +63,8 @@ class _TokenHelpAccordionState extends State<TokenHelpAccordion> {
                       'pick this one repo\n'
                       '4. Permissions → Contents: Read and write, Pull '
                       'requests: Read and write (needed to open PRs, post AI '
-                      'review comments and merge)\n'
+                      'review comments and merge), Actions: Read (needed to '
+                      'show CI checks and send failures to the agent)\n'
                       '5. Generate token and paste it here — GitHub only '
                       'shows it once',
                       style: AppTypography.body,

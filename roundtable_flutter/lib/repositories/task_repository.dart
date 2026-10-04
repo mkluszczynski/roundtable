@@ -74,8 +74,10 @@ class TaskRepository {
   /// deleted task from its local list — the counterpart of [watchAllTasks].
   Stream<TaskDeleted> watchTaskDeletions() => _client.task.watchTaskDeletions();
 
-  /// Squash-merges [taskId]'s PR and marks it `done`.
-  Future<Task> acceptTask(int taskId) => _client.task.acceptTask(taskId);
+  /// Squash-merges [taskId]'s PR and marks it `done`. The server refuses
+  /// while the CI checks are pending or failing, unless [force].
+  Future<Task> acceptTask(int taskId, {bool force = false}) =>
+      _client.task.acceptTask(taskId, force: force);
 
   /// Whether [taskId]'s PR conflicts with its base branch.
   Future<PrMergeStatus> getMergeStatus(int taskId) =>
@@ -85,6 +87,23 @@ class TaskRepository {
   /// the conflicts.
   Future<TaskFeedback> resolveConflicts(int taskId) =>
       _client.task.resolveConflicts(taskId);
+
+  /// Streams [taskId]'s GitHub Actions checks — each event is the whole
+  /// current snapshot.
+  Stream<PrChecks> watchChecks(int taskId) => _client.task.watchChecks(taskId);
+
+  /// Reads [taskId]'s checks from GitHub now, instead of waiting for the
+  /// server's next poll.
+  Future<PrChecks> refreshChecks(int taskId) =>
+      _client.task.refreshChecks(taskId);
+
+  /// Sends [taskId]'s failing checks (all, or just [jobIds]) with their logs
+  /// and an optional [note] to the agent as one fix run.
+  Future<TaskFeedback> fixFailingChecks(
+    int taskId, {
+    List<int>? jobIds,
+    String? note,
+  }) => _client.task.fixFailingChecks(taskId, jobIds: jobIds, note: note);
 
   /// Streams [taskId]'s AI code reviews, each with its comments. Each event
   /// is a single review — merge it into your list by id.

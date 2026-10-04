@@ -1,0 +1,13 @@
+### A snapshot of a task's CI checks, streamed to the panel by
+### `TaskEndpoint.watchChecks`. Not a database table.
+class: PrChecks
+fields:
+  taskId: int
+  ### The head commit [runs] belong to; null until the PR was first checked.
+  headSha: String?
+  state: PrCheckState
+  ### Why the checks can't be read (`Task.checkError`), e.g. the project
+  ### token lacks "Actions: Read".
+  error: String?
+  ### Oldest workflow first, jobs in GitHub's order.
+  runs: List<PrCheckRun>
