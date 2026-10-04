@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -152,7 +154,11 @@ class _PanelShellState extends State<PanelShell> {
 
 /// [AppNavRail] fed with live signals from the shared cubits: tasks waiting
 /// on the dev, machines needing attention, and the connection state.
-class _ShellNavRail extends StatelessWidget {
+///
+/// Also keeps the machine list fresh: machine status and the server's
+/// latest runner version only change on a refetch, so it reloads silently on
+/// an interval and whenever the Machines tab is opened.
+class _ShellNavRail extends StatefulWidget {
   const _ShellNavRail({
     required this.items,
     required this.selectedIndex,
@@ -163,8 +169,38 @@ class _ShellNavRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
+  @override
+  State<_ShellNavRail> createState() => _ShellNavRailState();
+}
+
+class _ShellNavRailState extends State<_ShellNavRail> {
   static const _dashboardIndex = 0;
   static const _machinesIndex = 2;
+  static const _machineRefreshInterval = Duration(seconds: 30);
+
+  Timer? _machineRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+    _machineRefresh = Timer.periodic(
+      _machineRefreshInterval,
+      (_) => context.read<MachineListCubit>().fetchMachines(silent: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _machineRefresh?.cancel();
+    super.dispose();
+  }
+
+  void _select(int index) {
+    if (index == _machinesIndex) {
+      context.read<MachineListCubit>().fetchMachines(silent: true);
+    }
+    widget.onSelected(index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,9 +235,9 @@ class _ShellNavRail extends StatelessWidget {
         );
 
     return AppNavRail(
-      items: items,
-      selectedIndex: selectedIndex,
-      onSelected: onSelected,
+      items: widget.items,
+      selectedIndex: widget.selectedIndex,
+      onSelected: _select,
       badges: {
         if (waiting > 0)
           _dashboardIndex: Tooltip(
