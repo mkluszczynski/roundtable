@@ -5,26 +5,33 @@ import 'package:roundtable_client/roundtable_client.dart';
 import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
+import '../cubits/machine_list_cubit.dart';
 import '../cubits/machine_metric_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
-import '../utils/task_status_label.dart';
-import '../utils/error_message.dart';
-import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../utils/error_message.dart';
 import '../utils/relative_time.dart';
 import '../widgets/add_agent_dialog.dart';
-import '../widgets/agent_avatar.dart';
+import '../widgets/agent_row.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_modal.dart';
+import '../widgets/claude_warning_banner.dart';
+import '../widgets/kanban_card.dart';
+import '../widgets/load_failed_view.dart';
+import '../widgets/machine_online_delete_blocked_dialog.dart';
 import '../widgets/metric_bar.dart';
+import '../widgets/rail_section.dart';
+import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
-import '../widgets/tag_chip.dart';
+import 'task_detail_screen.dart';
 
-/// One machine: resources, its agents, and its recent tasks — pushed from
+/// One machine: a rail with status, resources, runner/CLI health and
+/// actions, next to its agents and recent tasks — pushed from
 /// `machines_screen.dart`.
 class MachineDetailScreen extends StatefulWidget {
   const MachineDetailScreen({super.key, required this.machineId});
@@ -57,6 +64,9 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
         BlocProvider(
           create: (_) =>
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
+        ),
+        BlocProvider(
+          create: (_) => MachineListCubit(_machineRepository)..fetchMachines(),
         ),
         BlocProvider(
           create: (_) =>
@@ -96,45 +106,71 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
 class _MachineDetailBody extends StatelessWidget {
   const _MachineDetailBody({required this.machine});
 
+  /// As loaded when the screen opened; the live copy from
+  /// `MachineListCubit` wins once it's there (status, runner version).
   final Machine machine;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Header(machine: machine),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(Spacing.xl),
+    final machineState = context.watch<MachineListCubit>().state;
+    final live = machineState is MachineListLoaded
+        ? machineState.machines.where((m) => m.id == machine.id).firstOrNull
+        : null;
+    final current = live ?? machine;
+    return BlocListener<MachineListCubit, MachineListState>(
+      listener: (context, state) {
+        if (state is MachineDeletionBlockedOnline) {
+          showDialog<void>(
+            context: context,
+            builder: (_) =>
+                MachineOnlineDeleteBlockedDialog(scriptUrl: state.scriptUrl),
+          );
+        } else if (state is MachineListError) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(machine: current),
+          Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                SizedBox(width: 300, child: _MachineRail(machine: current)),
+                VerticalDivider(width: 1, color: AppColors.border),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
+                  child: Padding(
+                    padding: const EdgeInsets.all(Spacing.xl),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _ResourcesCard(machineId: machine.id!),
-                        const SizedBox(height: Spacing.xxl),
-                        _AgentsCard(machineId: machine.id!),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: _AgentsCard(machine: current),
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.xxl),
+                        SizedBox(
+                          width: 380,
+                          child: _RecentTasksPanel(machineId: current.id!),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: Spacing.xxl),
-                SizedBox(
-                  width: 340,
-                  child: _RecentTasksPanel(machineId: machine.id!),
-                ),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
+/// Machine identity only; everything else lives in the rail.
 class _Header extends StatelessWidget {
   const _Header({required this.machine});
 
@@ -142,11 +178,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta = [
-      if (machine.hostInfo != null) machine.hostInfo!,
-      'registered ${relativeTime(machine.createdAt, words: true)}',
-    ].join(' · ');
-
+    final online = machine.status == MachineStatus.online;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.bg1,
@@ -165,27 +197,33 @@ class _Header extends StatelessWidget {
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: Spacing.sm),
-          StatusDot.fromAppearance(machineStatusAppearance(machine.status)),
-          const SizedBox(width: Spacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(machine.name, style: AppTypography.screenTitle),
-                Text(meta, style: AppTypography.code),
-              ],
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(9),
             ),
-          ),
-          FilledButton.icon(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => AddAgentDialog(
-                machineId: machine.id!,
-                machineName: machine.name,
+            child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                Icons.dns_outlined,
+                size: 18,
+                color: AppColors.accentSoft,
               ),
             ),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add agent'),
+          ),
+          const SizedBox(width: Spacing.md),
+          Flexible(
+            child: Text(
+              machine.name,
+              style: AppTypography.screenTitle,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: Spacing.md),
+          StatusPill.fromAppearance(
+            machineStatusAppearance(machine.status),
+            label: online ? 'Online' : 'Offline',
           ),
         ],
       ),
@@ -193,75 +231,292 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _ResourcesCard extends StatelessWidget {
-  const _ResourcesCard({required this.machineId});
+class _MachineRail extends StatelessWidget {
+  const _MachineRail({required this.machine});
 
-  final int machineId;
+  final Machine machine;
+
+  RunnerUpdateStatus _updateStatus(MachineListState state) =>
+      runnerUpdateStatus(
+        installedVersion: machine.runnerVersion,
+        latestVersion: state is MachineListLoaded
+            ? state.latestRunnerVersion
+            : null,
+        updateRequestedAt: machine.updateRequestedAt,
+      );
+
+  Future<void> _update(BuildContext context, List<Agent> agents) async {
+    final cubit = context.read<MachineListCubit>();
+    if (agents.any((a) => a.status != AgentStatus.idle)) {
+      final confirmed = await showAppModal<bool>(
+        context,
+        icon: Icons.system_update_alt,
+        title: 'Update agent runner?',
+        subtitle: machine.name,
+        child: Text(
+          'An agent on this machine is working on a task. Updating restarts '
+          'the agent runner, which interrupts that task.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+          ),
+          Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Update anyway'),
+            ),
+          ),
+        ],
+      );
+      if (confirmed != true) return;
+    }
+    await cubit.requestRunnerUpdate(machine.id!);
+  }
+
+  Future<void> _remove(BuildContext context, int agentCount) async {
+    final cubit = context.read<MachineListCubit>();
+    final navigator = Navigator.of(context);
+    final confirmed = await showAppModal<bool>(
+      context,
+      icon: Icons.delete_outline,
+      tone: AppModalTone.danger,
+      title: 'Remove ${machine.name}?',
+      subtitle: agentCount == 0
+          ? 'The machine is unregistered from Roundtable.'
+          : 'Its $agentCount agent${agentCount == 1 ? '' : 's'} will be '
+                'removed too.',
+      child: const SizedBox.shrink(),
+      actions: [
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ),
+        Builder(
+          builder: (context) => FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ),
+      ],
+    );
+    if (!(confirmed ?? false)) return;
+    await cubit.deleteMachine(machine.id!);
+    final state = cubit.state;
+    if (state is MachineListLoaded &&
+        !state.machines.any((m) => m.id == machine.id)) {
+      navigator.pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('RESOURCES', style: AppTypography.label),
-          const SizedBox(height: Spacing.lg),
-          BlocBuilder<MachineMetricCubit, MachineMetricState>(
-            builder: (context, state) => switch (state) {
-              MachineMetricInitial() => Text(
-                'No metrics reported yet',
-                style: AppTypography.caption,
-              ),
-              MachineMetricLoaded(:final metric) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  MetricBar(
-                    label: 'CPU',
-                    fraction: metric.cpuPercent / 100,
-                    valueLabel: '${metric.cpuPercent.toStringAsFixed(0)}%',
+    final machineState = context.watch<MachineListCubit>().state;
+    final agents = switch (context.watch<AgentListCubit>().state) {
+      AgentListLoaded(:final agents) =>
+        agents.where((a) => a.machineId == machine.id).toList(),
+      _ => const <Agent>[],
+    };
+    final online = machine.status == MachineStatus.online;
+    final lastSeen = machine.lastSeenAt;
+    final updateStatus = _updateStatus(machineState);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RailSection(
+                  label: 'Status',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        online
+                            ? 'Online'
+                            : lastSeen == null
+                            ? 'Offline — never seen'
+                            : 'Offline — last seen ${relativeTime(lastSeen)}',
+                        style: AppTypography.bodyStrong,
+                      ),
+                      if (machine.hostInfo != null)
+                        Text(machine.hostInfo!, style: AppTypography.code),
+                      Text(
+                        'Registered '
+                        '${relativeTime(machine.createdAt, words: true)}',
+                        style: AppTypography.caption,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: Spacing.sm),
-                  MetricBar(
-                    label: 'RAM',
-                    fraction: metric.memoryTotalMb == 0
-                        ? 0
-                        : metric.memoryUsedMb / metric.memoryTotalMb,
-                    valueLabel:
-                        '${(metric.memoryUsedMb / 1024).toStringAsFixed(1)}G',
-                  ),
-                  const SizedBox(height: Spacing.lg),
-                  Text(
-                    'Snapshot · last reported ${relativeTime(metric.recordedAt)}',
-                    style: AppTypography.caption,
-                  ),
-                ],
-              ),
-            },
+                ),
+                RailSection(
+                  label: 'Resources',
+                  child: online
+                      ? const _Resources()
+                      : Text(
+                          'Available while the machine is online.',
+                          style: AppTypography.caption,
+                        ),
+                ),
+                RailSection(
+                  label: 'Agent runner',
+                  child: updateStatus == RunnerUpdateStatus.upToDate
+                      ? const _CheckLine(ok: true, text: 'Up to date')
+                      : RunnerUpdateBanner(
+                          status: updateStatus,
+                          onUpdate: () => _update(context, agents),
+                        ),
+                ),
+                RailSection(
+                  label: 'Claude CLI',
+                  child: switch (machine.claudeExecutableOk) {
+                    true => const _CheckLine(ok: true, text: 'Working'),
+                    false => ClaudeWarningBanner(
+                      message:
+                          machine.claudeExecutableError ??
+                          'claude CLI could not be launched.',
+                    ),
+                    null => Text(
+                      'Not checked yet',
+                      style: AppTypography.caption,
+                    ),
+                  },
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          padding: const EdgeInsets.all(Spacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                onPressed: () async {
+                  final cubit = context.read<AgentListCubit>();
+                  final added = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AddAgentDialog(
+                      machineId: machine.id!,
+                      machineName: machine.name,
+                    ),
+                  );
+                  if (added ?? false) cubit.fetchAgents();
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add agent'),
+              ),
+              const SizedBox(height: Spacing.sm),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.red,
+                  side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+                ),
+                onPressed: () => _remove(context, agents.length),
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Remove machine'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckLine extends StatelessWidget {
+  const _CheckLine({required this.ok, required this.text});
+
+  final bool ok;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          ok ? Icons.check_circle_outline : Icons.error_outline,
+          size: 16,
+          color: ok ? AppColors.live : AppColors.warning,
+        ),
+        const SizedBox(width: Spacing.sm),
+        Text(text, style: AppTypography.body),
+      ],
+    );
+  }
+}
+
+class _Resources extends StatelessWidget {
+  const _Resources();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<MachineMetricCubit, MachineMetricState>(
+      builder: (context, state) => switch (state) {
+        MachineMetricInitial() => Text(
+          'No metrics reported yet',
+          style: AppTypography.caption,
+        ),
+        MachineMetricLoaded(:final metric) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MetricBar(
+              label: 'CPU',
+              fraction: metric.cpuPercent / 100,
+              valueLabel: '${metric.cpuPercent.toStringAsFixed(0)}%',
+            ),
+            const SizedBox(height: Spacing.sm),
+            MetricBar(
+              label: 'RAM',
+              fraction: metric.memoryTotalMb == 0
+                  ? 0
+                  : metric.memoryUsedMb / metric.memoryTotalMb,
+              valueLabel: '${(metric.memoryUsedMb / 1024).toStringAsFixed(1)}G',
+            ),
+            const SizedBox(height: Spacing.sm),
+            Text(
+              'Last reported ${relativeTime(metric.recordedAt)}',
+              style: AppTypography.caption,
+            ),
+          ],
+        ),
+      },
     );
   }
 }
 
 class _AgentsCard extends StatelessWidget {
-  const _AgentsCard({required this.machineId});
+  const _AgentsCard({required this.machine});
 
-  final int machineId;
+  final Machine machine;
 
   @override
   Widget build(BuildContext context) {
     final agents = switch (context.watch<AgentListCubit>().state) {
       AgentListLoaded(:final agents) =>
-        agents.where((a) => a.machineId == machineId).toList(),
+        agents.where((a) => a.machineId == machine.id).toList(),
       _ => const <Agent>[],
     };
+    final dashboard = context.watch<DashboardCubit>().state;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('AGENTS ON THIS MACHINE', style: AppTypography.label),
+          Text('AGENTS · ${agents.length}', style: AppTypography.label),
           const SizedBox(height: Spacing.md),
           if (agents.isEmpty)
             Padding(
@@ -272,52 +527,19 @@ class _AgentsCard extends StatelessWidget {
               ),
             )
           else
-            for (var i = 0; i < agents.length; i++)
+            for (final (i, agent) in agents.indexed)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: Spacing.md),
+                padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
                 decoration: BoxDecoration(
                   border: i == agents.length - 1
                       ? null
                       : Border(bottom: BorderSide(color: AppColors.border)),
                 ),
-                child: Row(
-                  children: [
-                    AgentAvatar(name: agents[i].name),
-                    const SizedBox(width: Spacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            agents[i].name,
-                            style: AppTypography.bodyStrong,
-                          ),
-                          Text(
-                            '${agents[i].role.name} specialist',
-                            style: AppTypography.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Wrap(
-                      spacing: Spacing.xs,
-                      children: [
-                        TagChip(agents[i].defaultModel ?? 'default model'),
-                        TagChip(
-                          agents[i].defaultEffort?.name ?? 'default effort',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: Spacing.md),
-                    StatusPill.fromAppearance(
-                      agentStatusAppearance(agents[i].status),
-                      label: switch (agents[i].status) {
-                        AgentStatus.idle => 'Idle',
-                        AgentStatus.busy => 'Busy',
-                        AgentStatus.waitingForResponse => 'Waiting',
-                      },
-                    ),
-                  ],
+                child: AgentRow(
+                  agent: agent,
+                  currentTask: dashboard is DashboardLoaded
+                      ? dashboard.currentTaskFor(agent.id!)
+                      : null,
                 ),
               ),
         ],
@@ -333,17 +555,12 @@ class _RecentTasksPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final agentIds = switch (context.watch<AgentListCubit>().state) {
+    final agents = switch (context.watch<AgentListCubit>().state) {
       AgentListLoaded(:final agents) =>
-        agents.where((a) => a.machineId == machineId).map((a) => a.id).toSet(),
-      _ => const <int?>{},
+        agents.where((a) => a.machineId == machineId).toList(),
+      _ => const <Agent>[],
     };
-    final agentsById = switch (context.watch<AgentListCubit>().state) {
-      AgentListLoaded(:final agents) => {
-        for (final a in agents) a.id: a,
-      },
-      _ => const <int?, Agent>{},
-    };
+    final agentsById = {for (final a in agents) a.id: a};
     final projectsById = switch (context.watch<ProjectListCubit>().state) {
       ProjectListLoaded(:final projects) => {
         for (final p in projects) p.id: p,
@@ -352,7 +569,7 @@ class _RecentTasksPanel extends StatelessWidget {
     };
     final tasks = switch (context.watch<DashboardCubit>().state) {
       DashboardLoaded(:final tasks) =>
-        tasks.values.where((t) => agentIds.contains(t.agentId)).toList()
+        tasks.values.where((t) => agentsById.containsKey(t.agentId)).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
       _ => const <Task>[],
     };
@@ -360,41 +577,26 @@ class _RecentTasksPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('RECENT TASKS ON THIS MACHINE', style: AppTypography.label),
+        Text('RECENT TASKS · ${tasks.length}', style: AppTypography.label),
         const SizedBox(height: Spacing.md),
         Expanded(
           child: tasks.isEmpty
               ? Text('No tasks yet', style: AppTypography.caption)
-              : ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    final agent = agentsById[task.agentId];
-                    final project = projectsById[task.projectId];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: Spacing.md),
-                      child: AppCard(
-                        padding: const EdgeInsets.all(Spacing.md),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(task.prompt, style: AppTypography.bodyStrong),
-                            const SizedBox(height: Spacing.sm),
-                            StatusPill.fromAppearance(
-                              taskStatusAppearance(task.status),
-                              label: task.status.label,
-                            ),
-                            const SizedBox(height: Spacing.sm),
-                            Text(
-                              '${agent?.name ?? 'Unassigned'} · '
-                              '${project?.name ?? '…'}',
-                              style: AppTypography.caption,
-                            ),
-                          ],
+              : ListView(
+                  children: [
+                    for (final task in tasks)
+                      KanbanCard(
+                        task: task,
+                        agentName: agentsById[task.agentId]?.name,
+                        projectName: projectsById[task.projectId]?.name,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                TaskDetailScreen(initialTaskId: task.id!),
+                          ),
                         ),
                       ),
-                    );
-                  },
+                  ],
                 ),
         ),
       ],

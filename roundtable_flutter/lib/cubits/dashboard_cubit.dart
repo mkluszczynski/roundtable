@@ -25,6 +25,25 @@ KanbanColumn kanbanColumnFor(TaskStatus status) => switch (status) {
   TaskStatus.cancelled => KanbanColumn.done,
 };
 
+/// Statuses where the task is blocked on the dev — highlighted on cards and
+/// listed in the dashboard's "Needs you" strip.
+const needsAttentionStatuses = {
+  TaskStatus.waitingForAnswer,
+  TaskStatus.planReady,
+  TaskStatus.awaitingReview,
+  TaskStatus.failed,
+};
+
+/// Statuses where a task occupies its agent (queued for it up to running).
+const agentOccupyingStatuses = {
+  TaskStatus.queued,
+  TaskStatus.cloning,
+  TaskStatus.planning,
+  TaskStatus.waitingForAnswer,
+  TaskStatus.planReady,
+  TaskStatus.running,
+};
+
 sealed class DashboardState {
   const DashboardState();
 }
@@ -45,6 +64,21 @@ class DashboardLoaded extends DashboardState {
   final Map<int, Task> tasks;
 
   Map<KanbanColumn, List<Task>> get columns => columnsFor();
+
+  /// The task agent [agentId] is working on (or queued for), newest first.
+  Task? currentTaskFor(int agentId) {
+    Task? current;
+    for (final task in tasks.values) {
+      if (task.agentId != agentId ||
+          !agentOccupyingStatuses.contains(task.status)) {
+        continue;
+      }
+      if (current == null || task.createdAt.isAfter(current.createdAt)) {
+        current = task;
+      }
+    }
+    return current;
+  }
 
   /// [tasks] grouped into columns, newest first — only [projectId]'s when
   /// given.

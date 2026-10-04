@@ -11,6 +11,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'agent_avatar.dart';
+import 'agent_row.dart';
 import 'status_pill.dart';
 import 'tag_chip.dart';
 
@@ -297,7 +298,7 @@ class _AgentCard extends StatelessWidget {
                       ),
                       const SizedBox(width: Spacing.xs),
                       Text(
-                        _statusLabel(agent.status),
+                        agentStatusLabel(agent.status),
                         style: AppTypography.caption,
                       ),
                       if (current) ...[
@@ -338,12 +339,6 @@ class _AgentCard extends StatelessWidget {
       ),
     );
   }
-
-  static String _statusLabel(AgentStatus status) => switch (status) {
-    AgentStatus.idle => 'idle',
-    AgentStatus.busy => 'busy',
-    AgentStatus.waitingForResponse => 'waiting',
-  };
 }
 
 /// A bordered, tappable card that highlights when [selected] — the shared

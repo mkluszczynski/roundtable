@@ -4,6 +4,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
+import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
@@ -13,6 +14,7 @@ import '../theme/typography.dart';
 import '../utils/relative_time.dart';
 import '../widgets/add_agent_dialog.dart';
 import '../widgets/add_machine_dialog.dart';
+import '../widgets/agent_row.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/claude_warning_banner.dart';
@@ -20,6 +22,7 @@ import '../widgets/machine_online_delete_blocked_dialog.dart';
 import '../widgets/machine_metrics.dart';
 import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
+import '../widgets/tag_chip.dart';
 import 'machine_detail_screen.dart';
 
 /// Machines, each with the agents hosted on it folded in underneath — per
@@ -160,50 +163,62 @@ class _MachinesHeader extends StatelessWidget {
   }
 }
 
-/// A manual 2-column split rather than `GridView` — card heights vary with
-/// each machine's agent count, and `GridView`'s fixed-cell-height model
-/// doesn't accommodate that without a masonry-grid dependency.
+/// A manual masonry split rather than `GridView` — card heights vary with
+/// each machine's agent count. The column count follows the width.
 class _MachinesGrid extends StatelessWidget {
   const _MachinesGrid({required this.machines, required this.agents});
 
   final List<Machine> machines;
   final List<Agent> agents;
 
+  static const _columnWidth = 460.0;
+
   @override
   Widget build(BuildContext context) {
-    final left = <Machine>[];
-    final right = <Machine>[];
-    for (var i = 0; i < machines.length; i++) {
-      (i.isEven ? left : right).add(machines[i]);
-    }
-
-    Widget column(List<Machine> items) => Expanded(
-      child: Column(
-        children: [
-          for (final machine in items)
-            _MachineCard(
-              machine: machine,
-              agents: agents.where((a) => a.machineId == machine.id).toList(),
-            ),
-        ],
-      ),
-    );
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        Spacing.xl,
-        0,
-        Spacing.xl,
-        Spacing.xl,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          column(left),
-          const SizedBox(width: Spacing.xl),
-          column(right),
-        ],
-      ),
+    final sorted = [
+      ...machines.where((m) => m.status == MachineStatus.online),
+      ...machines.where((m) => m.status != MachineStatus.online),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final count = (constraints.maxWidth / _columnWidth).floor().clamp(
+          1,
+          4,
+        );
+        final columns = List.generate(count, (_) => <Machine>[]);
+        for (var i = 0; i < sorted.length; i++) {
+          columns[i % count].add(sorted[i]);
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            Spacing.xl,
+            0,
+            Spacing.xl,
+            Spacing.xl,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (i, items) in columns.indexed) ...[
+                if (i > 0) const SizedBox(width: Spacing.xl),
+                Expanded(
+                  child: Column(
+                    children: [
+                      for (final machine in items)
+                        _MachineCard(
+                          machine: machine,
+                          agents: agents
+                              .where((a) => a.machineId == machine.id)
+                              .toList(),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -261,9 +276,53 @@ class _MachineCard extends StatelessWidget {
     await cubit.requestRunnerUpdate(machine.id!);
   }
 
+  Future<void> _confirmRemove(BuildContext context) async {
+    final cubit = context.read<MachineListCubit>();
+    final confirmed = await showAppModal<bool>(
+      context,
+      icon: Icons.delete_outline,
+      tone: AppModalTone.danger,
+      title: 'Remove ${machine.name}?',
+      subtitle: agents.isEmpty
+          ? 'The machine is unregistered from Roundtable.'
+          : 'Its ${agents.length} agent${agents.length == 1 ? '' : 's'} '
+                'will be removed too.',
+      child: const SizedBox.shrink(),
+      actions: [
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ),
+        Builder(
+          builder: (context) => FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ),
+      ],
+    );
+    if (confirmed ?? false) await cubit.deleteMachine(machine.id!);
+  }
+
+  Future<void> _addAgent(BuildContext context) async {
+    final cubit = context.read<AgentListCubit>();
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          AddAgentDialog(machineId: machine.id!, machineName: machine.name),
+    );
+    if (added ?? false) cubit.fetchAgents();
+  }
+
   @override
   Widget build(BuildContext context) {
     final online = machine.status == MachineStatus.online;
+    final updateStatus = _updateStatus(context);
+    final dashboard = context.watch<DashboardCubit>().state;
+    final lastSeen = machine.lastSeenAt;
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.xl),
       child: AppCard(
@@ -277,21 +336,90 @@ class _MachineCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                StatusDot.fromAppearance(
-                  machineStatusAppearance(machine.status),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.bg2,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    Icons.dns_outlined,
+                    size: 18,
+                    color: online ? AppColors.text0 : AppColors.text2,
+                  ),
                 ),
-                const SizedBox(width: Spacing.sm),
+                const SizedBox(width: Spacing.md),
                 Expanded(
-                  child: Text(machine.name, style: AppTypography.bodyStrong),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        machine.name,
+                        style: AppTypography.bodyStrong,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        children: [
+                          StatusDot.fromAppearance(
+                            machineStatusAppearance(machine.status),
+                          ),
+                          const SizedBox(width: Spacing.xs),
+                          Text(
+                            online
+                                ? 'online'
+                                : lastSeen == null
+                                ? 'offline'
+                                : 'offline · seen ${relativeTime(lastSeen)}',
+                            style: AppTypography.caption,
+                          ),
+                          if (machine.hostInfo != null) ...[
+                            Text('  ·  ', style: AppTypography.caption),
+                            Flexible(
+                              child: Text(
+                                machine.hostInfo!,
+                                style: AppTypography.code,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                if (machine.hostInfo != null)
-                  Text(machine.hostInfo!, style: AppTypography.code),
+                if (updateStatus == RunnerUpdateStatus.upToDate)
+                  const TagChip('runner up to date'),
+                PopupMenuButton<void Function(BuildContext)>(
+                  tooltip: 'Machine actions',
+                  color: AppColors.bg2,
+                  icon: const Icon(Icons.more_horiz, color: AppColors.text1),
+                  onSelected: (action) => action(context),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: _addAgent,
+                      child: const Text('Add agent'),
+                    ),
+                    if (updateStatus == RunnerUpdateStatus.available)
+                      PopupMenuItem(
+                        value: _confirmAndUpdate,
+                        child: const Text('Update runner'),
+                      ),
+                    PopupMenuItem(
+                      value: _confirmRemove,
+                      child: Text(
+                        'Remove machine',
+                        style: TextStyle(color: AppColors.red),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-            if (_updateStatus(context) != RunnerUpdateStatus.upToDate) ...[
+            if (updateStatus != RunnerUpdateStatus.upToDate) ...[
               const SizedBox(height: Spacing.md),
               RunnerUpdateBanner(
-                status: _updateStatus(context),
+                status: updateStatus,
                 onUpdate: () => _confirmAndUpdate(context),
               ),
             ],
@@ -304,81 +432,56 @@ class _MachineCard extends StatelessWidget {
               ),
             ],
             if (online) ...[
-              const SizedBox(height: Spacing.md),
+              const SizedBox(height: Spacing.lg),
               MachineMetrics(machineId: machine.id!),
-            ] else ...[
-              const SizedBox(height: Spacing.md),
-              Text(
-                machine.lastSeenAt == null
-                    ? 'Offline'
-                    : 'Offline — last seen ${relativeTime(machine.lastSeenAt!)}',
-                style: AppTypography.caption.copyWith(
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
             ],
             const SizedBox(height: Spacing.lg),
             Divider(height: 1, color: AppColors.border),
             const SizedBox(height: Spacing.md),
-            Text('AGENTS', style: AppTypography.label),
+            Text('AGENTS · ${agents.length}', style: AppTypography.label),
             const SizedBox(height: Spacing.sm),
-            if (agents.isEmpty)
-              Text(
-                'No agents on this machine yet',
-                style: AppTypography.caption,
-              )
-            else
-              for (final agent in agents)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      StatusDot.fromAppearance(
-                        agentStatusAppearance(agent.status),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      Expanded(
-                        child: Text(agent.name, style: AppTypography.body),
-                      ),
-                      Text(agent.role.name, style: AppTypography.caption),
-                      _AgentMenu(agent: agent, machine: machine),
-                    ],
-                  ),
-                ),
-            const SizedBox(height: Spacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final cubit = context.read<AgentListCubit>();
-                      final added = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AddAgentDialog(
-                          machineId: machine.id!,
-                          machineName: machine.name,
-                        ),
-                      );
-                      if (added ?? false) cubit.fetchAgents();
-                    },
-                    child: const Text('+ Add agent'),
-                  ),
-                ),
-                const SizedBox(width: Spacing.sm),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.red,
-                    side: BorderSide(
-                      color: AppColors.red.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  onPressed: () =>
-                      context.read<MachineListCubit>().deleteMachine(
-                        machine.id!,
-                      ),
-                  child: const Text('Remove machine'),
-                ),
-              ],
+            for (final agent in agents)
+              AgentRow(
+                agent: agent,
+                currentTask: dashboard is DashboardLoaded
+                    ? dashboard.currentTaskFor(agent.id!)
+                    : null,
+                trailing: _AgentMenu(agent: agent, machine: machine),
+              ),
+            const SizedBox(height: Spacing.sm),
+            _AddAgentRow(onTap: () => _addAgent(context)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddAgentRow extends StatelessWidget {
+  const _AddAgentRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add, size: 14, color: AppColors.text1),
+            const SizedBox(width: Spacing.xs),
+            Text(
+              'Add agent',
+              style: AppTypography.caption.copyWith(color: AppColors.text1),
             ),
           ],
         ),

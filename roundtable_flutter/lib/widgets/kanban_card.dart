@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../cubits/dashboard_cubit.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -8,15 +9,6 @@ import '../utils/relative_time.dart';
 import '../utils/task_status_label.dart';
 import 'agent_avatar.dart';
 import 'status_pill.dart';
-
-/// Statuses where the task waits on the dev — the card gets a status-colored
-/// edge so they stand out on the board.
-const _needsAttention = {
-  TaskStatus.waitingForAnswer,
-  TaskStatus.planReady,
-  TaskStatus.awaitingReview,
-  TaskStatus.failed,
-};
 
 /// A single task on a kanban board. Tapping it navigates to
 /// `task_detail_screen.dart` for that task.
@@ -52,7 +44,7 @@ class _KanbanCardState extends State<KanbanCard> {
   Widget build(BuildContext context) {
     final task = widget.task;
     final appearance = taskStatusAppearance(task.status);
-    final attention = _needsAttention.contains(task.status);
+    final attention = needsAttentionStatuses.contains(task.status);
     final failure = task.status == TaskStatus.failed
         ? task.failureReason
         : null;
@@ -163,24 +155,37 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Left part takes the free space so the status stays flush right; a
+    // Flexible next to a Spacer would split it between them.
     return Row(
       children: [
-        if (projectName != null) ...[
-          const Icon(Icons.folder_outlined, size: 12, color: AppColors.text2),
-          const SizedBox(width: Spacing.xs),
-          Flexible(
-            child: Text(
-              projectName!,
-              style: AppTypography.caption.copyWith(color: AppColors.text1),
-              overflow: TextOverflow.ellipsis,
-            ),
+        Expanded(
+          child: Row(
+            children: [
+              if (projectName != null) ...[
+                const Icon(
+                  Icons.folder_outlined,
+                  size: 12,
+                  color: AppColors.text2,
+                ),
+                const SizedBox(width: Spacing.xs),
+                Flexible(
+                  child: Text(
+                    projectName!,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.text1,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text('  ·  ', style: AppTypography.caption),
+              ],
+              Text('#${task.id}', style: AppTypography.code),
+              Text('  ·  ', style: AppTypography.caption),
+              Text(relativeTime(task.createdAt), style: AppTypography.caption),
+            ],
           ),
-          Text('  ·  ', style: AppTypography.caption),
-        ],
-        Text('#${task.id}', style: AppTypography.code),
-        Text('  ·  ', style: AppTypography.caption),
-        Text(relativeTime(task.createdAt), style: AppTypography.caption),
-        const Spacer(),
+        ),
         StatusDot.fromAppearance(appearance),
         const SizedBox(width: Spacing.xs),
         Text(
