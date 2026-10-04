@@ -366,9 +366,11 @@ class TaskDispatcher {
               branchName: branch,
               title:
                   'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
-              body:
-                  'Opened by ${agent.name} (Roundtable agent).\n\n'
-                  '${task.prompt}',
+              body: pullRequestBody(
+                agentName: agent.name,
+                prompt: task.prompt,
+                summary: result.resultText,
+              ),
             );
           } else {
             log('task ${task.id}: pushed additional commits to existing PR');
@@ -467,4 +469,27 @@ String attachedImagesPrompt(String prompt, List<String> paths) {
       'The developer attached ${paths.length} image(s) to this task '
       '(screenshots or mockups). Open each one with the Read tool before '
       'you start, and use them to understand the request:\n$list';
+}
+
+/// The PR description: the task's prompt, then the agent's final message —
+/// its summary of the change, including anything it couldn't verify.
+String pullRequestBody({
+  required String agentName,
+  required String prompt,
+  String? summary,
+}) {
+  final quotedPrompt = prompt.split('\n').map((l) => '> $l').join('\n');
+  final buffer = StringBuffer()
+    ..writeln('Opened by $agentName (Roundtable agent).')
+    ..writeln()
+    ..writeln('## Task')
+    ..writeln(quotedPrompt);
+  final trimmed = summary?.trim();
+  if (trimmed != null && trimmed.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln("## Agent's summary")
+      ..writeln(trimmed);
+  }
+  return buffer.toString().trimRight();
 }

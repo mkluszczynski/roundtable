@@ -18,6 +18,8 @@ void main() {
     expect(prompt, contains('Not installed here: dart.'));
     expect(prompt, contains('No MCP servers'));
     expect(prompt, contains('"Not verified here"'));
+    expect(prompt, contains('Do NOT commit, push'));
+    expect(prompt, contains('final message becomes the pull request'));
   });
 
   test('a review prompt asks to report gaps in the review', () {
@@ -29,7 +31,7 @@ void main() {
     );
     expect(prompt, contains('(none detected)'));
     expect(prompt, contains('in your review'));
-    expect(prompt, isNot(contains('pull request description')));
+    expect(prompt, isNot(contains('Do NOT commit')));
   });
 
   test('detectToolchain reports a missing tool as null', () async {
@@ -37,5 +39,19 @@ void main() {
       tools: ['git', 'definitely-not-a-real-tool-xyz'],
     );
     expect(tools.last.version, isNull);
+  });
+
+  test('the PR body quotes the prompt and adds the agent summary', () {
+    final body = pullRequestBody(
+      agentName: 'Ada',
+      prompt: 'Update models\nto the latest',
+      summary: 'Updated the list.\n\nNot verified here: dart analyze',
+    );
+    expect(body, contains('> Update models\n> to the latest'));
+    expect(body, contains("## Agent's summary\nUpdated the list."));
+    expect(
+      pullRequestBody(agentName: 'Ada', prompt: 'x', summary: '  '),
+      isNot(contains('summary')),
+    );
   });
 }

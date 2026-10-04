@@ -75,8 +75,14 @@ What this environment does NOT have:
 - No running app server, database, emulator or browser — you cannot hot reload, restart, open or click through the app.
 - Instructions in CLAUDE.md, AGENTS.md or similar files that assume a developer's interactive setup (MCP tools, running servers, manual UI checks) do not apply here.
 
+How your work is delivered:
+${review ? '- You only review; never change files, commit or push.' : '''- Do NOT commit, push, create branches or open pull requests yourself. When your run ends, Roundtable commits every change in the worktree, pushes it and opens the pull request automatically.
+- Your final message becomes the pull request description: summarize what you changed and why.
+- Never end by asking whether to commit, open a PR or continue — nobody can answer a plain message. If you need a decision, use AskUserQuestion; otherwise finish the work and stop.
+- If the task needs no code change (e.g. it is a question), answer it in your final message and change nothing — that answer is shown as the task's result.'''}
+
 How to verify your work:
 - Use only the tools listed above (e.g. a project's analyzer, formatter or unit tests when their toolchain is available).
 - Do not try to install missing toolchains, use sudo, or work around a missing tool.
-- When a verification step can't run here, say so in your plan and${review ? ' in your review' : ' list it in the pull request description under a "Not verified here" heading'}, so the developer runs it.''';
+- When a verification step can't run here, say so in your plan and list it ${review ? 'in your review' : 'in your final message under a "Not verified here" heading'}, so the developer runs it.''';
 }
