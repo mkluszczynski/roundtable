@@ -23,7 +23,8 @@ void main() {
     await tester.pumpWidget(_wrap(ReviewCommentCard(comment: _comment())));
 
     expect(find.text('blocker'), findsOneWidget);
-    expect(find.text('lib/main.dart:12'), findsOneWidget);
+    expect(find.text('main.dart:12'), findsOneWidget);
+    expect(find.byTooltip('lib/main.dart:12'), findsOneWidget);
     expect(find.text('Null check is missing'), findsOneWidget);
   });
 
@@ -32,14 +33,14 @@ void main() {
       _wrap(ReviewCommentCard(comment: _comment(), showLocation: false)),
     );
 
-    expect(find.text('lib/main.dart:12'), findsNothing);
+    expect(find.text('main.dart:12'), findsNothing);
   });
 
   testWidgets('read-only without callbacks', (tester) async {
     await tester.pumpWidget(_wrap(ReviewCommentCard(comment: _comment())));
 
     expect(find.byType(Checkbox), findsNothing);
-    expect(find.byType(IconButton), findsNothing);
+    expect(find.byType(TextButton), findsNothing);
   });
 
   testWidgets('an open comment can be selected, dismissed and resolved', (
@@ -58,8 +59,8 @@ void main() {
     );
 
     await tester.tap(find.byType(Checkbox));
-    await tester.tap(find.byTooltip('Dismiss'));
-    await tester.tap(find.byTooltip('Mark resolved'));
+    await tester.tap(find.text('Dismiss'));
+    await tester.tap(find.text('Resolve'));
 
     expect(toggled, 1);
     expect(states, [ReviewCommentState.dismissed, ReviewCommentState.resolved]);
@@ -81,7 +82,7 @@ void main() {
 
     expect(find.text('Dismissed'), findsOneWidget);
     expect(find.byType(Checkbox), findsNothing);
-    await tester.tap(find.byTooltip('Reopen'));
+    await tester.tap(find.text('Reopen'));
     expect(states, [ReviewCommentState.open]);
   });
 
@@ -97,6 +98,6 @@ void main() {
     );
 
     expect(find.text('Sent to agent'), findsOneWidget);
-    expect(find.byType(IconButton), findsNothing);
+    expect(find.byType(TextButton), findsNothing);
   });
 }

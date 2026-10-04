@@ -104,6 +104,13 @@ class CommentSelectionToggled extends TaskDetailEvent {
   final int commentId;
 }
 
+/// Replaces the selection, e.g. "Select all open" or "Clear".
+class CommentsSelectionSet extends TaskDetailEvent {
+  const CommentsSelectionSet(this.commentIds);
+
+  final Set<int> commentIds;
+}
+
 class CommentStateChanged extends TaskDetailEvent {
   const CommentStateChanged(this.commentId, this.state);
 
@@ -339,6 +346,11 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     on<TaskAccepted>(_onTaskAccepted);
     on<ReviewRequested>(_onReviewRequested);
     on<CommentSelectionToggled>(_onCommentSelectionToggled);
+    on<CommentsSelectionSet>((event, emit) {
+      final current = state;
+      if (current is! TaskDetailLoaded) return;
+      emit(current.copyWith(selectedCommentIds: event.commentIds));
+    });
     on<CommentStateChanged>(_onCommentStateChanged);
     on<CommentsSentToFix>(_onCommentsSentToFix);
     on<_ReviewsSubscribed>(_onReviewsSubscribed);

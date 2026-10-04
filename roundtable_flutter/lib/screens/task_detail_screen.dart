@@ -1418,6 +1418,9 @@ class _ReviewView extends StatelessWidget {
   /// Jumps to a comment's file in the Changes view.
   final ValueChanged<String> onOpenFile;
 
+  /// Prose stays readable on wide screens; the column is centered.
+  static const _maxWidth = 960.0;
+
   @override
   Widget build(BuildContext context) {
     final latestReview = state.latestReview;
@@ -1425,85 +1428,220 @@ class _ReviewView extends StatelessWidget {
     final comments = state.reviewComments.reversed.toList();
     final editable = state.inReview && !reviewActive;
     final canOpenFiles = state.files != null;
+    final openIds = {
+      for (final c in comments)
+        if (c.state == ReviewCommentState.open) c.id!,
+    };
+    final selected = state.selectedCommentIds;
+    final bloc = context.read<TaskDetailBloc>();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _maxWidth),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Text('AI code review', style: AppTypography.cardTitle),
-            ),
-            if (state.inReview)
-              OutlinedButton.icon(
-                onPressed: reviewActive || state.reviewBusy
-                    ? null
-                    : () => _openRequestReviewDialog(context, state.task.id!),
-                icon: const Icon(Icons.rate_review_outlined, size: 16),
-                label: Text(
-                  state.reviews.isEmpty ? 'Request AI review' : 'Review again',
+            Row(
+              children: [
+                Expanded(
+                  child: Text('AI code review', style: AppTypography.cardTitle),
                 ),
-              ),
-          ],
-        ),
-        if (latestReview != null) ...[
-          const SizedBox(height: Spacing.md),
-          _ReviewStatusRow(review: latestReview, maxLines: null),
-        ],
-        if (state.reviewError != null) ...[
-          const SizedBox(height: Spacing.sm),
-          Text(
-            state.reviewError!,
-            style: AppTypography.body.copyWith(color: AppColors.red),
-          ),
-        ],
-        const SizedBox(height: Spacing.lg),
-        Expanded(
-          child: comments.isEmpty
-              ? Center(
-                  child: Text(
-                    latestReview == null
-                        ? 'No AI review yet — request one to get comments '
-                              'on this PR.'
-                        : reviewActive
-                        ? 'Review in progress…'
-                        : 'The review left no comments.',
-                    style: AppTypography.body.copyWith(color: AppColors.text1),
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Comments · ${state.openCommentCount} open of '
-                      '${comments.length}',
-                      style: AppTypography.bodyStrong,
+                if (state.inReview)
+                  OutlinedButton.icon(
+                    onPressed: reviewActive || state.reviewBusy
+                        ? null
+                        : () =>
+                              _openRequestReviewDialog(context, state.task.id!),
+                    icon: const Icon(Icons.rate_review_outlined, size: 16),
+                    label: Text(
+                      state.reviews.isEmpty
+                          ? 'Request AI review'
+                          : 'Review again',
                     ),
-                    const SizedBox(height: Spacing.sm),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: comments.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: Spacing.sm),
-                        itemBuilder: (context, index) => _commentCard(
-                          context,
-                          state,
-                          comments[index],
-                          editable: editable,
-                          onOpenLocation: canOpenFiles
-                              ? () => onOpenFile(comments[index].path)
-                              : null,
+                  ),
+              ],
+            ),
+            const SizedBox(height: Spacing.lg),
+            Expanded(
+              child: ListView(
+                children: [
+                  if (latestReview != null) ...[
+                    _VerdictCard(
+                      review: latestReview,
+                      number: state.reviews.length,
+                    ),
+                    const SizedBox(height: Spacing.xl),
+                  ],
+                  if (state.reviewError != null) ...[
+                    Text(
+                      state.reviewError!,
+                      style: AppTypography.body.copyWith(color: AppColors.red),
+                    ),
+                    const SizedBox(height: Spacing.lg),
+                  ],
+                  if (comments.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Spacing.xxl,
+                      ),
+                      child: Text(
+                        latestReview == null
+                            ? 'No AI review yet — request one to get comments '
+                                  'on this PR.'
+                            : reviewActive
+                            ? 'Review in progress…'
+                            : 'The review left no comments.',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.body.copyWith(
+                          color: AppColors.text1,
                         ),
                       ),
+                    )
+                  else ...[
+                    Row(
+                      children: [
+                        Text(
+                          'COMMENTS · ${openIds.length} OPEN OF '
+                          '${comments.length}',
+                          style: AppTypography.label,
+                        ),
+                        const Spacer(),
+                        if (editable && openIds.isNotEmpty)
+                          TextButton(
+                            onPressed: () => bloc.add(
+                              CommentsSelectionSet(
+                                selected.containsAll(openIds) ? {} : openIds,
+                              ),
+                            ),
+                            child: Text(
+                              selected.containsAll(openIds)
+                                  ? 'Clear selection'
+                                  : 'Select all open',
+                            ),
+                          ),
+                      ],
                     ),
+                    const SizedBox(height: Spacing.sm),
+                    for (final comment in comments) ...[
+                      _commentCard(
+                        context,
+                        state,
+                        comment,
+                        editable: editable,
+                        onOpenLocation: canOpenFiles
+                            ? () => onOpenFile(comment.path)
+                            : null,
+                      ),
+                      const SizedBox(height: Spacing.sm),
+                    ],
                   ],
+                ],
+              ),
+            ),
+            if (state.inReview) ...[
+              const SizedBox(height: Spacing.md),
+              if (selected.isNotEmpty) ...[
+                _SelectionBar(
+                  count: selected.length,
+                  onClear: () => bloc.add(const CommentsSelectionSet({})),
                 ),
+                const SizedBox(height: Spacing.sm),
+              ],
+              _IterationFeedbackRow(state: state),
+            ],
+          ],
         ),
-        if (state.inReview) ...[
-          const SizedBox(height: Spacing.md),
-          _IterationFeedbackRow(state: state),
+      ),
+    );
+  }
+}
+
+/// The latest review's status and the reviewer's overall verdict.
+class _VerdictCard extends StatelessWidget {
+  const _VerdictCard({required this.review, required this.number});
+
+  final CodeReview review;
+
+  /// 1-based: the how-many-th review of this task.
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label, pulsing) = switch (review.status) {
+      CodeReviewStatus.queued => (AppColors.text2, 'Queued', false),
+      CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
+      CodeReviewStatus.completed => (AppColors.accentSoft, 'Completed', false),
+      CodeReviewStatus.failed => (AppColors.red, 'Failed', false),
+    };
+    final failed = review.status == CodeReviewStatus.failed;
+    final detail = failed ? review.failureReason : review.summary;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('VERDICT', style: AppTypography.label),
+              const SizedBox(width: Spacing.md),
+              StatusPill(color: color, label: label, pulsing: pulsing),
+              const Spacer(),
+              Text(
+                'Review #$number · ${relativeTime(review.createdAt)}',
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+          if (detail != null) ...[
+            const SizedBox(height: Spacing.md),
+            failed
+                ? Text(
+                    detail,
+                    style: AppTypography.body.copyWith(color: AppColors.red),
+                  )
+                : PlanContent(markdown: detail),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+}
+
+/// Shown while comments are selected: what the composer below will send.
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({required this.count, required this.onClear});
+
+  final int count;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        Spacing.lg,
+        Spacing.xs,
+        Spacing.xs,
+        Spacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.checklist, size: 16, color: AppColors.accentSoft),
+          const SizedBox(width: Spacing.sm),
+          Expanded(
+            child: Text(
+              '$count comment${count == 1 ? '' : 's'} selected — they will be '
+              'sent to the agent to fix, with your optional note.',
+              style: AppTypography.body,
+            ),
+          ),
+          TextButton(onPressed: onClear, child: const Text('Clear')),
+        ],
+      ),
     );
   }
 }
@@ -1525,55 +1663,15 @@ class _IterationFeedbackRow extends StatelessWidget {
       submitting: state.submitting || state.reviewBusy || state.reviewActive,
       submitLabel: selectedCount == 0
           ? 'Send feedback'
-          : 'Send $selectedCount comment${selectedCount == 1 ? '' : 's'} to agent',
+          : 'Send $selectedCount to agent',
+      // Sending selected comments is the main action of the review view.
+      primarySubmit: selectedCount > 0,
       allowEmpty: selectedCount > 0,
       onSubmit: (message) => context.read<TaskDetailBloc>().add(
         selectedCount == 0
             ? ReviewFeedbackSubmitted(state.task.id!, message)
             : CommentsSentToFix(state.task.id!, message),
       ),
-    );
-  }
-}
-
-/// The latest review's progress and the reviewer's overall verdict.
-class _ReviewStatusRow extends StatelessWidget {
-  const _ReviewStatusRow({required this.review, this.maxLines = 3});
-
-  final CodeReview review;
-  final int? maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    final (color, label, pulsing) = switch (review.status) {
-      CodeReviewStatus.queued => (AppColors.text2, 'Review queued', false),
-      CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
-      CodeReviewStatus.completed => (AppColors.accentSoft, 'AI review', false),
-      CodeReviewStatus.failed => (AppColors.red, 'Review failed', false),
-    };
-    final detail = review.status == CodeReviewStatus.failed
-        ? review.failureReason
-        : review.summary;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        StatusPill(color: color, label: label, pulsing: pulsing),
-        if (detail != null) ...[
-          const SizedBox(width: Spacing.md),
-          Expanded(
-            child: Text(
-              detail,
-              style: AppTypography.body.copyWith(
-                color: review.status == CodeReviewStatus.failed
-                    ? AppColors.red
-                    : AppColors.text1,
-              ),
-              maxLines: maxLines,
-              overflow: maxLines == null ? null : TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'plan_content.dart';
 import 'status_pill.dart';
 
 /// One AI review comment with its triage controls: a checkbox to include it
@@ -52,92 +53,118 @@ class ReviewCommentCard extends StatelessWidget {
     final line = comment.line;
     final onStateChanged = this.onStateChanged;
 
+    final severity = severityColor(comment.severity);
+    final fileName = comment.path.split('/').last;
+    final location = line == null ? fileName : '$fileName:$line';
+
     return Opacity(
       opacity: isOpen || comment.state == ReviewCommentState.sentToFix
           ? 1
           : 0.55,
       child: Container(
-        padding: const EdgeInsets.all(Spacing.md),
+        padding: const EdgeInsets.fromLTRB(
+          Spacing.md,
+          Spacing.md,
+          Spacing.lg,
+          Spacing.sm,
+        ),
         decoration: BoxDecoration(
           color: AppColors.bg2,
           borderRadius: BorderRadius.circular(8),
-          border: Border(
-            left: BorderSide(color: severityColor(comment.severity), width: 3),
-          ),
+          border: Border(left: BorderSide(color: severity, width: 3)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isOpen && onToggleSelected != null)
-              Checkbox(
-                value: selected,
-                onChanged: (_) => onToggleSelected!(),
-                visualDensity: VisualDensity.compact,
+              Tooltip(
+                message: 'Select to send to the agent',
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onToggleSelected!(),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: Spacing.sm,
-                    runSpacing: Spacing.xs,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  Row(
                     children: [
-                      StatusPill(
-                        color: severityColor(comment.severity),
-                        label: comment.severity.name,
-                      ),
+                      StatusPill(color: severity, label: comment.severity.name),
+                      if (showLocation) ...[
+                        const SizedBox(width: Spacing.sm),
+                        Flexible(
+                          child: Tooltip(
+                            message: line == null
+                                ? comment.path
+                                : '${comment.path}:$line',
+                            child: Text(
+                              location,
+                              style: AppTypography.code.copyWith(
+                                color: AppColors.text1,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        if (onOpenLocation != null) ...[
+                          const SizedBox(width: Spacing.sm),
+                          InkWell(
+                            onTap: onOpenLocation,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Text(
+                              'Open in diff',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.accentSoft,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                      const Spacer(),
                       if (!isOpen)
                         Text(
                           stateLabel(comment.state),
                           style: AppTypography.caption,
                         ),
-                      if (showLocation)
-                        InkWell(
-                          onTap: onOpenLocation,
-                          child: Text(
-                            line == null
-                                ? comment.path
-                                : '${comment.path}:$line',
-                            style: AppTypography.code.copyWith(
-                              color: onOpenLocation == null
-                                  ? AppColors.text1
-                                  : AppColors.accentSoft,
-                              decoration: onOpenLocation == null
-                                  ? null
-                                  : TextDecoration.underline,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
-                  const SizedBox(height: Spacing.xs),
-                  SelectableText(comment.body, style: AppTypography.body),
+                  const SizedBox(height: Spacing.sm),
+                  PlanContent(markdown: comment.body),
+                  if (onStateChanged != null &&
+                      comment.state != ReviewCommentState.sentToFix)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        spacing: Spacing.xs,
+                        children: isOpen
+                            ? [
+                                TextButton(
+                                  onPressed: () => onStateChanged(
+                                    ReviewCommentState.dismissed,
+                                  ),
+                                  child: const Text('Dismiss'),
+                                ),
+                                TextButton(
+                                  onPressed: () => onStateChanged(
+                                    ReviewCommentState.resolved,
+                                  ),
+                                  child: const Text('Resolve'),
+                                ),
+                              ]
+                            : [
+                                TextButton(
+                                  onPressed: () =>
+                                      onStateChanged(ReviewCommentState.open),
+                                  child: const Text('Reopen'),
+                                ),
+                              ],
+                      ),
+                    ),
                 ],
               ),
             ),
-            if (onStateChanged != null) ...[
-              if (isOpen) ...[
-                IconButton(
-                  tooltip: 'Dismiss',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close, size: 16),
-                  onPressed: () => onStateChanged(ReviewCommentState.dismissed),
-                ),
-                IconButton(
-                  tooltip: 'Mark resolved',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.check, size: 16),
-                  onPressed: () => onStateChanged(ReviewCommentState.resolved),
-                ),
-              ] else if (comment.state != ReviewCommentState.sentToFix)
-                IconButton(
-                  tooltip: 'Reopen',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.undo, size: 16),
-                  onPressed: () => onStateChanged(ReviewCommentState.open),
-                ),
-            ],
           ],
         ),
       ),
