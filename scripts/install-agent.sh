@@ -11,7 +11,7 @@
 #   curl -fsSL <script-url>/install-agent.sh | sudo bash -s -- \
 #       --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> \
 #       [--name <MACHINE_NAME>] [--claude-token <CLAUDE_CODE_OAUTH_TOKEN>] \
-#       [--claude-path </path/to/claude>]
+#       [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>]
 #
 # --server is the API server the agent connects to at runtime.
 # --script-url is where this script (and the agent-runner binary it fetches)
@@ -49,10 +49,13 @@ SCRIPT_URL=""
 MACHINE_NAME=""
 CLAUDE_TOKEN=""
 CLAUDE_PATH_OVERRIDE=""
+# Extra PATH directories for the agent (e.g. /opt/flutter/bin), so tasks
+# can run a project's analyzer/tests. Kept across re-installs via config.env.
+EXTRA_PATH=""
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>]
+Usage: $0 --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>]
 EOF
 }
 
@@ -80,6 +83,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --claude-path)
       CLAUDE_PATH_OVERRIDE="${2:-}"
+      shift 2
+      ;;
+    --extra-path)
+      EXTRA_PATH="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -208,6 +215,21 @@ else
   fi
 fi
 
+# A re-install without --extra-path keeps the directories set last time.
+if [[ -z "$EXTRA_PATH" && -f "$CONFIG_PATH" ]]; then
+  EXTRA_PATH="$(sed -n 's/^EXTRA_PATH=//p' "$CONFIG_PATH" | tail -n 1)"
+fi
+if [[ -n "$EXTRA_PATH" ]]; then
+  IFS=':' read -r -a EXTRA_DIRS <<< "$EXTRA_PATH"
+  for dir in "${EXTRA_DIRS[@]}"; do
+    if ! sudo -u "$SERVICE_USER" test -d "$dir" 2>/dev/null; then
+      echo "install-agent: warning: --extra-path ${dir} is not a directory" \
+        "${SERVICE_USER} can read — tools in it won't be available to agents." \
+        "Install SDKs outside your home directory (e.g. /opt)." >&2
+    fi
+  done
+fi
+
 echo "Writing ${CONFIG_PATH}..."
 mkdir -p "$CONFIG_DIR"
 {
@@ -222,6 +244,9 @@ mkdir -p "$CONFIG_DIR"
   fi
   if [[ -n "$CLAUDE_TOKEN" ]]; then
     echo "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_TOKEN}"
+  fi
+  if [[ -n "$EXTRA_PATH" ]]; then
+    echo "EXTRA_PATH=${EXTRA_PATH}"
   fi
 } > "$CONFIG_PATH"
 chown root:root "$CONFIG_PATH"
@@ -240,13 +265,21 @@ ExecStart=${BIN_PATH}
 EnvironmentFile=${CONFIG_PATH}
 WorkingDirectory=${DATA_DIR}
 Environment=HOME=${DATA_DIR}
-$(if [[ -n "$CLAUDE_BIN" ]]; then
+$(
   # The self-installed \`claude\` above is a self-contained native binary
   # (no interpreter dependency), but a \`--claude-path\` pointing at an
   # nvm/npm install may be a Node script whose shebang interpreter (node)
   # lives alongside it — add its directory to PATH so that resolves too.
-  echo "Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$(dirname "$CLAUDE_BIN")"
-fi)
+  # --extra-path directories come last; agents see them as available tools.
+  UNIT_PATH_VALUE="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  if [[ -n "$CLAUDE_BIN" ]]; then
+    UNIT_PATH_VALUE="${UNIT_PATH_VALUE}:$(dirname "$CLAUDE_BIN")"
+  fi
+  if [[ -n "$EXTRA_PATH" ]]; then
+    UNIT_PATH_VALUE="${UNIT_PATH_VALUE}:${EXTRA_PATH}"
+  fi
+  echo "Environment=PATH=${UNIT_PATH_VALUE}"
+)
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
 NoNewPrivileges=true

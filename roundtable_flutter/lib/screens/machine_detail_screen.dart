@@ -26,6 +26,7 @@ import '../widgets/metric_bar.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
+import '../widgets/toolchain_chips.dart';
 import 'task_detail_screen.dart';
 
 /// One machine: a rail with status, resources, runner/CLI health and
@@ -364,6 +365,10 @@ class _MachineRail extends StatelessWidget {
                           status: updateStatus,
                           onUpdate: () => _update(context, agents),
                         ),
+                ),
+                RailSection(
+                  label: 'Toolchain',
+                  child: ToolchainChips(toolchain: machine.toolchain),
                 ),
                 RailSection(
                   label: 'Claude CLI',

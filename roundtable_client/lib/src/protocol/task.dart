@@ -34,6 +34,7 @@ abstract class Task
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
+    this.resultSummary,
     this.claudeSessionId,
     this.branchName,
     this.prUrl,
@@ -61,6 +62,7 @@ abstract class Task
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -100,6 +102,7 @@ abstract class Task
             ),
       currentPlan: jsonSerialization['currentPlan'] as String?,
       failureReason: jsonSerialization['failureReason'] as String?,
+      resultSummary: jsonSerialization['resultSummary'] as String?,
       claudeSessionId: jsonSerialization['claudeSessionId'] as String?,
       branchName: jsonSerialization['branchName'] as String?,
       prUrl: jsonSerialization['prUrl'] as String?,
@@ -174,6 +177,12 @@ abstract class Task
   /// Short error summary, no log-scrolling needed.
   String? failureReason;
 
+  /// The agent's final reply from its last run (the `result` of Claude
+  /// Code's stream). Shown as the task's result — it's the whole outcome
+  /// when the agent finished without changing code, e.g. it answered a
+  /// question or found nothing to change.
+  String? resultSummary;
+
   /// Claude Code session id, for --resume on feedback.
   String? claudeSessionId;
 
@@ -213,6 +222,7 @@ abstract class Task
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -239,6 +249,7 @@ abstract class Task
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
+      if (resultSummary != null) 'resultSummary': resultSummary,
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -270,6 +281,7 @@ abstract class Task
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
+      if (resultSummary != null) 'resultSummary': resultSummary,
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -312,6 +324,7 @@ class _TaskImpl extends Task {
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -334,6 +347,7 @@ class _TaskImpl extends Task {
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
+         resultSummary: resultSummary,
          claudeSessionId: claudeSessionId,
          branchName: branchName,
          prUrl: prUrl,
@@ -362,6 +376,7 @@ class _TaskImpl extends Task {
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
+    Object? resultSummary = _Undefined,
     Object? claudeSessionId = _Undefined,
     Object? branchName = _Undefined,
     Object? prUrl = _Undefined,
@@ -389,6 +404,9 @@ class _TaskImpl extends Task {
       failureReason: failureReason is String?
           ? failureReason
           : this.failureReason,
+      resultSummary: resultSummary is String?
+          ? resultSummary
+          : this.resultSummary,
       claudeSessionId: claudeSessionId is String?
           ? claudeSessionId
           : this.claudeSessionId,

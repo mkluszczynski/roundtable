@@ -374,6 +374,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'DateTime?',
         ),
         _isp.ColumnDefinition(
+          name: 'toolchain',
+          columnType: _isp.ColumnType.json,
+          isNullable: true,
+          dartType: 'List<String>?',
+        ),
+        _isp.ColumnDefinition(
           name: 'createdAt',
           columnType: _isp.ColumnType.timestampWithoutTimeZone,
           isNullable: false,
@@ -679,6 +685,12 @@ class Protocol extends _is.DatabaseSerializationManager {
         ),
         _isp.ColumnDefinition(
           name: 'failureReason',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'resultSummary',
           columnType: _isp.ColumnType.text,
           isNullable: true,
           dartType: 'String?',
@@ -1398,6 +1410,15 @@ class Protocol extends _is.DatabaseSerializationManager {
               : null)
           as T;
     }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
+    if (t == _is.getType<List<String>?>()) {
+      return (data != null
+              ? (data as List).map((e) => deserialize<String>(e)).toList()
+              : null)
+          as T;
+    }
     if (t == List<_ijo8h3v4.Agent>) {
       return (data as List).map((e) => deserialize<_ijo8h3v4.Agent>(e)).toList()
           as T;
@@ -1480,9 +1501,6 @@ class Protocol extends _is.DatabaseSerializationManager {
               : null)
           as T;
     }
-    if (t == List<String>) {
-      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
-    }
     if (t == List<_iaucj7w0.Agent>) {
       return (data as List).map((e) => deserialize<_iaucj7w0.Agent>(e)).toList()
           as T;
@@ -1502,6 +1520,9 @@ class Protocol extends _is.DatabaseSerializationManager {
               .toList()
           as T;
     }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
     if (t == List<_ii35q81x.Project>) {
       return (data as List)
               .map((e) => deserialize<_ii35q81x.Project>(e))
@@ -1519,9 +1540,6 @@ class Protocol extends _is.DatabaseSerializationManager {
               ? (data as List).map((e) => deserialize<int>(e)).toList()
               : null)
           as T;
-    }
-    if (t == List<String>) {
-      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
     if (t == List<_i77xifuu.Task>) {
       return (data as List).map((e) => deserialize<_i77xifuu.Task>(e)).toList()

@@ -229,14 +229,18 @@ enum _TaskSection { overview, plan, changes, review, logs }
 bool _isLive(TaskStatus s) =>
     s == TaskStatus.planning || s == TaskStatus.running;
 
-bool _hasPullRequestViews(TaskStatus s) =>
-    s == TaskStatus.awaitingReview || s == TaskStatus.done;
+/// A task in review or done with a PR — not one that finished without
+/// changing code (its result is in Overview instead).
+bool _hasPullRequestViews(Task task) =>
+    (task.status == TaskStatus.awaitingReview ||
+        task.status == TaskStatus.done) &&
+    (task.prUrl != null || task.branchName != null);
 
 /// The section a task opens on: the live log while the agent works, the
 /// diff once there's a PR, otherwise whatever needs the dev's attention.
-_TaskSection _defaultSectionFor(TaskStatus s) {
-  if (_isLive(s)) return _TaskSection.logs;
-  if (_hasPullRequestViews(s)) return _TaskSection.changes;
+_TaskSection _defaultSectionFor(Task task) {
+  if (_isLive(task.status)) return _TaskSection.logs;
+  if (_hasPullRequestViews(task)) return _TaskSection.changes;
   return _TaskSection.overview;
 }
 
@@ -248,10 +252,10 @@ _TaskSection _defaultSectionFor(TaskStatus s) {
 Set<_TaskSection> _availableSectionsFor(Task task) {
   final s = task.status;
   return {
-    if (!_isLive(s) && !_hasPullRequestViews(s)) _TaskSection.overview,
+    if (!_isLive(s) && !_hasPullRequestViews(task)) _TaskSection.overview,
     if (task.currentPlan != null && s != TaskStatus.planReady)
       _TaskSection.plan,
-    if (_hasPullRequestViews(s)) ...{
+    if (_hasPullRequestViews(task)) ...{
       _TaskSection.changes,
       _TaskSection.review,
     },
@@ -330,12 +334,11 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
   }
 
   Widget _buildLoaded(TaskDetailLoaded state) {
-    final status = state.task.status;
     final picked = _section;
     final section =
         picked != null && _availableSectionsFor(state.task).contains(picked)
         ? picked
-        : _defaultSectionFor(status);
+        : _defaultSectionFor(state.task);
     return Column(
       children: [
         _Header(state: state),
@@ -643,6 +646,7 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.overview => switch (state.task.status) {
                     TaskStatus.waitingForAnswer => 'Question',
                     TaskStatus.planReady => 'Plan',
+                    TaskStatus.done || TaskStatus.awaitingReview => 'Result',
                     _ => 'Details',
                   },
                   _TaskSection.plan => 'Plan',
@@ -899,11 +903,27 @@ class _Overview extends StatelessWidget {
       TaskStatus.planning || TaskStatus.running => _LiveExecution(
         state: state,
       ),
-      // Never shown: these statuses have no Overview section.
-      TaskStatus.awaitingReview || TaskStatus.done => const SizedBox.shrink(),
-      TaskStatus.failed => Text(
-        state.task.failureReason ?? 'This task failed.',
-        style: AppTypography.body.copyWith(color: AppColors.red),
+      // Only reachable for a task that finished without changing code —
+      // with a PR, Changes/AI review replace Overview.
+      TaskStatus.awaitingReview || TaskStatus.done => _ResultView(
+        task: state.task,
+      ),
+      TaskStatus.failed => SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              state.task.failureReason ?? 'This task failed.',
+              style: AppTypography.body.copyWith(color: AppColors.red),
+            ),
+            if (state.task.resultSummary case final result?) ...[
+              const SizedBox(height: Spacing.xl),
+              Text("AGENT'S LAST REPLY", style: AppTypography.label),
+              const SizedBox(height: Spacing.sm),
+              AppCard(child: PlanContent(markdown: result)),
+            ],
+          ],
+        ),
       ),
       TaskStatus.draft => Text(
         'Draft — assign an agent to start this task.',
@@ -914,6 +934,51 @@ class _Overview extends StatelessWidget {
         style: AppTypography.caption,
       ),
     };
+  }
+}
+
+/// A task that finished without changing code: the agent's reply (e.g. its
+/// answer to a question) is the whole outcome.
+class _ResultView extends StatelessWidget {
+  const _ResultView({required this.task});
+
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    final result = task.resultSummary;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.circle, size: 8, color: AppColors.live),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                'FINISHED WITHOUT CODE CHANGES',
+                style: AppTypography.label.copyWith(color: AppColors.live),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'The agent answered or found nothing to change, so there is no '
+            'pull request. Its reply:',
+            style: AppTypography.caption,
+          ),
+          const SizedBox(height: Spacing.lg),
+          AppCard(
+            child: result == null
+                ? Text(
+                    'No reply was recorded — see the Logs tab.',
+                    style: AppTypography.body,
+                  )
+                : PlanContent(markdown: result),
+          ),
+        ],
+      ),
+    );
   }
 }
 

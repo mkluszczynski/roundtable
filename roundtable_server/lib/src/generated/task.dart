@@ -34,6 +34,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
+    this.resultSummary,
     this.claudeSessionId,
     this.branchName,
     this.prUrl,
@@ -61,6 +62,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -100,6 +102,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
             ),
       currentPlan: jsonSerialization['currentPlan'] as String?,
       failureReason: jsonSerialization['failureReason'] as String?,
+      resultSummary: jsonSerialization['resultSummary'] as String?,
       claudeSessionId: jsonSerialization['claudeSessionId'] as String?,
       branchName: jsonSerialization['branchName'] as String?,
       prUrl: jsonSerialization['prUrl'] as String?,
@@ -174,6 +177,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// Short error summary, no log-scrolling needed.
   String? failureReason;
 
+  /// The agent's final reply from its last run (the `result` of Claude
+  /// Code's stream). Shown as the task's result — it's the whole outcome
+  /// when the agent finished without changing code, e.g. it answered a
+  /// question or found nothing to change.
+  String? resultSummary;
+
   /// Claude Code session id, for --resume on feedback.
   String? claudeSessionId;
 
@@ -216,6 +225,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -242,6 +252,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
+      if (resultSummary != null) 'resultSummary': resultSummary,
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -273,6 +284,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
+      if (resultSummary != null) 'resultSummary': resultSummary,
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
@@ -351,6 +363,7 @@ class _TaskImpl extends Task {
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
+    String? resultSummary,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
@@ -373,6 +386,7 @@ class _TaskImpl extends Task {
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
+         resultSummary: resultSummary,
          claudeSessionId: claudeSessionId,
          branchName: branchName,
          prUrl: prUrl,
@@ -401,6 +415,7 @@ class _TaskImpl extends Task {
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
+    Object? resultSummary = _Undefined,
     Object? claudeSessionId = _Undefined,
     Object? branchName = _Undefined,
     Object? prUrl = _Undefined,
@@ -428,6 +443,9 @@ class _TaskImpl extends Task {
       failureReason: failureReason is String?
           ? failureReason
           : this.failureReason,
+      resultSummary: resultSummary is String?
+          ? resultSummary
+          : this.resultSummary,
       claudeSessionId: claudeSessionId is String?
           ? claudeSessionId
           : this.claudeSessionId,
@@ -491,6 +509,12 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
   _is.ColumnValue<String, String> failureReason(String? value) =>
       _is.ColumnValue(
         table.failureReason,
+        value,
+      );
+
+  _is.ColumnValue<String, String> resultSummary(String? value) =>
+      _is.ColumnValue(
+        table.resultSummary,
         value,
       );
 
@@ -569,6 +593,10 @@ class TaskTable extends _is.Table<int?> {
       'failureReason',
       this,
     );
+    resultSummary = _is.ColumnString(
+      'resultSummary',
+      this,
+    );
     claudeSessionId = _is.ColumnString(
       'claudeSessionId',
       this,
@@ -629,6 +657,12 @@ class TaskTable extends _is.Table<int?> {
 
   /// Short error summary, no log-scrolling needed.
   late final _is.ColumnString failureReason;
+
+  /// The agent's final reply from its last run (the `result` of Claude
+  /// Code's stream). Shown as the task's result — it's the whole outcome
+  /// when the agent finished without changing code, e.g. it answered a
+  /// question or found nothing to change.
+  late final _is.ColumnString resultSummary;
 
   /// Claude Code session id, for --resume on feedback.
   late final _is.ColumnString claudeSessionId;
@@ -827,6 +861,7 @@ class TaskTable extends _is.Table<int?> {
     status,
     currentPlan,
     failureReason,
+    resultSummary,
     claudeSessionId,
     branchName,
     prUrl,

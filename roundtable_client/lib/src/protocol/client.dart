@@ -665,6 +665,23 @@ class EndpointMachine extends _isc.EndpointRef {
     },
   );
 
+  /// Called by the daemon at startup with the tools it found on its PATH
+  /// (see [Machine.toolchain]).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportToolchain(
+    String token,
+    List<String> toolchain,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportToolchain',
+    {
+      'token': token,
+      'toolchain': toolchain,
+    },
+  );
+
   /// Streams the latest [MachineMetric] for [machineId] (docs/FLOWS.md §6
   /// snapshot) — replays the current latest row on subscribe, then yields
   /// each new one as [reportMetric] stores it.

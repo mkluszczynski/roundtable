@@ -40,6 +40,7 @@ machine:
   - identify:
   - reportMetric:
   - reportClaudeStatus:
+  - reportToolchain:
   - watchLatestMetric:
   - delete:
 project:

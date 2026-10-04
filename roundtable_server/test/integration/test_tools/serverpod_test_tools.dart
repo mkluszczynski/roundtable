@@ -1538,6 +1538,41 @@ class _MachineEndpoint {
     });
   }
 
+  _ida.Future<void> reportToolchain(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+    List<String> toolchain,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'reportToolchain',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'reportToolchain',
+          parameters: _ist.testObjectToJson({
+            'token': token,
+            'toolchain': toolchain,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Stream<_idvadg1i.MachineMetric> watchLatestMetric(
     _ist.TestSessionBuilder sessionBuilder,
     int machineId,

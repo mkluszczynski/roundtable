@@ -18,6 +18,11 @@ fields:
   currentPlan: String?
   ### Short error summary, no log-scrolling needed.
   failureReason: String?
+  ### The agent's final reply from its last run (the `result` of Claude
+  ### Code's stream). Shown as the task's result — it's the whole outcome
+  ### when the agent finished without changing code, e.g. it answered a
+  ### question or found nothing to change.
+  resultSummary: String?
   ### Claude Code session id, for --resume on feedback.
   claudeSessionId: String?
   branchName: String?

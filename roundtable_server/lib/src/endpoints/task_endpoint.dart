@@ -114,7 +114,15 @@ class TaskEndpoint extends Endpoint {
       );
       return previous;
     }
-    if (!_runnerSettableStatuses.contains(task.status)) {
+    // `done` is normally reached by merging the PR (acceptTask). The daemon
+    // may only set it for a run that produced no code — nothing to review.
+    final finishedWithoutCode =
+        task.status == TaskStatus.done &&
+        previous.branchName == null &&
+        task.branchName == null &&
+        task.prUrl == null;
+    if (!_runnerSettableStatuses.contains(task.status) &&
+        !finishedWithoutCode) {
       // A stale snapshot (e.g. the `queued` row the daemon got at dispatch)
       // or a status only a guarded method may set: keep the current status
       // and write just the other fields.
@@ -130,6 +138,7 @@ class TaskEndpoint extends Endpoint {
       columns: (t) => [
         t.status,
         t.failureReason,
+        t.resultSummary,
         t.claudeSessionId,
         t.branchName,
         t.prUrl,

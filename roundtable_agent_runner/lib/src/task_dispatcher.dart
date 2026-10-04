@@ -33,7 +33,12 @@ class TaskDispatcher {
     required this.serverUrl,
     required this.permissionPromptToolCommand,
     this.fetchAttachments = _noAttachments,
+    this.environmentPrompt,
   });
+
+  /// Describes this machine to the agent (`--append-system-prompt`) — see
+  /// `buildEnvironmentPrompt`. Null when not yet known.
+  final String? Function()? environmentPrompt;
 
   static Future<List<TaskImage>> _noAttachments(int taskId) async => const [];
 
@@ -297,6 +302,7 @@ class TaskDispatcher {
           model: agent.defaultModel,
           effort: agent.defaultEffort?.name,
           additionalDirectories: attachmentDirs,
+          appendSystemPrompt: environmentPrompt?.call(),
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
@@ -312,6 +318,7 @@ class TaskDispatcher {
           permissionPromptTool: permissionPromptTool,
           mcpConfigPath: mcpConfigPath,
           additionalDirectories: attachmentDirs,
+          appendSystemPrompt: environmentPrompt?.call(),
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
@@ -341,6 +348,7 @@ class TaskDispatcher {
       String? branchName;
       String? prUrl;
       String? failureReason = result.success ? null : result.errorSummary;
+      var finishedWithoutCode = false;
       if (result.success) {
         final branch = 'task-${task.id}';
         final committed = await worktreeManager.commitAndPush(
@@ -366,22 +374,27 @@ class TaskDispatcher {
             log('task ${task.id}: pushed additional commits to existing PR');
           }
         } else if (task.branchName == null) {
-          log('task ${task.id}: no changes to commit, marking failed');
-          failureReason = 'Agent finished without changing any files.';
+          // E.g. the prompt was a question, or the agent found nothing to
+          // change — its reply is the result, not a failure.
+          log('task ${task.id}: no changes to commit, done without a PR');
+          finishedWithoutCode = true;
         } else {
           log('task ${task.id}: no new changes, keeping existing PR');
         }
       }
 
-      final status = failureReason == null
-          ? TaskStatus.awaitingReview
-          : TaskStatus.failed;
+      final status = failureReason != null
+          ? TaskStatus.failed
+          : finishedWithoutCode
+          ? TaskStatus.done
+          : TaskStatus.awaitingReview;
       await updateTask(
         task.copyWith(
           status: status,
           finishedAt: DateTime.now().toUtc(),
           claudeSessionId: result.sessionId ?? task.claudeSessionId,
           failureReason: failureReason,
+          resultSummary: result.resultText ?? task.resultSummary,
           branchName: branchName ?? task.branchName,
           prUrl: prUrl ?? task.prUrl,
         ),

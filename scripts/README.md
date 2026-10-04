@@ -49,3 +49,26 @@ for one person's interactive use. Several agents on the same machine firing
 off Claude Code subprocesses concurrently will hit Pro/Max usage limits
 sooner than a single developer working by hand — worth keeping in mind
 before running many agents in parallel on one machine.
+
+## Making SDKs available to agents
+
+Agents run as the `roundtable-agent` system user with a minimal `PATH`, so
+a toolchain installed for your own account (e.g. Flutter in `~/Dev/flutter`)
+isn't visible to them — your home directory isn't readable by that user.
+On startup the runner reports which tools it can find (shown under
+**Toolchain** on the machine's card) and tells the agent, so it won't plan
+verification steps it can't run.
+
+To let agents run a project's analyzer and tests:
+
+1. Install the SDK somewhere every user can read, e.g.
+   `sudo git clone https://github.com/flutter/flutter.git /opt/flutter`.
+2. Make it writable for the agent where the SDK caches into itself
+   (Flutter/Dart do): `sudo chown -R roundtable-agent: /opt/flutter`.
+3. Re-run the install command from the panel with
+   `--extra-path /opt/flutter/bin` (several directories: `a:b`). The value is
+   remembered in `/etc/agent-runner/config.env`, so later re-installs keep it.
+
+"Update runner" in the panel only replaces the binaries — changing the
+`PATH` needs a re-install. Per-project toolchains will come with the Docker
+execution mode (`Project.dockerImage`).

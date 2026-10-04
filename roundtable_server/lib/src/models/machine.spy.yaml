@@ -29,6 +29,11 @@ fields:
   ### it up on its next check-in and hands off to the root-side updater.
   ### Cleared once the daemon reports a different [runnerVersion].
   updateRequestedAt: DateTime?
+  ### Tools the daemon found on its PATH at startup, as "name: version"
+  ### (e.g. "dart: Dart SDK version: 3.13.3"). Shown on the machine's card
+  ### so the dev can see what agents here can build and test with. Null
+  ### for daemons that predate toolchain detection.
+  toolchain: List<String>?
   createdAt: DateTime, default=now
   agents: List<Agent>?, relation(name=machine_agents)
   metrics: List<MachineMetric>?, relation(name=machine_metrics)

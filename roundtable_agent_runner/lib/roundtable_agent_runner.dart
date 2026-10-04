@@ -8,6 +8,7 @@ import 'src/github_pull_request_opener.dart';
 import 'src/metrics_collector.dart';
 import 'src/review_dispatcher.dart';
 import 'src/runner_update.dart';
+import 'src/environment_prompt.dart';
 import 'src/task_dispatcher.dart';
 import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
@@ -19,6 +20,7 @@ export 'src/permission_prompt_tool.dart';
 export 'src/review_dispatcher.dart';
 export 'src/runner_update.dart';
 export 'src/stream_json_formatter.dart';
+export 'src/environment_prompt.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
@@ -202,6 +204,7 @@ class AgentRunnerService {
     appendLog: (taskId, content) =>
         _client.task.appendLog(taskId, content, source: LogSource.agent),
     log: _log,
+    environmentPrompt: () => _environmentPrompt(review: true),
   );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
@@ -222,7 +225,44 @@ class AgentRunnerService {
     serverUrl: _normalizeServerUrl(_config.serverUrl),
     permissionPromptToolCommand: _permissionPromptToolCommand(_config),
     fetchAttachments: _fetchAttachments,
+    environmentPrompt: _environmentPrompt,
   );
+
+  /// This machine's name and detected tools, set during [run].
+  String? _machineName;
+  List<ToolInfo>? _toolchain;
+
+  String? _environmentPrompt({bool review = false}) {
+    final toolchain = _toolchain;
+    if (toolchain == null) return null;
+    return buildEnvironmentPrompt(
+      machineName: _machineName ?? 'unknown',
+      user: Platform.environment['USER'] ?? 'roundtable-agent',
+      tools: toolchain,
+      review: review,
+    );
+  }
+
+  /// Detects the tools on PATH, for the agent's system prompt and the
+  /// machine's card in the panel. Once per process: a new SDK shows up
+  /// after a restart (e.g. via "Update runner").
+  Future<void> _detectToolchain() async {
+    final toolchain = await detectToolchain();
+    _toolchain = toolchain;
+    final available = [
+      for (final t in toolchain)
+        if (t.version != null) '${t.name}: ${t.version}',
+    ];
+    _log('toolchain: ${available.isEmpty ? '(none)' : available.join(', ')}');
+    try {
+      await _client.machine.reportToolchain(
+        _config.registrationToken,
+        available,
+      );
+    } catch (e) {
+      _log('reportToolchain failed: $e');
+    }
+  }
 
   Future<List<TaskImage>> _fetchAttachments(int taskId) async {
     final attachments = await _client.taskAttachment.list(taskId);
@@ -308,6 +348,10 @@ class AgentRunnerService {
     } catch (e) {
       _log('reportStartup failed: $e');
     }
+
+    _machineName = machine.name;
+    // Before taking tasks, so even the first run knows its environment.
+    await _detectToolchain();
 
     _subscribeToAssignedTasks(machine.id!);
     _subscribeToAssignedReviews(machine.id!);

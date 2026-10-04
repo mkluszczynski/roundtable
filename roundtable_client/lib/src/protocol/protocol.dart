@@ -389,6 +389,15 @@ class Protocol extends _isc.SerializationManager {
               : null)
           as T;
     }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
+    if (t == _isc.getType<List<String>?>()) {
+      return (data != null
+              ? (data as List).map((e) => deserialize<String>(e)).toList()
+              : null)
+          as T;
+    }
     if (t == List<_ijo8h3v4.Agent>) {
       return (data as List).map((e) => deserialize<_ijo8h3v4.Agent>(e)).toList()
           as T;
@@ -471,9 +480,6 @@ class Protocol extends _isc.SerializationManager {
               : null)
           as T;
     }
-    if (t == List<String>) {
-      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
-    }
     if (t == List<_ikth53tp.Agent>) {
       return (data as List).map((e) => deserialize<_ikth53tp.Agent>(e)).toList()
           as T;
@@ -493,6 +499,9 @@ class Protocol extends _isc.SerializationManager {
               .toList()
           as T;
     }
+    if (t == List<String>) {
+      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
+    }
     if (t == List<_i76mncv2.Project>) {
       return (data as List)
               .map((e) => deserialize<_i76mncv2.Project>(e))
@@ -510,9 +519,6 @@ class Protocol extends _isc.SerializationManager {
               ? (data as List).map((e) => deserialize<int>(e)).toList()
               : null)
           as T;
-    }
-    if (t == List<String>) {
-      return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
     if (t == List<_iw53rmon.Task>) {
       return (data as List).map((e) => deserialize<_iw53rmon.Task>(e)).toList()

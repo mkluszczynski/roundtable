@@ -381,7 +381,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
         }
         // Refetch each time the task (re-)enters review, e.g. after a
         // feedback iteration pushed new commits.
+        // A task done without code changes has no PR to fetch files from.
         if (_reviewStatuses.contains(task.status) &&
+            (task.prUrl != null || task.branchName != null) &&
             (current is! TaskDetailLoaded ||
                 !current.filesRequested ||
                 !_reviewStatuses.contains(current.task.status))) {

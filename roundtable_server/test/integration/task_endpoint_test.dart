@@ -132,6 +132,56 @@ void main() {
       },
     );
 
+    test(
+      'when the daemon finishes a run without code then it may set done with '
+      'the result, but not on a task that has a branch',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final answered = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Is this hardcoded?',
+          skipPlanning: true,
+        );
+        final withBranch = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Change it',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          withBranch.copyWith(
+            status: TaskStatus.running,
+            branchName: 'task-${withBranch.id}',
+          ),
+        );
+
+        final done = await endpoints.task.update(
+          sessionBuilder,
+          answered.copyWith(
+            status: TaskStatus.done,
+            resultSummary: 'Yes, it is.',
+          ),
+        );
+        final refused = await endpoints.task.update(
+          sessionBuilder,
+          withBranch.copyWith(
+            status: TaskStatus.done,
+            branchName: 'task-${withBranch.id}',
+          ),
+        );
+
+        expect(done.status, TaskStatus.done);
+        expect(done.resultSummary, 'Yes, it is.');
+        expect(refused.status, TaskStatus.running);
+      },
+    );
+
     test('when updating a task then the change is persisted', () async {
       final machine = await createMachine();
       final project = await createProject();

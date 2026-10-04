@@ -116,10 +116,10 @@ exit 0
       expect(prRequests.single['branchName'], 'task-1');
     });
 
-    test('a skipPlanning task that produces no changes is marked failed '
-        'without opening a PR', () async {
+    test('a task that produces no changes is done without a PR, keeping '
+        "the agent's reply as its result", () async {
       final claudeScript = writeFakeClaude('''
-echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
+echo '{"type":"result","subtype":"success","session_id":"sess-1","result":"It is hardcoded; no change needed."}'
 exit 0
 ''');
       final taskUpdates = <Task>[];
@@ -152,10 +152,11 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(taskUpdates.last.status, TaskStatus.done);
+      expect(taskUpdates.last.failureReason, isNull);
       expect(
-        taskUpdates.last.failureReason,
-        'Agent finished without changing any files.',
+        taskUpdates.last.resultSummary,
+        'It is hardcoded; no change needed.',
       );
       expect(taskUpdates.last.branchName, isNull);
       expect(taskUpdates.last.prUrl, isNull);

@@ -285,6 +285,24 @@ class MachineEndpoint extends Endpoint {
     );
   }
 
+  /// Called by the daemon at startup with the tools it found on its PATH
+  /// (see [Machine.toolchain]).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> reportToolchain(
+    Session session,
+    String token,
+    List<String> toolchain,
+  ) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(toolchain: toolchain),
+      columns: (t) => [t.toolchain],
+    );
+  }
+
   /// Streams the latest [MachineMetric] for [machineId] (docs/FLOWS.md §6
   /// snapshot) — replays the current latest row on subscribe, then yields
   /// each new one as [reportMetric] stores it.

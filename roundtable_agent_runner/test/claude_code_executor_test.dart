@@ -171,6 +171,24 @@ exit 0
       expect(lines.single, contains('--add-dir /tmp/a --add-dir /tmp/b'));
     });
 
+    test('passes --append-system-prompt when set', () async {
+      final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+      final executor = ClaudeCodeExecutor(executable: script);
+      final lines = <String>[];
+
+      await executor.run(
+        prompt: 'go',
+        workingDirectory: tempDir.path,
+        appendSystemPrompt: 'ENVIRONMENT',
+        onLine: lines.add,
+      );
+
+      expect(lines.single, contains('--append-system-prompt ENVIRONMENT'));
+    });
+
     test('passes --model and --effort when set', () async {
       final script = writeFakeClaude(r'''
 echo "{\"args\":\"$*\"}"

@@ -20,6 +20,7 @@ import '../widgets/machine_metrics.dart';
 import '../widgets/runner_update_banner.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
+import '../widgets/toolchain_chips.dart';
 import 'machine_detail_screen.dart';
 
 /// Machines, each with the agents hosted on it folded in underneath — per
@@ -421,6 +422,8 @@ class _MachineCard extends StatelessWidget {
               const SizedBox(height: Spacing.lg),
               MachineMetrics(machineId: machine.id!),
             ],
+            const SizedBox(height: Spacing.md),
+            ToolchainChips(toolchain: machine.toolchain),
             const SizedBox(height: Spacing.lg),
             Divider(height: 1, color: AppColors.border),
             const SizedBox(height: Spacing.md),

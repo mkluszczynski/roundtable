@@ -32,6 +32,7 @@ abstract class Machine
     this.claudeExecutableError,
     this.runnerVersion,
     this.updateRequestedAt,
+    this.toolchain,
     DateTime? createdAt,
     this.agents,
     this.metrics,
@@ -49,6 +50,7 @@ abstract class Machine
     String? claudeExecutableError,
     String? runnerVersion,
     DateTime? updateRequestedAt,
+    List<String>? toolchain,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -80,6 +82,11 @@ abstract class Machine
           ? null
           : _is.DateTimeJsonExtension.fromJson(
               jsonSerialization['updateRequestedAt'],
+            ),
+      toolchain: jsonSerialization['toolchain'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<List<String>>(
+              jsonSerialization['toolchain'],
             ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -139,6 +146,12 @@ abstract class Machine
   /// Cleared once the daemon reports a different [runnerVersion].
   DateTime? updateRequestedAt;
 
+  /// Tools the daemon found on its PATH at startup, as "name: version"
+  /// (e.g. "dart: Dart SDK version: 3.13.3"). Shown on the machine's card
+  /// so the dev can see what agents here can build and test with. Null
+  /// for daemons that predate toolchain detection.
+  List<String>? toolchain;
+
   DateTime createdAt;
 
   List<_ijo8h3v4.Agent>? agents;
@@ -162,6 +175,7 @@ abstract class Machine
     String? claudeExecutableError,
     String? runnerVersion,
     DateTime? updateRequestedAt,
+    List<String>? toolchain,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -182,6 +196,7 @@ abstract class Machine
       if (runnerVersion != null) 'runnerVersion': runnerVersion,
       if (updateRequestedAt != null)
         'updateRequestedAt': updateRequestedAt?.toJson(),
+      if (toolchain != null) 'toolchain': toolchain?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJson()),
@@ -205,6 +220,7 @@ abstract class Machine
       if (runnerVersion != null) 'runnerVersion': runnerVersion,
       if (updateRequestedAt != null)
         'updateRequestedAt': updateRequestedAt?.toJson(),
+      if (toolchain != null) 'toolchain': toolchain?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -261,6 +277,7 @@ class _MachineImpl extends Machine {
     String? claudeExecutableError,
     String? runnerVersion,
     DateTime? updateRequestedAt,
+    List<String>? toolchain,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -275,6 +292,7 @@ class _MachineImpl extends Machine {
          claudeExecutableError: claudeExecutableError,
          runnerVersion: runnerVersion,
          updateRequestedAt: updateRequestedAt,
+         toolchain: toolchain,
          createdAt: createdAt,
          agents: agents,
          metrics: metrics,
@@ -295,6 +313,7 @@ class _MachineImpl extends Machine {
     Object? claudeExecutableError = _Undefined,
     Object? runnerVersion = _Undefined,
     Object? updateRequestedAt = _Undefined,
+    Object? toolchain = _Undefined,
     DateTime? createdAt,
     Object? agents = _Undefined,
     Object? metrics = _Undefined,
@@ -318,6 +337,9 @@ class _MachineImpl extends Machine {
       updateRequestedAt: updateRequestedAt is DateTime?
           ? updateRequestedAt
           : this.updateRequestedAt,
+      toolchain: toolchain is List<String>?
+          ? toolchain
+          : this.toolchain?.map((e0) => e0).toList(),
       createdAt: createdAt ?? this.createdAt,
       agents: agents is List<_ijo8h3v4.Agent>?
           ? agents
@@ -384,6 +406,12 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
         value,
       );
 
+  _is.ColumnValue<List<String>, List<String>> toolchain(List<String>? value) =>
+      _is.ColumnValue(
+        table.toolchain,
+        value,
+      );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -432,6 +460,10 @@ class MachineTable extends _is.Table<int?> {
       'updateRequestedAt',
       this,
     );
+    toolchain = _is.ColumnSerializable<List<String>>(
+      'toolchain',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -475,6 +507,12 @@ class MachineTable extends _is.Table<int?> {
   /// it up on its next check-in and hands off to the root-side updater.
   /// Cleared once the daemon reports a different [runnerVersion].
   late final _is.ColumnDateTime updateRequestedAt;
+
+  /// Tools the daemon found on its PATH at startup, as "name: version"
+  /// (e.g. "dart: Dart SDK version: 3.13.3"). Shown on the machine's card
+  /// so the dev can see what agents here can build and test with. Null
+  /// for daemons that predate toolchain detection.
+  late final _is.ColumnSerializable<List<String>> toolchain;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -562,6 +600,7 @@ class MachineTable extends _is.Table<int?> {
     claudeExecutableError,
     runnerVersion,
     updateRequestedAt,
+    toolchain,
     createdAt,
   ];
 

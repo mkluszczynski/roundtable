@@ -939,6 +939,31 @@ class Endpoints extends _is.EndpointDispatch {
                     params['message'],
                   ),
         ),
+        'reportToolchain': _is.MethodConnector(
+          name: 'reportToolchain',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'toolchain': _is.ParameterDescription(
+              name: 'toolchain',
+              type: _is.getType<List<String>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportToolchain(
+                    session,
+                    params['token'],
+                    params['toolchain'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {

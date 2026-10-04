@@ -24,7 +24,12 @@ class ReviewDispatcher {
     required this.failReview,
     required this.appendLog,
     required this.log,
+    this.environmentPrompt,
   });
+
+  /// Describes this machine to the reviewer (`--append-system-prompt`) —
+  /// see `buildEnvironmentPrompt`. Null when not yet known.
+  final String? Function()? environmentPrompt;
 
   final WorktreeManager worktreeManager;
   final ClaudeCodeExecutor Function() executorFactory;
@@ -94,6 +99,7 @@ class ReviewDispatcher {
         oauthToken: oauthToken,
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
+        appendSystemPrompt: environmentPrompt?.call(),
         onLine: (line) {
           for (final formatted in formatter.feed(line)) {
             appendLog(task.id!, '[review] $formatted').catchError(

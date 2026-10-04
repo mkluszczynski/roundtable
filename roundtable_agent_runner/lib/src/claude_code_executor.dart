@@ -98,6 +98,7 @@ class ClaudeCodeExecutor {
     String? permissionPromptTool,
     String? mcpConfigPath,
     List<String> additionalDirectories = const [],
+    String? appendSystemPrompt,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -124,6 +125,10 @@ class ClaudeCodeExecutor {
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
       for (final dir in additionalDirectories) ...['--add-dir', dir],
+      if (appendSystemPrompt != null) ...[
+        '--append-system-prompt',
+        appendSystemPrompt,
+      ],
     ];
 
     return _runProcess(
@@ -156,6 +161,7 @@ class ClaudeCodeExecutor {
     String? model,
     String? effort,
     List<String> additionalDirectories = const [],
+    String? appendSystemPrompt,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -176,6 +182,10 @@ class ClaudeCodeExecutor {
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
       for (final dir in additionalDirectories) ...['--add-dir', dir],
+      if (appendSystemPrompt != null) ...[
+        '--append-system-prompt',
+        appendSystemPrompt,
+      ],
     ];
 
     return _runProcess(
@@ -196,6 +206,7 @@ class ClaudeCodeExecutor {
     String? oauthToken,
     String? model,
     String? effort,
+    String? appendSystemPrompt,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -212,6 +223,10 @@ class ClaudeCodeExecutor {
       'Edit,Write,NotebookEdit',
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
+      if (appendSystemPrompt != null) ...[
+        '--append-system-prompt',
+        appendSystemPrompt,
+      ],
     ];
 
     return _runProcess(
