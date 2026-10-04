@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-import '../client.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/project_list_cubit.dart';
-import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -18,50 +16,41 @@ class ProjectsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) =>
-              ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-      ],
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _ProjectsHeader(),
-            Expanded(
-              child: BlocBuilder<ProjectListCubit, ProjectListState>(
-                builder: (context, state) {
-                  return switch (state) {
-                    ProjectListInitial() ||
-                    ProjectListLoading() => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    ProjectListError(:final message) => Center(
-                      child: Text(
-                        'Failed to load projects: $message',
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.red,
-                        ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProjectsHeader(),
+          Expanded(
+            child: BlocBuilder<ProjectListCubit, ProjectListState>(
+              builder: (context, state) {
+                return switch (state) {
+                  ProjectListInitial() || ProjectListLoading() => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  ProjectListError(:final message) => Center(
+                    child: Text(
+                      'Failed to load projects: $message',
+                      style: AppTypography.body.copyWith(
+                        color: AppColors.red,
                       ),
                     ),
-                    ProjectListLoaded(:final projects) =>
-                      projects.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No projects yet',
-                                style: AppTypography.body,
-                              ),
-                            )
-                          : _ProjectsList(projects: projects),
-                  };
-                },
-              ),
+                  ),
+                  ProjectListLoaded(:final projects) =>
+                    projects.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No projects yet',
+                              style: AppTypography.body,
+                            ),
+                          )
+                        : _ProjectsList(projects: projects),
+                };
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

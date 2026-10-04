@@ -34,7 +34,9 @@ class AgentListCubit extends Cubit<AgentListState> {
   final AgentRepository _repository;
 
   Future<void> fetchAgents() async {
-    emit(const AgentListLoading());
+    // Refreshes keep showing the current list; the cubit is shared
+    // app-wide (PanelShell), so a spinner would blank every screen.
+    if (state is! AgentListLoaded) emit(const AgentListLoading());
     try {
       final agents = await _repository.listAgents();
       emit(AgentListLoaded(agents));

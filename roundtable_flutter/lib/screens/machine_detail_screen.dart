@@ -8,9 +8,7 @@ import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
 import '../cubits/machine_metric_cubit.dart';
 import '../cubits/project_list_cubit.dart';
-import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
-import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -58,16 +56,6 @@ class _MachineDetailScreenState extends State<MachineDetailScreen> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
-        ),
-        BlocProvider(
-          create: (_) =>
-              ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-        BlocProvider(
-          create: (_) => MachineListCubit(_machineRepository)..fetchMachines(),
-        ),
         BlocProvider(
           create: (_) =>
               MachineMetricCubit(_machineRepository, widget.machineId),

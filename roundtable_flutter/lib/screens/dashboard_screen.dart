@@ -2,14 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
 import '../cubits/project_list_cubit.dart';
-import '../repositories/agent_repository.dart';
-import '../repositories/machine_repository.dart';
-import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -40,58 +36,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) =>
-              MachineListCubit(MachineRepository(client))..fetchMachines(),
-        ),
-        BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
-        ),
-        BlocProvider(
-          create: (_) =>
-              ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-      ],
-      child: Builder(
-        builder: (context) {
-          final machineState = context.watch<MachineListCubit>().state;
-          final agentState = context.watch<AgentListCubit>().state;
-          final projectState = context.watch<ProjectListCubit>().state;
-          final setupIncomplete =
-              machineState is MachineListLoaded &&
-              agentState is AgentListLoaded &&
-              projectState is ProjectListLoaded &&
-              (machineState.machines.isEmpty ||
-                  agentState.agents.isEmpty ||
-                  projectState.projects.isEmpty);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DashboardHeader(
-                projectId: _projectId,
-                onProjectChanged: (id) => setState(() => _projectId = id),
+    return Builder(
+      builder: (context) {
+        final machineState = context.watch<MachineListCubit>().state;
+        final agentState = context.watch<AgentListCubit>().state;
+        final projectState = context.watch<ProjectListCubit>().state;
+        final setupIncomplete =
+            machineState is MachineListLoaded &&
+            agentState is AgentListLoaded &&
+            projectState is ProjectListLoaded &&
+            (machineState.machines.isEmpty ||
+                agentState.agents.isEmpty ||
+                projectState.projects.isEmpty);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _DashboardHeader(
+              projectId: _projectId,
+              onProjectChanged: (id) => setState(() => _projectId = id),
+            ),
+            _NeedsYouStrip(projectId: _projectId),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: setupIncomplete
+                        ? const _Onboarding()
+                        : _KanbanBoard(projectId: _projectId),
+                  ),
+                  VerticalDivider(width: 1, color: AppColors.border),
+                  const SizedBox(width: 300, child: _MachinesPanel()),
+                ],
               ),
-              _NeedsYouStrip(projectId: _projectId),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: setupIncomplete
-                          ? const _Onboarding()
-                          : _KanbanBoard(projectId: _projectId),
-                    ),
-                    VerticalDivider(width: 1, color: AppColors.border),
-                    const SizedBox(width: 300, child: _MachinesPanel()),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

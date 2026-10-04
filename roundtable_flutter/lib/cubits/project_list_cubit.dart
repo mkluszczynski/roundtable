@@ -34,7 +34,9 @@ class ProjectListCubit extends Cubit<ProjectListState> {
   final ProjectRepository _repository;
 
   Future<void> fetchProjects() async {
-    emit(const ProjectListLoading());
+    // Refreshes keep showing the current list; the cubit is shared
+    // app-wide (PanelShell), so a spinner would blank every screen.
+    if (state is! ProjectListLoaded) emit(const ProjectListLoading());
     try {
       final projects = await _repository.listProjects();
       emit(ProjectListLoaded(projects));

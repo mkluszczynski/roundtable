@@ -4,12 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
-import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
-import '../cubits/machine_list_cubit.dart';
 import '../cubits/project_list_cubit.dart';
-import '../repositories/agent_repository.dart';
-import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../utils/error_message.dart';
 import '../widgets/load_failed_view.dart';
@@ -48,45 +44,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
-        ),
-        BlocProvider(
-          create: (_) =>
-              MachineListCubit(MachineRepository(client))..fetchMachines(),
-        ),
-        BlocProvider(
-          create: (_) =>
-              ProjectListCubit(ProjectRepository(client))..fetchProjects(),
-        ),
-      ],
-      child: Scaffold(
-        backgroundColor: AppColors.bg0,
-        body: FutureBuilder<Project?>(
-          future: _projectFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return LoadFailedView(
-                title: "Couldn't load this project",
-                message: errorMessage(snapshot.error!),
-                onRetry: _reload,
-              );
-            }
-            final project = snapshot.data;
-            if (project == null) {
-              return const LoadFailedView(
-                title: 'Project not found',
-                message: 'It may have been deleted.',
-              );
-            }
-            return _ProjectDetailBody(project: project, onChanged: _reload);
-          },
-        ),
+    return Scaffold(
+      backgroundColor: AppColors.bg0,
+      body: FutureBuilder<Project?>(
+        future: _projectFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return LoadFailedView(
+              title: "Couldn't load this project",
+              message: errorMessage(snapshot.error!),
+              onRetry: _reload,
+            );
+          }
+          final project = snapshot.data;
+          if (project == null) {
+            return const LoadFailedView(
+              title: 'Project not found',
+              message: 'It may have been deleted.',
+            );
+          }
+          return _ProjectDetailBody(project: project, onChanged: _reload);
+        },
       ),
     );
   }

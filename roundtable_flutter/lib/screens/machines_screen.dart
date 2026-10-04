@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-import '../client.dart';
 import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
-import '../repositories/agent_repository.dart';
-import '../repositories/machine_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -33,79 +30,68 @@ class MachinesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) =>
-              MachineListCubit(MachineRepository(client))..fetchMachines(),
-        ),
-        BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
-        ),
-      ],
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _MachinesHeader(),
-            Expanded(
-              child: BlocConsumer<MachineListCubit, MachineListState>(
-                listener: (context, state) {
-                  if (state is MachineDeletionBlockedOnline) {
-                    showDialog<void>(
-                      context: context,
-                      builder: (_) => MachineOnlineDeleteBlockedDialog(
-                        scriptUrl: state.scriptUrl,
-                      ),
-                    );
-                  } else if (state is MachineListError) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(state.message)));
-                  }
-                },
-                builder: (context, state) {
-                  return switch (state) {
-                    MachineListInitial() ||
-                    MachineListLoading() ||
-                    MachineDeletionBlockedOnline() => const Center(
-                      child: CircularProgressIndicator(),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _MachinesHeader(),
+          Expanded(
+            child: BlocConsumer<MachineListCubit, MachineListState>(
+              listener: (context, state) {
+                if (state is MachineDeletionBlockedOnline) {
+                  showDialog<void>(
+                    context: context,
+                    builder: (_) => MachineOnlineDeleteBlockedDialog(
+                      scriptUrl: state.scriptUrl,
                     ),
-                    MachineListError(:final message) => Center(
-                      child: Text(
-                        'Failed to load machines: $message',
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.red,
-                        ),
+                  );
+                } else if (state is MachineListError) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                }
+              },
+              builder: (context, state) {
+                return switch (state) {
+                  MachineListInitial() ||
+                  MachineListLoading() ||
+                  MachineDeletionBlockedOnline() => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  MachineListError(:final message) => Center(
+                    child: Text(
+                      'Failed to load machines: $message',
+                      style: AppTypography.body.copyWith(
+                        color: AppColors.red,
                       ),
                     ),
-                    MachineListLoaded(:final machines) =>
-                      machines.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No machines yet',
-                                style: AppTypography.body,
-                              ),
-                            )
-                          : BlocBuilder<AgentListCubit, AgentListState>(
-                              builder: (context, agentState) {
-                                final agents = switch (agentState) {
-                                  AgentListLoaded(:final agents) => agents,
-                                  _ => const <Agent>[],
-                                };
-                                return _MachinesGrid(
-                                  machines: machines,
-                                  agents: agents,
-                                );
-                              },
+                  ),
+                  MachineListLoaded(:final machines) =>
+                    machines.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No machines yet',
+                              style: AppTypography.body,
                             ),
-                  };
-                },
-              ),
+                          )
+                        : BlocBuilder<AgentListCubit, AgentListState>(
+                            builder: (context, agentState) {
+                              final agents = switch (agentState) {
+                                AgentListLoaded(:final agents) => agents,
+                                _ => const <Agent>[],
+                              };
+                              return _MachinesGrid(
+                                machines: machines,
+                                agents: agents,
+                              );
+                            },
+                          ),
+                };
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

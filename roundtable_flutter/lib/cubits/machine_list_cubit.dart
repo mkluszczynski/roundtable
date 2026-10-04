@@ -59,7 +59,9 @@ class MachineListCubit extends Cubit<MachineListState> {
   /// Fetches the machine list. [silent] skips the loading state, for
   /// background refreshes that shouldn't blank the screen.
   Future<void> fetchMachines({bool silent = false}) async {
-    if (!silent) emit(const MachineListLoading());
+    if (!silent && state is! MachineListLoaded) {
+      emit(const MachineListLoading());
+    }
     try {
       final machines = await _repository.listMachines();
       String? latestRunnerVersion;
