@@ -966,13 +966,6 @@ class _PendingQuestionState extends State<_PendingQuestion> {
     super.dispose();
   }
 
-  void _submit(int questionId) {
-    final custom = _customController.text.trim();
-    final answer = custom.isNotEmpty ? custom : _selectedOption;
-    if (answer == null) return;
-    context.read<TaskDetailBloc>().add(AnswerSubmitted(questionId, answer));
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -983,10 +976,6 @@ class _PendingQuestionState extends State<_PendingQuestion> {
         style: AppTypography.body,
       );
     }
-
-    final hasAnswer =
-        _selectedOption != null || _customController.text.trim().isNotEmpty;
-    final canSubmit = hasAnswer && !state.submitting;
 
     return SingleChildScrollView(
       child: Column(
@@ -1020,27 +1009,28 @@ class _PendingQuestionState extends State<_PendingQuestion> {
               ),
             ),
           const SizedBox(height: Spacing.md),
-          TextField(
+          _FeedbackRow(
             controller: _customController,
-            enabled: !state.submitting,
-            minLines: 1,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Or write your own answer…',
-            ),
+            hint: question.options.isEmpty
+                ? 'Write your answer…'
+                : 'Or write your own answer…',
+            submitLabel: 'Submit answer',
+            primarySubmit: true,
+            // A picked option is a complete answer on its own.
+            allowEmpty: _selectedOption != null,
+            submitting: state.submitting,
             onChanged: (value) => setState(() {
               if (_selectedOption != null && value.trim().isNotEmpty) {
                 _selectedOption = null;
               }
             }),
-          ),
-          const SizedBox(height: Spacing.md),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: canSubmit ? () => _submit(question.id!) : null,
-              child: const Text('Submit answer'),
-            ),
+            onSubmit: (custom) {
+              final answer = custom.isNotEmpty ? custom : _selectedOption;
+              if (answer == null) return;
+              context.read<TaskDetailBloc>().add(
+                AnswerSubmitted(question.id!, answer),
+              );
+            },
           ),
           if (state.submitting) ...[
             const SizedBox(height: Spacing.md),
@@ -1717,9 +1707,20 @@ class _FeedbackRow extends StatefulWidget {
     this.trailing,
     this.submitLabel = 'Send feedback',
     this.allowEmpty = false,
+    this.primarySubmit = false,
+    this.controller,
+    this.onChanged,
   });
 
   final String hint;
+
+  /// Makes the send button the filled primary action — for a composer with
+  /// no [trailing] action of its own (answering a question).
+  final bool primarySubmit;
+
+  /// Owned by the caller when it needs to read or clear the text itself.
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
   final String submitLabel;
 
   /// Submit even with an empty message (e.g. when sending selected review
@@ -1737,12 +1738,12 @@ class _FeedbackRow extends StatefulWidget {
 }
 
 class _FeedbackRowState extends State<_FeedbackRow> {
-  final _controller = TextEditingController();
+  late final _controller = widget.controller ?? TextEditingController();
   bool _focused = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
 
@@ -1787,7 +1788,11 @@ class _FeedbackRowState extends State<_FeedbackRow> {
                 minLines: 1,
                 maxLines: 8,
                 style: AppTypography.body,
-                onChanged: (_) => setState(() {}),
+                enabled: !widget.submitting,
+                onChanged: (value) {
+                  setState(() {});
+                  widget.onChanged?.call(value);
+                },
                 decoration: InputDecoration(
                   hintText: widget.hint,
                   filled: false,
@@ -1814,11 +1819,18 @@ class _FeedbackRowState extends State<_FeedbackRow> {
                 children: [
                   Text('Ctrl + Enter to send', style: AppTypography.caption),
                   const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: canSend ? _submit : null,
-                    icon: const Icon(Icons.send, size: 14),
-                    label: Text(widget.submitLabel),
-                  ),
+                  if (widget.primarySubmit)
+                    FilledButton.icon(
+                      onPressed: canSend ? _submit : null,
+                      icon: const Icon(Icons.send, size: 14),
+                      label: Text(widget.submitLabel),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: canSend ? _submit : null,
+                      icon: const Icon(Icons.send, size: 14),
+                      label: Text(widget.submitLabel),
+                    ),
                   if (widget.trailing != null) ...[
                     const SizedBox(width: Spacing.sm),
                     widget.trailing!,
