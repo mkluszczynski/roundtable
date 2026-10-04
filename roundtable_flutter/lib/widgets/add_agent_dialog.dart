@@ -14,9 +14,10 @@ import 'pill_selector.dart';
 import 'tag_chip.dart';
 
 const _presetModels = [
-  'claude-haiku-4-5',
-  'claude-sonnet-5',
-  'claude-opus-4-7',
+  'claude-haiku-4-5-20251001',
+  'claude-sonnet-5-5',
+  'claude-opus-5-5',
+  'claude-fable-5-1',
 ];
 
 /// Name, role, model, effort, and execution mode (`docker` disabled —
