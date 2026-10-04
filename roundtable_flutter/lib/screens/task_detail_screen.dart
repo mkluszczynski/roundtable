@@ -31,7 +31,7 @@ import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/task_attachments_view.dart';
-import '../widgets/task_log_line.dart';
+import '../widgets/task_log_timeline.dart';
 import '../utils/relative_time.dart';
 
 /// Mirrors the server's `nonTerminalTaskStatuses` (docs/ARCHITECTURE.md) —
@@ -882,7 +882,7 @@ class _LogHistory extends StatelessWidget {
     if (state.logs.isEmpty) {
       return Text('No output yet.', style: AppTypography.body);
     }
-    return TaskLogView(entries: state.logs);
+    return TaskLogTimeline(entries: state.logs);
   }
 }
 
@@ -1263,29 +1263,10 @@ class _LiveExecution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('LIVE OUTPUT', style: AppTypography.label),
-            const Spacer(),
-            const StatusDot(color: AppColors.live, pulsing: true),
-            const SizedBox(width: Spacing.xs),
-            Text(
-              'streaming',
-              style: AppTypography.caption.copyWith(color: AppColors.live),
-            ),
-          ],
-        ),
-        const SizedBox(height: Spacing.sm),
-        Expanded(
-          child: state.logs.isEmpty
-              ? Text('Waiting for output…', style: AppTypography.body)
-              : TaskLogView(entries: state.logs),
-        ),
-      ],
-    );
+    if (state.logs.isEmpty) {
+      return Text('Waiting for output…', style: AppTypography.body);
+    }
+    return TaskLogTimeline(entries: state.logs, live: true);
   }
 }
 
