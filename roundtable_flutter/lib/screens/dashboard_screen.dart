@@ -219,13 +219,6 @@ class _KanbanBoard extends StatelessWidget {
   /// Null shows every project's tasks.
   final int? projectId;
 
-  static const _titles = {
-    KanbanColumn.backlog: 'Backlog',
-    KanbanColumn.inProgress: 'In progress',
-    KanbanColumn.review: 'Review',
-    KanbanColumn.done: 'Done',
-  };
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardCubit, DashboardState>(
@@ -243,7 +236,7 @@ class _KanbanBoard extends StatelessWidget {
           DashboardLoaded() => Padding(
             padding: const EdgeInsets.all(Spacing.xl),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (final column in KanbanColumn.values)
                   Expanded(
@@ -252,8 +245,11 @@ class _KanbanBoard extends StatelessWidget {
                         horizontal: Spacing.sm,
                       ),
                       child: KanbanColumnView(
-                        title: _titles[column]!,
+                        title: kanbanColumnTitle(column),
+                        accent: kanbanColumnAccent(column),
                         tasks: state.columnsFor(projectId: projectId)[column]!,
+                        // A single project's board doesn't need the label.
+                        showProject: projectId == null,
                       ),
                     ),
                   ),

@@ -18,12 +18,15 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/relative_time.dart';
 import '../widgets/add_project_dialog.dart';
+import '../widgets/app_modal.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
+import '../widgets/rail_section.dart';
+import '../widgets/status_pill.dart';
 import '../widgets/update_token_dialog.dart';
 
-/// One project: repo info, access-token status, and a kanban board scoped
-/// to just its tasks — pushed from `projects_screen.dart`.
+/// One project: a rail with repo info, access-token status and project
+/// actions, next to a kanban board scoped to just its tasks — pushed from `projects_screen.dart`.
 class ProjectDetailScreen extends StatefulWidget {
   const ProjectDetailScreen({super.key, required this.projectId});
 
@@ -95,75 +98,108 @@ class _ProjectDetailBody extends StatelessWidget {
   final Project project;
   final VoidCallback onChanged;
 
-  static const _titles = {
-    KanbanColumn.backlog: 'Backlog',
-    KanbanColumn.inProgress: 'In Progress',
-    KanbanColumn.review: 'Review',
-    KanbanColumn.done: 'Done',
-  };
+  /// Below this the columns keep a fixed width and the board scrolls.
+  static const _minColumnWidth = 280.0;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Header(project: project, onChanged: onChanged),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            Spacing.xl,
-            Spacing.lg,
-            Spacing.xl,
-            0,
-          ),
-          child: _TokenRow(project: project, onChanged: onChanged),
-        ),
-        Expanded(
-          child: BlocBuilder<DashboardCubit, DashboardState>(
-            builder: (context, state) {
-              final tasks = switch (state) {
-                DashboardLoaded(:final tasks) =>
-                  tasks.values.where((t) => t.projectId == project.id).toList(),
-                _ => const <Task>[],
-              };
-              final columns = <KanbanColumn, List<Task>>{
-                for (final c in KanbanColumn.values) c: [],
-              };
-              for (final task in tasks) {
-                columns[kanbanColumnFor(task.status)]!.add(task);
-              }
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(Spacing.xl),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final column in KanbanColumn.values)
-                      Padding(
-                        padding: const EdgeInsets.only(right: Spacing.lg),
-                        child: SizedBox(
-                          width: 240,
-                          child: KanbanColumnView(
-                            title: _titles[column]!,
-                            tasks: columns[column]!,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return BlocBuilder<DashboardCubit, DashboardState>(
+      builder: (context, state) {
+        final tasks = switch (state) {
+          DashboardLoaded(:final tasks) =>
+            tasks.values.where((t) => t.projectId == project.id).toList(),
+          _ => const <Task>[],
+        };
+        final columns = <KanbanColumn, List<Task>>{
+          for (final c in KanbanColumn.values) c: [],
+        };
+        for (final task in tasks) {
+          columns[kanbanColumnFor(task.status)]!.add(task);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Header(project: project),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 300,
+                    child: _ProjectRail(
+                      project: project,
+                      columns: columns,
+                      onChanged: onChanged,
+                    ),
+                  ),
+                  VerticalDivider(width: 1, color: AppColors.border),
+                  Expanded(child: _Board(columns: columns)),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
+class _Board extends StatelessWidget {
+  const _Board({required this.columns});
+
+  final Map<KanbanColumn, List<Task>> columns;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = Spacing.lg;
+        const padding = Spacing.xl;
+        final count = KanbanColumn.values.length;
+        final fits =
+            constraints.maxWidth - 2 * padding >=
+            count * _ProjectDetailBody._minColumnWidth + (count - 1) * gap;
+        Widget column(KanbanColumn c) => KanbanColumnView(
+          title: kanbanColumnTitle(c),
+          accent: kanbanColumnAccent(c),
+          tasks: columns[c]!,
+        );
+        final children = [
+          for (final (i, c) in KanbanColumn.values.indexed) ...[
+            if (i > 0) const SizedBox(width: gap),
+            fits
+                ? Expanded(child: column(c))
+                : SizedBox(
+                    width: _ProjectDetailBody._minColumnWidth,
+                    child: column(c),
+                  ),
+          ],
+        ];
+        final row = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        );
+        if (fits) {
+          return Padding(padding: const EdgeInsets.all(padding), child: row);
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(padding),
+          child: SizedBox(
+            height: constraints.maxHeight - 2 * padding,
+            child: row,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Project identity only; the one frequent action, New task, stays here.
 class _Header extends StatelessWidget {
-  const _Header({required this.project, required this.onChanged});
+  const _Header({required this.project});
 
   final Project project;
-  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +223,7 @@ class _Header extends StatelessWidget {
           const SizedBox(width: Spacing.sm),
           DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.bg2,
+              color: AppColors.accent.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(9),
             ),
             child: const SizedBox(
@@ -196,7 +232,7 @@ class _Header extends StatelessWidget {
               child: Icon(
                 Icons.folder_outlined,
                 size: 18,
-                color: AppColors.text1,
+                color: AppColors.accentSoft,
               ),
             ),
           ),
@@ -206,65 +242,13 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(project.name, style: AppTypography.screenTitle),
-                Tooltip(
-                  message: 'Open repository',
-                  child: InkWell(
-                    onTap: () => launchUrl(
-                      Uri.parse(project.repoUrl),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    borderRadius: BorderRadius.circular(AppRadius.control),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _displayRepoUrl(project.repoUrl),
-                          style: AppTypography.code,
-                        ),
-                        const SizedBox(width: Spacing.xs),
-                        const Icon(
-                          Icons.open_in_new,
-                          size: 12,
-                          color: AppColors.text2,
-                        ),
-                      ],
-                    ),
-                  ),
+                Text(
+                  _repoSlug(project.repoUrl),
+                  style: AppTypography.code.copyWith(color: AppColors.text1),
                 ),
               ],
             ),
           ),
-          OutlinedButton(
-            onPressed: () async {
-              final saved = await showDialog<bool>(
-                context: context,
-                builder: (_) => AddProjectDialog(existingProject: project),
-              );
-              if (saved ?? false) onChanged();
-            },
-            child: const Text('Edit'),
-          ),
-          const SizedBox(width: Spacing.sm),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.red,
-              side: BorderSide(color: AppColors.red.withValues(alpha: 0.4)),
-            ),
-            onPressed: () async {
-              final cubit = context.read<ProjectListCubit>();
-              final errorMessage = await cubit.deleteProject(project.id!);
-              if (!context.mounted) return;
-              if (errorMessage != null) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(errorMessage)));
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
-            child: const Text('Delete project'),
-          ),
-          const SizedBox(width: Spacing.sm),
           FilledButton.icon(
             onPressed: () => showDialog<void>(
               context: context,
@@ -277,16 +261,170 @@ class _Header extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _displayRepoUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return url;
-    return '${uri.host}${uri.path}';
+/// `https://github.com/owner/repo(.git)` → `owner/repo`.
+String _repoSlug(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return url;
+  final slug = uri.pathSegments
+      .where((s) => s.isNotEmpty)
+      .join('/')
+      .replaceFirst(RegExp(r'\.git$'), '');
+  return slug.isEmpty ? url : slug;
+}
+
+class _ProjectRail extends StatelessWidget {
+  const _ProjectRail({
+    required this.project,
+    required this.columns,
+    required this.onChanged,
+  });
+
+  final Project project;
+  final Map<KanbanColumn, List<Task>> columns;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RailSection(
+                  label: 'Repository',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.code,
+                            size: 14,
+                            color: AppColors.text1,
+                          ),
+                          const SizedBox(width: Spacing.sm),
+                          Expanded(
+                            child: Text(
+                              _repoSlug(project.repoUrl),
+                              style: AppTypography.code,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Open repository',
+                            icon: const Icon(Icons.open_in_new, size: 14),
+                            color: AppColors.text1,
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => launchUrl(
+                              Uri.parse(project.repoUrl),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Created ${relativeTime(project.createdAt, words: true)}',
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                ),
+                RailSection(
+                  label: 'Access token',
+                  child: _TokenStatus(project: project, onChanged: onChanged),
+                ),
+                RailSection(
+                  label: 'Tasks',
+                  child: _TaskStats(columns: columns),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          padding: const EdgeInsets.all(Spacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final saved = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AddProjectDialog(existingProject: project),
+                  );
+                  if (saved ?? false) onChanged();
+                },
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edit project'),
+              ),
+              const SizedBox(height: Spacing.sm),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.red,
+                  side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+                ),
+                onPressed: () => _confirmDelete(context),
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Delete project'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final cubit = context.read<ProjectListCubit>();
+    final confirmed = await showAppModal<bool>(
+      context,
+      icon: Icons.delete_outline,
+      tone: AppModalTone.danger,
+      title: 'Delete ${project.name}?',
+      subtitle:
+          'This removes the project from Roundtable. The GitHub '
+          'repository is not touched.',
+      child: const SizedBox.shrink(),
+      actions: [
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ),
+        Builder(
+          builder: (context) => FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ),
+      ],
+    );
+    if (!(confirmed ?? false)) return;
+    final errorMessage = await cubit.deleteProject(project.id!);
+    if (!context.mounted) return;
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }
 
-class _TokenRow extends StatelessWidget {
-  const _TokenRow({required this.project, required this.onChanged});
+class _TokenStatus extends StatelessWidget {
+  const _TokenStatus({required this.project, required this.onChanged});
 
   final Project project;
   final VoidCallback onChanged;
@@ -294,53 +432,106 @@ class _TokenRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final updatedAt = project.repoAccessTokenUpdatedAt;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.bg1,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.xl,
-          vertical: Spacing.lg,
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.lock_outline, size: 14, color: AppColors.text2),
-            const SizedBox(width: Spacing.lg),
-            SizedBox(
-              width: 120,
-              child: Text('Access token', style: AppTypography.bodyStrong),
-            ),
-            Expanded(
-              child: Text(
-                updatedAt == null
-                    ? 'No token configured'
-                    : '••••••••••••••••••••••••',
-                style: AppTypography.code,
+    final configured = updatedAt != null;
+    final color = configured ? AppColors.live : AppColors.warning;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(Spacing.md),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                configured ? Icons.lock_outline : Icons.lock_open,
+                size: 16,
+                color: color,
               ),
-            ),
-            if (updatedAt != null) ...[
-              Text(
-                'added ${relativeTime(updatedAt, words: true)}',
-                style: AppTypography.caption,
+              const SizedBox(width: Spacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      configured ? 'Configured' : 'No token',
+                      style: AppTypography.bodyStrong.copyWith(color: color),
+                    ),
+                    Text(
+                      configured
+                          ? 'Added ${relativeTime(updatedAt, words: true)}'
+                          : 'Private repos will fail to clone and PRs '
+                                "can't be opened.",
+                      style: AppTypography.caption,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: Spacing.lg),
             ],
-            OutlinedButton(
-              onPressed: () async {
-                final updated = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => UpdateTokenDialog(projectId: project.id!),
-                );
-                if (updated ?? false) onChanged();
-              },
-              child: Text(updatedAt == null ? 'Add token' : 'Update token'),
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: Spacing.sm),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final updated = await showDialog<bool>(
+              context: context,
+              builder: (_) => UpdateTokenDialog(projectId: project.id!),
+            );
+            if (updated ?? false) onChanged();
+          },
+          icon: const Icon(Icons.key_outlined, size: 16),
+          label: Text(configured ? 'Update token' : 'Add token'),
+        ),
+      ],
+    );
+  }
+}
+
+class _TaskStats extends StatelessWidget {
+  const _TaskStats({required this.columns});
+
+  final Map<KanbanColumn, List<Task>> columns;
+
+  @override
+  Widget build(BuildContext context) {
+    final needsYou = columns.values
+        .expand((tasks) => tasks)
+        .where(
+          (t) =>
+              t.status == TaskStatus.waitingForAnswer ||
+              t.status == TaskStatus.planReady ||
+              t.status == TaskStatus.awaitingReview,
+        )
+        .length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final c in KanbanColumn.values)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              children: [
+                StatusDot(color: kanbanColumnAccent(c)),
+                const SizedBox(width: Spacing.sm),
+                Expanded(
+                  child: Text(kanbanColumnTitle(c), style: AppTypography.body),
+                ),
+                Text('${columns[c]!.length}', style: AppTypography.code),
+              ],
+            ),
+          ),
+        if (needsYou > 0) ...[
+          const SizedBox(height: Spacing.sm),
+          Text(
+            '$needsYou waiting on you',
+            style: AppTypography.caption.copyWith(color: AppColors.accentSoft),
+          ),
+        ],
+      ],
     );
   }
 }

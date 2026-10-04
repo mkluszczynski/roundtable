@@ -20,6 +20,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
+import '../widgets/rail_section.dart';
 import '../widgets/plan_content.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/request_review_dialog.dart';
@@ -445,11 +446,11 @@ class _InfoRail extends StatelessWidget {
                   onSelected: onSectionSelected,
                 ),
                 if (task.branchName != null || task.prUrl != null)
-                  _RailSection(
+                  RailSection(
                     label: 'Branch',
                     child: _BranchRow(task: task),
                   ),
-                _RailSection(
+                RailSection(
                   label: 'Project',
                   child: Row(
                     children: [
@@ -466,7 +467,7 @@ class _InfoRail extends StatelessWidget {
                     ],
                   ),
                 ),
-                _RailSection(
+                RailSection(
                   label: 'Prompt',
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -479,7 +480,7 @@ class _InfoRail extends StatelessWidget {
                     ),
                   ),
                 ),
-                _RailSection(
+                RailSection(
                   label: 'Timeline',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,7 +514,7 @@ class _AgentSection extends StatelessWidget {
     final task = state.task;
     final agent = state.agent;
     if (agent == null) {
-      return _RailSection(
+      return RailSection(
         label: 'Agent',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -534,7 +535,7 @@ class _AgentSection extends StatelessWidget {
         ),
       );
     }
-    return _RailSection(
+    return RailSection(
       label: 'Agent',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,7 +601,7 @@ class _RailNav extends StatelessWidget {
     final available = _availableSectionsFor(state.task.status);
     final files = state.files;
     final openComments = state.openCommentCount;
-    return _RailSection(
+    return RailSection(
       label: 'View',
       child: Column(
         children: [
@@ -864,28 +865,6 @@ class _RailActions extends StatelessWidget {
             if (i > 0) const SizedBox(height: Spacing.sm),
             action,
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _RailSection extends StatelessWidget {
-  const _RailSection({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label.toUpperCase(), style: AppTypography.label),
-          const SizedBox(height: Spacing.sm),
-          child,
         ],
       ),
     );

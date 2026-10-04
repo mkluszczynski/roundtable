@@ -3,12 +3,29 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../cubits/agent_list_cubit.dart';
+import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
+import '../cubits/project_list_cubit.dart';
 import '../screens/task_detail_screen.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'kanban_card.dart';
+import 'status_pill.dart';
+
+String kanbanColumnTitle(KanbanColumn column) => switch (column) {
+  KanbanColumn.backlog => 'Backlog',
+  KanbanColumn.inProgress => 'In progress',
+  KanbanColumn.review => 'Review',
+  KanbanColumn.done => 'Done',
+};
+
+Color kanbanColumnAccent(KanbanColumn column) => switch (column) {
+  KanbanColumn.backlog => AppColors.text2,
+  KanbanColumn.inProgress => AppColors.live,
+  KanbanColumn.review => AppColors.accentSoft,
+  KanbanColumn.done => AppColors.text1,
+};
 
 /// One kanban column: title + count badge + task cards, resolving each
 /// task's agent/machine name from the ancestor `AgentListCubit`/
@@ -17,10 +34,23 @@ import 'kanban_card.dart';
 /// flexible columns, a fixed-width `SizedBox` for a project's horizontally
 /// scrolling board.
 class KanbanColumnView extends StatelessWidget {
-  const KanbanColumnView({super.key, required this.title, required this.tasks});
+  const KanbanColumnView({
+    super.key,
+    required this.title,
+    required this.tasks,
+    this.accent = AppColors.text2,
+    this.showProject = false,
+  });
 
   final String title;
   final List<Task> tasks;
+
+  /// The column's dot color in its header.
+  final Color accent;
+
+  /// Labels each card with its project, from the ancestor
+  /// `ProjectListCubit` — for boards mixing projects.
+  final bool showProject;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +70,15 @@ class KanbanColumnView extends StatelessWidget {
       return null;
     }
 
+    final projects = showProject
+        ? switch (context.watch<ProjectListCubit>().state) {
+            ProjectListLoaded(:final projects) => {
+              for (final p in projects) p.id: p.name,
+            },
+            _ => const <int?, String>{},
+          }
+        : const <int?, String>{};
+
     Machine? machineFor(int machineId) {
       for (final machine in machines) {
         if (machine.id == machineId) return machine;
@@ -47,49 +86,96 @@ class KanbanColumnView extends StatelessWidget {
       return null;
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.bg1.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title.toUpperCase(), style: AppTypography.label),
-            const SizedBox(width: Spacing.xs),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.bg3,
-                borderRadius: BorderRadius.circular(999),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
+              child: Row(
+                children: [
+                  StatusDot(color: accent),
+                  const SizedBox(width: Spacing.sm),
+                  Text(title.toUpperCase(), style: AppTypography.label),
+                  const SizedBox(width: Spacing.sm),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.bg3,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.sm,
+                        vertical: 1,
+                      ),
+                      child: Text(
+                        '${tasks.length}',
+                        style: AppTypography.caption,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.sm,
-                  vertical: 1,
-                ),
-                child: Text('${tasks.length}', style: AppTypography.caption),
-              ),
+            ),
+            const SizedBox(height: Spacing.md),
+            Expanded(
+              child: tasks.isEmpty
+                  ? const _EmptyColumn()
+                  : ListView(
+                      children: [
+                        for (final task in tasks)
+                          KanbanCard(
+                            task: task,
+                            agentName: agentFor(task.agentId)?.name,
+                            machineName: agentFor(task.agentId) == null
+                                ? null
+                                : machineFor(
+                                    agentFor(task.agentId)!.machineId,
+                                  )?.name,
+                            projectName: projects[task.projectId],
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    TaskDetailScreen(initialTaskId: task.id!),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
             ),
           ],
         ),
-        const SizedBox(height: Spacing.md),
-        Expanded(
-          child: ListView(
-            children: [
-              for (final task in tasks)
-                KanbanCard(
-                  task: task,
-                  agentName: agentFor(task.agentId)?.name,
-                  machineName: agentFor(task.agentId) == null
-                      ? null
-                      : machineFor(agentFor(task.agentId)!.machineId)?.name,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => TaskDetailScreen(initialTaskId: task.id!),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+      ),
+    );
+  }
+}
+
+class _EmptyColumn extends StatelessWidget {
+  const _EmptyColumn();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: Spacing.xl),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
         ),
-      ],
+        child: Text(
+          'No tasks',
+          textAlign: TextAlign.center,
+          style: AppTypography.caption,
+        ),
+      ),
     );
   }
 }
