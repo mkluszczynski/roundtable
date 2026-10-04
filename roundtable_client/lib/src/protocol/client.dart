@@ -933,6 +933,17 @@ class EndpointTask extends _isc.EndpointRef {
     },
   );
 
+  /// Persists a structured log entry (kind, run, tool…) from the daemon —
+  /// see [TaskLogEntry]. Same side effects as [appendLog]; the server
+  /// assigns the id and timestamp.
+  _ida.Future<_inlvye37.TaskLogEntry> appendLogEntry(
+    _inlvye37.TaskLogEntry entry,
+  ) => caller.callServerEndpoint<_inlvye37.TaskLogEntry>(
+    'task',
+    'appendLogEntry',
+    {'entry': entry},
+  );
+
   /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
   /// "Cancelling mid-run"): marks it `cancelled` and notifies
   /// [watchTask] subscribers — the daemon running the task reacts by

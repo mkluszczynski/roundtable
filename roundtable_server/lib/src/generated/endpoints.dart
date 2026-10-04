@@ -24,6 +24,8 @@ import 'package:roundtable_server/src/generated/review_comment_draft.dart'
 import 'package:roundtable_server/src/generated/review_comment_state.dart'
     as _i5cy068t;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
+import 'package:roundtable_server/src/generated/task_log_entry.dart'
+    as _in2gwlh7;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
     as _iacs;
@@ -1408,6 +1410,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                     params['content'],
                     source: params['source'],
+                  ),
+        ),
+        'appendLogEntry': _is.MethodConnector(
+          name: 'appendLogEntry',
+          params: {
+            'entry': _is.ParameterDescription(
+              name: 'entry',
+              type: _is.getType<_in2gwlh7.TaskLogEntry>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).appendLogEntry(
+                    session,
+                    params['entry'],
                   ),
         ),
         'cancelTask': _is.MethodConnector(

@@ -63,6 +63,7 @@ task:
   - getMergeStatus:
   - resolveConflicts:
   - appendLog:
+  - appendLogEntry:
   - cancelTask:
   - retryTask:
   - reassignAgent:

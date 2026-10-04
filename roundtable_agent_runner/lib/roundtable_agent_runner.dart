@@ -21,6 +21,7 @@ export 'src/review_dispatcher.dart';
 export 'src/runner_update.dart';
 export 'src/stream_json_formatter.dart';
 export 'src/environment_prompt.dart';
+export 'src/log_entries.dart';
 export 'src/task_dispatcher.dart';
 export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
@@ -201,8 +202,7 @@ class AgentRunnerService {
         _client.codeReview.completeReview(reviewId, summary, comments),
     failReview: (reviewId, reason) =>
         _client.codeReview.failReview(reviewId, reason),
-    appendLog: (taskId, content) =>
-        _client.task.appendLog(taskId, content, source: LogSource.agent),
+    appendLog: (entry) => _client.task.appendLogEntry(entry),
     log: _log,
     environmentPrompt: () => _environmentPrompt(review: true),
   );
@@ -216,8 +216,7 @@ class AgentRunnerService {
     fetchAgent: _fetchAgent,
     updateTask: (task) => _client.task.update(task),
     updateAgent: (agent) => _client.agent.setStatus(agent.id!, agent.status),
-    appendLog: (taskId, content) =>
-        _client.task.appendLog(taskId, content, source: LogSource.agent),
+    appendLog: (entry) => _client.task.appendLogEntry(entry),
     fetchLatestFeedback: (taskId) => _client.task.latestFeedback(taskId),
     openPullRequest: GitHubPullRequestOpener().open,
     watchTask: (taskId) => _client.task.watchTask(taskId),

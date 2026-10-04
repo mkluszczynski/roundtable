@@ -5,6 +5,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
 import 'role_prompts.dart';
+import 'log_entries.dart';
 import 'stream_json_formatter.dart';
 import 'worktree_manager.dart';
 
@@ -46,7 +47,10 @@ class ReviewDispatcher {
   )
   completeReview;
   final Future<void> Function(int reviewId, String reason) failReview;
-  final Future<void> Function(int taskId, String content) appendLog;
+
+  /// Persists one structured log entry. Bound to
+  /// `client.task.appendLogEntry` in production.
+  final Future<void> Function(TaskLogEntry entry) appendLog;
   final void Function(String message) log;
 
   Future<void> handle(CodeReview review) async {
@@ -86,7 +90,32 @@ class ReviewDispatcher {
         fetchUrl: cloneUrl,
       );
       log('review $reviewId: reviewing $branch at ${worktree.path}');
-      await appendLog(task.id!, '[review] ${agent.name} started a code review');
+      final runId = newRunId('review-$reviewId');
+      void append(LogItem item) {
+        // The verdict JSON is shown as cards in the panel, not as text.
+        final shown = item.kind == LogKind.message
+            ? item.copyWith(content: stripReviewJson(item.content))
+            : item;
+        if (shown.content.isEmpty) return;
+        appendLog(
+          logEntryFor(
+            shown,
+            taskId: task.id!,
+            runId: runId,
+            phase: LogPhase.review,
+            reviewId: reviewId,
+          ),
+        ).catchError(
+          (Object e) => log('review $reviewId: appendLog failed: $e'),
+        );
+      }
+
+      append(
+        LogItem(
+          kind: LogKind.runStarted,
+          content: '${agent.name} started a code review',
+        ),
+      );
 
       final formatter = StreamJsonFormatter();
       final result = await executorFactory().runReview(
@@ -100,13 +129,7 @@ class ReviewDispatcher {
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
         appendSystemPrompt: environmentPrompt?.call(),
-        onLine: (line) {
-          for (final formatted in formatter.feed(line)) {
-            appendLog(task.id!, '[review] $formatted').catchError(
-              (Object e) => log('review $reviewId: appendLog failed: $e'),
-            );
-          }
-        },
+        onLine: (line) => formatter.feedEntries(line).forEach(append),
       );
 
       if (!result.success) {

@@ -38,4 +38,16 @@ void main() {
       isNull,
     );
   });
+
+  test('works with structured entries from newer runners', () {
+    TaskLogEntry entry(LogKind kind, String content, {String? tool}) =>
+        TaskLogEntry(taskId: 1, content: content, kind: kind, toolName: tool);
+    final context = questionContext([
+      entry(LogKind.toolCall, 'Read(/a.dart)', tool: 'Read'),
+      entry(LogKind.toolResult, '1 import …'),
+      entry(LogKind.message, 'It is hardcoded.'),
+      entry(LogKind.toolCall, 'AskUserQuestion({…})', tool: 'AskUserQuestion'),
+    ]);
+    expect(context, 'It is hardcoded.');
+  });
 }

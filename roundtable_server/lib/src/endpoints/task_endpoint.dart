@@ -289,6 +289,30 @@ class TaskEndpoint extends Endpoint {
     return entry;
   }
 
+  /// Persists a structured log entry (kind, run, tool…) from the daemon —
+  /// see [TaskLogEntry]. Same side effects as [appendLog]; the server
+  /// assigns the id and timestamp.
+  Future<TaskLogEntry> appendLogEntry(
+    Session session,
+    TaskLogEntry entry,
+  ) async {
+    var stored = await TaskLogEntry.db.insertRow(
+      session,
+      entry.copyWith(id: null, createdAt: DateTime.now().toUtc()),
+    );
+    var task = await _requireTask(session, stored.taskId);
+    await Task.db.updateRow(
+      session,
+      task.copyWith(lastProgressAt: DateTime.now().toUtc()),
+      columns: (t) => [t.lastProgressAt],
+    );
+    await session.messages.postMessage(
+      _channelForTaskLogs(stored.taskId),
+      stored,
+    );
+    return stored;
+  }
+
   /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
   /// "Cancelling mid-run"): marks it `cancelled` and notifies
   /// [watchTask] subscribers — the daemon running the task reacts by

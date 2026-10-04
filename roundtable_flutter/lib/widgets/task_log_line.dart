@@ -3,6 +3,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import '../theme/colors.dart';
 import '../theme/typography.dart';
+import '../utils/log_entry_kind.dart';
 import 'code_block.dart';
 
 /// Renders a task's live execution log (design brief "Live execution"
@@ -18,7 +19,7 @@ class TaskLogView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CodeBlock(
-      code: entries.map((e) => e.content).join('\n'),
+      code: entries.map((e) => e.text).join('\n'),
       expand: true,
       child: SelectionArea(
         child: Column(
@@ -37,41 +38,19 @@ class _TaskLogLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = entry.content;
-    // `docs/UI-DESIGN.md` §1 forbids emoji as UI glyphs — the raw pictographic
-    // markers `StreamJsonFormatter` prefixes onto persisted content (🔧 ✅ ❌
-    // 🤔) are swapped here for a colored ASCII marker; `✓`/`✗` are already
-    // plain glyphs and are kept as-is.
-    String marker = '';
-    Color color = AppColors.text0;
-    FontStyle fontStyle = FontStyle.normal;
-    String text = content;
-
-    if (content.startsWith('🔧 ')) {
-      marker = '●';
-      color = AppColors.accentSoft;
-      text = content.substring('🔧 '.length);
-    } else if (content.startsWith('✅')) {
-      marker = '✓';
-      color = AppColors.live;
-      text = content.substring('✅'.length).trimLeft();
-    } else if (content.startsWith('✓ ')) {
-      marker = '✓';
-      color = AppColors.live;
-      text = content.substring('✓ '.length);
-    } else if (content.startsWith('❌')) {
-      marker = '✗';
-      color = AppColors.red;
-      text = content.substring('❌'.length).trimLeft();
-    } else if (content.startsWith('✗ ')) {
-      marker = '✗';
-      color = AppColors.red;
-      text = content.substring('✗ '.length);
-    } else if (content.startsWith('🤔 ')) {
-      color = AppColors.text2;
-      fontStyle = FontStyle.italic;
-      text = content.substring('🤔 '.length);
-    }
+    // `docs/UI-DESIGN.md` §1 forbids emoji as UI glyphs — the kind is
+    // shown as a colored ASCII marker instead.
+    final text = entry.text;
+    final (marker, color, fontStyle) = switch (entry.effectiveKind) {
+      LogKind.toolCall => ('●', AppColors.accentSoft, FontStyle.normal),
+      LogKind.toolResult || LogKind.runFinished =>
+        entry.failed
+            ? ('✗', AppColors.red, FontStyle.normal)
+            : ('✓', AppColors.live, FontStyle.normal),
+      LogKind.thinking => ('', AppColors.text2, FontStyle.italic),
+      LogKind.runStarted => ('▶', AppColors.accentSoft, FontStyle.normal),
+      LogKind.message => ('', AppColors.text0, FontStyle.normal),
+    };
 
     final style = AppTypography.code.copyWith(
       color: color,

@@ -2228,6 +2228,37 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_in2gwlh7.TaskLogEntry> appendLogEntry(
+    _ist.TestSessionBuilder sessionBuilder,
+    _in2gwlh7.TaskLogEntry entry,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'appendLogEntry',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'appendLogEntry',
+          parameters: _ist.testObjectToJson({'entry': entry}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_in2gwlh7.TaskLogEntry>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_i77xifuu.Task> cancelTask(
     _ist.TestSessionBuilder sessionBuilder,
     int taskId,

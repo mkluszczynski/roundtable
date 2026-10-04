@@ -1,0 +1,8 @@
+### Which kind of run produced a [TaskLogEntry].
+enum: LogPhase
+values:
+  - planning
+  - execution
+  ### A resumed run with the dev's feedback (review comments, conflicts…).
+  - feedback
+  - review

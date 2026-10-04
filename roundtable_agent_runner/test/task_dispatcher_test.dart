@@ -75,7 +75,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async => logLines.add(content),
+        appendLog: (entry) async => logLines.add(entry.content),
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -100,7 +100,7 @@ exit 0
 
       await dispatcher.handle(buildTask());
 
-      expect(logLines, contains('✅ Done'));
+      expect(logLines, ['Ana started working', 'Done']);
       expect(agentUpdates.map((a) => a.status), [
         AgentStatus.busy,
         AgentStatus.idle,
@@ -135,7 +135,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async {},
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -184,7 +184,7 @@ exit 0
           fetchAgent: (agentId) async => buildAgent(),
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async => agentUpdates.add(agent),
-          appendLog: (taskId, content) async {},
+          appendLog: (_) async {},
           fetchLatestFeedback: (_) async => null,
           openPullRequest:
               ({
@@ -225,7 +225,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -263,7 +263,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -310,7 +310,7 @@ while true; do sleep 0.05; done
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -384,7 +384,7 @@ exit 0
           fetchAgent: (agentId) async => buildAgent(),
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async => agentUpdates.add(agent),
-          appendLog: (taskId, content) async {},
+          appendLog: (_) async {},
           fetchLatestFeedback: (_) async => null,
           openPullRequest:
               ({
@@ -445,7 +445,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async {},
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -509,7 +509,7 @@ exit 0
         fetchAgent: (agentId) async => buildAgent(),
         updateTask: (task) async => taskUpdates.add(task),
         updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (taskId, content) async {},
+        appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
         openPullRequest:
             ({
@@ -574,7 +574,7 @@ exit 0
           fetchAgent: (agentId) async => buildAgent(),
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async {},
-          appendLog: (taskId, content) async {},
+          appendLog: (_) async {},
           fetchLatestFeedback: (_) async => feedback,
           openPullRequest:
               ({
@@ -647,7 +647,7 @@ exit 0
               throw StateError('should not be called'),
           updateTask: (task) async => taskUpdates.add(task),
           updateAgent: (agent) async {},
-          appendLog: (taskId, content) async {},
+          appendLog: (_) async {},
           fetchLatestFeedback: (_) async => TaskFeedback(
             taskId: 1,
             message: 'stale, already consumed',

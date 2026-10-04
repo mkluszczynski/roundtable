@@ -7,6 +7,22 @@ fields:
   content: String
   source: LogSource, default=agent
   createdAt: DateTime, default=now
+  ### Structured fields (null on entries from older runners, which only
+  ### sent [content] — the panel falls back to parsing its prefixes).
+  kind: LogKind?
+  ### Groups the entries of one `claude` invocation; a retry or a feedback
+  ### iteration starts a new run.
+  runId: String?
+  phase: LogPhase?
+  toolName: String?
+  ### Pairs a toolResult with its toolCall.
+  toolUseId: String?
+  ### The longer form behind [content] (full tool input/output), truncated.
+  detail: String?
+  isError: bool?
+  ### Set on entries from a code review run (CodeReview.id); no relation so
+  ### deleting a review never touches the task's log.
+  reviewId: int?
 indexes:
   task_log_entry_task_created_idx:
     fields: taskId, createdAt

@@ -13,6 +13,8 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
+import 'log_kind.dart' as _i7oqmlti;
+import 'log_phase.dart' as _iv8oofn2;
 import 'log_source.dart' as _ilj2nbps;
 import 'task.dart' as _iwn6t6fs;
 
@@ -26,6 +28,14 @@ abstract class TaskLogEntry
     required this.content,
     _ilj2nbps.LogSource? source,
     DateTime? createdAt,
+    this.kind,
+    this.runId,
+    this.phase,
+    this.toolName,
+    this.toolUseId,
+    this.detail,
+    this.isError,
+    this.reviewId,
   }) : source = source ?? _ilj2nbps.LogSource.agent,
        createdAt = createdAt ?? DateTime.now();
 
@@ -36,6 +46,14 @@ abstract class TaskLogEntry
     required String content,
     _ilj2nbps.LogSource? source,
     DateTime? createdAt,
+    _i7oqmlti.LogKind? kind,
+    String? runId,
+    _iv8oofn2.LogPhase? phase,
+    String? toolName,
+    String? toolUseId,
+    String? detail,
+    bool? isError,
+    int? reviewId,
   }) = _TaskLogEntryImpl;
 
   factory TaskLogEntry.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -56,6 +74,20 @@ abstract class TaskLogEntry
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
+      kind: jsonSerialization['kind'] == null
+          ? null
+          : _i7oqmlti.LogKind.fromJson((jsonSerialization['kind'] as String)),
+      runId: jsonSerialization['runId'] as String?,
+      phase: jsonSerialization['phase'] == null
+          ? null
+          : _iv8oofn2.LogPhase.fromJson((jsonSerialization['phase'] as String)),
+      toolName: jsonSerialization['toolName'] as String?,
+      toolUseId: jsonSerialization['toolUseId'] as String?,
+      detail: jsonSerialization['detail'] as String?,
+      isError: jsonSerialization['isError'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['isError']),
+      reviewId: jsonSerialization['reviewId'] as int?,
     );
   }
 
@@ -77,6 +109,30 @@ abstract class TaskLogEntry
 
   DateTime createdAt;
 
+  /// Structured fields (null on entries from older runners, which only
+  /// sent [content] — the panel falls back to parsing its prefixes).
+  _i7oqmlti.LogKind? kind;
+
+  /// Groups the entries of one `claude` invocation; a retry or a feedback
+  /// iteration starts a new run.
+  String? runId;
+
+  _iv8oofn2.LogPhase? phase;
+
+  String? toolName;
+
+  /// Pairs a toolResult with its toolCall.
+  String? toolUseId;
+
+  /// The longer form behind [content] (full tool input/output), truncated.
+  String? detail;
+
+  bool? isError;
+
+  /// Set on entries from a code review run (CodeReview.id); no relation so
+  /// deleting a review never touches the task's log.
+  int? reviewId;
+
   @override
   _is.Table<int?> get table => t;
 
@@ -90,6 +146,14 @@ abstract class TaskLogEntry
     String? content,
     _ilj2nbps.LogSource? source,
     DateTime? createdAt,
+    _i7oqmlti.LogKind? kind,
+    String? runId,
+    _iv8oofn2.LogPhase? phase,
+    String? toolName,
+    String? toolUseId,
+    String? detail,
+    bool? isError,
+    int? reviewId,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -101,6 +165,14 @@ abstract class TaskLogEntry
       'content': content,
       'source': source.toJson(),
       'createdAt': createdAt.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
+      if (runId != null) 'runId': runId,
+      if (phase != null) 'phase': phase?.toJson(),
+      if (toolName != null) 'toolName': toolName,
+      if (toolUseId != null) 'toolUseId': toolUseId,
+      if (detail != null) 'detail': detail,
+      if (isError != null) 'isError': isError,
+      if (reviewId != null) 'reviewId': reviewId,
     };
   }
 
@@ -114,6 +186,14 @@ abstract class TaskLogEntry
       'content': content,
       'source': source.toJson(),
       'createdAt': createdAt.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
+      if (runId != null) 'runId': runId,
+      if (phase != null) 'phase': phase?.toJson(),
+      if (toolName != null) 'toolName': toolName,
+      if (toolUseId != null) 'toolUseId': toolUseId,
+      if (detail != null) 'detail': detail,
+      if (isError != null) 'isError': isError,
+      if (reviewId != null) 'reviewId': reviewId,
     };
   }
 
@@ -155,6 +235,14 @@ class _TaskLogEntryImpl extends TaskLogEntry {
     required String content,
     _ilj2nbps.LogSource? source,
     DateTime? createdAt,
+    _i7oqmlti.LogKind? kind,
+    String? runId,
+    _iv8oofn2.LogPhase? phase,
+    String? toolName,
+    String? toolUseId,
+    String? detail,
+    bool? isError,
+    int? reviewId,
   }) : super._(
          id: id,
          taskId: taskId,
@@ -162,6 +250,14 @@ class _TaskLogEntryImpl extends TaskLogEntry {
          content: content,
          source: source,
          createdAt: createdAt,
+         kind: kind,
+         runId: runId,
+         phase: phase,
+         toolName: toolName,
+         toolUseId: toolUseId,
+         detail: detail,
+         isError: isError,
+         reviewId: reviewId,
        );
 
   /// Returns a shallow copy of this [TaskLogEntry]
@@ -175,6 +271,14 @@ class _TaskLogEntryImpl extends TaskLogEntry {
     String? content,
     _ilj2nbps.LogSource? source,
     DateTime? createdAt,
+    Object? kind = _Undefined,
+    Object? runId = _Undefined,
+    Object? phase = _Undefined,
+    Object? toolName = _Undefined,
+    Object? toolUseId = _Undefined,
+    Object? detail = _Undefined,
+    Object? isError = _Undefined,
+    Object? reviewId = _Undefined,
   }) {
     return TaskLogEntry(
       id: id is int? ? id : this.id,
@@ -183,6 +287,14 @@ class _TaskLogEntryImpl extends TaskLogEntry {
       content: content ?? this.content,
       source: source ?? this.source,
       createdAt: createdAt ?? this.createdAt,
+      kind: kind is _i7oqmlti.LogKind? ? kind : this.kind,
+      runId: runId is String? ? runId : this.runId,
+      phase: phase is _iv8oofn2.LogPhase? ? phase : this.phase,
+      toolName: toolName is String? ? toolName : this.toolName,
+      toolUseId: toolUseId is String? ? toolUseId : this.toolUseId,
+      detail: detail is String? ? detail : this.detail,
+      isError: isError is bool? ? isError : this.isError,
+      reviewId: reviewId is int? ? reviewId : this.reviewId,
     );
   }
 }
@@ -212,6 +324,50 @@ class TaskLogEntryUpdateTable extends _is.UpdateTable<TaskLogEntryTable> {
         table.createdAt,
         value,
       );
+
+  _is.ColumnValue<_i7oqmlti.LogKind, _i7oqmlti.LogKind> kind(
+    _i7oqmlti.LogKind? value,
+  ) => _is.ColumnValue(
+    table.kind,
+    value,
+  );
+
+  _is.ColumnValue<String, String> runId(String? value) => _is.ColumnValue(
+    table.runId,
+    value,
+  );
+
+  _is.ColumnValue<_iv8oofn2.LogPhase, _iv8oofn2.LogPhase> phase(
+    _iv8oofn2.LogPhase? value,
+  ) => _is.ColumnValue(
+    table.phase,
+    value,
+  );
+
+  _is.ColumnValue<String, String> toolName(String? value) => _is.ColumnValue(
+    table.toolName,
+    value,
+  );
+
+  _is.ColumnValue<String, String> toolUseId(String? value) => _is.ColumnValue(
+    table.toolUseId,
+    value,
+  );
+
+  _is.ColumnValue<String, String> detail(String? value) => _is.ColumnValue(
+    table.detail,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> isError(bool? value) => _is.ColumnValue(
+    table.isError,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewId(int? value) => _is.ColumnValue(
+    table.reviewId,
+    value,
+  );
 }
 
 class TaskLogEntryTable extends _is.Table<int?> {
@@ -237,6 +393,40 @@ class TaskLogEntryTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    kind = _is.ColumnEnum(
+      'kind',
+      this,
+      _is.EnumSerialization.byName,
+    );
+    runId = _is.ColumnString(
+      'runId',
+      this,
+    );
+    phase = _is.ColumnEnum(
+      'phase',
+      this,
+      _is.EnumSerialization.byName,
+    );
+    toolName = _is.ColumnString(
+      'toolName',
+      this,
+    );
+    toolUseId = _is.ColumnString(
+      'toolUseId',
+      this,
+    );
+    detail = _is.ColumnString(
+      'detail',
+      this,
+    );
+    isError = _is.ColumnBool(
+      'isError',
+      this,
+    );
+    reviewId = _is.ColumnInt(
+      'reviewId',
+      this,
+    );
   }
 
   late final TaskLogEntryUpdateTable updateTable;
@@ -251,6 +441,30 @@ class TaskLogEntryTable extends _is.Table<int?> {
   late final _is.ColumnEnum<_ilj2nbps.LogSource> source;
 
   late final _is.ColumnDateTime createdAt;
+
+  /// Structured fields (null on entries from older runners, which only
+  /// sent [content] — the panel falls back to parsing its prefixes).
+  late final _is.ColumnEnum<_i7oqmlti.LogKind> kind;
+
+  /// Groups the entries of one `claude` invocation; a retry or a feedback
+  /// iteration starts a new run.
+  late final _is.ColumnString runId;
+
+  late final _is.ColumnEnum<_iv8oofn2.LogPhase> phase;
+
+  late final _is.ColumnString toolName;
+
+  /// Pairs a toolResult with its toolCall.
+  late final _is.ColumnString toolUseId;
+
+  /// The longer form behind [content] (full tool input/output), truncated.
+  late final _is.ColumnString detail;
+
+  late final _is.ColumnBool isError;
+
+  /// Set on entries from a code review run (CodeReview.id); no relation so
+  /// deleting a review never touches the task's log.
+  late final _is.ColumnInt reviewId;
 
   _iwn6t6fs.TaskTable get task {
     if (_task != null) return _task!;
@@ -272,6 +486,14 @@ class TaskLogEntryTable extends _is.Table<int?> {
     content,
     source,
     createdAt,
+    kind,
+    runId,
+    phase,
+    toolName,
+    toolUseId,
+    detail,
+    isError,
+    reviewId,
   ];
 
   @override

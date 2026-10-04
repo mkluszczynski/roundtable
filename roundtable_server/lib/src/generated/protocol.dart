@@ -40,6 +40,8 @@ import 'git_hub_exception.dart' as _ixcrnhlg;
 import 'greetings/greeting.dart' as _izw8z7ou;
 import 'invalid_state_exception.dart' as _i0q2rwly;
 import 'invalid_token_exception.dart' as _isgtss3z;
+import 'log_kind.dart' as _i7oqmlti;
+import 'log_phase.dart' as _iv8oofn2;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
 import 'machine_metric.dart' as _ixivwx7g;
@@ -74,6 +76,8 @@ export 'git_hub_exception.dart';
 export 'greetings/greeting.dart';
 export 'invalid_state_exception.dart';
 export 'invalid_token_exception.dart';
+export 'log_kind.dart';
+export 'log_phase.dart';
 export 'log_source.dart';
 export 'machine.dart';
 export 'machine_metric.dart';
@@ -1000,6 +1004,54 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'DateTime',
           columnDefault: 'now',
         ),
+        _isp.ColumnDefinition(
+          name: 'kind',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:LogKind?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'runId',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'phase',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:LogPhase?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'toolName',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'toolUseId',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'detail',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'isError',
+          columnType: _isp.ColumnType.boolean,
+          isNullable: true,
+          dartType: 'bool?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'reviewId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
       ],
       foreignKeys: [
         _isp.ForeignKeyDefinition(
@@ -1192,6 +1244,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _isgtss3z.InvalidTokenException) {
       return _isgtss3z.InvalidTokenException.fromJson(data) as T;
     }
+    if (t == _i7oqmlti.LogKind) {
+      return _i7oqmlti.LogKind.fromJson(data) as T;
+    }
+    if (t == _iv8oofn2.LogPhase) {
+      return _iv8oofn2.LogPhase.fromJson(data) as T;
+    }
     if (t == _ilj2nbps.LogSource) {
       return _ilj2nbps.LogSource.fromJson(data) as T;
     }
@@ -1308,6 +1366,12 @@ class Protocol extends _is.DatabaseSerializationManager {
               ? _isgtss3z.InvalidTokenException.fromJson(data)
               : null)
           as T;
+    }
+    if (t == _is.getType<_i7oqmlti.LogKind?>()) {
+      return (data != null ? _i7oqmlti.LogKind.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_iv8oofn2.LogPhase?>()) {
+      return (data != null ? _iv8oofn2.LogPhase.fromJson(data) : null) as T;
     }
     if (t == _is.getType<_ilj2nbps.LogSource?>()) {
       return (data != null ? _ilj2nbps.LogSource.fromJson(data) : null) as T;
@@ -1579,6 +1643,8 @@ class Protocol extends _is.DatabaseSerializationManager {
       _izw8z7ou.Greeting => 'Greeting',
       _i0q2rwly.InvalidStateException => 'InvalidStateException',
       _isgtss3z.InvalidTokenException => 'InvalidTokenException',
+      _i7oqmlti.LogKind => 'LogKind',
+      _iv8oofn2.LogPhase => 'LogPhase',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
       _ixivwx7g.MachineMetric => 'MachineMetric',
@@ -1641,6 +1707,10 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'InvalidStateException';
       case _isgtss3z.InvalidTokenException():
         return 'InvalidTokenException';
+      case _i7oqmlti.LogKind():
+        return 'LogKind';
+      case _iv8oofn2.LogPhase():
+        return 'LogPhase';
       case _ilj2nbps.LogSource():
         return 'LogSource';
       case _i0hti3f2.Machine():
@@ -1748,6 +1818,12 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'InvalidTokenException') {
       return deserialize<_isgtss3z.InvalidTokenException>(data['data']);
+    }
+    if (dataClassName == 'LogKind') {
+      return deserialize<_i7oqmlti.LogKind>(data['data']);
+    }
+    if (dataClassName == 'LogPhase') {
+      return deserialize<_iv8oofn2.LogPhase>(data['data']);
     }
     if (dataClassName == 'LogSource') {
       return deserialize<_ilj2nbps.LogSource>(data['data']);

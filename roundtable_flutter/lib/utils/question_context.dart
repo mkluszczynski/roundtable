@@ -1,11 +1,6 @@
 import 'package:roundtable_client/roundtable_client.dart';
 
-/// Formatted log lines for tool calls and their results (see the runner's
-/// `StreamJsonFormatter`) — everything else is the agent talking.
-bool _isToolLine(String content) =>
-    content.startsWith('🔧') ||
-    content.startsWith('✓') ||
-    content.startsWith('✗');
+import 'log_entry_kind.dart';
 
 /// What the agent wrote right before its latest `AskUserQuestion` — the
 /// explanation the question builds on, which `TaskQuestion` itself doesn't
@@ -13,17 +8,21 @@ bool _isToolLine(String content) =>
 String? questionContext(List<TaskLogEntry> logs) {
   var end = logs.length;
   for (var i = logs.length - 1; i >= 0; i--) {
-    if (logs[i].content.startsWith('🔧 AskUserQuestion')) {
+    final entry = logs[i];
+    if (entry.effectiveKind == LogKind.toolCall &&
+        (entry.toolName == 'AskUserQuestion' ||
+            entry.text.startsWith('AskUserQuestion'))) {
       end = i;
       break;
     }
   }
   final message = <String>[];
   for (var i = end - 1; i >= 0; i--) {
-    final content = logs[i].content.trim();
+    final entry = logs[i];
+    final content = entry.text.trim();
     if (content.isEmpty) continue;
     // The agent's message ends where the previous tool call does.
-    if (_isToolLine(content)) break;
+    if (entry.effectiveKind != LogKind.message) break;
     message.insert(0, content);
   }
   return message.isEmpty ? null : message.join('\n\n');

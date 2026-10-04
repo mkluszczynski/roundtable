@@ -6,6 +6,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
 import 'role_prompts.dart';
+import 'log_entries.dart';
 import 'stream_json_formatter.dart';
 import 'worktree_manager.dart';
 
@@ -57,7 +58,10 @@ class TaskDispatcher {
   /// Reports the agent's `status` — only that field is sent. Bound to
   /// `client.agent.setStatus` in production.
   final Future<void> Function(Agent agent) updateAgent;
-  final Future<void> Function(int taskId, String content) appendLog;
+
+  /// Persists one structured log entry. Bound to
+  /// `client.task.appendLogEntry` in production.
+  final Future<void> Function(TaskLogEntry entry) appendLog;
 
   /// Fetches the most recently submitted [TaskFeedback] for a task, used to
   /// resume an `awaitingReview` task after [TaskEndpoint.submitFeedback]
@@ -227,12 +231,32 @@ class TaskDispatcher {
       // continuous `claude` process (see `runPlanning`'s doc comment), so
       // its content-block buffering must persist across both phases.
       final formatter = StreamJsonFormatter();
+      final runId = newRunId('task-${task.id}');
+      final phase = isResume
+          ? LogPhase.feedback
+          : needsPlanning
+          ? LogPhase.planning
+          : LogPhase.execution;
+      void append(LogItem item) {
+        appendLog(
+          logEntryFor(item, taskId: task.id!, runId: runId, phase: phase),
+        ).catchError(
+          (Object e) => log('task ${task.id}: appendLog failed: $e'),
+        );
+      }
+
+      append(
+        LogItem(
+          kind: LogKind.runStarted,
+          content: switch (phase) {
+            LogPhase.feedback => '${agent.name} resumed with your feedback',
+            LogPhase.planning => '${agent.name} started planning',
+            _ => '${agent.name} started working',
+          },
+        ),
+      );
       void onLine(String line) {
-        for (final formatted in formatter.feed(line)) {
-          appendLog(task.id!, formatted).catchError(
-            (Object e) => log('task ${task.id}: appendLog failed: $e'),
-          );
-        }
+        formatter.feedEntries(line).forEach(append);
       }
 
       Process? liveProcess;

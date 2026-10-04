@@ -1,0 +1,16 @@
+### What a [TaskLogEntry] records, so the panel can render a timeline
+### instead of raw lines. Null on entries from runners that predate it.
+enum: LogKind
+values:
+  ### Text the agent wrote — what it "says".
+  - message
+  ### The model's extended thinking.
+  - thinking
+  ### A tool call (Read, Bash, Grep…); `toolName`/`toolUseId` set.
+  - toolCall
+  ### The result of the tool call with the same `toolUseId`.
+  - toolResult
+  ### A run (one `claude` invocation) began; `phase` set.
+  - runStarted
+  ### A run ended; `isError` tells success from failure.
+  - runFinished

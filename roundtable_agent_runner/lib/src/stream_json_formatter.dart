@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:roundtable_client/roundtable_client.dart';
+
 /// Turns the raw `claude --output-format stream-json --include-partial-messages`
 /// NDJSON stdout (docs/FLOWS.md §4) into human-readable lines, so
 /// `TaskDispatcher` can persist readable `TaskLogEntry.content` instead of raw
@@ -24,9 +26,15 @@ class StreamJsonFormatter {
   final _blocks = <int, _BlockBuffer>{};
 
   /// Feeds one raw NDJSON line, returning zero or more human-readable lines
+  /// — the legacy, prefix-based form of [feedEntries]. Never throws.
+  List<String> feed(String rawLine) => [
+    for (final item in feedEntries(rawLine)) item.line,
+  ];
+
+  /// Feeds one raw NDJSON line, returning zero or more structured log items
   /// to persist. Never throws — a malformed or unrecognized line simply
   /// yields no output.
-  List<String> feed(String rawLine) {
+  List<LogItem> feedEntries(String rawLine) {
     final Map<String, dynamic> event;
     try {
       event = jsonDecode(rawLine) as Map<String, dynamic>;
@@ -48,7 +56,7 @@ class StreamJsonFormatter {
     }
   }
 
-  List<String> _handleStreamEvent(Map<String, dynamic>? inner) {
+  List<LogItem> _handleStreamEvent(Map<String, dynamic>? inner) {
     if (inner == null) return const [];
     switch (inner['type']) {
       case 'message_start':
@@ -61,6 +69,7 @@ class StreamJsonFormatter {
         _blocks[index] = _BlockBuffer(
           type: block['type'] as String? ?? '',
           toolName: block['name'] as String?,
+          toolUseId: block['id'] as String?,
         );
         return const [];
       case 'content_block_delta':
@@ -81,24 +90,35 @@ class StreamJsonFormatter {
         final index = inner['index'] as int?;
         final buffer = index == null ? null : _blocks.remove(index);
         if (buffer == null) return const [];
-        final line = _finalizeBlock(buffer);
-        return line == null ? const [] : [line];
+        final item = _finalizeBlock(buffer);
+        return item == null ? const [] : [item];
       default:
         return const [];
     }
   }
 
-  String? _finalizeBlock(_BlockBuffer buffer) {
+  LogItem? _finalizeBlock(_BlockBuffer buffer) {
     switch (buffer.type) {
       case 'text':
         final text = buffer.text.toString().trim();
-        return text.isEmpty ? null : text;
+        return text.isEmpty
+            ? null
+            : LogItem(kind: LogKind.message, content: text);
       case 'thinking':
         final text = buffer.text.toString().trim();
-        return text.isEmpty ? null : '🤔 $text';
+        return text.isEmpty
+            ? null
+            : LogItem(kind: LogKind.thinking, content: text);
       case 'tool_use':
         final name = buffer.toolName ?? 'Tool';
-        return '🔧 ${_summarizeToolUse(name, buffer.text.toString())}';
+        final raw = buffer.text.toString();
+        return LogItem(
+          kind: LogKind.toolCall,
+          content: _summarizeToolUse(name, raw),
+          toolName: name,
+          toolUseId: buffer.toolUseId,
+          detail: _truncate(_prettyJson(raw), _maxDetail),
+        );
       default:
         return null;
     }
@@ -137,36 +157,44 @@ class StreamJsonFormatter {
     }
   }
 
-  List<String> _handleToolResults(Map<String, dynamic>? message) {
+  List<LogItem> _handleToolResults(Map<String, dynamic>? message) {
     final content = message?['content'];
     if (content is! List) return const [];
 
-    final lines = <String>[];
+    final items = <LogItem>[];
     for (final block in content) {
       if (block is! Map<String, dynamic> || block['type'] != 'tool_result') {
         continue;
       }
       final isError = block['is_error'] == true;
-      final text = _toolResultText(block['content']);
-      lines.add('${isError ? '✗' : '✓'} ${_truncate(text, 200)}');
+      final text = _stripNoise(_toolResultText(block['content']));
+      items.add(
+        LogItem(
+          kind: LogKind.toolResult,
+          content: _truncate(_collapseWhitespace(text), 200),
+          toolUseId: block['tool_use_id'] as String?,
+          detail: _truncate(text.trim(), _maxDetail),
+          isError: isError,
+        ),
+      );
     }
-    return lines;
+    return items;
   }
 
+  /// Raw tool result text (newlines kept, for [LogItem.detail]).
   String _toolResultText(Object? content) {
-    if (content is String) return _collapseWhitespace(content);
+    if (content is String) return content;
     if (content is List) {
-      final texts = content
+      return content
           .whereType<Map<String, dynamic>>()
           .where((b) => b['type'] == 'text')
           .map((b) => b['text'] as String? ?? '')
-          .join(' ');
-      return _collapseWhitespace(texts);
+          .join('\n');
     }
     return '';
   }
 
-  String _summarizeResult(Map<String, dynamic> event) {
+  LogItem _summarizeResult(Map<String, dynamic> event) {
     final subtype = event['subtype'] as String?;
     final isError = event['is_error'] == true || subtype != 'success';
     final durationMs = event['duration_ms'] as int?;
@@ -175,10 +203,24 @@ class StreamJsonFormatter {
         : ' in ${(durationMs / 1000).toStringAsFixed(1)}s';
 
     if (!isError) {
-      return '✅ Done$durationSuffix';
+      return LogItem(kind: LogKind.runFinished, content: 'Done$durationSuffix');
     }
     final errorText = event['result'] as String? ?? subtype ?? 'unknown error';
-    return '❌ Failed$durationSuffix: ${_truncate(errorText, 200)}';
+    return LogItem(
+      kind: LogKind.runFinished,
+      content: 'Failed$durationSuffix: ${_truncate(errorText, 200)}',
+      isError: true,
+    );
+  }
+
+  static const _maxDetail = 4000;
+
+  String _prettyJson(String raw) {
+    try {
+      return const JsonEncoder.withIndent('  ').convert(jsonDecode(raw));
+    } catch (_) {
+      return raw;
+    }
   }
 
   String _collapseWhitespace(String text) =>
@@ -188,10 +230,68 @@ class StreamJsonFormatter {
       text.length > maxLength ? '${text.substring(0, maxLength)}…' : text;
 }
 
+/// Claude Code's notes addressed to the model, not the developer (e.g. the
+/// background-subagent receipt) — dropped from what's shown.
+String _stripNoise(String text) {
+  if (text.trimLeft().startsWith('Async agent launched successfully')) {
+    return 'Subagent started in the background.';
+  }
+  return text
+      .replaceAll(
+        RegExp(r'\(This tool result is internal metadata[^)]*\)\s*'),
+        '',
+      )
+      .replaceAll(RegExp(r'\[Subagent hand-back\][^\n]*\n?'), '');
+}
+
+/// One structured log item: what the dispatchers persist through
+/// `TaskEndpoint.appendLogEntry`.
+class LogItem {
+  const LogItem({
+    required this.kind,
+    required this.content,
+    this.toolName,
+    this.toolUseId,
+    this.detail,
+    this.isError = false,
+  });
+
+  final LogKind kind;
+
+  /// The short, display form.
+  final String content;
+  final String? toolName;
+  final String? toolUseId;
+
+  /// The longer form (full tool input/output), truncated.
+  final String? detail;
+  final bool isError;
+
+  LogItem copyWith({String? content}) => LogItem(
+    kind: kind,
+    content: content ?? this.content,
+    toolName: toolName,
+    toolUseId: toolUseId,
+    detail: detail,
+    isError: isError,
+  );
+
+  /// The legacy one-line form, with the prefixes older panels parse.
+  String get line => switch (kind) {
+    LogKind.message => content,
+    LogKind.thinking => '🤔 $content',
+    LogKind.toolCall => '🔧 $content',
+    LogKind.toolResult => '${isError ? '✗' : '✓'} $content',
+    LogKind.runStarted => '▶ $content',
+    LogKind.runFinished => '${isError ? '❌' : '✅'} $content',
+  };
+}
+
 class _BlockBuffer {
-  _BlockBuffer({required this.type, this.toolName});
+  _BlockBuffer({required this.type, this.toolName, this.toolUseId});
 
   final String type;
   final String? toolName;
+  final String? toolUseId;
   final StringBuffer text = StringBuffer();
 }

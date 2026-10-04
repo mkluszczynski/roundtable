@@ -182,6 +182,43 @@ void main() {
       },
     );
 
+    test(
+      'when the daemon appends a structured log entry then it is stored with '
+      'its run and tool fields and a server timestamp',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final stored = await endpoints.task.appendLogEntry(
+          sessionBuilder,
+          TaskLogEntry(
+            id: 999,
+            taskId: task.id!,
+            content: 'Read(/a.dart)',
+            kind: LogKind.toolCall,
+            runId: 'task-1-1',
+            phase: LogPhase.execution,
+            toolName: 'Read',
+            toolUseId: 'tu_1',
+          ),
+        );
+
+        expect(stored.id, isNot(999));
+        expect(stored.kind, LogKind.toolCall);
+        expect(stored.runId, 'task-1-1');
+        expect(stored.phase, LogPhase.execution);
+        expect(stored.toolUseId, 'tu_1');
+      },
+    );
+
     test('when updating a task then the change is persisted', () async {
       final machine = await createMachine();
       final project = await createProject();
