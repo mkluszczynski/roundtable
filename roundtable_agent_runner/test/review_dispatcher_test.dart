@@ -71,5 +71,19 @@ Final answer:
     expect(prompt, contains('Add a login page'));
     expect(prompt, contains('git diff abc123...HEAD'));
     expect(prompt, contains('```json'));
+    expect(prompt, isNot(contains('image(s)')));
+  });
+
+  test('buildReviewPrompt lists the task\'s attached images', () {
+    final prompt = buildReviewPrompt(
+      rolePrompt: 'You are Ana.',
+      taskPrompt: 'Match the mockup',
+      baseSha: 'abc123',
+      imagePaths: ['/tmp/r/1-a.png', '/tmp/r/2-b.png'],
+    );
+    expect(prompt, contains('2 image(s)'));
+    expect(prompt, contains('Read tool'));
+    expect(prompt, contains('- /tmp/r/1-a.png\n- /tmp/r/2-b.png'));
+    expect(prompt, contains('git diff abc123...HEAD'));
   });
 }

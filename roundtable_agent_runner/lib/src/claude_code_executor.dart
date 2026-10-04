@@ -200,12 +200,16 @@ class ClaudeCodeExecutor {
   /// Runs one read-only code-review invocation: only tools that can't
   /// change the working tree are allowed (headless `-p` denies everything
   /// else), so the reviewer can explore the code and diff but never edit it.
+  ///
+  /// [additionalDirectories] are passed as `--add-dir` (e.g. the task's
+  /// attached images).
   Future<ClaudeCodeExecutionResult> runReview({
     required String prompt,
     required String workingDirectory,
     String? oauthToken,
     String? model,
     String? effort,
+    List<String> additionalDirectories = const [],
     String? appendSystemPrompt,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
@@ -223,6 +227,7 @@ class ClaudeCodeExecutor {
       'Edit,Write,NotebookEdit',
       if (model != null) ...['--model', model],
       if (effort != null) ...['--effort', effort],
+      for (final dir in additionalDirectories) ...['--add-dir', dir],
       if (appendSystemPrompt != null) ...[
         '--append-system-prompt',
         appendSystemPrompt,

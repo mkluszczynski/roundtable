@@ -302,12 +302,7 @@ class TaskDispatcher {
           final dir = await Directory(
             '${mcpConfigDir.path}/attachments',
           ).create();
-          final paths = <String>[];
-          for (final (i, image) in images.indexed) {
-            final file = File('${dir.path}/${i + 1}-${image.fileName}');
-            await file.writeAsBytes(image.bytes);
-            paths.add(file.path);
-          }
+          final paths = await writeTaskImages(dir, images);
           attachmentDirs.add(dir.path);
           prompt = attachedImagesPrompt(prompt, paths);
           log('task ${task.id}: ${images.length} attached image(s)');
@@ -484,6 +479,21 @@ String _shortSummary(String prompt) {
 
 /// An image attached to a task's prompt, as downloaded by the runner.
 typedef TaskImage = ({String fileName, List<int> bytes});
+
+/// Writes [images] into [dir] as `<n>-<fileName>` and returns their paths,
+/// in order.
+Future<List<String>> writeTaskImages(
+  Directory dir,
+  List<TaskImage> images,
+) async {
+  final paths = <String>[];
+  for (final (i, image) in images.indexed) {
+    final file = File('${dir.path}/${i + 1}-${image.fileName}');
+    await file.writeAsBytes(image.bytes);
+    paths.add(file.path);
+  }
+  return paths;
+}
 
 /// [prompt] followed by the paths of the task's attached images and an
 /// instruction to look at them before starting.

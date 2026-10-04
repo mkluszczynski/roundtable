@@ -205,6 +205,7 @@ class AgentRunnerService {
     appendLog: (entry) => _client.task.appendLogEntry(entry),
     log: _log,
     environmentPrompt: () => _environmentPrompt(review: true),
+    fetchAttachments: _fetchAttachments,
   );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(

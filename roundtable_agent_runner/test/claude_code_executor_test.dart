@@ -171,6 +171,24 @@ exit 0
       expect(lines.single, contains('--add-dir /tmp/a --add-dir /tmp/b'));
     });
 
+    test('runReview passes --add-dir for each additional directory', () async {
+      final script = writeFakeClaude(r'''
+echo "{\"args\":\"$*\"}"
+exit 0
+''');
+      final executor = ClaudeCodeExecutor(executable: script);
+      final lines = <String>[];
+
+      await executor.runReview(
+        prompt: 'review against the mockup',
+        workingDirectory: tempDir.path,
+        additionalDirectories: ['/tmp/a'],
+        onLine: lines.add,
+      );
+
+      expect(lines.single, contains('--add-dir /tmp/a'));
+    });
+
     test('passes --append-system-prompt when set', () async {
       final script = writeFakeClaude(r'''
 echo "{\"args\":\"$*\"}"
