@@ -11,6 +11,7 @@ import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/code_language.dart';
+import '../utils/question_context.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -992,6 +993,10 @@ class _PendingQuestionState extends State<_PendingQuestion> {
             ],
           ),
           const SizedBox(height: Spacing.lg),
+          if (questionContext(state.logs) case final context?) ...[
+            AppCard(child: PlanContent(markdown: context)),
+            const SizedBox(height: Spacing.xl),
+          ],
           Text(question.question, style: AppTypography.cardTitle),
           const SizedBox(height: Spacing.xl),
           for (final option in question.options)
