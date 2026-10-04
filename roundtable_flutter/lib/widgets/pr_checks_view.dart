@@ -102,6 +102,16 @@ class PrChecksView extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.md),
         ],
+        if (checks?.error != null) ...[
+          _Banner(
+            icon: Icons.lock_outline,
+            color: AppColors.warning,
+            text:
+                'The CI checks can\'t be read: ${checks!.error}. Merging is '
+                'left to GitHub\'s branch protection.',
+          ),
+          const SizedBox(height: Spacing.md),
+        ],
         if (error != null) ...[
           Text(
             error!,
@@ -120,6 +130,9 @@ class PrChecksView extends StatelessWidget {
                       PrCheckState.pending =>
                         'Waiting for the workflows to start on the latest '
                             'commit…',
+                      _ when checks.error != null =>
+                        'Give the project token "Actions: Read" to see the '
+                            'checks here.',
                       _ =>
                         checks.headSha == null
                             ? 'The checks haven\'t been read from GitHub yet.'

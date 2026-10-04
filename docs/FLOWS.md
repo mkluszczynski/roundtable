@@ -166,10 +166,13 @@ terminal, the runner can't change it through `update` anymore.
    - `fixFailingChecks(jobIds?, note?)` sends the failing CI jobs (see "CI
      checks" below) with their log tails. Same resume path.
 9. **Accept** (`acceptTask`). It first re-reads the CI checks from GitHub
-   and refuses while they're `pending` or `failure` (a new commit without
-   any workflow run counts as pending for 2 min, then as "no CI"). Then it
-   squash-merges exactly `prHeadSha` (GitHub's `sha` guard), so a commit
-   pushed after the checks were read can't be merged unchecked. Merged → `done`. If GitHub
+   and refuses while they're `pending` or `failure`, or while a fix run is
+   queued for the agent (a new commit without any workflow run counts as
+   pending for 2 min, then as "no CI"). "Merge anyway" (`force: true`, behind
+   a confirm dialog) skips that gate for a flaky or non-required job;
+   GitHub's branch protection still applies. The merge is pinned to exactly
+   `prHeadSha` (GitHub's `sha` guard), so a commit pushed after the checks
+   were read can't be merged unchecked. Merged → `done`. If GitHub
    refuses (405/409 with conflicts), the task stays in `awaitingReview` and
    the panel shows "resolve conflicts". The `done` task is posted to the
    machine so the daemon removes the worktree. Accepting is blocked while a
@@ -180,14 +183,21 @@ terminal, the runner can't change it through `update` anymore.
 ### CI checks (GitHub Actions)
 
 `PrChecksFutureCall` (every 30 s) runs `syncChecks` (`lib/src/pr_checks.dart`)
-for every `awaitingReview` task with a PR and a project token. The token
-needs the **Actions: read** permission; without it the sync logs a 403.
+for every `awaitingReview` task with a PR and a project token — every time
+while its checks are `pending`, every 5 min once they settled. The polled
+GETs are conditional (ETag / `If-None-Match`), and a `304` doesn't count
+against the token's rate limit, which merges and reviews share. The token
+needs the **Actions: read** permission. Without it (a 403/404 from the
+Actions API) the checks are reported as unknown: `checkState = none`,
+`checkError` set and shown in the panel, and merging is left to GitHub's
+branch protection.
 
 1. `GET /pulls/<n>` gives the head commit. A new one (a fix run's push or a
    manual push) replaces the previous commit's `PrCheckRun` rows, sets
    `prHeadSha`/`prHeadSeenAt` and logs "New commit … — CI checks restarted".
 2. `GET /actions/runs?head_sha=…`, and for every run that isn't finished
-   (or not stored yet) `GET /actions/runs/<id>/jobs?filter=latest`. Only the
+   (or not stored yet) `GET /actions/runs/<id>/jobs?filter=latest` — all
+   pages of both. Only the
    latest attempt counts, so a re-run on GitHub resets the job to pending.
 3. `Task.checkState`: `failure` if any job failed/timed out/was cancelled,
    `pending` if any is still running, `success` when all passed, `none`
@@ -195,13 +205,18 @@ needs the **Actions: read** permission; without it the sync logs a 403.
    `task-<id>-checks`, and to the timeline ("CI failed: …", "CI passed").
 4. Every fix run (`queueReviewFeedback`: feedback, review comments,
    conflicts, CI) sets `checkState = pending`: its push makes the current
-   results stale. When the runner reports the task back in `awaitingReview`,
-   `update` syncs right away. A fix run that pushed nothing gets its real
-   state back from the unchanged commit.
+   results stale. Syncs keep it `pending` while the fix run is still queued
+   (review feedback newer than `finishedAt`, the daemon's own rule), so the
+   same failure can't be sent twice nor the PR merged under it. When the
+   runner reports the task back in `awaitingReview`, `update` syncs right
+   away. A fix run that pushed nothing gets its real state back from the
+   unchanged commit.
 5. Auto-fix (`Project.autoFixFailingChecks`): once all jobs finished and
    some failed, the failure is sent like `fixFailingChecks` — once per
    commit (`checkFixSentForSha`) and at most `maxCheckFixAttempts` times
-   until the checks pass (`checkFixAttempts` resets on `success`).
+   until the checks pass (`checkFixAttempts` resets on `success`). Both
+   that and "no fix run queued" are re-checked in a serializable
+   transaction, so concurrent syncs can't queue two fix runs.
 
 Other actions: `retryTask` (failed/cancelled → fresh `queued`, clears
 `claudeSessionId`), `reassignAgent` (allowed in draft/queued/cloning/

@@ -14,7 +14,16 @@ class GitHubRepoClient {
 
   static const _timeout = Duration(seconds: 30);
 
+  /// Pages read at most per Actions listing (100 items each).
+  static const _maxPages = 10;
+  static const _etagCacheLimit = 1000;
+
   final http.Client _http;
+
+  /// The last 200 response (ETag and body) of each URL the CI checks poll,
+  /// so the next request can be conditional: a `304 Not Modified` doesn't
+  /// count against the token's rate limit.
+  final _etagCache = <Uri, ({String etag, String body})>{};
 
   /// Fetches the list of changed files for the pull request at [prUrl]
   /// (`https://github.com/{owner}/{repo}/pull/{number}`), authenticating
@@ -324,9 +333,9 @@ class GitHubRepoClient {
     required String token,
   }) async {
     final (:owner, :repo, :number) = parsePrUrl(prUrl);
-    final response = await _http.get(
+    final response = await _conditionalGet(
       Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
-      headers: _headers(token),
+      token,
     );
     if (response.statusCode != 200) {
       throw GitHubException(
@@ -349,27 +358,18 @@ class GitHubRepoClient {
     required String headSha,
     required String token,
   }) async {
-    final response = await _http.get(
-      Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
+    final runs = await _listAllPages(
+      (page) => Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
         'head_sha': headSha,
         'per_page': '100',
+        'page': '$page',
       }),
-      headers: _headers(token),
+      token,
+      itemsKey: 'workflow_runs',
+      errorMessage: 'Failed to list workflow runs for $owner/$repo@$headSha',
     );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: _actionsErrorMessage(
-          'Failed to list workflow runs for $owner/$repo@$headSha',
-          response.statusCode,
-        ),
-        statusCode: response.statusCode,
-      );
-    }
-    final runs =
-        (jsonDecode(response.body) as Map<String, dynamic>)['workflow_runs']
-            as List<dynamic>;
     return [
-      for (final run in runs.cast<Map<String, dynamic>>())
+      for (final run in runs)
         if (run['head_sha'] == headSha)
           WorkflowRunInfo(
             id: run['id'] as int,
@@ -381,35 +381,27 @@ class GitHubRepoClient {
     ];
   }
 
-  /// Lists the jobs of the latest attempt of workflow run [runId].
+  /// Lists the jobs of the latest attempt of workflow run [runId] — all of
+  /// them, a big matrix can span several pages.
   Future<List<WorkflowJobInfo>> listRunJobs({
     required String owner,
     required String repo,
     required int runId,
     required String token,
   }) async {
-    final response = await _http.get(
-      Uri.https(
+    final jobs = await _listAllPages(
+      (page) => Uri.https(
         'api.github.com',
         '/repos/$owner/$repo/actions/runs/$runId/jobs',
-        {'filter': 'latest', 'per_page': '100'},
+        {'filter': 'latest', 'per_page': '100', 'page': '$page'},
       ),
-      headers: _headers(token),
-    );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: _actionsErrorMessage(
+      token,
+      itemsKey: 'jobs',
+      errorMessage:
           'Failed to list the jobs of workflow run $runId in $owner/$repo',
-          response.statusCode,
-        ),
-        statusCode: response.statusCode,
-      );
-    }
-    final jobs =
-        (jsonDecode(response.body) as Map<String, dynamic>)['jobs']
-            as List<dynamic>;
+    );
     return [
-      for (final job in jobs.cast<Map<String, dynamic>>())
+      for (final job in jobs)
         WorkflowJobInfo(
           id: job['id'] as int,
           name: job['name'] as String,
@@ -423,6 +415,63 @@ class GitHubRepoClient {
           failedStep: _firstFailedStep(job['steps']),
         ),
     ];
+  }
+
+  /// Reads every page of an Actions listing (`{total_count, <itemsKey>: [...]}`)
+  /// until `total_count` items arrived or a page comes back short.
+  Future<List<Map<String, dynamic>>> _listAllPages(
+    Uri Function(int page) pageUri,
+    String token, {
+    required String itemsKey,
+    required String errorMessage,
+  }) async {
+    final items = <Map<String, dynamic>>[];
+    for (var page = 1; page <= _maxPages; page++) {
+      final response = await _conditionalGet(pageUri(page), token);
+      if (response.statusCode != 200) {
+        throw GitHubException(
+          message: _actionsErrorMessage(errorMessage, response.statusCode),
+          statusCode: response.statusCode,
+        );
+      }
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final pageItems = (decoded[itemsKey] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      items.addAll(pageItems);
+      final total = decoded['total_count'] as int?;
+      if (pageItems.length < 100 || (total != null && items.length >= total)) {
+        break;
+      }
+    }
+    return items;
+  }
+
+  /// GETs [uri], conditionally when an earlier response's ETag is cached —
+  /// a 304 is answered from the cache as a 200.
+  Future<({int statusCode, String body})> _conditionalGet(
+    Uri uri,
+    String token,
+  ) async {
+    final cached = _etagCache[uri];
+    final response = await _http.get(
+      uri,
+      headers: {
+        ..._headers(token),
+        if (cached != null) 'If-None-Match': cached.etag,
+      },
+    );
+    if (response.statusCode == 304 && cached != null) {
+      return (statusCode: 200, body: cached.body);
+    }
+    final etag = response.headers['etag'];
+    _etagCache.remove(uri);
+    if (response.statusCode == 200 && etag != null) {
+      if (_etagCache.length >= _etagCacheLimit) {
+        _etagCache.remove(_etagCache.keys.first);
+      }
+      _etagCache[uri] = (etag: etag, body: response.body);
+    }
+    return (statusCode: response.statusCode, body: response.body);
   }
 
   /// Fetches the log of Actions job [jobId] and returns the part worth

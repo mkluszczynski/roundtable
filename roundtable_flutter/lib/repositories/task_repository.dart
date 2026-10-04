@@ -71,8 +71,10 @@ class TaskRepository {
   /// deleted task from its local list — the counterpart of [watchAllTasks].
   Stream<TaskDeleted> watchTaskDeletions() => _client.task.watchTaskDeletions();
 
-  /// Squash-merges [taskId]'s PR and marks it `done`.
-  Future<Task> acceptTask(int taskId) => _client.task.acceptTask(taskId);
+  /// Squash-merges [taskId]'s PR and marks it `done`. The server refuses
+  /// while the CI checks are pending or failing, unless [force].
+  Future<Task> acceptTask(int taskId, {bool force = false}) =>
+      _client.task.acceptTask(taskId, force: force);
 
   /// Whether [taskId]'s PR conflicts with its base branch.
   Future<PrMergeStatus> getMergeStatus(int taskId) =>

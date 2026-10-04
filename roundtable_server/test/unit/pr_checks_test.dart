@@ -121,6 +121,11 @@ void main() {
       mergeBlockedReason(task(PrCheckState.pending), []),
       contains('abc1234'),
     );
+    // A queued fix run is about to change the PR, whatever CI says.
+    expect(
+      mergeBlockedReason(task(PrCheckState.success), [], fixRunQueued: true),
+      contains('fix run is queued'),
+    );
   });
 
   test('checkFixPrompt includes the job, step, link, log and note', () {
@@ -194,5 +199,68 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('repeated polls are conditional and a 304 reuses the body', () async {
+    final requests = <http.Request>[];
+    final client = GitHubRepoClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.headers['If-None-Match'] == '"v1"') {
+          return http.Response('', 304);
+        }
+        return http.Response(
+          jsonEncode({
+            'state': 'open',
+            'head': {'sha': 'abc'},
+          }),
+          200,
+          headers: {'etag': '"v1"'},
+        );
+      }),
+    );
+
+    const prUrl = 'https://github.com/x/y/pull/1';
+    final first = await client.getPrHead(prUrl: prUrl, token: 'secret');
+    final second = await client.getPrHead(prUrl: prUrl, token: 'secret');
+
+    expect(first.sha, 'abc');
+    expect(second.sha, 'abc');
+    expect(requests.first.headers.containsKey('If-None-Match'), isFalse);
+    expect(requests.last.headers['If-None-Match'], '"v1"');
+  });
+
+  test('every page of a big matrix is read', () async {
+    final client = GitHubRepoClient(
+      httpClient: MockClient((request) async {
+        final page = int.parse(request.url.queryParameters['page']!);
+        final count = page == 1 ? 100 : 30;
+        return http.Response(
+          jsonEncode({
+            'total_count': 130,
+            'jobs': [
+              for (var i = 0; i < count; i++)
+                {
+                  'id': page * 1000 + i,
+                  'name': 'shard $i',
+                  'status': 'completed',
+                  'conclusion': page == 2 && i == 29 ? 'failure' : 'success',
+                },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final jobs = await client.listRunJobs(
+      owner: 'x',
+      repo: 'y',
+      runId: 7,
+      token: 'secret',
+    );
+
+    expect(jobs, hasLength(130));
+    expect(jobs.last.conclusion, 'failure');
   });
 }

@@ -46,9 +46,9 @@ deletes the existing rows and schedules them again, so they don't pile up:
   (`lastProgressAt`) for 15 min goes to `failed`.
 - `MachineMetricCleanupFutureCall` (every 10 min): deletes `MachineMetric`
   rows older than 1 h.
-- `PrChecksFutureCall` (every 30 s): for each `awaitingReview` task with a PR
-  and a project token, mirrors the GitHub Actions jobs of the PR's head
-  commit (`syncChecks` in `lib/src/pr_checks.dart`). Polling, not a webhook:
+- `PrChecksFutureCall` (every 30 s; settled checks only every 5 min): for
+  each `awaitingReview` task with a PR and a project token, mirrors the
+  GitHub Actions jobs of the PR's head commit (`syncChecks` in `lib/src/pr_checks.dart`). Polling, not a webhook:
   the server needn't be reachable from GitHub. See docs/FLOWS.md §4 "CI checks".
 
 Both failure paths, plus `MachineEndpoint.reportStartup`, go through
@@ -61,7 +61,7 @@ Both failure paths, plus `MachineEndpoint.reportStartup`, go through
 | `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage/CI auto-fix settings only), `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
 | `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` (uninstall: deletes the machine, or marks it offline + revokes the token if unfinished tasks block that) |
 | `AgentEndpoint` | `create/get/list`, `update` (name/role/model/effort only), `delete` (blocked by non-terminal tasks) | `setStatus` (`idle`/`busy`/`waitingForResponse`) |
-| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `continueTask`, `acceptTask` (squash-merge, only with passing CI), `getMergeStatus`, `resolveConflicts`, `getChecks`, `watchChecks`, `refreshChecks`, `fixFailingChecks`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
+| `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `continueTask`, `acceptTask` (squash-merge, only with passing CI unless `force`), `getMergeStatus`, `resolveConflicts`, `getChecks`, `watchChecks`, `refreshChecks`, `fixFailingChecks`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
 | `CodeReviewEndpoint` | `requestReview`, `watchReviews`, `setCommentState`, `sendCommentsToFix` | `watchAssignedReviews`, `startReview`, `completeReview`, `failReview` |
 
 Server-only helpers: `github_repo_client.dart` (PR files, file content,
@@ -96,7 +96,7 @@ erDiagram
 | `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused), `autoFixFailingChecks`, `maxCheckFixAttempts` |
 | `Machine` | `tokenHash` (**serverOnly**, unique index), `status` online/offline, `lastSeenAt`, `claudeExecutableOk/Error`, `runnerVersion`, `updateRequestedAt` |
 | `Agent` | `machine` (cascade on delete), `name`, `role`, `defaultModel`, `defaultEffort`, `executionMode` (only `native` is implemented), `status` |
-| `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkFixAttempts`, `checkFixSentForSha` |
+| `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkError`, `checkFixAttempts`, `checkFixSentForSha` |
 | `PrCheckRun` | one GitHub Actions job of the PR's head commit: `headSha`, `workflowRunId`, `runAttempt`, `workflowName`, `jobId`, `jobName`, `status`, `conclusion`, `failedStep`, `htmlUrl`; replaced when the head commit changes |
 | `TaskLogEntry` | `content`, `source` agent/system |
 | `TaskQuestion` | `question`, `options`, `answer`, `answeredAt` |

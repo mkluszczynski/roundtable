@@ -143,6 +143,25 @@ void main() {
     expect(find.textContaining('The agent is working'), findsOneWidget);
   });
 
+  testWidgets('explains when the checks cannot be read', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        PrChecksView(
+          checks: PrChecks(
+            taskId: 1,
+            headSha: 'abc1234def',
+            state: PrCheckState.none,
+            error: 'Forbidden — make sure the token has "Actions: read"',
+            runs: const [],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining("can't be read"), findsOneWidget);
+    expect(find.textContaining('Actions: Read'), findsWidgets);
+  });
+
   test('check appearances follow the status colors', () {
     expect(
       checkStateAppearance(PrCheckState.failure).color,

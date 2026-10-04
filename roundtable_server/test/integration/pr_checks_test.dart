@@ -5,6 +5,7 @@ import 'package:http/testing.dart';
 import 'package:roundtable_server/src/future_calls/pr_checks_future_call.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:roundtable_server/src/github_repo_client.dart';
+import 'package:roundtable_server/src/pr_checks.dart';
 import 'package:test/test.dart';
 
 import 'github_ci_fixtures.dart';
@@ -21,17 +22,26 @@ void main() {
     late String headSha;
     late String? conclusion;
     late bool noWorkflows;
+    late bool actionsForbidden;
 
     setUp(() {
       githubRequests = [];
       headSha = 'abc1234def';
       conclusion = 'success';
       noWorkflows = false;
+      actionsForbidden = false;
+      resetChecksPollSchedule();
       gitHubRepoClient = GitHubRepoClient(
         httpClient: MockClient((request) async {
           githubRequests.add(request);
           if (request.method == 'PUT') {
             return http.Response(jsonEncode({'merged': true}), 200);
+          }
+          if (actionsForbidden && request.url.path.contains('/actions/')) {
+            return http.Response(
+              jsonEncode({'message': 'Resource not accessible'}),
+              403,
+            );
           }
           return fakeCiResponse(
                 request,
@@ -92,6 +102,23 @@ void main() {
       sessionBuilder.build(),
       where: (f) => f.taskId.equals(task.id!),
     );
+
+    /// One poll, regardless of the settled-checks back-off.
+    Future<void> poll() async {
+      resetChecksPollSchedule();
+      await PrChecksFutureCall().check(sessionBuilder.build());
+    }
+
+    /// The daemon picked the queued fix run up and finished it (without
+    /// pushing): `finishedAt` moves past the feedback.
+    Future<void> finishFixRun(Task task) async {
+      await Task.db.updateRow(
+        sessionBuilder.build(),
+        (await reload(task)).copyWith(
+          finishedAt: DateTime.now().toUtc(),
+        ),
+      );
+    }
 
     test('when the poll runs then the jobs and the state are stored', () async {
       final task = await seed();
@@ -182,6 +209,99 @@ void main() {
       },
     );
 
+    test(
+      'when a fix run is still queued then sending the failure again throws '
+      'and the checks stay pending',
+      () async {
+        final task = await seed();
+        conclusion = 'failure';
+        await endpoints.task.refreshChecks(sessionBuilder, task.id!);
+        await endpoints.task.fixFailingChecks(sessionBuilder, task.id!);
+
+        final checks = await endpoints.task.refreshChecks(
+          sessionBuilder,
+          task.id!,
+        );
+        expect(checks.state, PrCheckState.pending);
+        await expectLater(
+          endpoints.task.fixFailingChecks(sessionBuilder, task.id!),
+          throwsA(isA<InvalidStateException>()),
+        );
+        expect(await feedbackOf(task), hasLength(1));
+      },
+    );
+
+    test(
+      'when review feedback is queued then green checks do not allow merging',
+      () async {
+        final task = await seed();
+        await endpoints.task.submitFeedback(
+          sessionBuilder,
+          task.id!,
+          'Rename the button',
+        );
+
+        await expectLater(
+          endpoints.task.acceptTask(sessionBuilder, task.id!),
+          throwsA(
+            isA<InvalidStateException>().having(
+              (e) => e.message,
+              'message',
+              contains('fix run is queued'),
+            ),
+          ),
+        );
+        expect(githubRequests.where((r) => r.method == 'PUT'), isEmpty);
+      },
+    );
+
+    test(
+      'when the token cannot read Actions then the checks are unknown and '
+      'merging is left to GitHub',
+      () async {
+        final task = await seed();
+        actionsForbidden = true;
+
+        final checks = await endpoints.task.refreshChecks(
+          sessionBuilder,
+          task.id!,
+        );
+        expect(checks.state, PrCheckState.none);
+        expect(checks.error, contains('Actions: read'));
+
+        final accepted = await endpoints.task.acceptTask(
+          sessionBuilder,
+          task.id!,
+        );
+        expect(accepted.status, TaskStatus.done);
+      },
+    );
+
+    test('when forced then a PR with failing checks is merged', () async {
+      final task = await seed();
+      conclusion = 'failure';
+
+      final accepted = await endpoints.task.acceptTask(
+        sessionBuilder,
+        task.id!,
+        force: true,
+      );
+
+      expect(accepted.status, TaskStatus.done);
+      final merge = githubRequests.where((r) => r.method == 'PUT').single;
+      expect(jsonDecode(merge.body)['sha'], 'abc1234def');
+    });
+
+    test('when the checks settled then the next poll skips them', () async {
+      await seed();
+      await poll();
+      githubRequests.clear();
+
+      await PrChecksFutureCall().check(sessionBuilder.build());
+
+      expect(githubRequests, isEmpty);
+    });
+
     test('when no check failed then sending them to fix throws', () async {
       final task = await seed();
       await endpoints.task.refreshChecks(sessionBuilder, task.id!);
@@ -203,17 +323,31 @@ void main() {
       'when auto-fix is on then a failure is sent once per commit, up to the '
       'attempt cap',
       () async {
-        final task = await seed(autoFix: true, maxAttempts: 1);
+        final task = await seed(autoFix: true, maxAttempts: 2);
         conclusion = 'failure';
 
-        await PrChecksFutureCall().check(sessionBuilder.build());
-        await PrChecksFutureCall().check(sessionBuilder.build());
+        await poll();
+        // Still queued: the next poll neither resends nor un-pends it.
+        await poll();
         expect(await feedbackOf(task), hasLength(1));
+        expect((await reload(task)).checkState, PrCheckState.pending);
 
-        // The fix run pushed a commit that still fails: the cap is reached.
-        headSha = 'fff9999aaa';
-        await PrChecksFutureCall().check(sessionBuilder.build());
+        // The fix run ended without a push: same commit, not sent again.
+        await finishFixRun(task);
+        await poll();
         expect(await feedbackOf(task), hasLength(1));
+        expect((await reload(task)).checkState, PrCheckState.failure);
+
+        // A new commit that still fails: the second attempt.
+        headSha = 'fff9999aaa';
+        await poll();
+        expect(await feedbackOf(task), hasLength(2));
+
+        // The cap is reached.
+        await finishFixRun(task);
+        headSha = 'eee8888bbb';
+        await poll();
+        expect(await feedbackOf(task), hasLength(2));
       },
     );
 

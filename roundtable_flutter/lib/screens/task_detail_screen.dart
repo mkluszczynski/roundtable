@@ -137,14 +137,26 @@ void _openRequestReviewDialog(BuildContext context, int taskId) {
   );
 }
 
-Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
+/// [overriddenChecks]: why the CI checks would block the merge — confirming
+/// merges anyway.
+Future<void> _confirmAcceptTask(
+  BuildContext context,
+  int taskId, {
+  String? overriddenChecks,
+}) async {
   final bloc = context.read<TaskDetailBloc>();
+  final force = overriddenChecks != null;
   final confirmed = await showAppModal<bool>(
     context,
     icon: Icons.merge,
-    title: 'Accept and merge?',
-    subtitle:
-        'This squash-merges the PR on GitHub and moves Task #$taskId to Done.',
+    tone: force ? AppModalTone.danger : AppModalTone.normal,
+    title: force ? 'Merge despite the CI checks?' : 'Accept and merge?',
+    subtitle: force
+        ? '$overriddenChecks. This squash-merges the PR of Task #$taskId '
+              'anyway — GitHub still enforces the checks its branch '
+              'protection requires.'
+        : 'This squash-merges the PR on GitHub and moves Task #$taskId to '
+              'Done.',
     child: const SizedBox.shrink(),
     actions: [
       Builder(
@@ -155,14 +167,17 @@ Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
       ),
       Builder(
         builder: (context) => FilledButton(
+          style: force
+              ? FilledButton.styleFrom(backgroundColor: AppColors.red)
+              : null,
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Accept & merge'),
+          child: Text(force ? 'Merge anyway' : 'Accept & merge'),
         ),
       ),
     ],
   );
   if (confirmed ?? false) {
-    bloc.add(TaskAccepted(taskId));
+    bloc.add(TaskAccepted(taskId, force: force));
   }
 }
 
@@ -844,7 +859,7 @@ class _RailActions extends StatelessWidget {
               icon: const Icon(Icons.build_outlined, size: 16),
               label: const Text('Fix CI checks'),
             ),
-          _acceptButton(context, state, busy: busy),
+          ..._acceptButtons(context, state, busy: busy),
         ],
       if (_retryableStatuses.contains(task.status))
         OutlinedButton.icon(
@@ -906,8 +921,9 @@ class _RailActions extends StatelessWidget {
 }
 
 /// "Accept & merge", disabled (with the reason on hover) until the CI
-/// checks allow merging.
-Widget _acceptButton(
+/// checks allow merging — plus "Merge anyway" for a flaky or non-required
+/// job the dev decides to ignore.
+List<Widget> _acceptButtons(
   BuildContext context,
   TaskDetailLoaded state, {
   required bool busy,
@@ -920,7 +936,25 @@ Widget _acceptButton(
     icon: const Icon(Icons.merge, size: 16),
     label: const Text('Accept & merge'),
   );
-  return blocked == null ? button : Tooltip(message: blocked, child: button);
+  if (blocked == null) return [button];
+  return [
+    Tooltip(message: blocked, child: button),
+    OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.red,
+        side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+      ),
+      onPressed: busy
+          ? null
+          : () => _confirmAcceptTask(
+              context,
+              state.task.id!,
+              overriddenChecks: blocked,
+            ),
+      icon: const Icon(Icons.warning_amber_outlined, size: 16),
+      label: const Text('Merge anyway'),
+    ),
+  ];
 }
 
 class _TimelineRow extends StatelessWidget {

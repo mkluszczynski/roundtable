@@ -20,6 +20,7 @@ Future<TaskFeedback> queueReviewFeedback(
   Task task,
   String message, {
   Future<void> Function(Transaction transaction)? alsoWrite,
+  TransactionSettings? transactionSettings,
 }) async {
   if (task.status != TaskStatus.awaitingReview) {
     throw InvalidStateException(
@@ -52,7 +53,7 @@ Future<TaskFeedback> queueReviewFeedback(
     );
     await alsoWrite?.call(transaction);
     return inserted;
-  });
+  }, settings: transactionSettings);
 
   // The fix run is about to push a new commit, so the current CI results go
   // stale — merging stays blocked until the new commit's checks report.

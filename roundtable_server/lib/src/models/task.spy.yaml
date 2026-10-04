@@ -36,6 +36,10 @@ fields:
   ### Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
   ### merges on `success` (or `none` after the grace period).
   checkState: PrCheckState, default=none
+  ### Why the checks can't be read (e.g. a token without "Actions: Read"),
+  ### in which case [checkState] stays `none` and GitHub's own branch
+  ### protection decides whether the PR can merge.
+  checkError: String?
   ### Fix runs sent for failing checks since they last passed — caps the
   ### project's auto-fix (`Project.maxCheckFixAttempts`).
   checkFixAttempts: int, default=0

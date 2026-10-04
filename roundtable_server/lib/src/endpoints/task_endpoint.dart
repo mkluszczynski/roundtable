@@ -162,12 +162,19 @@ class TaskEndpoint extends Endpoint {
 
   /// Squash-merges [taskId]'s PR and marks the task `done` — only once the
   /// GitHub Actions checks of the PR's current head commit passed (or the
-  /// repo has no CI), read fresh from GitHub rather than trusted from the
-  /// last poll, and only that exact commit. If GitHub refuses the merge
-  /// (conflicts, a newer commit, ...) the task stays in `awaitingReview` and
-  /// the reason is thrown back to the panel. Also wakes the agent's daemon
-  /// so it removes the task's worktree.
-  Future<Task> acceptTask(Session session, int taskId) async {
+  /// repo has no CI, or they can't be read), read fresh from GitHub rather
+  /// than trusted from the last poll, no fix run is queued, and only that
+  /// exact commit. With [force] the dev overrides the checks (e.g. a flaky
+  /// or non-required job) — GitHub's branch protection still applies. If
+  /// GitHub refuses the merge (conflicts, a newer commit, a required check,
+  /// ...) the task stays in `awaitingReview` and the reason is thrown back
+  /// to the panel. Also wakes the agent's daemon so it removes the task's
+  /// worktree.
+  Future<Task> acceptTask(
+    Session session,
+    int taskId, {
+    bool force = false,
+  }) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.awaitingReview) {
       throw InvalidStateException(
@@ -177,15 +184,31 @@ class TaskEndpoint extends Endpoint {
     await requireNoActiveReview(session, taskId);
 
     final context = await repoContextFor(session, taskId);
-    task = await syncChecks(session, task, context: context);
-    final blocked = mergeBlockedReason(
-      task,
-      await PrCheckRun.db.find(
-        session,
-        where: (r) => r.taskId.equals(taskId),
-      ),
-    );
-    if (blocked != null) throw InvalidStateException(message: blocked);
+    // The merge is pinned to the head commit the sync just read; a stale one
+    // from an earlier poll would make GitHub refuse a forced merge.
+    var synced = true;
+    if (force) {
+      try {
+        await syncChecks(session, task, context: context);
+      } catch (e) {
+        synced = false;
+        session.log(
+          'Syncing CI checks before a forced merge of task $taskId failed: $e',
+          level: LogLevel.warning,
+        );
+      }
+    } else {
+      task = await syncChecks(session, task, context: context);
+      final blocked = mergeBlockedReason(
+        task,
+        await PrCheckRun.db.find(
+          session,
+          where: (r) => r.taskId.equals(taskId),
+        ),
+        fixRunQueued: await hasQueuedFixRun(session, task),
+      );
+      if (blocked != null) throw InvalidStateException(message: blocked);
+    }
     // Re-read: the sync wrote only its own columns.
     task = await _requireTask(session, taskId);
 
@@ -194,7 +217,7 @@ class TaskEndpoint extends Endpoint {
         prUrl: context.prUrl,
         token: context.token,
         commitTitle: 'Roundtable task #$taskId',
-        sha: task.prHeadSha,
+        sha: synced ? task.prHeadSha : null,
       );
     } on GitHubException catch (e) {
       if (e.statusCode == 405 || e.statusCode == 409) {

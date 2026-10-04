@@ -81,9 +81,12 @@ class TaskDeleteRequested extends TaskDetailEvent {
 }
 
 class TaskAccepted extends TaskDetailEvent {
-  const TaskAccepted(this.taskId);
+  const TaskAccepted(this.taskId, {this.force = false});
 
   final int taskId;
+
+  /// Merge even though the CI checks are pending or failing.
+  final bool force;
 }
 
 class ConflictsResolveRequested extends TaskDetailEvent {
@@ -927,7 +930,10 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     TaskAccepted event,
     Emitter<TaskDetailState> emit,
   ) async {
-    await _reviewAction(emit, () => _repository.acceptTask(event.taskId));
+    await _reviewAction(
+      emit,
+      () => _repository.acceptTask(event.taskId, force: event.force),
+    );
     // A refused merge is most often a conflict — re-check so the button
     // switches to "Resolve conflicts".
     final latest = state;
