@@ -54,7 +54,7 @@ Both failure paths, plus `MachineEndpoint.reportStartup`, go through
 | Endpoint | Panel-facing | Runner-facing |
 |---|---|---|
 | `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage only), `updateRepoAccessToken` (write-only token), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
-| `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` |
+| `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"), `reportMetric`, `reportClaudeStatus`, `deregister` (uninstall: deletes the machine, or marks it offline + revokes the token if unfinished tasks block that) |
 | `AgentEndpoint` | `create/get/list`, `update` (name/role/model/effort only), `delete` (blocked by non-terminal tasks) | `setStatus` (`idle`/`busy`/`waitingForResponse`) |
 | `TaskEndpoint` | `createTask`, `cancelTask`, `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `acceptTask` (squash-merge), `getMergeStatus`, `resolveConflicts`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
 | `CodeReviewEndpoint` | `requestReview`, `watchReviews`, `setCommentState`, `sendCommentsToFix` | `watchAssignedReviews`, `startReview`, `completeReview`, `failReview` |
@@ -188,7 +188,8 @@ Design choices worth keeping:
 
 - **Machine ↔ server:** `register` generates a random token and stores only
   its hash. Runner-facing `MachineEndpoint` methods look up the machine by
-  token. `deregister` clears the hash.
+  token. `deregister` deletes the machine (or clears the hash if unfinished
+  tasks still block deletion).
 - **Panel ↔ server: no authentication.** Serverpod's email IdP is initialized
   in `server.dart` and `client.dart`, but no endpoint calls `requireLogin` and
   the panel has no sign-in screen. Anyone who can reach the API can do

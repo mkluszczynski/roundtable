@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # Stops and removes the roundtable agent-runner daemon installed by
-# install-agent.sh, and asks the server to revoke this machine's token so
-# its status flips to offline immediately instead of waiting for the
-# heartbeat timeout. See docs/FLOWS.md §1–3.
+# install-agent.sh, and tells the server this machine was uninstalled so it
+# removes the machine from the panel right away (or, if its agents still have
+# unfinished tasks, marks it offline and revokes its token). See
+# docs/FLOWS.md §3.
 #
 # Usage:
 #   ./scripts/uninstall-agent.sh [--server <URL>] [--token <TOKEN>]
@@ -105,7 +106,7 @@ systemctl daemon-reload
 
 echo
 if [[ "$DEREGISTERED" == true ]]; then
-  echo "agent-runner uninstalled; server-side deregistration succeeded."
+  echo "agent-runner uninstalled; the machine was removed from the panel (or marked offline if its agents still have unfinished tasks)."
 else
   echo "agent-runner uninstalled locally; server-side deregistration was skipped or failed (see warning above)."
 fi
