@@ -222,7 +222,7 @@ class TaskDetailScreen extends StatelessWidget {
 }
 
 /// What the main area shows — picked from the rail's navigation.
-enum _TaskSection { overview, changes, review, logs }
+enum _TaskSection { overview, plan, changes, review, logs }
 
 bool _isLive(TaskStatus s) =>
     s == TaskStatus.planning || s == TaskStatus.running;
@@ -240,11 +240,22 @@ _TaskSection _defaultSectionFor(TaskStatus s) {
 
 /// Overview only exists while the status has its own content (question,
 /// plan, failure…) — live tasks have the log, PR tasks have Changes/Review.
-Set<_TaskSection> _availableSectionsFor(TaskStatus s) => {
-  if (!_isLive(s) && !_hasPullRequestViews(s)) _TaskSection.overview,
-  if (_hasPullRequestViews(s)) ...{_TaskSection.changes, _TaskSection.review},
-  _TaskSection.logs,
-};
+/// Plan stays reachable as a read-only tab once there is one, so the dev can
+/// switch back to it after leaving `planReady` — except right on
+/// `planReady` itself, where Overview already shows it with approve/feedback.
+Set<_TaskSection> _availableSectionsFor(Task task) {
+  final s = task.status;
+  return {
+    if (!_isLive(s) && !_hasPullRequestViews(s)) _TaskSection.overview,
+    if (task.currentPlan != null && s != TaskStatus.planReady)
+      _TaskSection.plan,
+    if (_hasPullRequestViews(s)) ...{
+      _TaskSection.changes,
+      _TaskSection.review,
+    },
+    _TaskSection.logs,
+  };
+}
 
 extension _TaskDetailLoadedX on TaskDetailLoaded {
   bool get inReview => task.status == TaskStatus.awaitingReview;
@@ -320,7 +331,7 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
     final status = state.task.status;
     final picked = _section;
     final section =
-        picked != null && _availableSectionsFor(status).contains(picked)
+        picked != null && _availableSectionsFor(state.task).contains(picked)
         ? picked
         : _defaultSectionFor(status);
     return Column(
@@ -600,7 +611,7 @@ class _RailNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available = _availableSectionsFor(state.task.status);
+    final available = _availableSectionsFor(state.task);
     final files = state.files;
     final openComments = state.openCommentCount;
     return RailSection(
@@ -612,6 +623,7 @@ class _RailNav extends StatelessWidget {
               RailNavItem(
                 icon: switch (s) {
                   _TaskSection.overview => Icons.dashboard_outlined,
+                  _TaskSection.plan => Icons.checklist_outlined,
                   _TaskSection.changes => Icons.difference_outlined,
                   _TaskSection.review => Icons.rate_review_outlined,
                   _TaskSection.logs => Icons.terminal,
@@ -622,6 +634,7 @@ class _RailNav extends StatelessWidget {
                     TaskStatus.planReady => 'Plan',
                     _ => 'Details',
                   },
+                  _TaskSection.plan => 'Plan',
                   _TaskSection.changes => 'Changes',
                   _TaskSection.review => 'AI review',
                   _TaskSection.logs => 'Logs',
@@ -823,6 +836,7 @@ class _SectionContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (section) {
       _TaskSection.overview => _Overview(state: state),
+      _TaskSection.plan => _PlanView(state: state),
       _TaskSection.changes => _ChangesView(state: state),
       _TaskSection.review => _ReviewView(
         state: state,
@@ -1113,7 +1127,7 @@ class _PlanReview extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          AppCard(child: PlanContent(markdown: task.currentPlan ?? '')),
+          _PlanContentCard(markdown: task.currentPlan ?? ''),
           const SizedBox(height: Spacing.xl),
           _FeedbackRow(
             hint: 'Ask for changes to the plan…',
@@ -1136,6 +1150,31 @@ class _PlanReview extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The plan, reachable as a read-only tab after it's been approved — lets
+/// the dev switch over to the log/diff and still come back to re-read it.
+class _PlanView extends StatelessWidget {
+  const _PlanView({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: _PlanContentCard(markdown: state.task.currentPlan ?? ''),
+    );
+  }
+}
+
+class _PlanContentCard extends StatelessWidget {
+  const _PlanContentCard({required this.markdown});
+
+  final String markdown;
+
+  @override
+  Widget build(BuildContext context) =>
+      AppCard(child: PlanContent(markdown: markdown));
 }
 
 class _LiveExecution extends StatelessWidget {
