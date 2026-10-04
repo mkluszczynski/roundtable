@@ -11,6 +11,7 @@ import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/code_language.dart';
+import '../utils/follow_up_prompt.dart';
 import '../utils/question_context.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
@@ -20,6 +21,7 @@ import '../widgets/agent_avatar.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
+import '../widgets/create_task_dialog.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
 import '../widgets/rail_nav_item.dart';
@@ -783,6 +785,19 @@ class _RailActions extends StatelessWidget {
               : () => bloc.add(TaskCancelled(task.id!)),
           icon: const Icon(Icons.stop_circle_outlined, size: 16),
           label: const Text('Cancel task'),
+        ),
+      if (task.status == TaskStatus.done)
+        OutlinedButton.icon(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => CreateTaskDialog(
+              initialProjectId: task.projectId,
+              initialAgentId: task.agentId,
+              initialPrompt: followUpPrompt(task),
+            ),
+          ),
+          icon: const Icon(Icons.add_task, size: 16),
+          label: const Text('Follow-up task'),
         ),
       if (_deletableStatuses.contains(task.status))
         OutlinedButton.icon(

@@ -20,12 +20,22 @@ import 'attachment_thumbnail.dart';
 import 'app_modal.dart';
 
 class CreateTaskDialog extends StatelessWidget {
-  const CreateTaskDialog({super.key, this.initialProjectId});
+  const CreateTaskDialog({
+    super.key,
+    this.initialProjectId,
+    this.initialAgentId,
+    this.initialPrompt,
+  });
 
   /// When set (opened from `project_detail_screen.dart`'s "New task"), the
   /// project is fixed and its picker is hidden — same pattern as
   /// `AddAgentDialog`'s scoped machine.
   final int? initialProjectId;
+  final int? initialAgentId;
+
+  /// Prefilled prompt, e.g. a follow-up with the previous task as context;
+  /// the cursor starts at its beginning.
+  final String? initialPrompt;
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +47,25 @@ class CreateTaskDialog extends StatelessWidget {
         ),
         BlocProvider(create: (_) => CreateTaskCubit(TaskRepository(client))),
       ],
-      child: _CreateTaskDialogContent(initialProjectId: initialProjectId),
+      child: _CreateTaskDialogContent(
+        initialProjectId: initialProjectId,
+        initialAgentId: initialAgentId,
+        initialPrompt: initialPrompt,
+      ),
     );
   }
 }
 
 class _CreateTaskDialogContent extends StatefulWidget {
-  const _CreateTaskDialogContent({this.initialProjectId});
+  const _CreateTaskDialogContent({
+    this.initialProjectId,
+    this.initialAgentId,
+    this.initialPrompt,
+  });
 
   final int? initialProjectId;
+  final int? initialAgentId;
+  final String? initialPrompt;
 
   @override
   State<_CreateTaskDialogContent> createState() =>
@@ -53,9 +73,11 @@ class _CreateTaskDialogContent extends StatefulWidget {
 }
 
 class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
-  final _promptController = TextEditingController();
+  late final _promptController = TextEditingController(
+    text: widget.initialPrompt,
+  )..selection = const TextSelection.collapsed(offset: 0);
   late int? _projectId = widget.initialProjectId;
-  int? _agentId;
+  late int? _agentId = widget.initialAgentId;
   bool _skipPlanning = false;
 
   late final _attachments = AttachmentRepository(client);
@@ -246,6 +268,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                 const SizedBox(height: Spacing.sm),
                 TextField(
                   controller: _promptController,
+                  // A prefilled follow-up starts with the cursor in place.
+                  autofocus: widget.initialPrompt != null,
                   decoration: const InputDecoration(
                     hintText:
                         'What should the agent do? Be as specific as you '
