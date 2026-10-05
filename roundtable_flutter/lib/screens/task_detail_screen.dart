@@ -13,6 +13,7 @@ import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/code_language.dart';
 import '../utils/follow_up_prompt.dart';
+import '../widgets/copy_icon_button.dart';
 import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
 import '../utils/task_status_label.dart';
@@ -566,6 +567,10 @@ class _InfoRail extends StatelessWidget {
                 ),
                 RailSection(
                   label: 'Prompt',
+                  trailing: CopyIconButton(
+                    text: task.prompt,
+                    tooltip: 'Copy prompt',
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -576,7 +581,10 @@ class _InfoRail extends StatelessWidget {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(Spacing.md),
-                          child: Text(task.prompt, style: AppTypography.body),
+                          child: SelectableText(
+                            task.prompt,
+                            style: AppTypography.body,
+                          ),
                         ),
                       ),
                       TaskAttachmentsView(

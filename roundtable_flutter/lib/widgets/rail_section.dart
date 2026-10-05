@@ -5,10 +5,18 @@ import '../theme/typography.dart';
 
 /// A labelled block in a detail screen's side rail (task, project).
 class RailSection extends StatelessWidget {
-  const RailSection({super.key, required this.label, required this.child});
+  const RailSection({
+    super.key,
+    required this.label,
+    required this.child,
+    this.trailing,
+  });
 
   final String label;
   final Widget child;
+
+  /// A small action next to the label, e.g. a copy button.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +25,17 @@ class RailSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: AppTypography.label),
+          if (trailing == null)
+            Text(label.toUpperCase(), style: AppTypography.label)
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label.toUpperCase(), style: AppTypography.label),
+                ),
+                trailing!,
+              ],
+            ),
           const SizedBox(height: Spacing.sm),
           child,
         ],
