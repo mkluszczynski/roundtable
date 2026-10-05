@@ -13,6 +13,27 @@ fields:
   prompt: String
   ### Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   skipPlanning: bool, default=false
+  ### Queue an AI code review by [reviewerAgent] every time a run leaves the
+  ### task awaiting review with a PR.
+  autoReview: bool, default=false
+  ### The agent that reviews this task's PR: picked up front, used by auto
+  ### review and pre-selected when the dev requests one by hand.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### After each AI review, send its open blocker/issue comments to the
+  ### agent without waiting for the dev — up to [maxReviewFixRounds] times.
+  autoFixReview: bool, default=false
+  maxReviewFixRounds: int, default=2
+  ### Review rounds auto fix has sent so far; caps the review ↔ fix loop.
+  reviewFixRounds: int, default=0
+  ### Squash-merge the PR without the dev once it's ready: CI green (or no
+  ### CI), no review or fix run in flight, and — with [autoReview] — the
+  ### latest version reviewed with no open blockers or issues. Turned off
+  ### if GitHub refuses the merge, so the dev takes over.
+  autoMerge: bool, default=false
+  ### Send failing CI checks to the agent without waiting for the dev —
+  ### once per commit, at most [maxCheckFixAttempts] times until they pass.
+  autoFixFailingChecks: bool, default=false
+  maxCheckFixAttempts: int, default=2
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?
@@ -23,10 +44,38 @@ fields:
   ### when the agent finished without changing code, e.g. it answered a
   ### question or found nothing to change.
   resultSummary: String?
+  ### Set while `paused`: when the usage limit resets and the task resumes.
+  pausedUntil: DateTime?
+  ### The limit message shown while paused, e.g. "You've hit your session
+  ### limit · resets 12:40am".
+  pauseReason: String?
+  ### Which kind of run was interrupted, so the resume continues the same
+  ### session the same way (planning keeps plan mode). Cleared by the
+  ### daemon once the resumed run starts.
+  pausedPhase: LogPhase?
   ### Claude Code session id, for --resume on feedback.
   claudeSessionId: String?
   branchName: String?
   prUrl: String?
+  ### The PR's head commit the CI checks ([checkState], `PrCheckRun`) belong
+  ### to. A new commit (a fix run, a manual push) resets the checks.
+  prHeadSha: String?
+  ### When [prHeadSha] was first seen — a new commit's workflows get a grace
+  ### period to show up before "no CI" counts as mergeable.
+  prHeadSeenAt: DateTime?
+  ### Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
+  ### merges on `success` (or `none` after the grace period).
+  checkState: PrCheckState, default=none
+  ### Why the checks can't be read (e.g. a token without "Actions: Read"),
+  ### in which case [checkState] stays `none` and GitHub's own branch
+  ### protection decides whether the PR can merge.
+  checkError: String?
+  ### Fix runs sent for failing checks since they last passed — caps the
+  ### task's auto-fix ([maxCheckFixAttempts]).
+  checkFixAttempts: int, default=0
+  ### The head commit whose failing checks were last sent to the agent, so
+  ### the same failure is never auto-sent twice.
+  checkFixSentForSha: String?
   createdAt: DateTime, default=now
   startedAt: DateTime?
   finishedAt: DateTime?

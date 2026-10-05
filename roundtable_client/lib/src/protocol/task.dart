@@ -13,6 +13,8 @@
 import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent.dart' as _ijo8h3v4;
+import 'log_phase.dart' as _iv8oofn2;
+import 'pr_check_state.dart' as _ivypql97;
 import 'project.dart' as _ifiazq2p;
 import 'task_attachment.dart' as _isyamz65;
 import 'task_feedback.dart' as _i5hi2zxr;
@@ -31,13 +33,31 @@ abstract class Task
     this.agent,
     required this.prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
     this.resultSummary,
+    this.pausedUntil,
+    this.pauseReason,
+    this.pausedPhase,
     this.claudeSessionId,
     this.branchName,
     this.prUrl,
+    this.prHeadSha,
+    this.prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    this.checkError,
+    int? checkFixAttempts,
+    this.checkFixSentForSha,
     DateTime? createdAt,
     this.startedAt,
     this.finishedAt,
@@ -47,7 +67,16 @@ abstract class Task
     this.questions,
     this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
+       autoReview = autoReview ?? false,
+       autoFixReview = autoFixReview ?? false,
+       maxReviewFixRounds = maxReviewFixRounds ?? 2,
+       reviewFixRounds = reviewFixRounds ?? 0,
+       autoMerge = autoMerge ?? false,
+       autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
        status = status ?? _ic097rko.TaskStatus.queued,
+       checkState = checkState ?? _ivypql97.PrCheckState.none,
+       checkFixAttempts = checkFixAttempts ?? 0,
        createdAt = createdAt ?? DateTime.now(),
        lastProgressAt = lastProgressAt ?? DateTime.now();
 
@@ -59,13 +88,31 @@ abstract class Task
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -95,6 +142,29 @@ abstract class Task
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -103,9 +173,34 @@ abstract class Task
       currentPlan: jsonSerialization['currentPlan'] as String?,
       failureReason: jsonSerialization['failureReason'] as String?,
       resultSummary: jsonSerialization['resultSummary'] as String?,
+      pausedUntil: jsonSerialization['pausedUntil'] == null
+          ? null
+          : _isc.DateTimeJsonExtension.fromJson(
+              jsonSerialization['pausedUntil'],
+            ),
+      pauseReason: jsonSerialization['pauseReason'] as String?,
+      pausedPhase: jsonSerialization['pausedPhase'] == null
+          ? null
+          : _iv8oofn2.LogPhase.fromJson(
+              (jsonSerialization['pausedPhase'] as String),
+            ),
       claudeSessionId: jsonSerialization['claudeSessionId'] as String?,
       branchName: jsonSerialization['branchName'] as String?,
       prUrl: jsonSerialization['prUrl'] as String?,
+      prHeadSha: jsonSerialization['prHeadSha'] as String?,
+      prHeadSeenAt: jsonSerialization['prHeadSeenAt'] == null
+          ? null
+          : _isc.DateTimeJsonExtension.fromJson(
+              jsonSerialization['prHeadSeenAt'],
+            ),
+      checkState: jsonSerialization['checkState'] == null
+          ? null
+          : _ivypql97.PrCheckState.fromJson(
+              (jsonSerialization['checkState'] as String),
+            ),
+      checkError: jsonSerialization['checkError'] as String?,
+      checkFixAttempts: jsonSerialization['checkFixAttempts'] as int?,
+      checkFixSentForSha: jsonSerialization['checkFixSentForSha'] as String?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -169,6 +264,37 @@ abstract class Task
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   bool skipPlanning;
 
+  /// Queue an AI code review by [reviewerAgent] every time a run leaves the
+  /// task awaiting review with a PR.
+  bool autoReview;
+
+  int? reviewerAgentId;
+
+  /// The agent that reviews this task's PR: picked up front, used by auto
+  /// review and pre-selected when the dev requests one by hand.
+  _ijo8h3v4.Agent? reviewerAgent;
+
+  /// After each AI review, send its open blocker/issue comments to the
+  /// agent without waiting for the dev — up to [maxReviewFixRounds] times.
+  bool autoFixReview;
+
+  int maxReviewFixRounds;
+
+  /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
+  int reviewFixRounds;
+
+  /// Squash-merge the PR without the dev once it's ready: CI green (or no
+  /// CI), no review or fix run in flight, and — with [autoReview] — the
+  /// latest version reviewed with no open blockers or issues. Turned off
+  /// if GitHub refuses the merge, so the dev takes over.
+  bool autoMerge;
+
+  /// Send failing CI checks to the agent without waiting for the dev —
+  /// once per commit, at most [maxCheckFixAttempts] times until they pass.
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -183,12 +309,49 @@ abstract class Task
   /// question or found nothing to change.
   String? resultSummary;
 
+  /// Set while `paused`: when the usage limit resets and the task resumes.
+  DateTime? pausedUntil;
+
+  /// The limit message shown while paused, e.g. "You've hit your session
+  /// limit · resets 12:40am".
+  String? pauseReason;
+
+  /// Which kind of run was interrupted, so the resume continues the same
+  /// session the same way (planning keeps plan mode). Cleared by the
+  /// daemon once the resumed run starts.
+  _iv8oofn2.LogPhase? pausedPhase;
+
   /// Claude Code session id, for --resume on feedback.
   String? claudeSessionId;
 
   String? branchName;
 
   String? prUrl;
+
+  /// The PR's head commit the CI checks ([checkState], `PrCheckRun`) belong
+  /// to. A new commit (a fix run, a manual push) resets the checks.
+  String? prHeadSha;
+
+  /// When [prHeadSha] was first seen — a new commit's workflows get a grace
+  /// period to show up before "no CI" counts as mergeable.
+  DateTime? prHeadSeenAt;
+
+  /// Aggregated GitHub Actions result for [prHeadSha]; `acceptTask` only
+  /// merges on `success` (or `none` after the grace period).
+  _ivypql97.PrCheckState checkState;
+
+  /// Why the checks can't be read (e.g. a token without "Actions: Read"),
+  /// in which case [checkState] stays `none` and GitHub's own branch
+  /// protection decides whether the PR can merge.
+  String? checkError;
+
+  /// Fix runs sent for failing checks since they last passed — caps the
+  /// task's auto-fix ([maxCheckFixAttempts]).
+  int checkFixAttempts;
+
+  /// The head commit whose failing checks were last sent to the agent, so
+  /// the same failure is never auto-sent twice.
+  String? checkFixSentForSha;
 
   DateTime createdAt;
 
@@ -219,13 +382,31 @@ abstract class Task
     _ijo8h3v4.Agent? agent,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -246,13 +427,31 @@ abstract class Task
       if (agent != null) 'agent': agent?.toJson(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
+      'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
       if (resultSummary != null) 'resultSummary': resultSummary,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
+      if (pausedPhase != null) 'pausedPhase': pausedPhase?.toJson(),
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
+      if (prHeadSha != null) 'prHeadSha': prHeadSha,
+      if (prHeadSeenAt != null) 'prHeadSeenAt': prHeadSeenAt?.toJson(),
+      'checkState': checkState.toJson(),
+      if (checkError != null) 'checkError': checkError,
+      'checkFixAttempts': checkFixAttempts,
+      if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -278,13 +477,32 @@ abstract class Task
       if (agent != null) 'agent': agent?.toJsonForProtocol(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
+      'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
       if (resultSummary != null) 'resultSummary': resultSummary,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
+      if (pausedPhase != null) 'pausedPhase': pausedPhase?.toJson(),
       if (claudeSessionId != null) 'claudeSessionId': claudeSessionId,
       if (branchName != null) 'branchName': branchName,
       if (prUrl != null) 'prUrl': prUrl,
+      if (prHeadSha != null) 'prHeadSha': prHeadSha,
+      if (prHeadSeenAt != null) 'prHeadSeenAt': prHeadSeenAt?.toJson(),
+      'checkState': checkState.toJson(),
+      if (checkError != null) 'checkError': checkError,
+      'checkFixAttempts': checkFixAttempts,
+      if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -321,13 +539,31 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
     String? resultSummary,
+    DateTime? pausedUntil,
+    String? pauseReason,
+    _iv8oofn2.LogPhase? pausedPhase,
     String? claudeSessionId,
     String? branchName,
     String? prUrl,
+    String? prHeadSha,
+    DateTime? prHeadSeenAt,
+    _ivypql97.PrCheckState? checkState,
+    String? checkError,
+    int? checkFixAttempts,
+    String? checkFixSentForSha,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -344,13 +580,31 @@ class _TaskImpl extends Task {
          agent: agent,
          prompt: prompt,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
+         reviewFixRounds: reviewFixRounds,
+         autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
          resultSummary: resultSummary,
+         pausedUntil: pausedUntil,
+         pauseReason: pauseReason,
+         pausedPhase: pausedPhase,
          claudeSessionId: claudeSessionId,
          branchName: branchName,
          prUrl: prUrl,
+         prHeadSha: prHeadSha,
+         prHeadSeenAt: prHeadSeenAt,
+         checkState: checkState,
+         checkError: checkError,
+         checkFixAttempts: checkFixAttempts,
+         checkFixSentForSha: checkFixSentForSha,
          createdAt: createdAt,
          startedAt: startedAt,
          finishedAt: finishedAt,
@@ -373,13 +627,31 @@ class _TaskImpl extends Task {
     Object? agent = _Undefined,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
     Object? resultSummary = _Undefined,
+    Object? pausedUntil = _Undefined,
+    Object? pauseReason = _Undefined,
+    Object? pausedPhase = _Undefined,
     Object? claudeSessionId = _Undefined,
     Object? branchName = _Undefined,
     Object? prUrl = _Undefined,
+    Object? prHeadSha = _Undefined,
+    Object? prHeadSeenAt = _Undefined,
+    _ivypql97.PrCheckState? checkState,
+    Object? checkError = _Undefined,
+    int? checkFixAttempts,
+    Object? checkFixSentForSha = _Undefined,
     DateTime? createdAt,
     Object? startedAt = _Undefined,
     Object? finishedAt = _Undefined,
@@ -399,6 +671,19 @@ class _TaskImpl extends Task {
       agent: agent is _ijo8h3v4.Agent? ? agent : this.agent?.copyWith(),
       prompt: prompt ?? this.prompt,
       skipPlanning: skipPlanning ?? this.skipPlanning,
+      autoReview: autoReview ?? this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview ?? this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -407,11 +692,26 @@ class _TaskImpl extends Task {
       resultSummary: resultSummary is String?
           ? resultSummary
           : this.resultSummary,
+      pausedUntil: pausedUntil is DateTime? ? pausedUntil : this.pausedUntil,
+      pauseReason: pauseReason is String? ? pauseReason : this.pauseReason,
+      pausedPhase: pausedPhase is _iv8oofn2.LogPhase?
+          ? pausedPhase
+          : this.pausedPhase,
       claudeSessionId: claudeSessionId is String?
           ? claudeSessionId
           : this.claudeSessionId,
       branchName: branchName is String? ? branchName : this.branchName,
       prUrl: prUrl is String? ? prUrl : this.prUrl,
+      prHeadSha: prHeadSha is String? ? prHeadSha : this.prHeadSha,
+      prHeadSeenAt: prHeadSeenAt is DateTime?
+          ? prHeadSeenAt
+          : this.prHeadSeenAt,
+      checkState: checkState ?? this.checkState,
+      checkError: checkError is String? ? checkError : this.checkError,
+      checkFixAttempts: checkFixAttempts ?? this.checkFixAttempts,
+      checkFixSentForSha: checkFixSentForSha is String?
+          ? checkFixSentForSha
+          : this.checkFixSentForSha,
       createdAt: createdAt ?? this.createdAt,
       startedAt: startedAt is DateTime? ? startedAt : this.startedAt,
       finishedAt: finishedAt is DateTime? ? finishedAt : this.finishedAt,

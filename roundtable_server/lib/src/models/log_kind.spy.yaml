@@ -14,3 +14,6 @@ values:
   - runStarted
   ### A run ended; `isError` tells success from failure.
   - runFinished
+  ### Something the runner did around the run, e.g. pushed commits and
+  ### opened the PR, or finished without code changes.
+  - event

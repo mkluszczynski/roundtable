@@ -34,7 +34,12 @@ class MachineOfflineFutureCall extends FutureCall {
       final staleTasks = await Task.db.find(
         session,
         where: (t) =>
-            t.agentId.inSet(agentIds) & t.status.inSet(nonTerminalTaskStatuses),
+            t.agentId.inSet(agentIds) &
+            // A paused task has no live process to lose; it resumes once
+            // the machine is back.
+            t.status.inSet(
+              nonTerminalTaskStatuses.difference({TaskStatus.paused}),
+            ),
       );
       await failTasks(session, staleTasks, 'Machine went offline mid-task');
     }

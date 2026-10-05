@@ -7,9 +7,6 @@ import '../task_review_support.dart';
 /// AI code review of a task's PR: a reviewer agent leaves comments, the dev
 /// triages them and sends the ones worth fixing back to the task's agent.
 class CodeReviewEndpoint extends Endpoint {
-  static String _channelForMachine(int machineId) =>
-      'machine-$machineId-reviews';
-
   /// Queues a review of [taskId]'s PR by [agentId]. The reviewer's daemon
   /// picks it up via [watchAssignedReviews].
   Future<CodeReview> requestReview(
@@ -35,15 +32,7 @@ class CodeReviewEndpoint extends Endpoint {
       throw InvalidStateException(message: '${agent.name} is busy');
     }
 
-    var review = await CodeReview.db.insertRow(
-      session,
-      CodeReview(taskId: taskId, reviewerAgentId: agentId),
-    );
-    await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
-      review,
-    );
-    return postReviewChanged(session, review.id!);
+    return queueCodeReview(session, task, agent);
   }
 
   /// Streams reviews assigned to agents hosted on [machineId], for the
@@ -70,7 +59,7 @@ class CodeReviewEndpoint extends Endpoint {
     }
 
     var updates = session.messages.createStream<CodeReview>(
-      _channelForMachine(machineId),
+      reviewChannelForMachine(machineId),
     );
     await for (var review in updates) {
       yield review;
@@ -161,7 +150,9 @@ class CodeReviewEndpoint extends Endpoint {
       ),
     );
     await _setReviewerStatus(session, review, AgentStatus.idle);
-    return postReviewChanged(session, reviewId);
+    final posted = await postReviewChanged(session, reviewId);
+    await autoFixReviewIfEnabled(session, review.taskId, comments);
+    return posted;
   }
 
   /// Called by the daemon when the review run couldn't produce findings.
@@ -263,48 +254,7 @@ class CodeReviewEndpoint extends Endpoint {
           c.id.inSet(commentIds.toSet()) & c.reviewId.inSet(reviewIds),
       orderBy: (c) => c.id,
     );
-    var trimmedNote = note?.trim() ?? '';
-    if (comments.isEmpty && trimmedNote.isEmpty) {
-      throw InvalidStateException(
-        message: 'Nothing to send: pick at least one comment',
-      );
-    }
-
-    var message = StringBuffer();
-    if (trimmedNote.isNotEmpty) {
-      message.writeln(trimmedNote);
-    }
-    if (comments.isNotEmpty) {
-      if (message.isNotEmpty) message.writeln();
-      message.writeln('Address these code review comments:');
-      for (var i = 0; i < comments.length; i++) {
-        var c = comments[i];
-        var location = c.line == null ? c.path : '${c.path}:${c.line}';
-        message.writeln('${i + 1}. $location [${c.severity.name}] ${c.body}');
-      }
-    }
-
-    var feedback = await queueReviewFeedback(
-      session,
-      task,
-      message.toString().trim(),
-      alsoWrite: comments.isEmpty
-          ? null
-          : (transaction) => ReviewComment.db.update(
-              session,
-              [
-                for (var c in comments)
-                  c.copyWith(state: ReviewCommentState.sentToFix),
-              ],
-              columns: (c) => [c.state],
-              transaction: transaction,
-            ),
-    );
-
-    for (var reviewId in comments.map((c) => c.reviewId).toSet()) {
-      await postReviewChanged(session, reviewId);
-    }
-    return feedback;
+    return sendCommentsToAgent(session, task, comments, note);
   }
 
   Future<CodeReview> _requireReview(Session session, int reviewId) async {

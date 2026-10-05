@@ -13,6 +13,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
+import 'agent.dart' as _ijo8h3v4;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -25,6 +26,15 @@ abstract class Project
     this.repoAccessToken,
     this.repoAccessTokenUpdatedAt,
     this.dockerImage,
+    this.autoFixFailingChecks,
+    this.maxCheckFixAttempts,
+    this.skipPlanning,
+    this.autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
+    this.autoFixReview,
+    this.maxReviewFixRounds,
+    this.autoMerge,
     DateTime? createdAt,
     this.tasks,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -36,6 +46,15 @@ abstract class Project
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -53,6 +72,31 @@ abstract class Project
               jsonSerialization['repoAccessTokenUpdatedAt'],
             ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      skipPlanning: jsonSerialization['skipPlanning'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -86,6 +130,31 @@ abstract class Project
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  /// inherits WorkspaceSettings.
+  bool? autoFixFailingChecks;
+
+  int? maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  bool? skipPlanning;
+
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  bool? autoReview;
+
+  int? reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.Agent? reviewerAgent;
+
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  bool? autoFixReview;
+
+  int? maxReviewFixRounds;
+
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  bool? autoMerge;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -103,6 +172,15 @@ abstract class Project
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -117,6 +195,17 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -132,14 +221,32 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
     };
   }
 
-  static ProjectInclude include({_iwn6t6fs.TaskIncludeList? tasks}) {
-    return ProjectInclude._(tasks: tasks);
+  static ProjectInclude include({
+    _ijo8h3v4.AgentInclude? reviewerAgent,
+    _iwn6t6fs.TaskIncludeList? tasks,
+  }) {
+    return ProjectInclude._(
+      reviewerAgent: reviewerAgent,
+      tasks: tasks,
+    );
   }
 
   static ProjectIncludeList includeList({
@@ -176,6 +283,15 @@ class _ProjectImpl extends Project {
     String? repoAccessToken,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -185,6 +301,15 @@ class _ProjectImpl extends Project {
          repoAccessToken: repoAccessToken,
          repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
+         skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -200,6 +325,15 @@ class _ProjectImpl extends Project {
     Object? repoAccessToken = _Undefined,
     Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
+    Object? autoFixFailingChecks = _Undefined,
+    Object? maxCheckFixAttempts = _Undefined,
+    Object? skipPlanning = _Undefined,
+    Object? autoReview = _Undefined,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
+    Object? autoFixReview = _Undefined,
+    Object? maxReviewFixRounds = _Undefined,
+    Object? autoMerge = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -214,6 +348,27 @@ class _ProjectImpl extends Project {
           ? repoAccessTokenUpdatedAt
           : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
+      autoFixFailingChecks: autoFixFailingChecks is bool?
+          ? autoFixFailingChecks
+          : this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts is int?
+          ? maxCheckFixAttempts
+          : this.maxCheckFixAttempts,
+      skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
+      autoReview: autoReview is bool? ? autoReview : this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview is bool?
+          ? autoFixReview
+          : this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds is int?
+          ? maxReviewFixRounds
+          : this.maxReviewFixRounds,
+      autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -253,6 +408,47 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool? value) =>
+      _is.ColumnValue(
+        table.autoFixFailingChecks,
+        value,
+      );
+
+  _is.ColumnValue<int, int> maxCheckFixAttempts(int? value) => _is.ColumnValue(
+    table.maxCheckFixAttempts,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> skipPlanning(bool? value) => _is.ColumnValue(
+    table.skipPlanning,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoReview(bool? value) => _is.ColumnValue(
+    table.autoReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
+    table.reviewerAgentId,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoFixReview(bool? value) => _is.ColumnValue(
+    table.autoFixReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> maxReviewFixRounds(int? value) => _is.ColumnValue(
+    table.maxReviewFixRounds,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoMerge(bool? value) => _is.ColumnValue(
+    table.autoMerge,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -283,6 +479,38 @@ class ProjectTable extends _is.Table<int?> {
       'dockerImage',
       this,
     );
+    autoFixFailingChecks = _is.ColumnBool(
+      'autoFixFailingChecks',
+      this,
+    );
+    maxCheckFixAttempts = _is.ColumnInt(
+      'maxCheckFixAttempts',
+      this,
+    );
+    skipPlanning = _is.ColumnBool(
+      'skipPlanning',
+      this,
+    );
+    autoReview = _is.ColumnBool(
+      'autoReview',
+      this,
+    );
+    reviewerAgentId = _is.ColumnInt(
+      'reviewerAgentId',
+      this,
+    );
+    autoFixReview = _is.ColumnBool(
+      'autoFixReview',
+      this,
+    );
+    maxReviewFixRounds = _is.ColumnInt(
+      'maxReviewFixRounds',
+      this,
+    );
+    autoMerge = _is.ColumnBool(
+      'autoMerge',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -307,11 +535,49 @@ class ProjectTable extends _is.Table<int?> {
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   late final _is.ColumnString dockerImage;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  /// inherits WorkspaceSettings.
+  late final _is.ColumnBool autoFixFailingChecks;
+
+  late final _is.ColumnInt maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  late final _is.ColumnBool skipPlanning;
+
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  late final _is.ColumnBool autoReview;
+
+  late final _is.ColumnInt reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.AgentTable? _reviewerAgent;
+
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  late final _is.ColumnBool autoFixReview;
+
+  late final _is.ColumnInt maxReviewFixRounds;
+
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  late final _is.ColumnBool autoMerge;
+
   late final _is.ColumnDateTime createdAt;
 
   _iwn6t6fs.TaskTable? ___tasks;
 
   _is.ManyRelation<_iwn6t6fs.TaskTable>? _tasks;
+
+  _ijo8h3v4.AgentTable get reviewerAgent {
+    if (_reviewerAgent != null) return _reviewerAgent!;
+    _reviewerAgent = _is.createRelationTable(
+      relationFieldName: 'reviewerAgent',
+      field: Project.t.reviewerAgentId,
+      foreignField: _ijo8h3v4.Agent.t.id,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _ijo8h3v4.AgentTable(tableRelation: foreignTableRelation),
+    );
+    return _reviewerAgent!;
+  }
 
   _iwn6t6fs.TaskTable get __tasks {
     if (___tasks != null) return ___tasks!;
@@ -353,11 +619,22 @@ class ProjectTable extends _is.Table<int?> {
     repoAccessToken,
     repoAccessTokenUpdatedAt,
     dockerImage,
+    autoFixFailingChecks,
+    maxCheckFixAttempts,
+    skipPlanning,
+    autoReview,
+    reviewerAgentId,
+    autoFixReview,
+    maxReviewFixRounds,
+    autoMerge,
     createdAt,
   ];
 
   @override
   _is.Table? getRelationTable(String relationField) {
+    if (relationField == 'reviewerAgent') {
+      return reviewerAgent;
+    }
     if (relationField == 'tasks') {
       return __tasks;
     }
@@ -366,14 +643,23 @@ class ProjectTable extends _is.Table<int?> {
 }
 
 class ProjectInclude extends _is.IncludeObject {
-  ProjectInclude._({_iwn6t6fs.TaskIncludeList? tasks}) {
+  ProjectInclude._({
+    _ijo8h3v4.AgentInclude? reviewerAgent,
+    _iwn6t6fs.TaskIncludeList? tasks,
+  }) {
+    _reviewerAgent = reviewerAgent;
     _tasks = tasks;
   }
+
+  _ijo8h3v4.AgentInclude? _reviewerAgent;
 
   _iwn6t6fs.TaskIncludeList? _tasks;
 
   @override
-  Map<String, _is.Include?> get includes => {'tasks': _tasks};
+  Map<String, _is.Include?> get includes => {
+    'reviewerAgent': _reviewerAgent,
+    'tasks': _tasks,
+  };
 
   @override
   _is.Table<int?> get table => Project.t;
@@ -404,6 +690,8 @@ class ProjectRepository {
   final attach = const ProjectAttachRepository._();
 
   final attachRow = const ProjectAttachRowRepository._();
+
+  final detachRow = const ProjectDetachRowRepository._();
 
   /// Returns a list of [Project]s matching the given query parameters.
   ///
@@ -833,6 +1121,29 @@ class ProjectAttachRepository {
 class ProjectAttachRowRepository {
   const ProjectAttachRowRepository._();
 
+  /// Creates a relation between the given [Project] and [Agent]
+  /// by setting the [Project]'s foreign key `reviewerAgentId` to refer to the [Agent].
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Project project,
+    _ijo8h3v4.Agent reviewerAgent, {
+    _is.Transaction? transaction,
+  }) async {
+    if (project.id == null) {
+      throw ArgumentError.notNull('project.id');
+    }
+    if (reviewerAgent.id == null) {
+      throw ArgumentError.notNull('reviewerAgent.id');
+    }
+
+    var $project = project.copyWith(reviewerAgentId: reviewerAgent.id);
+    await session.db.updateRow<Project>(
+      $project,
+      columns: [Project.t.reviewerAgentId],
+      transaction: transaction,
+    );
+  }
+
   /// Creates a relation between this [Project] and the given [Task]
   /// by setting the [Task]'s foreign key `projectId` to refer to this [Project].
   Future<void> tasks(
@@ -852,6 +1163,32 @@ class ProjectAttachRowRepository {
     await session.db.updateRow<_iwn6t6fs.Task>(
       $task,
       columns: [_iwn6t6fs.Task.t.projectId],
+      transaction: transaction,
+    );
+  }
+}
+
+class ProjectDetachRowRepository {
+  const ProjectDetachRowRepository._();
+
+  /// Detaches the relation between this [Project] and the [Agent] set in `reviewerAgent`
+  /// by setting the [Project]'s foreign key `reviewerAgentId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Project project, {
+    _is.Transaction? transaction,
+  }) async {
+    if (project.id == null) {
+      throw ArgumentError.notNull('project.id');
+    }
+
+    var $project = project.copyWith(reviewerAgentId: null);
+    await session.db.updateRow<Project>(
+      $project,
+      columns: [Project.t.reviewerAgentId],
       transaction: transaction,
     );
   }

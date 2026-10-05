@@ -1,0 +1,20 @@
+### Workspace-wide settings — a single row while the app is single-tenant.
+### Holds the defaults a project inherits unless it overrides them.
+class: WorkspaceSettings
+table: workspace_settings
+fields:
+  ### Default for Task.skipPlanning on new tasks.
+  skipPlanning: bool, default=false
+  ### Default for Task.autoReview on new tasks.
+  autoReview: bool, default=false
+  ### Default reviewer for new tasks.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### Defaults for Task.autoFixReview / maxReviewFixRounds.
+  autoFixReview: bool, default=false
+  maxReviewFixRounds: int, default=2
+  ### Default for Task.autoMerge on new tasks.
+  autoMerge: bool, default=false
+  ### Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts.
+  autoFixFailingChecks: bool, default=false
+  maxCheckFixAttempts: int, default=2
+  updatedAt: DateTime, default=now

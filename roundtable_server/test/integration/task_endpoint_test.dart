@@ -1,3 +1,4 @@
+import 'package:roundtable_server/src/future_calls/paused_task_resume_future_call.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
 
@@ -216,6 +217,101 @@ void main() {
         expect(stored.runId, 'task-1-1');
         expect(stored.phase, LogPhase.execution);
         expect(stored.toolUseId, 'tu_1');
+      },
+    );
+
+    test(
+      'when a task finished without code is continued then it is reopened '
+      'for the agent with the message as feedback; a task with a PR cannot be',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Analyze CI checks',
+          skipPlanning: true,
+        );
+        await endpoints.task.update(
+          sessionBuilder,
+          task.copyWith(
+            status: TaskStatus.done,
+            claudeSessionId: 'sess-1',
+            resultSummary: 'Here is the analysis.',
+          ),
+        );
+
+        final feedback = await endpoints.task.continueTask(
+          sessionBuilder,
+          task.id!,
+          ' Implement it. ',
+        );
+        final reopened = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+
+        expect(feedback.message, 'Implement it.');
+        expect(feedback.phase, TaskFeedbackPhase.review);
+        expect(reopened!.status, TaskStatus.awaitingReview);
+        expect(
+          () => endpoints.task.continueTask(sessionBuilder, task.id!, 'Again'),
+          throwsA(isA<InvalidStateException>()),
+        );
+      },
+    );
+
+    test(
+      'when the daemon pauses a task for a usage limit then it is resumed once '
+      'pausedUntil passes, or right away with resumeTask',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        Future<Task> pausedTask(DateTime until) async {
+          final task = await endpoints.task.createTask(
+            sessionBuilder,
+            project.id!,
+            agent.id!,
+            'Do something',
+            skipPlanning: true,
+          );
+          return endpoints.task.update(
+            sessionBuilder,
+            task.copyWith(
+              status: TaskStatus.paused,
+              pausedUntil: until,
+              pauseReason: 'You have hit your session limit',
+              pausedPhase: LogPhase.execution,
+              claudeSessionId: 'sess-1',
+            ),
+          );
+        }
+
+        final due = await pausedTask(
+          DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+        );
+        final later = await pausedTask(
+          DateTime.now().toUtc().add(const Duration(hours: 1)),
+        );
+        expect(due.status, TaskStatus.paused);
+        expect(due.pausedPhase, LogPhase.execution);
+
+        await PausedTaskResumeFutureCall().check(sessionBuilder.build());
+        final resumed = await Task.db.findById(sessionBuilder.build(), due.id!);
+        final stillPaused = await Task.db.findById(
+          sessionBuilder.build(),
+          later.id!,
+        );
+        expect(resumed!.status, TaskStatus.queued);
+        expect(resumed.pausedUntil, isNull);
+        expect(resumed.pausedPhase, LogPhase.execution);
+        expect(stillPaused!.status, TaskStatus.paused);
+
+        final now = await endpoints.task.resumeTask(sessionBuilder, later.id!);
+        expect(now.status, TaskStatus.queued);
       },
     );
 

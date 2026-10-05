@@ -32,7 +32,11 @@ enum TaskStatus implements _isc.SerializableModel {
   cancelled,
 
   /// created without an agent; not dispatched until one is assigned via reassignAgent
-  draft;
+  draft,
+
+  /// The agent hit its Claude usage limit; resumes the same session on its
+  /// own at `Task.pausedUntil` (or when the dev clicks Resume now).
+  paused;
 
   static TaskStatus fromJson(String name) {
     switch (name) {
@@ -58,6 +62,8 @@ enum TaskStatus implements _isc.SerializableModel {
         return TaskStatus.cancelled;
       case 'draft':
         return TaskStatus.draft;
+      case 'paused':
+        return TaskStatus.paused;
       default:
         throw ArgumentError(
           'Value "$name" cannot be converted to "TaskStatus"',

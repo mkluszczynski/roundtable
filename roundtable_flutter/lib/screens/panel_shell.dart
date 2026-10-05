@@ -23,6 +23,7 @@ import '../widgets/status_pill.dart';
 import 'dashboard_screen.dart';
 import 'machines_screen.dart';
 import 'projects_screen.dart';
+import 'settings_screen.dart';
 
 /// No top `AppBar` — each screen owns its own header content, per the
 /// design brief (the panel has no persistent app-wide top bar).
@@ -73,6 +74,7 @@ class _PanelShellState extends State<PanelShell> {
     DashboardScreen(),
     ProjectsScreen(),
     MachinesScreen(),
+    SettingsScreen(),
   ];
 
   static const _items = [
@@ -90,6 +92,11 @@ class _PanelShellState extends State<PanelShell> {
       icon: Icons.computer_outlined,
       selectedIcon: Icons.computer,
       label: 'Machines',
+    ),
+    NavRailItem(
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
+      label: 'Settings',
     ),
   ];
 

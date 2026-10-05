@@ -7,6 +7,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 import 'claude_code_executor.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
+import 'usage_limit.dart';
 import 'stream_json_formatter.dart';
 import 'task_images.dart';
 import 'worktree_manager.dart';
@@ -134,8 +135,15 @@ class TaskDispatcher {
 
   Future<void> _handle(Task task) async {
     final isResume = task.status == TaskStatus.awaitingReview;
-    final needsPlanning =
-        !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
+    // Requeued after a usage-limit pause: continue the interrupted run's
+    // session the same way (planning stays in plan mode).
+    final pausedPhase = task.status == TaskStatus.queued
+        ? task.pausedPhase
+        : null;
+    final isPauseResume = pausedPhase != null;
+    final needsPlanning = isPauseResume
+        ? pausedPhase == LogPhase.planning
+        : !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
     String? resumePrompt;
 
     if (task.status == TaskStatus.done) {
@@ -212,12 +220,17 @@ class TaskDispatcher {
         task.copyWith(
           status: needsPlanning ? TaskStatus.planning : TaskStatus.running,
           startedAt: task.startedAt ?? DateTime.now().toUtc(),
+          pausedPhase: null,
+          pauseReason: null,
         ),
       );
 
       final resumeSessionId = task.claudeSessionId;
+      final canResumeSession = isPauseResume && resumeSessionId != null;
       var prompt = isResume
           ? resumePrompt!
+          : canResumeSession
+          ? usageLimitResumePrompt
           : '${buildRolePrompt(agent.role, agent.name)} ${task.prompt}';
 
       // Subscribed for as long as this task is running, to detect a
@@ -233,11 +246,13 @@ class TaskDispatcher {
       // its content-block buffering must persist across both phases.
       final formatter = StreamJsonFormatter();
       final runId = newRunId('task-${task.id}');
-      final phase = isResume
-          ? LogPhase.feedback
-          : needsPlanning
-          ? LogPhase.planning
-          : LogPhase.execution;
+      final phase =
+          pausedPhase ??
+          (isResume
+              ? LogPhase.feedback
+              : needsPlanning
+              ? LogPhase.planning
+              : LogPhase.execution);
       void append(LogItem item) {
         appendLog(
           logEntryFor(item, taskId: task.id!, runId: runId, phase: phase),
@@ -250,6 +265,8 @@ class TaskDispatcher {
         LogItem(
           kind: LogKind.runStarted,
           content: switch (phase) {
+            _ when canResumeSession =>
+              '${agent.name} resumed after the usage limit reset',
             LogPhase.feedback => '${agent.name} resumed with your feedback',
             LogPhase.planning => '${agent.name} started planning',
             _ => '${agent.name} started working',
@@ -297,7 +314,7 @@ class TaskDispatcher {
 
       // A resumed session already saw the images in its first run.
       final attachmentDirs = <String>[];
-      if (!isResume) {
+      if (!isResume && !canResumeSession) {
         final images = await fetchAttachments(task.id!);
         if (images.isNotEmpty) {
           final dir = await Directory(
@@ -323,6 +340,7 @@ class TaskDispatcher {
           effort: agent.defaultEffort?.name,
           additionalDirectories: attachmentDirs,
           appendSystemPrompt: environmentPrompt?.call(),
+          resumeSessionId: canResumeSession ? resumeSessionId : null,
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
@@ -365,6 +383,33 @@ class TaskDispatcher {
         'success=${result.success})',
       );
 
+      if (!result.success && isUsageLimitMessage(result.errorSummary)) {
+        final message = result.errorSummary!;
+        final resumeAt = usageLimitResetAt(message);
+        final local = resumeAt.toLocal();
+        final at =
+            '${local.hour.toString().padLeft(2, '0')}:'
+            '${local.minute.toString().padLeft(2, '0')}';
+        log('task ${task.id}: usage limit, paused until $resumeAt');
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content: 'Paused by the Claude usage limit — resumes at $at',
+          ),
+        );
+        await updateTask(
+          task.copyWith(
+            status: TaskStatus.paused,
+            pausedUntil: resumeAt,
+            pauseReason: message,
+            pausedPhase: phase,
+            claudeSessionId: result.sessionId ?? task.claudeSessionId,
+          ),
+        );
+        await updateAgent(agent.copyWith(status: AgentStatus.idle));
+        return;
+      }
+
       String? branchName;
       String? prUrl;
       String? failureReason = result.success ? null : result.errorSummary;
@@ -403,6 +448,17 @@ class TaskDispatcher {
         } else {
           log('task ${task.id}: no new changes, keeping existing PR');
         }
+      }
+
+      if (failureReason == null) {
+        final event = finishedWithoutCode
+            ? 'Finished without code changes — no pull request'
+            : prUrl != null
+            ? 'Committed and pushed $branchName, opened pull request $prUrl'
+            : branchName != null
+            ? 'Pushed new commits to $branchName'
+            : 'No new changes — the pull request is unchanged';
+        append(LogItem(kind: LogKind.event, content: event));
       }
 
       final status = failureReason != null
@@ -500,3 +556,8 @@ String pullRequestBody({
   }
   return buffer.toString().trimRight();
 }
+
+/// Sent when a session interrupted by a usage limit is resumed.
+const usageLimitResumePrompt =
+    'You were interrupted by the Claude usage limit, which has now reset. '
+    'Continue exactly where you left off.';

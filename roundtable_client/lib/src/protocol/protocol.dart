@@ -47,6 +47,9 @@ import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'not_found_exception.dart' as _i6jvclsf;
+import 'pr_check_run.dart' as _idxabcvw;
+import 'pr_check_state.dart' as _ivypql97;
+import 'pr_checks.dart' as _ik1qpwq1;
 import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
 import 'review_comment.dart' as _itpwl327;
@@ -55,12 +58,14 @@ import 'review_comment_severity.dart' as _iml08ymk;
 import 'review_comment_state.dart' as _igczzv9q;
 import 'task.dart' as _iwn6t6fs;
 import 'task_attachment.dart' as _isyamz65;
+import 'task_defaults.dart' as _ipm7yd3q;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
 import 'task_feedback_phase.dart' as _iitmdld3;
 import 'task_log_entry.dart' as _ihv3trno;
 import 'task_question.dart' as _ivtt8ejd;
 import 'task_status.dart' as _ic097rko;
+import 'workspace_settings.dart' as _i88empjm;
 export 'agent.dart';
 export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
@@ -83,6 +88,9 @@ export 'machine_metric.dart';
 export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'not_found_exception.dart';
+export 'pr_check_run.dart';
+export 'pr_check_state.dart';
+export 'pr_checks.dart';
 export 'pr_merge_status.dart';
 export 'project.dart';
 export 'review_comment.dart';
@@ -91,12 +99,14 @@ export 'review_comment_severity.dart';
 export 'review_comment_state.dart';
 export 'task.dart';
 export 'task_attachment.dart';
+export 'task_defaults.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
 export 'task_feedback_phase.dart';
 export 'task_log_entry.dart';
 export 'task_question.dart';
 export 'task_status.dart';
+export 'workspace_settings.dart';
 export 'client.dart';
 
 class Protocol extends _isc.SerializationManager {
@@ -199,6 +209,15 @@ class Protocol extends _isc.SerializationManager {
     if (t == _i6jvclsf.NotFoundException) {
       return _i6jvclsf.NotFoundException.fromJson(data) as T;
     }
+    if (t == _idxabcvw.PrCheckRun) {
+      return _idxabcvw.PrCheckRun.fromJson(data) as T;
+    }
+    if (t == _ivypql97.PrCheckState) {
+      return _ivypql97.PrCheckState.fromJson(data) as T;
+    }
+    if (t == _ik1qpwq1.PrChecks) {
+      return _ik1qpwq1.PrChecks.fromJson(data) as T;
+    }
     if (t == _ixuoipsp.PrMergeStatus) {
       return _ixuoipsp.PrMergeStatus.fromJson(data) as T;
     }
@@ -223,6 +242,9 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isyamz65.TaskAttachment) {
       return _isyamz65.TaskAttachment.fromJson(data) as T;
     }
+    if (t == _ipm7yd3q.TaskDefaults) {
+      return _ipm7yd3q.TaskDefaults.fromJson(data) as T;
+    }
     if (t == _imh5lex6.TaskDeleted) {
       return _imh5lex6.TaskDeleted.fromJson(data) as T;
     }
@@ -240,6 +262,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _ic097rko.TaskStatus) {
       return _ic097rko.TaskStatus.fromJson(data) as T;
+    }
+    if (t == _i88empjm.WorkspaceSettings) {
+      return _i88empjm.WorkspaceSettings.fromJson(data) as T;
     }
     if (t == _isc.getType<_ijo8h3v4.Agent?>()) {
       return (data != null ? _ijo8h3v4.Agent.fromJson(data) : null) as T;
@@ -328,6 +353,15 @@ class Protocol extends _isc.SerializationManager {
       return (data != null ? _i6jvclsf.NotFoundException.fromJson(data) : null)
           as T;
     }
+    if (t == _isc.getType<_idxabcvw.PrCheckRun?>()) {
+      return (data != null ? _idxabcvw.PrCheckRun.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_ivypql97.PrCheckState?>()) {
+      return (data != null ? _ivypql97.PrCheckState.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_ik1qpwq1.PrChecks?>()) {
+      return (data != null ? _ik1qpwq1.PrChecks.fromJson(data) : null) as T;
+    }
     if (t == _isc.getType<_ixuoipsp.PrMergeStatus?>()) {
       return (data != null ? _ixuoipsp.PrMergeStatus.fromJson(data) : null)
           as T;
@@ -360,6 +394,9 @@ class Protocol extends _isc.SerializationManager {
       return (data != null ? _isyamz65.TaskAttachment.fromJson(data) : null)
           as T;
     }
+    if (t == _isc.getType<_ipm7yd3q.TaskDefaults?>()) {
+      return (data != null ? _ipm7yd3q.TaskDefaults.fromJson(data) : null) as T;
+    }
     if (t == _isc.getType<_imh5lex6.TaskDeleted?>()) {
       return (data != null ? _imh5lex6.TaskDeleted.fromJson(data) : null) as T;
     }
@@ -378,6 +415,10 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _isc.getType<_ic097rko.TaskStatus?>()) {
       return (data != null ? _ic097rko.TaskStatus.fromJson(data) : null) as T;
+    }
+    if (t == _isc.getType<_i88empjm.WorkspaceSettings?>()) {
+      return (data != null ? _i88empjm.WorkspaceSettings.fromJson(data) : null)
+          as T;
     }
     if (t == List<_iwn6t6fs.Task>) {
       return (data as List).map((e) => deserialize<_iwn6t6fs.Task>(e)).toList()
@@ -438,6 +479,12 @@ class Protocol extends _isc.SerializationManager {
                     .map((e) => deserialize<_ixivwx7g.MachineMetric>(e))
                     .toList()
               : null)
+          as T;
+    }
+    if (t == List<_idxabcvw.PrCheckRun>) {
+      return (data as List)
+              .map((e) => deserialize<_idxabcvw.PrCheckRun>(e))
+              .toList()
           as T;
     }
     if (t == List<_ihv3trno.TaskLogEntry>) {
@@ -579,6 +626,9 @@ class Protocol extends _isc.SerializationManager {
       _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _i6jvclsf.NotFoundException => 'NotFoundException',
+      _idxabcvw.PrCheckRun => 'PrCheckRun',
+      _ivypql97.PrCheckState => 'PrCheckState',
+      _ik1qpwq1.PrChecks => 'PrChecks',
       _ixuoipsp.PrMergeStatus => 'PrMergeStatus',
       _ifiazq2p.Project => 'Project',
       _itpwl327.ReviewComment => 'ReviewComment',
@@ -587,12 +637,14 @@ class Protocol extends _isc.SerializationManager {
       _igczzv9q.ReviewCommentState => 'ReviewCommentState',
       _iwn6t6fs.Task => 'Task',
       _isyamz65.TaskAttachment => 'TaskAttachment',
+      _ipm7yd3q.TaskDefaults => 'TaskDefaults',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
       _iitmdld3.TaskFeedbackPhase => 'TaskFeedbackPhase',
       _ihv3trno.TaskLogEntry => 'TaskLogEntry',
       _ivtt8ejd.TaskQuestion => 'TaskQuestion',
       _ic097rko.TaskStatus => 'TaskStatus',
+      _i88empjm.WorkspaceSettings => 'WorkspaceSettings',
       _ => null,
     };
   }
@@ -651,6 +703,12 @@ class Protocol extends _isc.SerializationManager {
         return 'MachineStatus';
       case _i6jvclsf.NotFoundException():
         return 'NotFoundException';
+      case _idxabcvw.PrCheckRun():
+        return 'PrCheckRun';
+      case _ivypql97.PrCheckState():
+        return 'PrCheckState';
+      case _ik1qpwq1.PrChecks():
+        return 'PrChecks';
       case _ixuoipsp.PrMergeStatus():
         return 'PrMergeStatus';
       case _ifiazq2p.Project():
@@ -667,6 +725,8 @@ class Protocol extends _isc.SerializationManager {
         return 'Task';
       case _isyamz65.TaskAttachment():
         return 'TaskAttachment';
+      case _ipm7yd3q.TaskDefaults():
+        return 'TaskDefaults';
       case _imh5lex6.TaskDeleted():
         return 'TaskDeleted';
       case _i5hi2zxr.TaskFeedback():
@@ -679,6 +739,8 @@ class Protocol extends _isc.SerializationManager {
         return 'TaskQuestion';
       case _ic097rko.TaskStatus():
         return 'TaskStatus';
+      case _i88empjm.WorkspaceSettings():
+        return 'WorkspaceSettings';
     }
     className = _iaic.Protocol().getClassNameForObject(data);
     if (className != null) {
@@ -767,6 +829,15 @@ class Protocol extends _isc.SerializationManager {
     if (dataClassName == 'NotFoundException') {
       return deserialize<_i6jvclsf.NotFoundException>(data['data']);
     }
+    if (dataClassName == 'PrCheckRun') {
+      return deserialize<_idxabcvw.PrCheckRun>(data['data']);
+    }
+    if (dataClassName == 'PrCheckState') {
+      return deserialize<_ivypql97.PrCheckState>(data['data']);
+    }
+    if (dataClassName == 'PrChecks') {
+      return deserialize<_ik1qpwq1.PrChecks>(data['data']);
+    }
     if (dataClassName == 'PrMergeStatus') {
       return deserialize<_ixuoipsp.PrMergeStatus>(data['data']);
     }
@@ -791,6 +862,9 @@ class Protocol extends _isc.SerializationManager {
     if (dataClassName == 'TaskAttachment') {
       return deserialize<_isyamz65.TaskAttachment>(data['data']);
     }
+    if (dataClassName == 'TaskDefaults') {
+      return deserialize<_ipm7yd3q.TaskDefaults>(data['data']);
+    }
     if (dataClassName == 'TaskDeleted') {
       return deserialize<_imh5lex6.TaskDeleted>(data['data']);
     }
@@ -808,6 +882,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'TaskStatus') {
       return deserialize<_ic097rko.TaskStatus>(data['data']);
+    }
+    if (dataClassName == 'WorkspaceSettings') {
+      return deserialize<_i88empjm.WorkspaceSettings>(data['data']);
     }
     if (dataClassName.startsWith('serverpod_auth_idp.')) {
       data['className'] = dataClassName.substring(19);

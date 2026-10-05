@@ -10,16 +10,23 @@ import 'app_modal.dart';
 /// `BlocProvider.value` wrapping the caller's `TaskDetailBloc`, like
 /// `ReassignAgentDialog`.
 class RequestReviewDialog extends StatefulWidget {
-  const RequestReviewDialog({super.key, required this.taskId});
+  const RequestReviewDialog({
+    super.key,
+    required this.taskId,
+    this.initialAgentId,
+  });
 
   final int taskId;
+
+  /// The task's chosen reviewer (`Task.reviewerAgentId`), pre-selected.
+  final int? initialAgentId;
 
   @override
   State<RequestReviewDialog> createState() => _RequestReviewDialogState();
 }
 
 class _RequestReviewDialogState extends State<RequestReviewDialog> {
-  int? _agentId;
+  late int? _agentId = widget.initialAgentId;
 
   @override
   Widget build(BuildContext context) {

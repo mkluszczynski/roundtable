@@ -11,6 +11,8 @@ import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/code_language.dart';
+import '../utils/follow_up_prompt.dart';
+import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
@@ -20,17 +22,20 @@ import '../widgets/agent_avatar.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
+import '../widgets/create_task_dialog.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/pill_selector.dart';
 import '../widgets/rail_nav_item.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/plan_content.dart';
+import '../widgets/pr_checks_view.dart';
 import '../widgets/reassign_agent_dialog.dart';
 import '../widgets/request_review_dialog.dart';
 import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/task_attachments_view.dart';
+import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
 import '../utils/relative_time.dart';
 
@@ -46,6 +51,7 @@ const _cancellableStatuses = {
   TaskStatus.planReady,
   TaskStatus.running,
   TaskStatus.awaitingReview,
+  TaskStatus.paused,
 };
 
 /// Mirrors the server's `retryTask` guard — a "Retry task" button lets the
@@ -121,25 +127,40 @@ void _openReassignAgentDialog(
   );
 }
 
-void _openRequestReviewDialog(BuildContext context, int taskId) {
+void _openRequestReviewDialog(BuildContext context, Task task) {
   final bloc = context.read<TaskDetailBloc>();
   showDialog<void>(
     context: context,
     builder: (_) => BlocProvider.value(
       value: bloc,
-      child: RequestReviewDialog(taskId: taskId),
+      child: RequestReviewDialog(
+        taskId: task.id!,
+        initialAgentId: task.reviewerAgentId,
+      ),
     ),
   );
 }
 
-Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
+/// [overriddenChecks]: why the CI checks would block the merge — confirming
+/// merges anyway.
+Future<void> _confirmAcceptTask(
+  BuildContext context,
+  int taskId, {
+  String? overriddenChecks,
+}) async {
   final bloc = context.read<TaskDetailBloc>();
+  final force = overriddenChecks != null;
   final confirmed = await showAppModal<bool>(
     context,
     icon: Icons.merge,
-    title: 'Accept and merge?',
-    subtitle:
-        'This squash-merges the PR on GitHub and moves Task #$taskId to Done.',
+    tone: force ? AppModalTone.danger : AppModalTone.normal,
+    title: force ? 'Merge despite the CI checks?' : 'Accept and merge?',
+    subtitle: force
+        ? '$overriddenChecks. This squash-merges the PR of Task #$taskId '
+              'anyway — GitHub still enforces the checks its branch '
+              'protection requires.'
+        : 'This squash-merges the PR on GitHub and moves Task #$taskId to '
+              'Done.',
     child: const SizedBox.shrink(),
     actions: [
       Builder(
@@ -150,14 +171,17 @@ Future<void> _confirmAcceptTask(BuildContext context, int taskId) async {
       ),
       Builder(
         builder: (context) => FilledButton(
+          style: force
+              ? FilledButton.styleFrom(backgroundColor: AppColors.red)
+              : null,
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Accept & merge'),
+          child: Text(force ? 'Merge anyway' : 'Accept & merge'),
         ),
       ),
     ],
   );
   if (confirmed ?? false) {
-    bloc.add(TaskAccepted(taskId));
+    bloc.add(TaskAccepted(taskId, force: force));
   }
 }
 
@@ -197,6 +221,45 @@ Future<void> _confirmResolveConflicts(
   }
 }
 
+Future<void> _confirmFixFailingChecks(
+  BuildContext context,
+  int taskId,
+  int failedCount,
+) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final confirmed = await showAppModal<bool>(
+    context,
+    icon: Icons.build_outlined,
+    tone: AppModalTone.danger,
+    title: 'Send failing CI checks to the agent?',
+    subtitle:
+        'The agent gets the logs of the failing jobs ($failedCount) of Task '
+        '#$taskId, fixes them and pushes. To pick jobs or add a note, use the '
+        'CI checks view.',
+    child: const SizedBox.shrink(),
+    actions: [
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+      ),
+      Builder(
+        builder: (context) => FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Send to agent'),
+        ),
+      ),
+    ],
+  );
+  if (confirmed ?? false) {
+    bloc
+      ..add(const CheckJobsSelectionCleared())
+      ..add(FailingChecksSentToFix(taskId, ''));
+  }
+}
+
 /// One screen driven by `Task.status`, switching between the task lifecycle's
 /// 4 sub-states (docs/FLOWS.md §4): waiting for an answer, plan
 /// approval, live execution (log tail), and diff review. Always entered from
@@ -224,7 +287,7 @@ class TaskDetailScreen extends StatelessWidget {
 }
 
 /// What the main area shows — picked from the rail's navigation.
-enum _TaskSection { overview, plan, changes, review, logs }
+enum _TaskSection { overview, plan, changes, review, checks, logs }
 
 bool _isLive(TaskStatus s) =>
     s == TaskStatus.planning || s == TaskStatus.running;
@@ -259,6 +322,8 @@ Set<_TaskSection> _availableSectionsFor(Task task) {
       _TaskSection.changes,
       _TaskSection.review,
     },
+    // Also while a fix run is going, so the dev sees what it's fixing.
+    if (task.prUrl != null) _TaskSection.checks,
     _TaskSection.logs,
   };
 }
@@ -278,6 +343,19 @@ extension _TaskDetailLoadedX on TaskDetailLoaded {
       reviewComments.where((c) => c.state == ReviewCommentState.open).length;
 
   bool get hasConflicts => mergeStatus?.hasConflicts ?? false;
+
+  int get failedCheckCount =>
+      checks?.runs.where(isFailedCheckRun).length ??
+      (task.checkState == PrCheckState.failure ? 1 : 0);
+
+  /// Why "Accept & merge" is disabled, or null when the CI checks allow it.
+  /// The server enforces the same rule in `acceptTask`.
+  String? get mergeBlockedByChecks => switch (task.checkState) {
+    PrCheckState.success || PrCheckState.none => null,
+    PrCheckState.pending => 'Waiting for the CI checks to finish',
+    PrCheckState.failure =>
+      'CI checks are failing — send them to the agent or fix them first',
+  };
 }
 
 class _TaskDetailView extends StatefulWidget {
@@ -640,6 +718,7 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.plan => Icons.checklist_outlined,
                   _TaskSection.changes => Icons.difference_outlined,
                   _TaskSection.review => Icons.rate_review_outlined,
+                  _TaskSection.checks => Icons.fact_check_outlined,
                   _TaskSection.logs => Icons.terminal,
                 },
                 label: switch (s) {
@@ -652,6 +731,7 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.plan => 'Plan',
                   _TaskSection.changes => 'Changes',
                   _TaskSection.review => 'AI review',
+                  _TaskSection.checks => 'CI checks',
                   _TaskSection.logs => 'Logs',
                 },
                 selected: section == s,
@@ -679,6 +759,17 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.review when openComments > 0 => CountBadge(
                     openComments,
                   ),
+                  _TaskSection.checks
+                      when state.task.checkState == PrCheckState.failure =>
+                    CountBadge(state.failedCheckCount, color: AppColors.red),
+                  _TaskSection.checks
+                      when state.task.checkState != PrCheckState.none =>
+                    StatusDot(
+                      color: checkStateAppearance(state.task.checkState).color,
+                      pulsing: checkStateAppearance(
+                        state.task.checkState,
+                      ).pulsing,
+                    ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
                   _ => null,
@@ -758,14 +849,22 @@ class _RailActions extends StatelessWidget {
             icon: const Icon(Icons.call_merge, size: 16),
             label: const Text('Resolve conflicts'),
           )
-        else
-          FilledButton.icon(
-            onPressed: busy
-                ? null
-                : () => _confirmAcceptTask(context, task.id!),
-            icon: const Icon(Icons.merge, size: 16),
-            label: const Text('Accept & merge'),
-          ),
+        else ...[
+          if (task.checkState == PrCheckState.failure)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+              onPressed: busy || state.checksBusy
+                  ? null
+                  : () => _confirmFixFailingChecks(
+                      context,
+                      task.id!,
+                      state.failedCheckCount,
+                    ),
+              icon: const Icon(Icons.build_outlined, size: 16),
+              label: const Text('Fix CI checks'),
+            ),
+          ..._acceptButtons(context, state, busy: busy),
+        ],
       if (_retryableStatuses.contains(task.status))
         OutlinedButton.icon(
           onPressed: state.submitting
@@ -782,6 +881,19 @@ class _RailActions extends StatelessWidget {
               : () => bloc.add(TaskCancelled(task.id!)),
           icon: const Icon(Icons.stop_circle_outlined, size: 16),
           label: const Text('Cancel task'),
+        ),
+      if (task.status == TaskStatus.done)
+        OutlinedButton.icon(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => CreateTaskDialog(
+              initialProjectId: task.projectId,
+              initialAgentId: task.agentId,
+              initialPrompt: followUpPrompt(task),
+            ),
+          ),
+          icon: const Icon(Icons.add_task, size: 16),
+          label: const Text('Follow-up task'),
         ),
       if (_deletableStatuses.contains(task.status))
         OutlinedButton.icon(
@@ -810,6 +922,62 @@ class _RailActions extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Accept & merge", disabled (with the reason on hover) until the CI
+/// checks allow merging — plus "Merge anyway" for a flaky or non-required
+/// job the dev decides to ignore.
+List<Widget> _acceptButtons(
+  BuildContext context,
+  TaskDetailLoaded state, {
+  required bool busy,
+}) {
+  final blocked = state.mergeBlockedByChecks;
+  final button = FilledButton.icon(
+    onPressed: busy || blocked != null
+        ? null
+        : () => _confirmAcceptTask(context, state.task.id!),
+    icon: const Icon(Icons.merge, size: 16),
+    label: const Text('Accept & merge'),
+  );
+  final autoMergeHint = state.task.autoMerge
+      ? const Tooltip(
+          message:
+              'Merges by itself once CI passes and, with auto review, the '
+              'review has no open blockers or issues',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_mode, size: 14, color: AppColors.live),
+              SizedBox(width: Spacing.xs),
+              Text(
+                'Auto merge on',
+                style: TextStyle(color: AppColors.live, fontSize: 12),
+              ),
+            ],
+          ),
+        )
+      : null;
+  if (blocked == null) return [?autoMergeHint, button];
+  return [
+    ?autoMergeHint,
+    Tooltip(message: blocked, child: button),
+    OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.red,
+        side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
+      ),
+      onPressed: busy
+          ? null
+          : () => _confirmAcceptTask(
+              context,
+              state.task.id!,
+              overriddenChecks: blocked,
+            ),
+      icon: const Icon(Icons.warning_amber_outlined, size: 16),
+      label: const Text('Merge anyway'),
+    ),
+  ];
 }
 
 class _TimelineRow extends StatelessWidget {
@@ -864,6 +1032,7 @@ class _SectionContent extends StatelessWidget {
           onSectionSelected(_TaskSection.changes);
         },
       ),
+      _TaskSection.checks => _ReadingColumn(child: _ChecksView(state: state)),
       _TaskSection.logs =>
         _isLive(state.task.status)
             ? _LiveExecution(state: state)
@@ -915,8 +1084,9 @@ class _Overview extends StatelessWidget {
       // Only reachable for a task that finished without changing code —
       // with a PR, Changes/AI review replace Overview.
       TaskStatus.awaitingReview || TaskStatus.done => _ResultView(
-        task: state.task,
+        state: state,
       ),
+      TaskStatus.paused => _PausedView(state: state),
       TaskStatus.failed => SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -946,47 +1116,153 @@ class _Overview extends StatelessWidget {
   }
 }
 
-/// A task that finished without changing code: the agent's reply (e.g. its
-/// answer to a question) is the whole outcome.
-class _ResultView extends StatelessWidget {
-  const _ResultView({required this.task});
+/// A task paused by the Claude usage limit: when it resumes on its own,
+/// and a way to resume now (e.g. after raising the plan's limit).
+class _PausedView extends StatelessWidget {
+  const _PausedView({required this.state});
 
-  final Task task;
+  final TaskDetailLoaded state;
 
   @override
   Widget build(BuildContext context) {
-    final result = task.resultSummary;
+    final task = state.task;
+    final until = task.pausedUntil;
+    final remaining = until?.difference(DateTime.now().toUtc());
+    final inText = remaining == null || remaining.isNegative
+        ? 'any moment now'
+        : remaining.inHours > 0
+        ? 'in ${remaining.inHours} h ${remaining.inMinutes % 60} min'
+        : 'in ${remaining.inMinutes.clamp(1, 59)} min';
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.circle, size: 8, color: AppColors.live),
+              const Icon(Icons.circle, size: 8, color: AppColors.warning),
               const SizedBox(width: Spacing.sm),
               Text(
-                'FINISHED WITHOUT CODE CHANGES',
-                style: AppTypography.label.copyWith(color: AppColors.live),
+                'PAUSED — CLAUDE USAGE LIMIT',
+                style: AppTypography.label.copyWith(color: AppColors.warning),
               ),
             ],
           ),
-          const SizedBox(height: Spacing.sm),
-          Text(
-            'The agent answered or found nothing to change, so there is no '
-            'pull request. Its reply:',
-            style: AppTypography.caption,
-          ),
           const SizedBox(height: Spacing.lg),
           AppCard(
-            child: result == null
-                ? Text(
-                    'No reply was recorded — see the Logs tab.',
-                    style: AppTypography.body,
-                  )
-                : PlanContent(markdown: result),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  until == null
+                      ? 'Resumes automatically when the limit resets'
+                      : 'Resumes automatically at ${resumeTimeLabel(until)} '
+                            '($inText)',
+                  style: AppTypography.cardTitle,
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  '${state.agent?.name ?? 'The agent'} continues the same '
+                  'session from where it stopped — nothing is lost.',
+                  style: AppTypography.body.copyWith(color: AppColors.text1),
+                ),
+                if (task.pauseReason case final reason?) ...[
+                  const SizedBox(height: Spacing.md),
+                  Text(reason, style: AppTypography.caption),
+                ],
+                const SizedBox(height: Spacing.lg),
+                FilledButton.icon(
+                  onPressed: state.submitting
+                      ? null
+                      : () => context.read<TaskDetailBloc>().add(
+                          TaskResumed(task.id!),
+                        ),
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: const Text('Resume now'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A task that finished without changing code: the agent's reply (e.g. its
+/// answer to a question) is the whole outcome.
+class _ResultView extends StatelessWidget {
+  const _ResultView({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = state.task;
+    final result = task.resultSummary;
+    // Reopened with a message: the agent is about to resume.
+    final continuing = task.status == TaskStatus.awaitingReview;
+    final canContinue =
+        task.status == TaskStatus.done && task.claudeSessionId != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.circle, size: 8, color: AppColors.live),
+                    const SizedBox(width: Spacing.sm),
+                    Text(
+                      'FINISHED WITHOUT CODE CHANGES',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.live,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  'The agent answered or found nothing to change, so there '
+                  'is no pull request. Its reply:',
+                  style: AppTypography.caption,
+                ),
+                const SizedBox(height: Spacing.lg),
+                AppCard(
+                  child: result == null
+                      ? Text(
+                          'No reply was recorded — see the Logs tab.',
+                          style: AppTypography.body,
+                        )
+                      : PlanContent(markdown: result),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (continuing) ...[
+          const SizedBox(height: Spacing.md),
+          Text(
+            'Sent — the agent will continue in the same session.',
+            style: AppTypography.body.copyWith(color: AppColors.text1),
+          ),
+        ] else if (canContinue) ...[
+          const SizedBox(height: Spacing.md),
+          _FeedbackRow(
+            hint:
+                'Continue the conversation, e.g. "Implement it following '
+                'this plan"…',
+            submitLabel: 'Continue',
+            primarySubmit: true,
+            submitting: state.submitting,
+            onSubmit: (message) => context.read<TaskDetailBloc>().add(
+              TaskContinued(task.id!, message),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1435,7 +1711,7 @@ class _ReviewView extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: reviewActive || state.reviewBusy
                       ? null
-                      : () => _openRequestReviewDialog(context, state.task.id!),
+                      : () => _openRequestReviewDialog(context, state.task),
                   icon: const Icon(Icons.rate_review_outlined, size: 16),
                   label: Text(
                     state.reviews.isEmpty
@@ -1453,6 +1729,12 @@ class _ReviewView extends StatelessWidget {
                   _VerdictCard(
                     review: latestReview,
                     number: state.reviews.length,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  _ReviewerLog(
+                    key: ValueKey(latestReview.id),
+                    review: latestReview,
+                    logs: state.logs,
                   ),
                   const SizedBox(height: Spacing.xl),
                 ],
@@ -1539,6 +1821,35 @@ class _ReviewView extends StatelessWidget {
   }
 }
 
+/// The PR's GitHub Actions checks, with failures sendable to the agent.
+class _ChecksView extends StatelessWidget {
+  const _ChecksView({required this.state});
+
+  final TaskDetailLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<TaskDetailBloc>();
+    final taskId = state.task.id!;
+    return PrChecksView(
+      checks: state.checks,
+      selectedJobIds: state.selectedCheckJobIds,
+      canSendToAgent:
+          state.inReview && !state.reviewActive && !state.submitting,
+      agentWorking: state.task.status == TaskStatus.running,
+      busy: state.checksBusy || state.reviewBusy,
+      error: state.checksError,
+      onRefresh: state.inReview
+          ? () => bloc.add(ChecksRefreshRequested(taskId))
+          : null,
+      onToggleJob: (jobId) => bloc.add(CheckJobSelectionToggled(jobId)),
+      onSendToAgent: (note) => bloc.add(FailingChecksSentToFix(taskId, note)),
+      onOpenUrl: (url) =>
+          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+    );
+  }
+}
+
 /// Centers prose-heavy views (plan, question, result, AI review) in a
 /// column narrow enough to read on wide screens.
 class _ReadingColumn extends StatelessWidget {
@@ -1606,6 +1917,46 @@ class _VerdictCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The reviewer's own log for [review] — what it looked at and said —
+/// collapsed under the verdict.
+class _ReviewerLog extends StatefulWidget {
+  const _ReviewerLog({super.key, required this.review, required this.logs});
+
+  final CodeReview review;
+  final List<TaskLogEntry> logs;
+
+  @override
+  State<_ReviewerLog> createState() => _ReviewerLogState();
+}
+
+class _ReviewerLogState extends State<_ReviewerLog> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reviewRuns = buildLogTimeline(
+      widget.logs,
+    ).where((r) => r.isReview).toList();
+    // Structured runs carry their review; older logs only allow "the
+    // latest review run" for the latest review.
+    final run =
+        reviewRuns.where((r) => r.reviewId == widget.review.id).lastOrNull ??
+        (reviewRuns.every((r) => r.reviewId == null)
+            ? reviewRuns.lastOrNull
+            : null);
+    if (run == null) return const SizedBox.shrink();
+    final active =
+        widget.review.status == CodeReviewStatus.queued ||
+        widget.review.status == CodeReviewStatus.running;
+    return LogRunView(
+      run: run,
+      running: active,
+      expanded: _expanded,
+      onToggle: (open) => setState(() => _expanded = open),
     );
   }
 }

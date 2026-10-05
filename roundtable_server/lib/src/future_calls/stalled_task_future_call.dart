@@ -18,6 +18,8 @@ class StalledTaskFutureCall extends FutureCall {
     TaskStatus.waitingForAnswer,
     TaskStatus.planReady,
     TaskStatus.awaitingReview,
+    // Waiting for the usage limit to reset, by design.
+    TaskStatus.paused,
   };
 
   Future<void> check(Session session) async {

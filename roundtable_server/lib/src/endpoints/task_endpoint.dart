@@ -2,12 +2,13 @@ import 'non_terminal_task_statuses.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
+import '../pr_checks.dart';
+import '../task_lifecycle.dart';
 import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Task creation and the daemon's assignment feed (docs/FLOWS.md §4).
 class TaskEndpoint extends Endpoint {
-  static String _channelForTaskLogs(int taskId) => 'task-$taskId-logs';
   static String channelForTask(int taskId) => 'task-$taskId';
   static String _channelForQuestion(int questionId) =>
       'task-question-$questionId';
@@ -40,10 +41,23 @@ class TaskEndpoint extends Endpoint {
     int? agentId,
     String prompt, {
     bool skipPlanning = false,
+    // Nullable rather than defaulted: the generated test tools would make a
+    // defaulted named parameter required.
+    bool? autoReview,
+    int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     List<int>? attachmentIds,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
       throw NotFoundException(message: 'Project $projectId not found');
+    }
+    if (reviewerAgentId != null &&
+        await Agent.db.findById(session, reviewerAgentId) == null) {
+      throw NotFoundException(message: 'Agent $reviewerAgentId not found');
     }
     Agent? agent;
     if (agentId != null) {
@@ -60,6 +74,13 @@ class TaskEndpoint extends Endpoint {
         agentId: agentId,
         prompt: prompt,
         skipPlanning: skipPlanning,
+        autoReview: autoReview ?? false,
+        reviewerAgentId: reviewerAgentId,
+        autoFixReview: autoFixReview ?? false,
+        maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
+        autoMerge: autoMerge ?? false,
+        autoFixFailingChecks: autoFixFailingChecks ?? false,
+        maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );
@@ -90,6 +111,7 @@ class TaskEndpoint extends Endpoint {
     TaskStatus.awaitingReview,
     TaskStatus.failed,
     TaskStatus.cancelled,
+    TaskStatus.paused,
   };
 
   /// Used by the agent daemon to report a run's progress and outcome —
@@ -139,6 +161,9 @@ class TaskEndpoint extends Endpoint {
         t.status,
         t.failureReason,
         t.resultSummary,
+        t.pausedUntil,
+        t.pauseReason,
+        t.pausedPhase,
         t.claudeSessionId,
         t.branchName,
         t.prUrl,
@@ -149,19 +174,39 @@ class TaskEndpoint extends Endpoint {
     );
     await session.messages.postMessage(channelForTask(updated.id!), updated);
     await session.messages.postMessage(channelForAllTasks(), updated);
-    // A finished fix run addressed the review comments it was sent.
+    // A finished fix run addressed the review comments it was sent, and
+    // likely pushed a commit whose CI checks start now.
     if (previous.status == TaskStatus.running &&
         updated.status == TaskStatus.awaitingReview) {
       await resolveCommentsSentToFix(session, updated);
+      final current = await Task.db.findById(session, updated.id!);
+      if (current != null) await syncChecksQuietly(session, current);
+    }
+    if (previous.status != TaskStatus.awaitingReview &&
+        updated.status == TaskStatus.awaitingReview) {
+      // Re-read: the daemon's snapshot may predate (or, from an older
+      // runner, lack) the review settings.
+      final current = await Task.db.findById(session, updated.id!);
+      if (current != null) await autoReviewIfEnabled(session, current);
     }
     return updated;
   }
 
-  /// Squash-merges [taskId]'s PR and marks the task `done`. If GitHub
-  /// refuses the merge (conflicts, failing checks, ...) the task stays in
-  /// `awaitingReview` and the reason is thrown back to the panel. Also wakes
-  /// the agent's daemon so it removes the task's worktree.
-  Future<Task> acceptTask(Session session, int taskId) async {
+  /// Squash-merges [taskId]'s PR and marks the task `done` — only once the
+  /// GitHub Actions checks of the PR's current head commit passed (or the
+  /// repo has no CI, or they can't be read), read fresh from GitHub rather
+  /// than trusted from the last poll, no fix run is queued, and only that
+  /// exact commit. With [force] the dev overrides the checks (e.g. a flaky
+  /// or non-required job) — GitHub's branch protection still applies. If
+  /// GitHub refuses the merge (conflicts, a newer commit, a required check,
+  /// ...) the task stays in `awaitingReview` and the reason is thrown back
+  /// to the panel. Also wakes the agent's daemon so it removes the task's
+  /// worktree.
+  Future<Task> acceptTask(
+    Session session,
+    int taskId, {
+    bool force = false,
+  }) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.awaitingReview) {
       throw InvalidStateException(
@@ -171,11 +216,40 @@ class TaskEndpoint extends Endpoint {
     await requireNoActiveReview(session, taskId);
 
     final context = await repoContextFor(session, taskId);
+    // The merge is pinned to the head commit the sync just read; a stale one
+    // from an earlier poll would make GitHub refuse a forced merge.
+    var synced = true;
+    if (force) {
+      try {
+        await syncChecks(session, task, context: context);
+      } catch (e) {
+        synced = false;
+        session.log(
+          'Syncing CI checks before a forced merge of task $taskId failed: $e',
+          level: LogLevel.warning,
+        );
+      }
+    } else {
+      task = await syncChecks(session, task, context: context);
+      final blocked = mergeBlockedReason(
+        task,
+        await PrCheckRun.db.find(
+          session,
+          where: (r) => r.taskId.equals(taskId),
+        ),
+        fixRunQueued: await hasQueuedFixRun(session, task),
+      );
+      if (blocked != null) throw InvalidStateException(message: blocked);
+    }
+    // Re-read: the sync wrote only its own columns.
+    task = await _requireTask(session, taskId);
+
     try {
       await _github.mergePullRequest(
         prUrl: context.prUrl,
         token: context.token,
         commitTitle: 'Roundtable task #$taskId',
+        sha: synced ? task.prHeadSha : null,
       );
     } on GitHubException catch (e) {
       if (e.statusCode == 405 || e.statusCode == 409) {
@@ -260,6 +334,49 @@ class TaskEndpoint extends Endpoint {
       'preserving the intent of both sides, make sure the project still '
       'builds and its tests pass, then commit the merge and push the branch.';
 
+  /// Returns [taskId]'s GitHub Actions checks as last synced (see
+  /// [watchChecks]).
+  Future<PrChecks> getChecks(Session session, int taskId) async {
+    return loadChecks(session, await _requireTask(session, taskId));
+  }
+
+  /// Streams [taskId]'s GitHub Actions checks: the current snapshot on
+  /// subscribe, then a new one whenever a sync (every 30 s while the task is
+  /// in review, or [refreshChecks]) changes them.
+  Stream<PrChecks> watchChecks(Session session, int taskId) async* {
+    var updates = session.messages.createStream<PrChecks>(
+      channelForTaskChecks(taskId),
+    );
+    yield await loadChecks(session, await _requireTask(session, taskId));
+    await for (var checks in updates) {
+      yield checks;
+    }
+  }
+
+  /// Reads [taskId]'s checks from GitHub now, instead of waiting for the
+  /// next poll.
+  Future<PrChecks> refreshChecks(Session session, int taskId) async {
+    var task = await syncChecks(session, await _requireTask(session, taskId));
+    return loadChecks(session, task);
+  }
+
+  /// Sends the agent a fix run for [taskId]'s failing CI checks — all of
+  /// them, or only [jobIds] — with each job's log in the prompt and the
+  /// dev's optional [note]. Same `--resume` path as [resolveConflicts].
+  Future<TaskFeedback> fixFailingChecks(
+    Session session,
+    int taskId, {
+    List<int>? jobIds,
+    String? note,
+  }) async {
+    return sendFailingChecksToFix(
+      session,
+      await _requireTask(session, taskId),
+      jobIds: jobIds,
+      note: note,
+    );
+  }
+
   /// Persists one line of a task's execution output as a [TaskLogEntry]
   /// (docs/FLOWS.md §4) and notifies any [watchLogs] subscribers for this
   /// task. Also bumps `Task.lastProgressAt`, since a log line is a sign of
@@ -284,9 +401,61 @@ class TaskEndpoint extends Endpoint {
       columns: (t) => [t.lastProgressAt],
     );
 
-    await session.messages.postMessage(_channelForTaskLogs(taskId), entry);
+    await session.messages.postMessage(channelForTaskLogs(taskId), entry);
 
     return entry;
+  }
+
+  /// Continues a task that finished without code changes (its result is
+  /// the agent's reply, e.g. an analysis or an answer) by resuming the same
+  /// Claude Code session with [message] — "now implement it". The task goes
+  /// back to `awaitingReview` so the daemon's resume path picks it up; it
+  /// ends either with a PR (if the agent changes code) or `done` again with
+  /// a new result.
+  Future<TaskFeedback> continueTask(
+    Session session,
+    int taskId,
+    String message,
+  ) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.done ||
+        task.branchName != null ||
+        task.prUrl != null) {
+      throw InvalidStateException(
+        message:
+            'Only a task that finished without code changes can be '
+            'continued (task $taskId is ${task.status.name})',
+      );
+    }
+    if (task.claudeSessionId == null) {
+      throw InvalidStateException(
+        message: 'Task $taskId has no agent session to continue',
+      );
+    }
+    if (message.trim().isEmpty) {
+      throw InvalidStateException(message: 'Write what the agent should do');
+    }
+
+    var reopened = await Task.db.updateRow(
+      session,
+      task.copyWith(status: TaskStatus.awaitingReview),
+      columns: (t) => [t.status],
+    );
+    await session.messages.postMessage(channelForTask(taskId), reopened);
+    await session.messages.postMessage(channelForAllTasks(), reopened);
+    return queueReviewFeedback(session, reopened, message.trim());
+  }
+
+  /// Resumes a task paused by a usage limit right away instead of waiting
+  /// for `pausedUntil` — e.g. after the dev raised the plan's limit.
+  Future<Task> resumeTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (task.status != TaskStatus.paused) {
+      throw InvalidStateException(
+        message: 'Task $taskId is not paused (${task.status.name})',
+      );
+    }
+    return resumePausedTask(session, task);
   }
 
   /// Persists a structured log entry (kind, run, tool…) from the daemon —
@@ -307,7 +476,7 @@ class TaskEndpoint extends Endpoint {
       columns: (t) => [t.lastProgressAt],
     );
     await session.messages.postMessage(
-      _channelForTaskLogs(stored.taskId),
+      channelForTaskLogs(stored.taskId),
       stored,
     );
     return stored;
@@ -381,6 +550,9 @@ class TaskEndpoint extends Endpoint {
         claudeSessionId: null,
         startedAt: null,
         finishedAt: null,
+        pausedUntil: null,
+        pauseReason: null,
+        pausedPhase: null,
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
@@ -832,7 +1004,7 @@ class TaskEndpoint extends Endpoint {
     }
 
     var updates = session.messages.createStream<TaskLogEntry>(
-      _channelForTaskLogs(taskId),
+      channelForTaskLogs(taskId),
     );
     await for (var entry in updates) {
       yield entry;

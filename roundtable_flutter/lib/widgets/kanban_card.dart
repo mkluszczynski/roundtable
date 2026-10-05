@@ -5,6 +5,7 @@ import '../cubits/dashboard_cubit.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../utils/pr_checks.dart';
 import '../utils/relative_time.dart';
 import '../utils/task_status_label.dart';
 import 'agent_avatar.dart';
@@ -48,6 +49,16 @@ class _KanbanCardState extends State<KanbanCard> {
     final failure = task.status == TaskStatus.failed
         ? task.failureReason
         : null;
+    // CI only matters while the PR is still open for changes.
+    final showChecks =
+        task.prUrl != null &&
+        task.checkState != PrCheckState.none &&
+        (task.status == TaskStatus.awaitingReview ||
+            task.status == TaskStatus.running);
+    final ciFailed = showChecks && task.checkState == PrCheckState.failure;
+    final pausedUntil = task.status == TaskStatus.paused
+        ? task.pausedUntil
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.sm),
@@ -71,7 +82,11 @@ class _KanbanCardState extends State<KanbanCard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (attention) Container(width: 3, color: appearance.color),
+                  if (attention)
+                    Container(
+                      width: 3,
+                      color: ciFailed ? AppColors.red : appearance.color,
+                    ),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(Spacing.lg),
@@ -101,6 +116,16 @@ class _KanbanCardState extends State<KanbanCard> {
                               ),
                             ),
                           ],
+                          if (pausedUntil != null) ...[
+                            const SizedBox(height: Spacing.xs),
+                            Text(
+                              'Usage limit — resumes at '
+                              '${resumeTimeLabel(pausedUntil)}',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ],
                           if (task.branchName != null) ...[
                             const SizedBox(height: Spacing.sm),
                             Row(
@@ -120,6 +145,10 @@ class _KanbanCardState extends State<KanbanCard> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                if (showChecks) ...[
+                                  const SizedBox(width: Spacing.md),
+                                  _ChecksBadge(state: task.checkState),
+                                ],
                               ],
                             ),
                           ],
@@ -194,6 +223,29 @@ class _MetaRow extends StatelessWidget {
             color: appearance.color,
             fontWeight: FontWeight.w600,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The PR's CI result next to the branch name.
+class _ChecksBadge extends StatelessWidget {
+  const _ChecksBadge({required this.state});
+
+  final PrCheckState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final appearance = checkStateAppearance(state);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StatusDot.fromAppearance(appearance),
+        const SizedBox(width: Spacing.xs),
+        Text(
+          checkStateLabel(state),
+          style: AppTypography.caption.copyWith(color: appearance.color),
         ),
       ],
     );

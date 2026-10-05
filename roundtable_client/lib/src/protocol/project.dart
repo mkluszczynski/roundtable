@@ -12,6 +12,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
+import 'agent.dart' as _ijo8h3v4;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -23,6 +24,15 @@ abstract class Project
     required this.repoUrl,
     this.repoAccessTokenUpdatedAt,
     this.dockerImage,
+    this.autoFixFailingChecks,
+    this.maxCheckFixAttempts,
+    this.skipPlanning,
+    this.autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
+    this.autoFixReview,
+    this.maxReviewFixRounds,
+    this.autoMerge,
     DateTime? createdAt,
     this.tasks,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -33,6 +43,15 @@ abstract class Project
     required String repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -49,6 +68,31 @@ abstract class Project
               jsonSerialization['repoAccessTokenUpdatedAt'],
             ),
       dockerImage: jsonSerialization['dockerImage'] as String?,
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      skipPlanning: jsonSerialization['skipPlanning'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -77,6 +121,31 @@ abstract class Project
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  /// inherits WorkspaceSettings.
+  bool? autoFixFailingChecks;
+
+  int? maxCheckFixAttempts;
+
+  /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  bool? skipPlanning;
+
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  bool? autoReview;
+
+  int? reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.Agent? reviewerAgent;
+
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  bool? autoFixReview;
+
+  int? maxReviewFixRounds;
+
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  bool? autoMerge;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -90,6 +159,15 @@ abstract class Project
     String? repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -103,6 +181,17 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -118,6 +207,18 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -139,6 +240,15 @@ class _ProjectImpl extends Project {
     required String repoUrl,
     DateTime? repoAccessTokenUpdatedAt,
     String? dockerImage,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -147,6 +257,15 @@ class _ProjectImpl extends Project {
          repoUrl: repoUrl,
          repoAccessTokenUpdatedAt: repoAccessTokenUpdatedAt,
          dockerImage: dockerImage,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
+         skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -161,6 +280,15 @@ class _ProjectImpl extends Project {
     String? repoUrl,
     Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
+    Object? autoFixFailingChecks = _Undefined,
+    Object? maxCheckFixAttempts = _Undefined,
+    Object? skipPlanning = _Undefined,
+    Object? autoReview = _Undefined,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
+    Object? autoFixReview = _Undefined,
+    Object? maxReviewFixRounds = _Undefined,
+    Object? autoMerge = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -172,6 +300,27 @@ class _ProjectImpl extends Project {
           ? repoAccessTokenUpdatedAt
           : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
+      autoFixFailingChecks: autoFixFailingChecks is bool?
+          ? autoFixFailingChecks
+          : this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts is int?
+          ? maxCheckFixAttempts
+          : this.maxCheckFixAttempts,
+      skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
+      autoReview: autoReview is bool? ? autoReview : this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview is bool?
+          ? autoFixReview
+          : this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds is int?
+          ? maxReviewFixRounds
+          : this.maxReviewFixRounds,
+      autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks

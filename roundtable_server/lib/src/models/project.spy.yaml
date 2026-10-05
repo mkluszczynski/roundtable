@@ -12,5 +12,20 @@ fields:
   repoAccessTokenUpdatedAt: DateTime?
   ### Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   dockerImage: String?
+  ### Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  ### inherits WorkspaceSettings.
+  autoFixFailingChecks: bool?
+  maxCheckFixAttempts: int?
+  ### Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
+  skipPlanning: bool?
+  ### Default for Task.autoReview; null inherits WorkspaceSettings.
+  autoReview: bool?
+  ### Default reviewer for new tasks; null inherits WorkspaceSettings.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  autoFixReview: bool?
+  maxReviewFixRounds: int?
+  ### Default for Task.autoMerge; null inherits WorkspaceSettings.
+  autoMerge: bool?
   createdAt: DateTime, default=now
   tasks: List<Task>?, relation(name=project_tasks)

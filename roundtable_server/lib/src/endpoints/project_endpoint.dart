@@ -35,7 +35,8 @@ class ProjectEndpoint extends Endpoint {
   }
 
   /// Edits a project's name, repo URL and docker image. The access token
-  /// goes through [updateRepoAccessToken] instead.
+  /// goes through [updateRepoAccessToken], task defaults through
+  /// `SettingsEndpoint.updateProjectTaskDefaults`.
   Future<Project> update(Session session, Project project) async {
     if (await Project.db.findById(session, project.id!) == null) {
       throw NotFoundException(message: 'Project ${project.id} not found');
@@ -43,7 +44,11 @@ class ProjectEndpoint extends Endpoint {
     return Project.db.updateRow(
       session,
       project,
-      columns: (t) => [t.name, t.repoUrl, t.dockerImage],
+      columns: (t) => [
+        t.name,
+        t.repoUrl,
+        t.dockerImage,
+      ],
     );
   }
 

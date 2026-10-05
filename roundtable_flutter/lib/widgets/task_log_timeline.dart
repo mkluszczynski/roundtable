@@ -6,13 +6,9 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/log_entry_kind.dart';
 import '../utils/log_timeline.dart';
-import 'pill_selector.dart';
 import 'plan_content.dart';
 import 'status_pill.dart';
 import 'task_log_line.dart';
-
-/// How much of the log to show.
-enum LogDetail { messages, activity, raw }
 
 /// A task's log as a timeline: one section per run (planning, execution,
 /// feedback, review), the agent's messages as markdown, and its tool calls
@@ -31,7 +27,9 @@ class _TaskLogTimelineState extends State<TaskLogTimeline> {
   static const _maxWidth = 960.0;
 
   final _scroll = ScrollController();
-  LogDetail _detail = LogDetail.activity;
+
+  /// Shows the plain line-by-line log instead of the timeline.
+  bool _raw = false;
 
   /// Runs the dev opened or closed; others default to "only the latest is
   /// open".
@@ -78,38 +76,72 @@ class _TaskLogTimelineState extends State<TaskLogTimeline> {
   @override
   Widget build(BuildContext context) {
     final runs = buildLogTimeline(widget.entries);
+    bool expandedAt(int i) => _toggled[runs[i].index] ?? i == runs.length - 1;
+    final allExpanded = [
+      for (var i = 0; i < runs.length; i++) expandedAt(i),
+    ].every((e) => e);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            PillSelector<LogDetail>(
-              options: LogDetail.values,
-              labelBuilder: (d) => switch (d) {
-                LogDetail.messages => 'Messages',
-                LogDetail.activity => 'All activity',
-                LogDetail.raw => 'Raw',
-              },
-              selected: _detail,
-              onChanged: (d) {
-                setState(() => _detail = d);
-                if (_follow) _scrollToEndSoon();
-              },
+        Center(
+          child: ConstrainedBox(
+            // The raw log spans the full width; keep the toolbar above it.
+            constraints: BoxConstraints(
+              maxWidth: _raw ? double.infinity : _maxWidth,
             ),
-            const Spacer(),
-            if (widget.live) ...[
-              const StatusDot(color: AppColors.live, pulsing: true),
-              const SizedBox(width: Spacing.xs),
-              Text(
-                'live',
-                style: AppTypography.caption.copyWith(color: AppColors.live),
-              ),
-            ],
-          ],
+            child: Row(
+              children: [
+                Text(
+                  'LOG · ${runs.length} run${runs.length == 1 ? '' : 's'}',
+                  style: AppTypography.label,
+                ),
+                if (widget.live) ...[
+                  const SizedBox(width: Spacing.md),
+                  const StatusDot(color: AppColors.live, pulsing: true),
+                  const SizedBox(width: Spacing.xs),
+                  Text(
+                    'live',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.live,
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (!_raw && runs.length > 1)
+                  TextButton(
+                    onPressed: () {
+                      final expand = !allExpanded;
+                      setState(() {
+                        for (final run in runs) {
+                          _toggled[run.index] = expand;
+                        }
+                      });
+                    },
+                    child: Text(allExpanded ? 'Collapse all' : 'Expand all'),
+                  ),
+                IconButton(
+                  tooltip: _raw ? 'Show timeline' : 'Show raw log',
+                  isSelected: _raw,
+                  icon: const Icon(Icons.data_object, size: 18),
+                  color: AppColors.text2,
+                  selectedIcon: const Icon(
+                    Icons.data_object,
+                    size: 18,
+                    color: AppColors.accentSoft,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    setState(() => _raw = !_raw);
+                    if (_follow) _scrollToEndSoon();
+                  },
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: Spacing.md),
         Expanded(
-          child: _detail == LogDetail.raw
+          child: _raw
               ? TaskLogView(entries: widget.entries)
               : Stack(
                   children: [
@@ -123,7 +155,7 @@ class _TaskLogTimelineState extends State<TaskLogTimeline> {
                               constraints: const BoxConstraints(
                                 maxWidth: _maxWidth,
                               ),
-                              child: _RunSection(
+                              child: LogRunView(
                                 run: run,
                                 running:
                                     widget.live &&
@@ -133,7 +165,6 @@ class _TaskLogTimelineState extends State<TaskLogTimeline> {
                                     _toggled[run.index] ?? i == runs.length - 1,
                                 onToggle: (open) =>
                                     setState(() => _toggled[run.index] = open),
-                                detail: _detail,
                               ),
                             ),
                           ),
@@ -164,20 +195,21 @@ class _TaskLogTimelineState extends State<TaskLogTimeline> {
   }
 }
 
-class _RunSection extends StatelessWidget {
-  const _RunSection({
+/// One run of a task's log: a collapsible header and its blocks. Used by
+/// the Logs timeline and, for a single code review, the AI review view.
+class LogRunView extends StatelessWidget {
+  const LogRunView({
+    super.key,
     required this.run,
     required this.running,
     required this.expanded,
     required this.onToggle,
-    required this.detail,
   });
 
   final LogRun run;
   final bool running;
   final bool expanded;
   final ValueChanged<bool> onToggle;
-  final LogDetail detail;
 
   @override
   Widget build(BuildContext context) {
@@ -195,10 +227,7 @@ class _RunSection extends StatelessWidget {
         ? null
         : '${startedAt.hour.toString().padLeft(2, '0')}:'
               '${startedAt.minute.toString().padLeft(2, '0')}';
-    final visible = [
-      for (final block in run.blocks)
-        if (detail == LogDetail.activity || block is MessageBlock) block,
-    ];
+    final visible = run.blocks;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.lg),
@@ -296,6 +325,26 @@ class _RunSection extends StatelessWidget {
                       ),
                     ),
                   ),
+                  EventBlock(:final text) => Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.flag_outlined,
+                        size: 14,
+                        color: AppColors.accentSoft,
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: SelectableText(
+                          text,
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.text1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  DecisionBlock() => _DecisionView(block: block),
                   ActivityBlock() => _Expandable(
                     icon: Icons.construction_outlined,
                     title:
@@ -515,5 +564,78 @@ class _DetailBox extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A question the agent asked or a plan it submitted, with the response.
+class _DecisionView extends StatelessWidget {
+  const _DecisionView({required this.block});
+
+  final DecisionBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final result = block.step.result;
+    final String title;
+    final String? response;
+    final Color responseColor;
+    if (block.isPlan) {
+      title = 'Submitted the plan for approval';
+      final text = result == null ? null : (result.detail ?? result.text);
+      final approved =
+          result != null && !result.failed && text!.contains('approved');
+      response = result == null
+          ? null
+          : approved
+          ? 'You approved the plan'
+          : 'You asked for changes: ${_firstLine(text!)}';
+      responseColor = approved ? AppColors.live : AppColors.warning;
+    } else {
+      title = 'Asked: ${block.question ?? 'a question'}';
+      final answer = block.answer;
+      response = answer == null ? null : 'You answered: ${_firstLine(answer)}';
+      responseColor = AppColors.live;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(Spacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                block.isPlan ? Icons.checklist_outlined : Icons.help_outline,
+                size: 16,
+                color: AppColors.accentSoft,
+              ),
+              const SizedBox(width: Spacing.sm),
+              Expanded(child: Text(title, style: AppTypography.bodyStrong)),
+            ],
+          ),
+          const SizedBox(height: Spacing.xs),
+          Padding(
+            padding: const EdgeInsets.only(left: 24),
+            child: Text(
+              response ?? 'Waiting for your response…',
+              style: AppTypography.body.copyWith(
+                color: response == null ? AppColors.text2 : responseColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _firstLine(String text) {
+    final line = text.trim().split('\n').first;
+    return line.length > 300 ? '${line.substring(0, 300)}…' : line;
   }
 }

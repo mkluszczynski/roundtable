@@ -284,6 +284,7 @@ class LogItem {
     LogKind.toolResult => '${isError ? '✗' : '✓'} $content',
     LogKind.runStarted => '▶ $content',
     LogKind.runFinished => '${isError ? '❌' : '✅'} $content',
+    LogKind.event => '• $content',
   };
 }
 

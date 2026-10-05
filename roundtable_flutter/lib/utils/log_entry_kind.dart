@@ -12,6 +12,7 @@ extension TaskLogEntryKind on TaskLogEntry {
     ('❌', LogKind.runFinished, true),
     ('🤔 ', LogKind.thinking, false),
     ('▶ ', LogKind.runStarted, false),
+    ('• ', LogKind.event, false),
   ];
 
   (String, LogKind, bool)? get _legacyPrefix {

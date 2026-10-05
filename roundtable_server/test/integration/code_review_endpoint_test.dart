@@ -6,6 +6,7 @@ import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:roundtable_server/src/github_repo_client.dart';
 import 'package:test/test.dart';
 
+import 'github_ci_fixtures.dart';
 import 'test_tools/serverpod_test_tools.dart';
 
 const _prUrl = 'https://github.com/example/roundtable/pull/5';
@@ -109,6 +110,184 @@ void main() {
         ],
       );
     }
+
+    group('auto fix', () {
+      Future<CodeReview> reviewWith(
+        Task task,
+        Agent reviewer,
+        List<ReviewCommentDraft> drafts,
+      ) async {
+        final review = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          task.id!,
+          reviewer.id!,
+        );
+        await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+        return endpoints.codeReview.completeReview(
+          sessionBuilder,
+          review.id!,
+          'Findings.',
+          drafts,
+        );
+      }
+
+      Future<List<TaskFeedback>> feedbackOf(Task task) => TaskFeedback.db.find(
+        sessionBuilder.build(),
+        where: (f) => f.taskId.equals(task.id!),
+      );
+
+      Future<Task> withAutoFix(
+        Task task, {
+        int maxRounds = 2,
+        int rounds = 0,
+      }) => Task.db.updateRow(
+        sessionBuilder.build(),
+        task.copyWith(
+          autoFixReview: true,
+          maxReviewFixRounds: maxRounds,
+          reviewFixRounds: rounds,
+        ),
+      );
+
+      final mixed = [
+        ReviewCommentDraft(
+          path: 'lib/a.dart',
+          line: 3,
+          body: 'Crash on null',
+          severity: ReviewCommentSeverity.blocker,
+        ),
+        ReviewCommentDraft(
+          path: 'lib/b.dart',
+          body: 'Rename this',
+          severity: ReviewCommentSeverity.nit,
+        ),
+      ];
+
+      test('when a review completes then its blockers and issues go to the '
+          'agent and nits stay open', () async {
+        final seeded = await seed();
+        final task = await withAutoFix(seeded.task);
+
+        await reviewWith(task, seeded.reviewer, mixed);
+
+        final feedback = await feedbackOf(task);
+        expect(feedback, hasLength(1));
+        expect(feedback.single.message, contains('Crash on null'));
+        expect(feedback.single.message, isNot(contains('Rename this')));
+        final comments = await ReviewComment.db.find(
+          sessionBuilder.build(),
+          orderBy: (c) => c.id,
+        );
+        expect(comments.map((c) => c.state), [
+          ReviewCommentState.sentToFix,
+          ReviewCommentState.open,
+        ]);
+        final updated = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(updated!.reviewFixRounds, 1);
+      });
+
+      test('when auto fix is off then nothing is sent', () async {
+        final seeded = await seed();
+
+        await reviewWith(seeded.task, seeded.reviewer, mixed);
+
+        expect(await feedbackOf(seeded.task), isEmpty);
+      });
+
+      test('when the round limit is reached then nothing is sent', () async {
+        final seeded = await seed();
+        final task = await withAutoFix(seeded.task, maxRounds: 2, rounds: 2);
+
+        await reviewWith(task, seeded.reviewer, mixed);
+
+        expect(await feedbackOf(task), isEmpty);
+        final events = await TaskLogEntry.db.find(
+          sessionBuilder.build(),
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('Auto fix stopped after 2 rounds')),
+        );
+      });
+    });
+
+    group('auto review', () {
+      Future<Task> finishRun(Task task) async {
+        final session = sessionBuilder.build();
+        final running = await Task.db.updateRow(
+          session,
+          task.copyWith(status: TaskStatus.running),
+        );
+        return endpoints.task.update(
+          sessionBuilder,
+          running.copyWith(status: TaskStatus.awaitingReview),
+        );
+      }
+
+      Future<List<CodeReview>> reviewsOf(Task task) => CodeReview.db.find(
+        sessionBuilder.build(),
+        where: (r) => r.taskId.equals(task.id!),
+      );
+
+      test(
+        'when a run ends awaiting review then the reviewer is queued',
+        () async {
+          final seeded = await seed();
+          final task = await Task.db.updateRow(
+            sessionBuilder.build(),
+            seeded.task.copyWith(
+              autoReview: true,
+              reviewerAgentId: seeded.reviewer.id,
+            ),
+          );
+
+          await finishRun(task);
+
+          final reviews = await reviewsOf(task);
+          expect(reviews, hasLength(1));
+          expect(reviews.single.reviewerAgentId, seeded.reviewer.id);
+          expect(reviews.single.status, CodeReviewStatus.queued);
+        },
+      );
+
+      test('when auto review is off then no review is queued', () async {
+        final seeded = await seed();
+        final task = await Task.db.updateRow(
+          sessionBuilder.build(),
+          seeded.task.copyWith(reviewerAgentId: seeded.reviewer.id),
+        );
+
+        await finishRun(task);
+
+        expect(await reviewsOf(task), isEmpty);
+      });
+
+      test('when no reviewer is set then the run still finishes and the '
+          'skip is logged', () async {
+        final seeded = await seed();
+        final task = await Task.db.updateRow(
+          sessionBuilder.build(),
+          seeded.task.copyWith(autoReview: true),
+        );
+
+        final updated = await finishRun(task);
+
+        expect(updated.status, TaskStatus.awaitingReview);
+        expect(await reviewsOf(task), isEmpty);
+        final events = await TaskLogEntry.db.find(
+          sessionBuilder.build(),
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('Auto review skipped')),
+        );
+      });
+    });
 
     test(
       'when the task is not awaiting review then requesting one throws',
@@ -316,30 +495,40 @@ void main() {
 
     test('when accepting then the PR is merged and the task is done', () async {
       final seeded = await seed(token: 'secret');
-      githubHandler = (_) => http.Response(jsonEncode({'merged': true}), 200);
+      githubHandler = (request) =>
+          fakeCiResponse(request) ??
+          http.Response(jsonEncode({'merged': true}), 200);
 
       final task = await endpoints.task.acceptTask(
         sessionBuilder,
         seeded.task.id!,
+        force: false,
       );
 
       expect(task.status, TaskStatus.done);
-      final merge = githubRequests.single;
-      expect(merge.method, 'PUT');
+      final merge = githubRequests.where((r) => r.method == 'PUT').single;
       expect(merge.url.path, '/repos/example/roundtable/pulls/5/merge');
+      // Only the commit whose checks passed may be merged.
+      expect(jsonDecode(merge.body)['sha'], 'abc1234def');
     });
 
     test(
       'when GitHub refuses the merge then the task stays in review',
       () async {
         final seeded = await seed(token: 'secret');
-        githubHandler = (_) => http.Response(
-          jsonEncode({'message': 'Pull Request is not mergeable'}),
-          405,
-        );
+        githubHandler = (request) => request.method == 'PUT'
+            ? http.Response(
+                jsonEncode({'message': 'Pull Request is not mergeable'}),
+                405,
+              )
+            : fakeCiResponse(request) ?? http.Response('{}', 200);
 
         await expectLater(
-          endpoints.task.acceptTask(sessionBuilder, seeded.task.id!),
+          endpoints.task.acceptTask(
+            sessionBuilder,
+            seeded.task.id!,
+            force: false,
+          ),
           throwsA(
             predicate((e) => e.toString().contains('not mergeable')),
           ),
@@ -361,7 +550,11 @@ void main() {
       );
 
       await expectLater(
-        () => endpoints.task.acceptTask(sessionBuilder, seeded.task.id!),
+        () => endpoints.task.acceptTask(
+          sessionBuilder,
+          seeded.task.id!,
+          force: false,
+        ),
         throwsA(isA<Exception>()),
       );
     });

@@ -170,6 +170,8 @@ void run(List<String> args) async {
         'MachineOfflineCheckFutureCall',
         'StalledTaskCheckFutureCall',
         'MachineMetricCleanupCheckFutureCall',
+        'PrChecksCheckFutureCall',
+        'PausedTaskResumeCheckFutureCall',
       }),
     );
   } finally {
@@ -193,11 +195,26 @@ void run(List<String> args) async {
       .stalledTask
       .check();
 
+  // Resume tasks paused by a Claude usage limit once it has reset.
+  await pod.futureCalls
+      .callRecurring(identifier: 'paused-task-resume')
+      .every(const Duration(seconds: 30))
+      .pausedTaskResume
+      .check();
+
   // Keep only the last hour of machine metrics — the panel shows just the
   // latest sample per machine.
   await pod.futureCalls
       .callRecurring(identifier: 'machine-metric-cleanup')
       .every(const Duration(minutes: 10))
       .machineMetricCleanup
+      .check();
+
+  // Mirror the GitHub Actions checks of tasks in review, so the panel shows
+  // them and can send failures to the agent (docs/FLOWS.md §4 "CI checks").
+  await pod.futureCalls
+      .callRecurring(identifier: 'pr-checks')
+      .every(const Duration(seconds: 30))
+      .prChecks
       .check();
 }

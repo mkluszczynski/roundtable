@@ -18,7 +18,8 @@ KanbanColumn kanbanColumnFor(TaskStatus status) => switch (status) {
   TaskStatus.planning ||
   TaskStatus.waitingForAnswer ||
   TaskStatus.planReady ||
-  TaskStatus.running => KanbanColumn.inProgress,
+  TaskStatus.running ||
+  TaskStatus.paused => KanbanColumn.inProgress,
   TaskStatus.awaitingReview => KanbanColumn.review,
   TaskStatus.done ||
   TaskStatus.failed ||

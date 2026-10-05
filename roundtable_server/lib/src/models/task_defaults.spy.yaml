@@ -1,0 +1,12 @@
+### The advanced options a new task starts with in a project: the project's
+### overrides on top of the workspace defaults.
+class: TaskDefaults
+fields:
+  skipPlanning: bool
+  autoReview: bool
+  reviewerAgentId: int?
+  autoFixReview: bool
+  maxReviewFixRounds: int
+  autoMerge: bool
+  autoFixFailingChecks: bool
+  maxCheckFixAttempts: int

@@ -9,23 +9,37 @@ import '../cubits/create_task_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/attachment_repository.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/settings_repository.dart';
 import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
 import '../utils/image_paste.dart';
+import '../utils/task_options.dart';
 import 'agent_picker.dart';
 import 'attachment_thumbnail.dart';
+import 'pill_selector.dart';
+import 'reviewer_select.dart';
 import 'app_modal.dart';
 
 class CreateTaskDialog extends StatelessWidget {
-  const CreateTaskDialog({super.key, this.initialProjectId});
+  const CreateTaskDialog({
+    super.key,
+    this.initialProjectId,
+    this.initialAgentId,
+    this.initialPrompt,
+  });
 
   /// When set (opened from `project_detail_screen.dart`'s "New task"), the
   /// project is fixed and its picker is hidden — same pattern as
   /// `AddAgentDialog`'s scoped machine.
   final int? initialProjectId;
+  final int? initialAgentId;
+
+  /// Prefilled prompt, e.g. a follow-up with the previous task as context;
+  /// the cursor starts at its beginning.
+  final String? initialPrompt;
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +51,25 @@ class CreateTaskDialog extends StatelessWidget {
         ),
         BlocProvider(create: (_) => CreateTaskCubit(TaskRepository(client))),
       ],
-      child: _CreateTaskDialogContent(initialProjectId: initialProjectId),
+      child: _CreateTaskDialogContent(
+        initialProjectId: initialProjectId,
+        initialAgentId: initialAgentId,
+        initialPrompt: initialPrompt,
+      ),
     );
   }
 }
 
 class _CreateTaskDialogContent extends StatefulWidget {
-  const _CreateTaskDialogContent({this.initialProjectId});
+  const _CreateTaskDialogContent({
+    this.initialProjectId,
+    this.initialAgentId,
+    this.initialPrompt,
+  });
 
   final int? initialProjectId;
+  final int? initialAgentId;
+  final String? initialPrompt;
 
   @override
   State<_CreateTaskDialogContent> createState() =>
@@ -53,10 +77,26 @@ class _CreateTaskDialogContent extends StatefulWidget {
 }
 
 class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
-  final _promptController = TextEditingController();
+  late final _promptController = TextEditingController(
+    text: widget.initialPrompt,
+  )..selection = const TextSelection.collapsed(offset: 0);
   late int? _projectId = widget.initialProjectId;
-  int? _agentId;
+  late int? _agentId = widget.initialAgentId;
   bool _skipPlanning = false;
+  bool _autoReview = false;
+  int? _reviewerAgentId;
+  bool _autoFix = false;
+  int _maxFixRounds = 2;
+  bool _autoMerge = false;
+  bool _autoFixChecks = false;
+  int _maxCheckFixAttempts = 2;
+
+  /// The project's resolved defaults, once loaded — [_skipPlanning] follows
+  /// them until the dev changes it by hand.
+  TaskDefaults? _defaults;
+  bool _optionsEdited = false;
+  bool _advancedOpen = false;
+  late final _settings = SettingsRepository(client);
 
   late final _attachments = AttachmentRepository(client);
   final _images = <_PendingImage>[];
@@ -75,6 +115,34 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     _stopPasteListener = listenForPastedImages(
       (image) => _addImage(image.name, image.bytes),
     );
+    if (_projectId != null) _loadDefaults(_projectId!);
+  }
+
+  void _selectProject(int projectId) {
+    setState(() => _projectId = projectId);
+    _loadDefaults(projectId);
+  }
+
+  Future<void> _loadDefaults(int projectId) async {
+    try {
+      final defaults = await _settings.taskDefaults(projectId);
+      if (!mounted || _projectId != projectId) return;
+      setState(() {
+        _defaults = defaults;
+        if (!_optionsEdited) {
+          _skipPlanning = defaults.skipPlanning;
+          _autoReview = defaults.autoReview;
+          _reviewerAgentId = defaults.reviewerAgentId;
+          _autoFix = defaults.autoFixReview;
+          _maxFixRounds = defaults.maxReviewFixRounds;
+          _autoMerge = defaults.autoMerge;
+          _autoFixChecks = defaults.autoFixFailingChecks;
+          _maxCheckFixAttempts = defaults.maxCheckFixAttempts;
+        }
+      });
+    } catch (_) {
+      // Keep the current values; the form still works without defaults.
+    }
   }
 
   @override
@@ -90,6 +158,18 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     }
     super.dispose();
   }
+
+  String get _advancedSummary => _summaryFor(
+    skipPlanning: _skipPlanning,
+    autoReview: _autoReview,
+    reviewerAgentId: _reviewerAgentId,
+    autoFix: _autoFix,
+    maxFixRounds: _maxFixRounds,
+    autoMerge: _autoMerge,
+    autoFixChecks: _autoFixChecks,
+    maxCheckFixAttempts: _maxCheckFixAttempts,
+    defaults: _defaults,
+  );
 
   bool get _uploading => _images.any((i) => i.uploading);
 
@@ -188,6 +268,13 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           agentId: _agentId,
                           prompt: _promptController.text.trim(),
                           skipPlanning: _skipPlanning,
+                          autoReview: _autoReview,
+                          reviewerAgentId: _reviewerAgentId,
+                          autoFixReview: _autoFix,
+                          maxReviewFixRounds: _maxFixRounds,
+                          autoMerge: _autoMerge,
+                          autoFixFailingChecks: _autoFixChecks,
+                          maxCheckFixAttempts: _maxCheckFixAttempts,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -231,8 +318,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                               width: 244,
                               child: SelectableCard(
                                 selected: _projectId == project.id,
-                                onTap: () =>
-                                    setState(() => _projectId = project.id),
+                                onTap: () => _selectProject(project.id!),
                                 child: _ProjectOption(project: project),
                               ),
                             ),
@@ -246,6 +332,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                 const SizedBox(height: Spacing.sm),
                 TextField(
                   controller: _promptController,
+                  // A prefilled follow-up starts with the cursor in place.
+                  autofocus: widget.initialPrompt != null,
                   decoration: const InputDecoration(
                     hintText:
                         'What should the agent do? Be as specific as you '
@@ -294,18 +382,154 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                   allowNone: true,
                   onChanged: (id) => setState(() => _agentId = id),
                 ),
-                const SizedBox(height: Spacing.sm),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _skipPlanning,
-                  activeColor: AppColors.accent,
-                  title: const Text('Skip planning'),
-                  subtitle: const Text(
-                    'Go straight to execution — saves usage on trivial tasks',
-                  ),
-                  onChanged: (value) =>
-                      setState(() => _skipPlanning = value ?? false),
+                const SizedBox(height: Spacing.xl),
+                _AdvancedHeader(
+                  open: _advancedOpen,
+                  summary: _advancedSummary,
+                  onTap: () => setState(() => _advancedOpen = !_advancedOpen),
                 ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _skipPlanning,
+                    activeColor: AppColors.accent,
+                    title: Text(skipPlanningOption.title),
+                    subtitle: Text(skipPlanningOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _skipPlanning = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoReview,
+                    activeColor: AppColors.accent,
+                    title: Text(autoReviewOption.title),
+                    subtitle: Text(
+                      _autoReview && _reviewerAgentId == null
+                          ? 'Pick a reviewer below, or auto review is skipped'
+                          : autoReviewOption.description,
+                    ),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoReview = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen)
+                  Padding(
+                    padding: const EdgeInsets.only(top: Spacing.sm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                reviewerOption.title,
+                                style: AppTypography.body,
+                              ),
+                              Text(
+                                reviewerOption.description,
+                                style: AppTypography.caption,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.md),
+                        ReviewerSelect(
+                          selected: _reviewerAgentId,
+                          onChanged: (id) => setState(() {
+                            _optionsEdited = true;
+                            _reviewerAgentId = id;
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoFix,
+                    activeColor: AppColors.accent,
+                    title: Text(autoFixOption.title),
+                    subtitle: Text(autoFixOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoFix = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen && _autoFix)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          maxFixRoundsOption.title,
+                          style: AppTypography.body,
+                        ),
+                      ),
+                      PillSelector<int>(
+                        options: fixRoundChoices,
+                        labelBuilder: (n) => '$n',
+                        selected: _maxFixRounds,
+                        onChanged: (n) => setState(() {
+                          _optionsEdited = true;
+                          _maxFixRounds = n;
+                        }),
+                      ),
+                    ],
+                  ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoMerge,
+                    activeColor: AppColors.accent,
+                    title: Text(autoMergeOption.title),
+                    subtitle: Text(
+                      _autoMerge && !_autoReview
+                          ? autoMergeWithoutReviewHint
+                          : autoMergeOption.description,
+                      style: _autoMerge && !_autoReview
+                          ? const TextStyle(color: AppColors.warning)
+                          : null,
+                    ),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoMerge = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoFixChecks,
+                    activeColor: AppColors.accent,
+                    title: Text(autoFixChecksOption.title),
+                    subtitle: Text(autoFixChecksOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoFixChecks = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen && _autoFixChecks)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          maxCheckFixAttemptsOption.title,
+                          style: AppTypography.body,
+                        ),
+                      ),
+                      PillSelector<int>(
+                        options: fixRoundChoices,
+                        labelBuilder: (n) => '$n',
+                        selected: _maxCheckFixAttempts,
+                        onChanged: (n) => setState(() {
+                          _optionsEdited = true;
+                          _maxCheckFixAttempts = n;
+                        }),
+                      ),
+                    ],
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -323,6 +547,83 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Collapsed by default, so the summary has to say what's on — and whether
+/// it differs from the project's defaults.
+String _summaryFor({
+  required bool skipPlanning,
+  required bool autoReview,
+  required int? reviewerAgentId,
+  required bool autoFix,
+  required int maxFixRounds,
+  required bool autoMerge,
+  required bool autoFixChecks,
+  required int maxCheckFixAttempts,
+  TaskDefaults? defaults,
+}) {
+  final on = [
+    skipPlanning ? skipPlanningOption.title : 'Plan first',
+    if (autoReview) autoReviewOption.title,
+    if (autoFix) 'Auto fix ×$maxFixRounds',
+    if (autoMerge) autoMergeOption.title,
+    if (autoFixChecks) 'Auto fix CI ×$maxCheckFixAttempts',
+  ];
+  final text = on.join(' · ');
+  final custom =
+      defaults != null &&
+      (defaults.skipPlanning != skipPlanning ||
+          defaults.autoReview != autoReview ||
+          defaults.reviewerAgentId != reviewerAgentId ||
+          defaults.autoFixReview != autoFix ||
+          (autoFix && defaults.maxReviewFixRounds != maxFixRounds) ||
+          defaults.autoMerge != autoMerge ||
+          defaults.autoFixFailingChecks != autoFixChecks ||
+          (autoFixChecks &&
+              defaults.maxCheckFixAttempts != maxCheckFixAttempts));
+  return custom ? '$text — changed from project defaults' : text;
+}
+
+class _AdvancedHeader extends StatelessWidget {
+  const _AdvancedHeader({
+    required this.open,
+    required this.summary,
+    required this.onTap,
+  });
+
+  final bool open;
+  final String summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Spacing.xs),
+        child: Row(
+          children: [
+            Text('ADVANCED', style: AppTypography.label),
+            const SizedBox(width: Spacing.xs),
+            Icon(
+              open ? Icons.expand_less : Icons.expand_more,
+              size: 16,
+              color: AppColors.text1,
+            ),
+            const SizedBox(width: Spacing.md),
+            Expanded(
+              child: Text(
+                summary,
+                style: AppTypography.caption,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -76,4 +76,49 @@ void main() {
     final runs = buildLogTimeline([_l('One.'), _l('Two.')]);
     expect((runs.single.blocks.single as MessageBlock).text, 'One.\n\nTwo.');
   });
+
+  test('questions and plan approvals become decisions, not tool steps', () {
+    final runs = buildLogTimeline(
+      [
+        TaskLogEntry(
+          taskId: 1,
+          content: 'AskUserQuestion({…})',
+          kind: LogKind.toolCall,
+          runId: 'r1',
+          toolName: 'AskUserQuestion',
+          toolUseId: 'q1',
+          detail: '{"questions": [{"question": "Which models?"}]}',
+        ),
+        TaskLogEntry(
+          taskId: 1,
+          content: 'answered',
+          kind: LogKind.toolResult,
+          runId: 'r1',
+          toolUseId: 'q1',
+          detail:
+              'Your questions have been answered: "Which models?"="The latest '
+              'four". You can now continue.',
+        ),
+        _l('placeholder'),
+      ].sublist(0, 2),
+    );
+
+    final decision = runs.single.blocks.single as DecisionBlock;
+    expect(decision.isPlan, isFalse);
+    expect(decision.question, 'Which models?');
+    expect(decision.answer, 'The latest four');
+    expect(runs.single.stepCount, 0);
+  });
+
+  test('legacy ExitPlanMode lines and runner events are recognised', () {
+    final runs = buildLogTimeline([
+      _l('🔧 ExitPlanMode()'),
+      _l('✓ User has approved your plan.'),
+      _l('• Committed and pushed task-3, opened pull request https://x'),
+    ]);
+    final blocks = runs.single.blocks;
+    expect((blocks[0] as DecisionBlock).isPlan, isTrue);
+    expect((blocks[0] as DecisionBlock).step.result, isNotNull);
+    expect((blocks[1] as EventBlock).text, startsWith('Committed and pushed'));
+  });
 }

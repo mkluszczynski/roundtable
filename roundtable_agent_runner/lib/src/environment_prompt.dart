@@ -83,6 +83,7 @@ ${review ? '- You only review; never change files, commit or push.' : '''- Do NO
 
 How to verify your work:
 - Use only the tools listed above (e.g. a project's analyzer, formatter or unit tests when their toolchain is available).
+- A missing toolchain never blocks the work itself: write the code anyway (even when you can't generate code, run migrations or build), and report what you couldn't run. Only say you can't do something when it's impossible without the tool.
 - Do not try to install missing toolchains, use sudo, or work around a missing tool.
 - When a verification step can't run here, say so in your plan and list it ${review ? 'in your review' : 'in your final message under a "Not verified here" heading'}, so the developer runs it.''';
 }

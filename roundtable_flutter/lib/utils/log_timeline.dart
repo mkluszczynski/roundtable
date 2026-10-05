@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'log_entry_kind.dart';
@@ -18,6 +20,9 @@ class LogRun {
   /// The run's `runFinished` entry, null while it's still going.
   TaskLogEntry? finished;
   final List<LogBlock> blocks = [];
+
+  /// The code review this run belongs to (structured review runs).
+  int? reviewId;
 
   bool get isReview => phase == LogPhase.review;
 
@@ -40,6 +45,58 @@ class ThinkingBlock extends LogBlock {
   ThinkingBlock(this.text);
 
   final String text;
+}
+
+/// Something the runner did around the run (pushed, opened the PR…).
+class EventBlock extends LogBlock {
+  EventBlock(this.text);
+
+  final String text;
+}
+
+/// A decision the agent asked the dev for — a question (AskUserQuestion)
+/// or plan approval (ExitPlanMode) — with the dev's response once it came.
+class DecisionBlock extends LogBlock {
+  DecisionBlock(this.step);
+
+  final ToolStep step;
+
+  bool get isPlan => step.toolName == 'ExitPlanMode';
+
+  /// The question asked (AskUserQuestion's first question).
+  String? get question {
+    final detail = step.call.detail;
+    if (detail != null) {
+      try {
+        final input = jsonDecode(detail);
+        if (input is Map) {
+          final questions = input['questions'];
+          if (questions is List && questions.isNotEmpty) {
+            final first = questions.first;
+            if (first is Map && first['question'] is String) {
+              return first['question'] as String;
+            }
+          }
+          if (input['question'] is String) return input['question'] as String;
+        }
+      } catch (_) {
+        // Fall through to the summary.
+      }
+    }
+    final match = RegExp(r'"question"\s*:\s*"([^"]+)').firstMatch(
+      step.call.text,
+    );
+    return match?.group(1);
+  }
+
+  /// The dev's answer, from Claude Code's `"question"="answer"` receipt.
+  String? get answer {
+    final result = step.result;
+    if (result == null) return null;
+    final text = result.detail ?? result.text;
+    final match = RegExp(r'"="([\s\S]*?)"(?:[.,]|\s|$)').firstMatch(text);
+    return match?.group(1) ?? text;
+  }
 }
 
 /// Consecutive tool calls between two messages.
@@ -131,7 +188,13 @@ List<LogRun> buildLogTimeline(List<TaskLogEntry> entries) {
   return runs;
 }
 
+bool _isDecision(TaskLogEntry call) {
+  final name = ToolStep(call).toolName;
+  return name == 'AskUserQuestion' || name == 'ExitPlanMode';
+}
+
 void _addToRun(LogRun run, TaskLogEntry entry) {
+  run.reviewId ??= entry.reviewId;
   switch (entry.effectiveKind) {
     case LogKind.runStarted:
       run.title = entry.text;
@@ -147,6 +210,10 @@ void _addToRun(LogRun run, TaskLogEntry entry) {
       }
     case LogKind.thinking:
       run.blocks.add(ThinkingBlock(entry.text));
+    case LogKind.event:
+      run.blocks.add(EventBlock(entry.text));
+    case LogKind.toolCall when _isDecision(entry):
+      run.blocks.add(DecisionBlock(ToolStep(entry)));
     case LogKind.toolCall:
       final last = run.blocks.lastOrNull;
       final activity = last is ActivityBlock ? last : ActivityBlock();
@@ -162,7 +229,12 @@ void _addToRun(LogRun run, TaskLogEntry entry) {
 /// still waiting for a result.
 ToolStep? _stepForResult(LogRun run, TaskLogEntry result) {
   final steps = [
-    for (final block in run.blocks.whereType<ActivityBlock>()) ...block.steps,
+    for (final block in run.blocks)
+      ...switch (block) {
+        ActivityBlock(:final steps) => steps,
+        DecisionBlock(:final step) => [step],
+        _ => const <ToolStep>[],
+      },
   ];
   final id = result.toolUseId;
   if (id != null) {

@@ -49,13 +49,23 @@ void main() {
     expect(find.text('First try.'), findsOneWidget);
   });
 
-  testWidgets('Messages hides tool activity', (tester) async {
+  testWidgets('the raw toggle shows the plain log', (tester) async {
     await _pump(tester, entries);
 
-    await tester.tap(find.text('Messages'));
+    await tester.tap(find.byTooltip('Show raw log'));
     await tester.pumpAndSettle();
 
     expect(find.text('1 step'), findsNothing);
-    expect(find.text('Fixed it.'), findsOneWidget);
+    expect(find.byTooltip('Show timeline'), findsOneWidget);
+  });
+
+  testWidgets('expand all opens every run', (tester) async {
+    await _pump(tester, entries);
+
+    await tester.tap(find.text('Expand all'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('First try.'), findsOneWidget);
+    expect(find.text('Collapse all'), findsOneWidget);
   });
 }
