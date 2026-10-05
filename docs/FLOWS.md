@@ -136,6 +136,13 @@ terminal, the runner can't change it through `update` anymore.
      agent's `AgentRoleDefinition.prompt` (edited in Settings, sent with
      `AgentEndpoint.get`), `{name}` replaced (`role_prompts.dart`). On a
      resume, the prompt is the feedback text.
+   - **Task title.** The same MCP server also offers `set_task_title`. While
+     `Task.title` is null, the system prompt asks the agent to call
+     `mcp__roundtable-permission__set_task_title` once, first thing; the
+     server (`TaskEndpoint.suggestTitle`) stores it only if the task still
+     has no title, and the board picks it up live. The dev renames it from
+     the task detail header (`TaskEndpoint.setTitle`; blank clears it, and
+     the board falls back to the prompt's first line).
 4. **Logs.** Each NDJSON line goes through `StreamJsonFormatter` →
    `appendLog` → `task-<id>-logs`, which also bumps `lastProgressAt`. The
    panel tails it in `TaskDetailBloc`.

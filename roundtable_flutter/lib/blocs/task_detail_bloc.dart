@@ -81,6 +81,13 @@ class AgentReassigned extends TaskDetailEvent {
   final int agentId;
 }
 
+class TaskRenamed extends TaskDetailEvent {
+  const TaskRenamed(this.taskId, this.title);
+
+  final int taskId;
+  final String title;
+}
+
 class TaskDeleteRequested extends TaskDetailEvent {
   const TaskDeleteRequested(this.taskId);
 
@@ -446,6 +453,14 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     on<TaskCancelled>(_onTaskCancelled);
     on<TaskRetried>(_onTaskRetried);
     on<AgentReassigned>(_onAgentReassigned);
+    on<TaskRenamed>((event, emit) async {
+      // The new title arrives through `watchTask`, like every other change.
+      try {
+        await _repository.setTitle(event.taskId, event.title);
+      } catch (e) {
+        emit(TaskDetailError(errorMessage(e)));
+      }
+    });
     on<TaskDeleteRequested>(_onTaskDeleteRequested);
     on<TaskAccepted>(_onTaskAccepted);
     on<ReviewRequested>(_onReviewRequested);

@@ -87,6 +87,8 @@ task:
   - reassignAgent:
   - submitFeedback:
   - latestFeedback:
+  - suggestTitle:
+  - setTitle:
   - createQuestion:
   - answerQuestion:
   - watchAnswer:

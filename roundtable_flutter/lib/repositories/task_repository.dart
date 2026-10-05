@@ -39,6 +39,10 @@ class TaskRepository {
   Future<String> getFileContent(int taskId, String contentsUrl) =>
       _client.task.getFileContent(taskId, contentsUrl);
 
+  /// Renames [taskId]; a blank [title] clears it.
+  Future<Task> setTitle(int taskId, String? title) =>
+      _client.task.setTitle(taskId, title);
+
   Stream<Task> watchTask(int taskId) => _client.task.watchTask(taskId);
 
   /// Streams every task as it's created/changed, for the dashboard kanban.

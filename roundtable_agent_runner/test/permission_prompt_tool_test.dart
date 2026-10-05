@@ -216,6 +216,77 @@ void main() {
       expect(responses[1]['result']['tools'].single['name'], 'approval_prompt');
     });
 
+    test(
+      'set_task_title is listed and forwarded when suggestTitle is set',
+      () async {
+        final titles = <String>[];
+        final tool = PermissionPromptTool(
+          taskId: 5,
+          createQuestion: (taskId, question, options) async => _question(),
+          watchAnswer: (questionId) => const Stream.empty(),
+          setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
+          watchPlanDecision: (taskId) => const Stream.empty(),
+          latestFeedback: (taskId) async => null,
+          suggestTitle: (taskId, title) async {
+            titles.add('$taskId:$title');
+            return _task(TaskStatus.planning);
+          },
+        );
+
+        final responses = await run([
+          {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'},
+          {
+            'jsonrpc': '2.0',
+            'id': 2,
+            'method': 'tools/call',
+            'params': {
+              'name': 'set_task_title',
+              'arguments': {'title': 'Add task titles'},
+            },
+          },
+        ], tool);
+
+        expect(
+          [for (final t in responses[0]['result']['tools']) t['name']],
+          ['approval_prompt', 'set_task_title'],
+        );
+        expect(titles, ['5:Add task titles']);
+        expect(responses[1]['result']['isError'], isFalse);
+        expect(responses[1]['result']['content'].single['text'], 'Title set.');
+      },
+    );
+
+    test('a set_task_title failure is reported as a tool error', () async {
+      final tool = PermissionPromptTool(
+        taskId: 5,
+        createQuestion: (taskId, question, options) async => _question(),
+        watchAnswer: (questionId) => const Stream.empty(),
+        setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
+        watchPlanDecision: (taskId) => const Stream.empty(),
+        latestFeedback: (taskId) async => null,
+        suggestTitle: (taskId, title) async =>
+            throw StateError('server unreachable'),
+      );
+
+      final responses = await run([
+        {
+          'jsonrpc': '2.0',
+          'id': 2,
+          'method': 'tools/call',
+          'params': {
+            'name': 'set_task_title',
+            'arguments': {'title': 'Add task titles'},
+          },
+        },
+      ], tool);
+
+      expect(responses.single['result']['isError'], isTrue);
+      expect(
+        responses.single['result']['content'].single['text'],
+        contains('server unreachable'),
+      );
+    });
+
     test('answers tools/call with the decision JSON as text content', () async {
       final responses = await run([
         {

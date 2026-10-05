@@ -33,6 +33,7 @@ Future<void> main() async {
     setPlanReady: (taskId, plan) => client.task.setPlanReady(taskId, plan),
     watchPlanDecision: (taskId) => client.task.watchPlanDecision(taskId),
     latestFeedback: (taskId) => client.task.latestFeedback(taskId),
+    suggestTitle: (taskId, title) => client.task.suggestTitle(taskId, title),
   );
 
   await runPermissionPromptToolServer(

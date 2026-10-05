@@ -10,6 +10,7 @@ import '../utils/task_status_label.dart';
 import 'agent_avatar.dart';
 import 'status_pill.dart';
 import 'tag_chip.dart';
+import '../utils/task_title.dart';
 
 /// One agent in a machine's list: avatar, name with live status, role and
 /// — when it has one — the task it's on, linked to that task.
@@ -135,7 +136,7 @@ class _CurrentTaskLink extends StatelessWidget {
           const SizedBox(width: Spacing.xs),
           Expanded(
             child: Text(
-              task.prompt.split('\n').first,
+              taskDisplayTitle(task),
               style: AppTypography.caption,
               overflow: TextOverflow.ellipsis,
             ),

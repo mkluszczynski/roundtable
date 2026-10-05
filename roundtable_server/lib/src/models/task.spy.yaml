@@ -11,6 +11,10 @@ fields:
   agent: Agent?, relation(name=agent_tasks, optional, onDelete=SetNull)
   ### The task prompt given by the dev.
   prompt: String
+  ### Short name shown on the board instead of the prompt. Suggested by the
+  ### agent at the start of its first run (only while null, see
+  ### `TaskEndpoint.suggestTitle`); the dev can rename it any time.
+  title: String?
   ### Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   skipPlanning: bool, default=false
   ### Queue an AI code review by [reviewerAgent] every time a run leaves the

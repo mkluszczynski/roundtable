@@ -100,8 +100,8 @@ class _KanbanCardState extends State<KanbanCard> {
                           ),
                           const SizedBox(height: Spacing.sm),
                           Text(
-                            task.prompt,
-                            maxLines: 3,
+                            task.title ?? task.prompt,
+                            maxLines: task.title == null ? 3 : 2,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.bodyStrong,
                           ),

@@ -341,6 +341,7 @@ class TaskDispatcher {
       final systemPrompt = [
         ?environmentPrompt?.call(),
         if (toolchain != null) projectToolchainPrompt(toolchain.tools),
+        if (task.title == null) taskTitlePrompt(),
       ].join('\n\n');
 
       final ClaudeCodeExecutionResult result;

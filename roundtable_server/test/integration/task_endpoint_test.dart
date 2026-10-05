@@ -1,3 +1,4 @@
+import 'package:roundtable_server/src/endpoints/task_endpoint.dart';
 import 'package:roundtable_server/src/future_calls/paused_task_resume_future_call.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
@@ -50,6 +51,116 @@ void main() {
         expect(task.status, TaskStatus.queued);
       },
     );
+
+    group('task title', () {
+      Future<Task> createTask() async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        return endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something\nwith details',
+          skipPlanning: false,
+        );
+      }
+
+      test('a new task has no title', () async {
+        final task = await createTask();
+        expect(task.title, isNull);
+      });
+
+      test(
+        'when the agent suggests a title for an untitled task then it is stored trimmed',
+        () async {
+          final task = await createTask();
+
+          final updated = await endpoints.task.suggestTitle(
+            sessionBuilder,
+            task.id!,
+            '  Add task titles  \nignored second line',
+          );
+
+          expect(updated.title, 'Add task titles');
+          final stored = await Task.db.findById(
+            sessionBuilder.build(),
+            task.id!,
+          );
+          expect(stored!.title, 'Add task titles');
+        },
+      );
+
+      test(
+        'when the agent suggests a title for a titled task then it is kept',
+        () async {
+          final task = await createTask();
+          await endpoints.task.setTitle(sessionBuilder, task.id!, 'Dev title');
+
+          final updated = await endpoints.task.suggestTitle(
+            sessionBuilder,
+            task.id!,
+            'Agent title',
+          );
+
+          expect(updated.title, 'Dev title');
+        },
+      );
+
+      test('a too long title is cut to the maximum length', () async {
+        final task = await createTask();
+
+        final updated = await endpoints.task.suggestTitle(
+          sessionBuilder,
+          task.id!,
+          'x' * 200,
+        );
+
+        expect(updated.title!.length, TaskEndpoint.maxTitleLength);
+        expect(updated.title, endsWith('…'));
+      });
+
+      test(
+        'when the dev sets a blank title then it is cleared and the agent may suggest one again',
+        () async {
+          final task = await createTask();
+          await endpoints.task.setTitle(sessionBuilder, task.id!, 'Dev title');
+
+          final cleared = await endpoints.task.setTitle(
+            sessionBuilder,
+            task.id!,
+            '   ',
+          );
+          expect(cleared.title, isNull);
+
+          final suggested = await endpoints.task.suggestTitle(
+            sessionBuilder,
+            task.id!,
+            'Agent title',
+          );
+          expect(suggested.title, 'Agent title');
+        },
+      );
+
+      test(
+        'when the daemon updates the task with a stale snapshot then the title is kept',
+        () async {
+          final task = await createTask();
+          await endpoints.task.suggestTitle(
+            sessionBuilder,
+            task.id!,
+            'Agent title',
+          );
+
+          final updated = await endpoints.task.update(
+            sessionBuilder,
+            task.copyWith(status: TaskStatus.running),
+          );
+
+          expect(updated.title, 'Agent title');
+        },
+      );
+    });
 
     test(
       'when creating a task without an agent then it is persisted as a draft',
