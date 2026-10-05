@@ -5,10 +5,12 @@ import 'dart:io';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
+import 'environment_prompt.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'usage_limit.dart';
 import 'stream_json_formatter.dart';
+import 'toolchain_installer.dart';
 import 'task_images.dart';
 import 'worktree_manager.dart';
 
@@ -37,7 +39,15 @@ class TaskDispatcher {
     required this.permissionPromptToolCommand,
     this.fetchAttachments = _noAttachments,
     this.environmentPrompt,
+    this.fetchProjectTools,
+    this.toolchainInstaller,
   });
+
+  /// The project's declared toolchains ([Project.tools]). With
+  /// [toolchainInstaller], they're installed before each run and put first
+  /// on `claude`'s `PATH` (docs/FLOWS.md §7). Either null: no toolchains.
+  final Future<List<ProjectTool>> Function(int projectId)? fetchProjectTools;
+  final ToolchainInstaller? toolchainInstaller;
 
   /// Describes this machine to the agent (`--append-system-prompt`) — see
   /// `buildEnvironmentPrompt`. Null when not yet known.
@@ -327,6 +337,12 @@ class TaskDispatcher {
         }
       }
 
+      final toolchain = await _prepareToolchain(task.id!, projectId, append);
+      final systemPrompt = [
+        ?environmentPrompt?.call(),
+        if (toolchain != null) projectToolchainPrompt(toolchain.tools),
+      ].join('\n\n');
+
       final ClaudeCodeExecutionResult result;
       if (needsPlanning) {
         log('task ${task.id}: running claude (planning)');
@@ -339,7 +355,8 @@ class TaskDispatcher {
           model: agent.defaultModel,
           effort: agent.defaultEffort?.name,
           additionalDirectories: attachmentDirs,
-          appendSystemPrompt: environmentPrompt?.call(),
+          appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
+          environment: toolchain?.environment,
           resumeSessionId: canResumeSession ? resumeSessionId : null,
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
@@ -356,7 +373,8 @@ class TaskDispatcher {
           permissionPromptTool: permissionPromptTool,
           mcpConfigPath: mcpConfigPath,
           additionalDirectories: attachmentDirs,
-          appendSystemPrompt: environmentPrompt?.call(),
+          appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
+          environment: toolchain?.environment,
           onLine: onLine,
           onProcessStarted: (p) => liveProcess = p,
         );
@@ -510,6 +528,59 @@ class TaskDispatcher {
   /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
   /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a
   /// static command/args/env per server, not per-call params.
+  /// Installs the project's toolchains before a run, reporting a download
+  /// on the task's timeline. A failure is logged there too, but doesn't
+  /// fail the task: the agent works on and reports what it couldn't verify.
+  Future<PreparedToolchain?> _prepareToolchain(
+    int taskId,
+    int projectId,
+    void Function(LogItem item) append,
+  ) async {
+    final installer = toolchainInstaller;
+    final fetch = fetchProjectTools;
+    if (installer == null || fetch == null) return null;
+    try {
+      final tools = await fetch(projectId);
+      if (tools.isEmpty) return null;
+      var installed = false;
+      final prepared = await installer.prepare(
+        projectId: projectId,
+        tools: tools,
+        onInstalling: (missing) {
+          installed = true;
+          log('task $taskId: installing ${missing.join(', ')}');
+          append(
+            LogItem(
+              kind: LogKind.event,
+              content:
+                  'Installing ${missing.join(', ')} — the first time takes '
+                  'a few minutes',
+            ),
+          );
+        },
+      );
+      if (installed) {
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content: 'Tools ready: ${prepared.tools.join(', ')}',
+          ),
+        );
+      }
+      return prepared;
+    } catch (e) {
+      log('task $taskId: toolchain install failed: $e');
+      append(
+        LogItem(
+          kind: LogKind.event,
+          content: "Couldn't install the project's tools: $e",
+          isError: true,
+        ),
+      );
+      return null;
+    }
+  }
+
   Future<String> _writeMcpConfig(Directory dir, int taskId) async {
     final configFile = File('${dir.path}/mcp-config.json');
     await configFile.writeAsString(

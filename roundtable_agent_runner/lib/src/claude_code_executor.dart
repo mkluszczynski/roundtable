@@ -92,6 +92,7 @@ class ClaudeCodeExecutor {
     required String prompt,
     required String workingDirectory,
     String? oauthToken,
+    Map<String, String>? environment,
     String? model,
     String? effort,
     String? resumeSessionId,
@@ -135,6 +136,7 @@ class ClaudeCodeExecutor {
       args: args,
       workingDirectory: workingDirectory,
       oauthToken: oauthToken,
+      environment: environment,
       onLine: onLine,
       onProcessStarted: onProcessStarted,
     );
@@ -158,6 +160,7 @@ class ClaudeCodeExecutor {
     required String permissionPromptTool,
     required String mcpConfigPath,
     String? oauthToken,
+    Map<String, String>? environment,
     String? model,
     String? effort,
     List<String> additionalDirectories = const [],
@@ -194,6 +197,7 @@ class ClaudeCodeExecutor {
       args: args,
       workingDirectory: workingDirectory,
       oauthToken: oauthToken,
+      environment: environment,
       onLine: onLine,
       onProcessStarted: onProcessStarted,
     );
@@ -209,6 +213,7 @@ class ClaudeCodeExecutor {
     required String prompt,
     required String workingDirectory,
     String? oauthToken,
+    Map<String, String>? environment,
     String? model,
     String? effort,
     List<String> additionalDirectories = const [],
@@ -240,6 +245,7 @@ class ClaudeCodeExecutor {
       args: args,
       workingDirectory: workingDirectory,
       oauthToken: oauthToken,
+      environment: environment,
       onLine: onLine,
       onProcessStarted: onProcessStarted,
     );
@@ -249,6 +255,7 @@ class ClaudeCodeExecutor {
     required List<String> args,
     required String workingDirectory,
     String? oauthToken,
+    Map<String, String>? environment,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) async {
@@ -256,7 +263,7 @@ class ClaudeCodeExecutor {
       executable,
       args,
       workingDirectory: workingDirectory,
-      environment: {'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken},
+      environment: {...?environment, 'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken},
     );
     // The prompt goes in via `-p`; an open stdin makes `claude` wait 3s and
     // print a warning to stderr, which used to become the failure reason.

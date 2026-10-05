@@ -11,6 +11,7 @@ import 'src/runner_update.dart';
 import 'src/environment_prompt.dart';
 import 'src/task_dispatcher.dart';
 import 'src/task_images.dart';
+import 'src/toolchain_installer.dart';
 import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
 
@@ -25,6 +26,7 @@ export 'src/environment_prompt.dart';
 export 'src/log_entries.dart';
 export 'src/task_dispatcher.dart';
 export 'src/task_images.dart';
+export 'src/toolchain_installer.dart';
 export 'src/usage_limit.dart';
 export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
@@ -229,6 +231,13 @@ class AgentRunnerService {
     permissionPromptToolCommand: _permissionPromptToolCommand(_config),
     fetchAttachments: _fetchAttachments,
     environmentPrompt: _environmentPrompt,
+    fetchProjectTools: (projectId) async =>
+        (await _client.project.get(projectId))?.tools ?? const [],
+    // Under the service account's own home (/var/lib/agent-runner), which
+    // it owns — installs need no sudo and outlive every worktree.
+    toolchainInstaller: ToolchainInstaller(
+      home: Platform.environment['HOME'] ?? Directory.systemTemp.path,
+    ),
   );
 
   /// This machine's name and detected tools, set during [run].

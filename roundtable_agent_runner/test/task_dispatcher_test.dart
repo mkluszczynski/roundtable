@@ -61,6 +61,9 @@ void main() {
       String claudeScript, {
       required List<Task> taskUpdates,
       List<String>? messages,
+      List<TaskLogEntry>? logEntries,
+      ToolchainInstaller? installer,
+      List<ProjectTool> tools = const [],
     }) => TaskDispatcher(
       worktreeManager: WorktreeManager(
         workspaceRoot: '${tempDir.path}/workspace',
@@ -71,7 +74,7 @@ void main() {
       fetchAgent: (agentId) async => buildAgent(),
       updateTask: (task) async => taskUpdates.add(task),
       updateAgent: (agent) async {},
-      appendLog: (_) async {},
+      appendLog: (entry) async => logEntries?.add(entry),
       fetchLatestFeedback: (_) async => null,
       openPullRequest:
           ({
@@ -84,7 +87,121 @@ void main() {
       log: messages?.add ?? (_) {},
       serverUrl: 'https://server.example',
       permissionPromptToolCommand: const ['echo'],
+      fetchProjectTools: (_) async => tools,
+      toolchainInstaller: installer,
     );
+
+    /// A fake `mise` under a fresh home: `ls --missing` reports [missing]
+    /// until `install` runs, `env` puts a toolchain dir first on PATH.
+    ToolchainInstaller fakeMise({String missing = '{}', bool fail = false}) {
+      final home = '${tempDir.path}/home';
+      Directory('$home/.local/bin').createSync(recursive: true);
+      final mise = File('$home/.local/bin/mise');
+      mise.writeAsStringSync('''#!/bin/sh
+case "\$1" in
+  ls) if [ -f installed ]; then echo '{}'; else echo '$missing'; fi ;;
+  install) ${fail ? 'echo "download failed" >&2; exit 1' : 'touch installed'} ;;
+  env) echo '{"PATH": "/opt/fake-flutter/bin:/usr/bin:/bin"}' ;;
+esac
+''');
+      Process.runSync('chmod', ['+x', mise.path]);
+      return ToolchainInstaller(home: home);
+    }
+
+    group('with project tools', () {
+      final flutter = [ProjectTool(name: 'flutter', version: '3.24.0')];
+
+      test('installs missing ones first, shows it on the timeline and runs '
+          'claude with their PATH and a note in the system prompt', () async {
+        final outFile = '${tempDir.path}/out.txt';
+        final claudeScript = writeFakeClaude('''
+echo "PATH=\$PATH" > $outFile
+echo "\$@" >> $outFile
+echo "x" > x.txt
+echo '{"type":"result","subtype":"success","session_id":"s"}'
+''');
+        final entries = <TaskLogEntry>[];
+
+        await dispatcherFor(
+          claudeScript,
+          taskUpdates: [],
+          logEntries: entries,
+          tools: flutter,
+          installer: fakeMise(missing: '{"flutter": [{"version": "3.24.0"}]}'),
+        ).handle(buildTask());
+
+        final out = File(outFile).readAsStringSync();
+        expect(out, contains('PATH=/opt/fake-flutter/bin:'));
+        expect(out, contains('Installed for this project'));
+        expect(out, contains('flutter 3.24.0'));
+        final events = [
+          for (final e in entries)
+            if (e.kind == LogKind.event && !e.content.startsWith('Committed'))
+              e.content,
+        ];
+        expect(events, [
+          contains('Installing flutter 3.24.0'),
+          'Tools ready: flutter 3.24.0',
+        ]);
+        expect(
+          File(
+            '${tempDir.path}/home/.config/roundtable/toolchains/'
+            'project-1.toml',
+          ).readAsStringSync(),
+          contains('"flutter" = "3.24.0"'),
+        );
+      });
+
+      test('cached tools add nothing to the timeline', () async {
+        final claudeScript = writeFakeClaude('''
+echo "x" > x.txt
+echo '{"type":"result","subtype":"success","session_id":"s"}'
+''');
+        final entries = <TaskLogEntry>[];
+
+        await dispatcherFor(
+          claudeScript,
+          taskUpdates: [],
+          logEntries: entries,
+          tools: flutter,
+          installer: fakeMise(),
+        ).handle(buildTask());
+
+        expect(
+          entries.where(
+            (e) =>
+                e.kind == LogKind.event && !e.content.startsWith('Committed'),
+          ),
+          isEmpty,
+        );
+      });
+
+      test('a failed install is reported but the task still runs', () async {
+        final claudeScript = writeFakeClaude('''
+echo "x" > x.txt
+echo '{"type":"result","subtype":"success","session_id":"s"}'
+''');
+        final entries = <TaskLogEntry>[];
+        final taskUpdates = <Task>[];
+
+        await dispatcherFor(
+          claudeScript,
+          taskUpdates: taskUpdates,
+          logEntries: entries,
+          tools: flutter,
+          installer: fakeMise(
+            missing: '{"flutter": [{"version": "3.24.0"}]}',
+            fail: true,
+          ),
+        ).handle(buildTask());
+
+        final error = entries.singleWhere((e) => e.isError ?? false);
+        expect(error.kind, LogKind.event);
+        expect(error.content, contains("Couldn't install"));
+        expect(error.content, contains('download failed'));
+        expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+      });
+    });
 
     test('a run stopped by the usage limit pauses the task with the reset '
         'time, its phase and session', () async {

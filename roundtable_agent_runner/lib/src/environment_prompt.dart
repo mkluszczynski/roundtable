@@ -87,3 +87,10 @@ How to verify your work:
 - Do not try to install missing toolchains, use sudo, or work around a missing tool.
 - When a verification step can't run here, say so in your plan and list it ${review ? 'in your review' : 'in your final message under a "Not verified here" heading'}, so the developer runs it.''';
 }
+
+/// Appended after [buildEnvironmentPrompt] when the project declares
+/// toolchains, which the runner installed for this run.
+String projectToolchainPrompt(List<String> tools) => '''
+# Project toolchains
+
+Installed for this project and first on your PATH: ${tools.join(', ')}. Use them to run the project's analyzer, formatter and tests — they take precedence over the machine tools listed above.''';

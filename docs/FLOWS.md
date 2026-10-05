@@ -275,7 +275,22 @@ into its own home directory.
    The suggestions are only filled into the form. Project settings →
    TOOLS edits the list later (`updateTools`) and can re-run "Detect from
    repo", which adds only tools that aren't listed yet.
-2. **Install** *(next step, not implemented yet)*. Before each task the
-   runner bootstraps mise, runs `mise install` for the project's tools, with
-   the config kept outside the worktree, and starts `claude` with the
-   resulting `PATH`.
+2. **Install.** Before each run, `TaskDispatcher` fetches the project's
+   tools and `ToolchainInstaller` prepares them:
+   - downloads the mise binary to `~/.local/bin/mise` once (no sudo: `~` is
+     `/var/lib/agent-runner`, owned by the service account);
+   - writes the tools to `~/.config/roundtable/toolchains/project-<id>.toml`,
+     outside the worktree, so the pull request stays clean, and runs mise
+     from `~`, so a repo's own `.mise.toml` is never read;
+   - `mise ls --missing` → if anything is missing, the timeline shows
+     "Installing flutter 3.24.0 — the first time takes a few minutes",
+     `mise install` runs, then "Tools ready". Installs are serialized and
+     cached in `~/.local/share/mise`, shared by every project: a cached
+     version costs ~0.1 s and adds nothing to the timeline. A `latest` or
+     `lts` spec downloads again once a newer release is out.
+3. **Run.** `claude` starts with the `PATH` from `mise env`, the project's
+   tools first, and a "Project toolchains" note appended to the system
+   prompt. A failed install is shown on the timeline as an error, but the
+   task still runs: the agent reports what it couldn't verify.
+
+Code reviews don't install tools: the reviewer only reads the diff.
