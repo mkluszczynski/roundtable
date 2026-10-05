@@ -230,7 +230,7 @@ class TaskDispatcher {
           ? resumePrompt!
           : canResumeSession
           ? usageLimitResumePrompt
-          : '${buildRolePrompt(agent.role, agent.name)} ${task.prompt}';
+          : '${buildRolePrompt(agent)} ${task.prompt}';
 
       // Subscribed for as long as this task is running, to detect a
       // cancellation requested via `TaskEndpoint.cancelTask` (docs/FLOWS.md §4

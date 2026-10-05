@@ -8,7 +8,7 @@ Agent _agent({AgentStatus status = AgentStatus.busy}) => Agent(
   id: 1,
   name: 'Ada',
   machineId: 1,
-  role: AgentRole.fullstack,
+  role: AgentRoleDefinition(id: 4, name: 'fullstack', prompt: 'p'),
   executionMode: AgentExecutionMode.native,
   status: status,
 );

@@ -14,7 +14,8 @@ import 'package:serverpod/serverpod.dart' as _is;
 
 enum DeletionBlockReason implements _is.SerializableModel {
   machineOnline,
-  nonTerminalTasks;
+  nonTerminalTasks,
+  roleInUse;
 
   static DeletionBlockReason fromJson(String name) {
     switch (name) {
@@ -22,6 +23,8 @@ enum DeletionBlockReason implements _is.SerializableModel {
         return DeletionBlockReason.machineOnline;
       case 'nonTerminalTasks':
         return DeletionBlockReason.nonTerminalTasks;
+      case 'roleInUse':
+        return DeletionBlockReason.roleInUse;
       default:
         throw ArgumentError(
           'Value "$name" cannot be converted to "DeletionBlockReason"',

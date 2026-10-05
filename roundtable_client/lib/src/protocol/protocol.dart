@@ -12,6 +12,8 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
+import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
+    as _iw3o4s27;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
@@ -28,7 +30,7 @@ import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent.dart' as _ijo8h3v4;
 import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
-import 'agent_role.dart' as _idfmm35v;
+import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
 import 'code_review.dart' as _icksttbv;
 import 'code_review_status.dart' as _i4rgwvgz;
@@ -69,7 +71,7 @@ import 'workspace_settings.dart' as _i88empjm;
 export 'agent.dart';
 export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
-export 'agent_role.dart';
+export 'agent_role_definition.dart';
 export 'agent_status.dart';
 export 'code_review.dart';
 export 'code_review_status.dart';
@@ -152,8 +154,8 @@ class Protocol extends _isc.SerializationManager {
     if (t == _i4babe00.AgentExecutionMode) {
       return _i4babe00.AgentExecutionMode.fromJson(data) as T;
     }
-    if (t == _idfmm35v.AgentRole) {
-      return _idfmm35v.AgentRole.fromJson(data) as T;
+    if (t == _i8tbvaw8.AgentRoleDefinition) {
+      return _i8tbvaw8.AgentRoleDefinition.fromJson(data) as T;
     }
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
@@ -276,8 +278,11 @@ class Protocol extends _isc.SerializationManager {
       return (data != null ? _i4babe00.AgentExecutionMode.fromJson(data) : null)
           as T;
     }
-    if (t == _isc.getType<_idfmm35v.AgentRole?>()) {
-      return (data != null ? _idfmm35v.AgentRole.fromJson(data) : null) as T;
+    if (t == _isc.getType<_i8tbvaw8.AgentRoleDefinition?>()) {
+      return (data != null
+              ? _i8tbvaw8.AgentRoleDefinition.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _isc.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
@@ -547,6 +552,12 @@ class Protocol extends _isc.SerializationManager {
       return (data as List).map((e) => deserialize<_ikth53tp.Agent>(e)).toList()
           as T;
     }
+    if (t == List<_iw3o4s27.AgentRoleDefinition>) {
+      return (data as List)
+              .map((e) => deserialize<_iw3o4s27.AgentRoleDefinition>(e))
+              .toList()
+          as T;
+    }
     if (t == List<_ithbrqha.ReviewCommentDraft>) {
       return (data as List)
               .map((e) => deserialize<_ithbrqha.ReviewCommentDraft>(e))
@@ -607,7 +618,7 @@ class Protocol extends _isc.SerializationManager {
       _ijo8h3v4.Agent => 'Agent',
       _iexg9pz4.AgentEffort => 'AgentEffort',
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
-      _idfmm35v.AgentRole => 'AgentRole',
+      _i8tbvaw8.AgentRoleDefinition => 'AgentRoleDefinition',
       _i69bozh7.AgentStatus => 'AgentStatus',
       _icksttbv.CodeReview => 'CodeReview',
       _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
@@ -665,8 +676,8 @@ class Protocol extends _isc.SerializationManager {
         return 'AgentEffort';
       case _i4babe00.AgentExecutionMode():
         return 'AgentExecutionMode';
-      case _idfmm35v.AgentRole():
-        return 'AgentRole';
+      case _i8tbvaw8.AgentRoleDefinition():
+        return 'AgentRoleDefinition';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
       case _icksttbv.CodeReview():
@@ -772,8 +783,8 @@ class Protocol extends _isc.SerializationManager {
     if (dataClassName == 'AgentExecutionMode') {
       return deserialize<_i4babe00.AgentExecutionMode>(data['data']);
     }
-    if (dataClassName == 'AgentRole') {
-      return deserialize<_idfmm35v.AgentRole>(data['data']);
+    if (dataClassName == 'AgentRoleDefinition') {
+      return deserialize<_i8tbvaw8.AgentRoleDefinition>(data['data']);
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);

@@ -16,6 +16,11 @@ agent:
   - update:
   - setStatus:
   - delete:
+agentRole:
+  - list:
+  - create:
+  - update:
+  - delete:
 codeReview:
   - requestReview:
   - watchAssignedReviews:

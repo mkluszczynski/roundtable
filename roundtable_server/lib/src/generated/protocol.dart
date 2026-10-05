@@ -12,6 +12,8 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
+import 'package:roundtable_server/src/generated/agent_role_definition.dart'
+    as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
@@ -29,7 +31,7 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
 import 'agent.dart' as _ijo8h3v4;
 import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
-import 'agent_role.dart' as _idfmm35v;
+import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
 import 'code_review.dart' as _icksttbv;
 import 'code_review_status.dart' as _i4rgwvgz;
@@ -70,7 +72,7 @@ import 'workspace_settings.dart' as _i88empjm;
 export 'agent.dart';
 export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
-export 'agent_role.dart';
+export 'agent_role_definition.dart';
 export 'agent_status.dart';
 export 'code_review.dart';
 export 'code_review_status.dart';
@@ -143,11 +145,10 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'String',
         ),
         _isp.ColumnDefinition(
-          name: 'role',
-          columnType: _isp.ColumnType.text,
-          isNullable: false,
-          dartType: 'protocol:AgentRole',
-          columnDefault: '\'generalist\'',
+          name: 'roleId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
         ),
         _isp.ColumnDefinition(
           name: 'defaultModel',
@@ -194,6 +195,16 @@ class Protocol extends _is.DatabaseSerializationManager {
           onDelete: _isp.ForeignKeyAction.cascade,
           matchType: null,
         ),
+        _isp.ForeignKeyDefinition(
+          constraintName: 'agent_fk_1',
+          columns: ['roleId'],
+          referenceTable: 'agent_role',
+          referenceTableSchema: 'public',
+          referenceColumns: ['id'],
+          onUpdate: _isp.ForeignKeyAction.noAction,
+          onDelete: _isp.ForeignKeyAction.setNull,
+          matchType: null,
+        ),
       ],
       indexes: [
         _isp.IndexDefinition(
@@ -207,6 +218,63 @@ class Protocol extends _is.DatabaseSerializationManager {
           ],
           type: 'btree',
           isUnique: false,
+          isPrimary: false,
+        ),
+      ],
+      managed: true,
+    ),
+    _isp.TableDefinition(
+      name: 'agent_role',
+      dartName: 'AgentRoleDefinition',
+      schema: 'public',
+      module: 'roundtable',
+      columns: [
+        _isp.ColumnDefinition(
+          name: 'id',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _isp.ColumnDefinition(
+          name: 'name',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'description',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'prompt',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'createdAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+          columnDefault: 'now',
+        ),
+      ],
+      foreignKeys: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'agent_role_name_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'name',
+            ),
+          ],
+          type: 'btree',
+          isUnique: true,
           isPrimary: false,
         ),
       ],
@@ -1617,8 +1685,8 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i4babe00.AgentExecutionMode) {
       return _i4babe00.AgentExecutionMode.fromJson(data) as T;
     }
-    if (t == _idfmm35v.AgentRole) {
-      return _idfmm35v.AgentRole.fromJson(data) as T;
+    if (t == _i8tbvaw8.AgentRoleDefinition) {
+      return _i8tbvaw8.AgentRoleDefinition.fromJson(data) as T;
     }
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
@@ -1741,8 +1809,11 @@ class Protocol extends _is.DatabaseSerializationManager {
       return (data != null ? _i4babe00.AgentExecutionMode.fromJson(data) : null)
           as T;
     }
-    if (t == _is.getType<_idfmm35v.AgentRole?>()) {
-      return (data != null ? _idfmm35v.AgentRole.fromJson(data) : null) as T;
+    if (t == _is.getType<_i8tbvaw8.AgentRoleDefinition?>()) {
+      return (data != null
+              ? _i8tbvaw8.AgentRoleDefinition.fromJson(data)
+              : null)
+          as T;
     }
     if (t == _is.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
@@ -2012,6 +2083,12 @@ class Protocol extends _is.DatabaseSerializationManager {
       return (data as List).map((e) => deserialize<_iaucj7w0.Agent>(e)).toList()
           as T;
     }
+    if (t == List<_ifj5d7s0.AgentRoleDefinition>) {
+      return (data as List)
+              .map((e) => deserialize<_ifj5d7s0.AgentRoleDefinition>(e))
+              .toList()
+          as T;
+    }
     if (t == List<_i245mzjz.ReviewCommentDraft>) {
       return (data as List)
               .map((e) => deserialize<_i245mzjz.ReviewCommentDraft>(e))
@@ -2075,7 +2152,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _ijo8h3v4.Agent => 'Agent',
       _iexg9pz4.AgentEffort => 'AgentEffort',
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
-      _idfmm35v.AgentRole => 'AgentRole',
+      _i8tbvaw8.AgentRoleDefinition => 'AgentRoleDefinition',
       _i69bozh7.AgentStatus => 'AgentStatus',
       _icksttbv.CodeReview => 'CodeReview',
       _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
@@ -2133,8 +2210,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'AgentEffort';
       case _i4babe00.AgentExecutionMode():
         return 'AgentExecutionMode';
-      case _idfmm35v.AgentRole():
-        return 'AgentRole';
+      case _i8tbvaw8.AgentRoleDefinition():
+        return 'AgentRoleDefinition';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
       case _icksttbv.CodeReview():
@@ -2244,8 +2321,8 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (dataClassName == 'AgentExecutionMode') {
       return deserialize<_i4babe00.AgentExecutionMode>(data['data']);
     }
-    if (dataClassName == 'AgentRole') {
-      return deserialize<_idfmm35v.AgentRole>(data['data']);
+    if (dataClassName == 'AgentRoleDefinition') {
+      return deserialize<_i8tbvaw8.AgentRoleDefinition>(data['data']);
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
@@ -2401,6 +2478,8 @@ class Protocol extends _is.DatabaseSerializationManager {
     switch (t) {
       case _ijo8h3v4.Agent:
         return _ijo8h3v4.Agent.t;
+      case _i8tbvaw8.AgentRoleDefinition:
+        return _i8tbvaw8.AgentRoleDefinition.t;
       case _icksttbv.CodeReview:
         return _icksttbv.CodeReview.t;
       case _i0hti3f2.Machine:

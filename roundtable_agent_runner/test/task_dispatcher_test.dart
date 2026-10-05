@@ -48,7 +48,12 @@ void main() {
       id: 1,
       machineId: 1,
       name: 'Ana',
-      role: AgentRole.backend,
+      roleId: 7,
+      role: AgentRoleDefinition(
+        id: 7,
+        name: 'backend',
+        prompt: 'You are {name}, the backend specialist.',
+      ),
       status: AgentStatus.idle,
     );
 

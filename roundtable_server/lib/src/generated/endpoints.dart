@@ -13,7 +13,8 @@
 import 'dart:typed_data' as _idt;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
-import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
+import 'package:roundtable_server/src/generated/agent_role_definition.dart'
+    as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
@@ -36,6 +37,7 @@ import 'package:serverpod_auth_idp_server/serverpod_auth_idp_server.dart'
 import '../auth/email_idp_endpoint.dart' as _iuc1hd5t;
 import '../auth/jwt_refresh_endpoint.dart' as _inwq3ztq;
 import '../endpoints/agent_endpoint.dart' as _ik1xrao3;
+import '../endpoints/agent_role_endpoint.dart' as _i9jtfumf;
 import '../endpoints/code_review_endpoint.dart' as _ia5tunx2;
 import '../endpoints/machine_endpoint.dart' as _ij6wllr0;
 import '../endpoints/project_endpoint.dart' as _iemg8ri2;
@@ -65,6 +67,12 @@ class Endpoints extends _is.EndpointDispatch {
         ..initialize(
           server,
           'agent',
+          null,
+        ),
+      'agentRole': _i9jtfumf.AgentRoleEndpoint()
+        ..initialize(
+          server,
+          'agentRole',
           null,
         ),
       'codeReview': _ia5tunx2.CodeReviewEndpoint()
@@ -333,10 +341,10 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int>(),
               nullable: false,
             ),
-            'role': _is.ParameterDescription(
-              name: 'role',
-              type: _is.getType<_i01du5ez.AgentRole>(),
-              nullable: false,
+            'roleId': _is.ParameterDescription(
+              name: 'roleId',
+              type: _is.getType<int?>(),
+              nullable: true,
             ),
             'defaultModel': _is.ParameterDescription(
               name: 'defaultModel',
@@ -357,7 +365,7 @@ class Endpoints extends _is.EndpointDispatch {
                 session,
                 params['name'],
                 params['machineId'],
-                role: params['role'],
+                roleId: params['roleId'],
                 defaultModel: params['defaultModel'],
                 defaultEffort: params['defaultEffort'],
               ),
@@ -450,6 +458,79 @@ class Endpoints extends _is.EndpointDispatch {
                 session,
                 params['id'],
               ),
+        ),
+      },
+    );
+    connectors['agentRole'] = _is.EndpointConnector(
+      name: 'agentRole',
+      endpoint: endpoints['agentRole']!,
+      methodConnectors: {
+        'list': _is.MethodConnector(
+          name: 'list',
+          params: {},
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agentRole'] as _i9jtfumf.AgentRoleEndpoint)
+                  .list(session),
+        ),
+        'create': _is.MethodConnector(
+          name: 'create',
+          params: {
+            'role': _is.ParameterDescription(
+              name: 'role',
+              type: _is.getType<_ifj5d7s0.AgentRoleDefinition>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agentRole'] as _i9jtfumf.AgentRoleEndpoint)
+                  .create(
+                    session,
+                    params['role'],
+                  ),
+        ),
+        'update': _is.MethodConnector(
+          name: 'update',
+          params: {
+            'role': _is.ParameterDescription(
+              name: 'role',
+              type: _is.getType<_ifj5d7s0.AgentRoleDefinition>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agentRole'] as _i9jtfumf.AgentRoleEndpoint)
+                  .update(
+                    session,
+                    params['role'],
+                  ),
+        ),
+        'delete': _is.MethodConnector(
+          name: 'delete',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['agentRole'] as _i9jtfumf.AgentRoleEndpoint)
+                  .delete(
+                    session,
+                    params['id'],
+                  ),
         ),
       },
     );

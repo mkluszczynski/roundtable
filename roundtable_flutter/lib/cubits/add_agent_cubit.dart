@@ -36,7 +36,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
   Future<void> submit({
     required String name,
     required int machineId,
-    required AgentRole role,
+    required int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
   }) async {
@@ -45,7 +45,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
       final agent = await _repository.createAgent(
         name: name,
         machineId: machineId,
-        role: role,
+        roleId: roleId,
         defaultModel: defaultModel,
         defaultEffort: defaultEffort,
       );
@@ -60,7 +60,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
   Future<void> update({
     required Agent existing,
     required String name,
-    required AgentRole role,
+    required int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
   }) async {
@@ -69,7 +69,8 @@ class AddAgentCubit extends Cubit<AddAgentState> {
       final agent = await _repository.updateAgent(
         existing.copyWith(
           name: name,
-          role: role,
+          roleId: roleId,
+          role: null,
           defaultModel: defaultModel,
           defaultEffort: defaultEffort,
         ),

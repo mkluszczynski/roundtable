@@ -186,7 +186,6 @@ void main() {
             sessionBuilder,
             'Ana',
             999999,
-            role: AgentRole.generalist,
           ),
           throwsA(isA<NotFoundException>()),
         );

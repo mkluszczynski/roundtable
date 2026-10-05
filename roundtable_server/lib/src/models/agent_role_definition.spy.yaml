@@ -1,0 +1,17 @@
+### An agent's specialty, edited in the panel's Settings. Its [prompt] is
+### the static prefix of every task and review prompt the agent gets.
+### Context, not a permission restriction.
+class: AgentRoleDefinition
+table: agent_role
+fields:
+  ### Shown on agent cards, e.g. "backend".
+  name: String
+  ### One line for the role pickers.
+  description: String?
+  ### Prompt prefix; `{name}` is replaced with the agent's own name.
+  prompt: String
+  createdAt: DateTime, default=now
+indexes:
+  agent_role_name_idx:
+    fields: name
+    unique: true

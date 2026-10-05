@@ -15,7 +15,8 @@ import 'dart:typed_data' as _idt;
 import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
-import 'package:roundtable_client/src/protocol/agent_role.dart' as _i7934w80;
+import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
+    as _iw3o4s27;
 import 'package:roundtable_client/src/protocol/agent_status.dart' as _ijqfzoc4;
 import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
@@ -292,7 +293,7 @@ class EndpointAgent extends _isc.EndpointRef {
   _ida.Future<_ikth53tp.Agent> create(
     String name,
     int machineId, {
-    required _i7934w80.AgentRole role,
+    int? roleId,
     String? defaultModel,
     _izylr20v.AgentEffort? defaultEffort,
   }) => caller.callServerEndpoint<_ikth53tp.Agent>(
@@ -301,12 +302,13 @@ class EndpointAgent extends _isc.EndpointRef {
     {
       'name': name,
       'machineId': machineId,
-      'role': role,
+      'roleId': roleId,
       'defaultModel': defaultModel,
       'defaultEffort': defaultEffort,
     },
   );
 
+  /// With its role — the daemon builds the prompt prefix from it.
   _ida.Future<_ikth53tp.Agent?> get(int id) =>
       caller.callServerEndpoint<_ikth53tp.Agent?>(
         'agent',
@@ -347,6 +349,45 @@ class EndpointAgent extends _isc.EndpointRef {
 
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'agent',
+    'delete',
+    {'id': id},
+  );
+}
+
+/// CRUD for [AgentRoleDefinition] — the workspace's agent roles, edited in
+/// the panel's Settings. Deletion is blocked while an agent uses the role.
+/// {@category Endpoint}
+class EndpointAgentRole extends _isc.EndpointRef {
+  EndpointAgentRole(_isc.EndpointCaller caller) : super(caller);
+
+  @override
+  String get name => 'agentRole';
+
+  _ida.Future<List<_iw3o4s27.AgentRoleDefinition>> list() =>
+      caller.callServerEndpoint<List<_iw3o4s27.AgentRoleDefinition>>(
+        'agentRole',
+        'list',
+        {},
+      );
+
+  _ida.Future<_iw3o4s27.AgentRoleDefinition> create(
+    _iw3o4s27.AgentRoleDefinition role,
+  ) => caller.callServerEndpoint<_iw3o4s27.AgentRoleDefinition>(
+    'agentRole',
+    'create',
+    {'role': role},
+  );
+
+  _ida.Future<_iw3o4s27.AgentRoleDefinition> update(
+    _iw3o4s27.AgentRoleDefinition role,
+  ) => caller.callServerEndpoint<_iw3o4s27.AgentRoleDefinition>(
+    'agentRole',
+    'update',
+    {'role': role},
+  );
+
+  _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
+    'agentRole',
     'delete',
     {'id': id},
   );
@@ -1477,6 +1518,7 @@ class Client extends _isc.ServerpodClientShared {
     emailIdp = EndpointEmailIdp(this);
     jwtRefresh = EndpointJwtRefresh(this);
     agent = EndpointAgent(this);
+    agentRole = EndpointAgentRole(this);
     codeReview = EndpointCodeReview(this);
     machine = EndpointMachine(this);
     project = EndpointProject(this);
@@ -1492,6 +1534,8 @@ class Client extends _isc.ServerpodClientShared {
   late final EndpointJwtRefresh jwtRefresh;
 
   late final EndpointAgent agent;
+
+  late final EndpointAgentRole agentRole;
 
   late final EndpointCodeReview codeReview;
 
@@ -1514,6 +1558,7 @@ class Client extends _isc.ServerpodClientShared {
     'emailIdp': emailIdp,
     'jwtRefresh': jwtRefresh,
     'agent': agent,
+    'agentRole': agentRole,
     'codeReview': codeReview,
     'machine': machine,
     'project': project,

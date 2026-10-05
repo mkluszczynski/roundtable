@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/agent_role_label.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -659,7 +660,7 @@ class _AgentSection extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '${agent.role.name} specialist',
+                      '${agent.roleLabel} specialist',
                       style: AppTypography.caption,
                     ),
                   ],

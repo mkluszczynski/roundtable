@@ -170,8 +170,9 @@ void main() {
     expect(checkStateAppearance(PrCheckState.success).color, AppColors.live);
     expect(checkStateAppearance(PrCheckState.pending).pulsing, isTrue);
     expect(
-      checkRunAppearance(_job(1, 'x', status: 'in_progress', conclusion: null))
-          .color,
+      checkRunAppearance(
+        _job(1, 'x', status: 'in_progress', conclusion: null),
+      ).color,
       AppColors.warning,
     );
     expect(checkRunAppearance(_job(1, 'x')).color, AppColors.live);

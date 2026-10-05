@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
+import '../repositories/agent_role_repository.dart';
 import '../cubits/add_agent_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../theme/colors.dart';
@@ -69,7 +70,37 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
   late final _nameController = TextEditingController(
     text: widget.existingAgent?.name,
   );
-  late AgentRole _role = widget.existingAgent?.role ?? AgentRole.generalist;
+  late int? _roleId = widget.existingAgent?.roleId;
+
+  /// Edited in Settings; loaded here so the dialog also works outside the
+  /// panel's providers.
+  List<AgentRoleDefinition>? _roles;
+
+  @override
+  void initState() {
+    super.initState();
+    AgentRoleRepository(client)
+        .listRoles()
+        .then((roles) {
+          if (!mounted) return;
+          setState(() {
+            _roles = roles;
+            // A new agent starts as a generalist, like the runner's fallback.
+            if (!_editing && _roleId == null) {
+              _roleId = roles
+                  .where((r) => r.name == 'generalist')
+                  .firstOrNull
+                  ?.id;
+            }
+          });
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _roles = const []);
+        });
+  }
+
+  String? get _roleName =>
+      _roles?.where((r) => r.id == _roleId).firstOrNull?.name;
   late String? _model = widget.existingAgent?.defaultModel;
   late AgentEffort? _effort = widget.existingAgent?.defaultEffort;
   late AgentExecutionMode _executionMode =
@@ -111,14 +142,14 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                           ? context.read<AddAgentCubit>().update(
                               existing: widget.existingAgent!,
                               name: _nameController.text.trim(),
-                              role: _role,
+                              roleId: _roleId,
                               defaultModel: _model,
                               defaultEffort: _effort,
                             )
                           : context.read<AddAgentCubit>().submit(
                               name: _nameController.text.trim(),
                               machineId: widget.machineId,
-                              role: _role,
+                              roleId: _roleId,
                               defaultModel: _model,
                               defaultEffort: _effort,
                             )
@@ -141,7 +172,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                   children: [
                     _AgentPreview(
                       name: _nameController.text.trim(),
-                      role: _role,
+                      roleName: _roleName,
                       model: _model,
                       effort: _effort,
                     ),
@@ -157,12 +188,30 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                       style: AppTypography.label,
                     ),
                     const SizedBox(height: Spacing.sm),
-                    PillSelector<AgentRole>(
-                      options: AgentRole.values,
-                      labelBuilder: (role) => role.name,
-                      selected: _role,
-                      onChanged: (role) => setState(() => _role = role),
-                    ),
+                    if (_roles == null)
+                      Text('Loading roles…', style: AppTypography.caption)
+                    else if (_roles!.isEmpty)
+                      Text(
+                        'No roles yet — add them in Settings',
+                        style: AppTypography.caption,
+                      )
+                    else ...[
+                      PillSelector<int>(
+                        options: [for (final r in _roles!) r.id!],
+                        labelBuilder: (id) =>
+                            _roles!.firstWhere((r) => r.id == id).name,
+                        selected: _roleId,
+                        onChanged: (id) => setState(() => _roleId = id),
+                      ),
+                      if (_roles!
+                              .where((r) => r.id == _roleId)
+                              .firstOrNull
+                              ?.description
+                          case final description?) ...[
+                        const SizedBox(height: Spacing.xs),
+                        Text(description, style: AppTypography.caption),
+                      ],
+                    ],
                     const SizedBox(height: Spacing.lg),
                     Text(
                       'Default model — optional',
@@ -231,13 +280,13 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
 class _AgentPreview extends StatelessWidget {
   const _AgentPreview({
     required this.name,
-    required this.role,
+    required this.roleName,
     required this.model,
     required this.effort,
   });
 
   final String name;
-  final AgentRole role;
+  final String? roleName;
   final String? model;
   final AgentEffort? effort;
 
@@ -275,7 +324,7 @@ class _AgentPreview extends StatelessWidget {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text('${role.name} specialist', style: AppTypography.caption),
+                Text(roleName ?? 'generalist', style: AppTypography.caption),
                 const SizedBox(height: Spacing.sm),
                 Wrap(
                   spacing: Spacing.xs,

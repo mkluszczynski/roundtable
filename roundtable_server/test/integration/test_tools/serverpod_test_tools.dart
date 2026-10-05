@@ -16,7 +16,8 @@ import 'dart:io' as _idi;
 import 'dart:typed_data' as _idt;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
-import 'package:roundtable_server/src/generated/agent_role.dart' as _i01du5ez;
+import 'package:roundtable_server/src/generated/agent_role_definition.dart'
+    as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
 import 'package:roundtable_server/src/generated/code_review.dart' as _i42ca4ig;
 import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
@@ -198,6 +199,8 @@ class TestEndpoints {
 
   late final _AgentEndpoint agent;
 
+  late final _AgentRoleEndpoint agentRole;
+
   late final _CodeReviewEndpoint codeReview;
 
   late final _MachineEndpoint machine;
@@ -229,6 +232,10 @@ class _InternalTestEndpoints extends TestEndpoints
       serializationManager,
     );
     agent = _AgentEndpoint(
+      endpoints,
+      serializationManager,
+    );
+    agentRole = _AgentRoleEndpoint(
       endpoints,
       serializationManager,
     );
@@ -607,7 +614,7 @@ class _AgentEndpoint {
     _ist.TestSessionBuilder sessionBuilder,
     String name,
     int machineId, {
-    required _i01du5ez.AgentRole role,
+    int? roleId,
     String? defaultModel,
     _i293npqp.AgentEffort? defaultEffort,
   }) async {
@@ -625,7 +632,7 @@ class _AgentEndpoint {
           parameters: _ist.testObjectToJson({
             'name': name,
             'machineId': machineId,
-            'role': role,
+            'roleId': roleId,
             'defaultModel': defaultModel,
             'defaultEffort': defaultEffort,
           }),
@@ -785,6 +792,140 @@ class _AgentEndpoint {
         var _localCallContext = await _endpointDispatch.getMethodCallContext(
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'agent',
+          methodName: 'delete',
+          parameters: _ist.testObjectToJson({'id': id}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+}
+
+class _AgentRoleEndpoint {
+  _AgentRoleEndpoint(
+    this._endpointDispatch,
+    this._serializationManager,
+  );
+
+  final _is.EndpointDispatch _endpointDispatch;
+
+  final _is.SerializationManager _serializationManager;
+
+  _ida.Future<List<_ifj5d7s0.AgentRoleDefinition>> list(
+    _ist.TestSessionBuilder sessionBuilder,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'agentRole',
+            method: 'list',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'agentRole',
+          methodName: 'list',
+          parameters: _ist.testObjectToJson({}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<List<_ifj5d7s0.AgentRoleDefinition>>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_ifj5d7s0.AgentRoleDefinition> create(
+    _ist.TestSessionBuilder sessionBuilder,
+    _ifj5d7s0.AgentRoleDefinition role,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'agentRole',
+            method: 'create',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'agentRole',
+          methodName: 'create',
+          parameters: _ist.testObjectToJson({'role': role}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ifj5d7s0.AgentRoleDefinition>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_ifj5d7s0.AgentRoleDefinition> update(
+    _ist.TestSessionBuilder sessionBuilder,
+    _ifj5d7s0.AgentRoleDefinition role,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'agentRole',
+            method: 'update',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'agentRole',
+          methodName: 'update',
+          parameters: _ist.testObjectToJson({'role': role}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ifj5d7s0.AgentRoleDefinition>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<void> delete(
+    _ist.TestSessionBuilder sessionBuilder,
+    int id,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'agentRole',
+            method: 'delete',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'agentRole',
           methodName: 'delete',
           parameters: _ist.testObjectToJson({'id': id}),
           serializationManager: _serializationManager,

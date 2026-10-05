@@ -132,7 +132,9 @@ terminal, the runner can't change it through `update` anymore.
      implementation.
    - `skipPlanning` or resume: execution mode, with `--resume <claudeSessionId>`
      when resuming.
-   - The prompt is `"<role prefix> <task prompt>"` (`role_prompts.dart`). On a
+   - The prompt is `"<role prefix> <task prompt>"`; the prefix is the
+     agent's `AgentRoleDefinition.prompt` (edited in Settings, sent with
+     `AgentEndpoint.get`), `{name}` replaced (`role_prompts.dart`). On a
      resume, the prompt is the feedback text.
 4. **Logs.** Each NDJSON line goes through `StreamJsonFormatter` →
    `appendLog` → `task-<id>-logs`, which also bumps `lastProgressAt`. The

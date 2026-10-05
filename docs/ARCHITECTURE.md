@@ -98,7 +98,7 @@ erDiagram
 |---|---|
 | `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused), task-default overrides (`skipPlanning`, `autoReview`, `reviewerAgent`, `autoFixReview`, `maxReviewFixRounds`, `autoMerge`, `autoFixFailingChecks`, `maxCheckFixAttempts` — null inherits `WorkspaceSettings`) |
 | `Machine` | `tokenHash` (**serverOnly**, unique index), `status` online/offline, `lastSeenAt`, `claudeExecutableOk/Error`, `runnerVersion`, `updateRequestedAt` |
-| `Agent` | `machine` (cascade on delete), `name`, `role`, `defaultModel`, `defaultEffort`, `executionMode` (only `native` is implemented), `status` |
+| `Agent` | `machine` (cascade on delete), `name`, `role` (→ `AgentRoleDefinition`: `name`, `description`, `prompt`; editable in Settings, deleting one in use is blocked), `defaultModel`, `defaultEffort`, `executionMode` (only `native` is implemented), `status` |
 | `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkError`, `checkFixAttempts`, `checkFixSentForSha` |
 | `PrCheckRun` | one GitHub Actions job of the PR's head commit: `headSha`, `workflowRunId`, `runAttempt`, `workflowName`, `jobId`, `jobName`, `status`, `conclusion`, `failedStep`, `htmlUrl`; replaced when the head commit changes |
 | `TaskLogEntry` | `content`, `source` agent/system |
@@ -171,8 +171,8 @@ Design choices worth keeping:
   touches a task the dispatcher is running (`TaskDispatcher.isActive`).
 - `src/github_pull_request_opener.dart` (30 s timeout), `src/metrics_collector.dart`
   (reads `/proc`, Linux only), `src/stream_json_formatter.dart` (turns NDJSON
-  into readable log lines), `src/role_prompts.dart` (fixed persona prefix
-  per role), `src/runner_update.dart` (version hash and update flag).
+  into readable log lines), `src/role_prompts.dart` (fills the role's
+  prompt prefix, edited in Settings), `src/runner_update.dart` (version hash and update flag).
 
 ## Panel (`roundtable_flutter/lib/`)
 

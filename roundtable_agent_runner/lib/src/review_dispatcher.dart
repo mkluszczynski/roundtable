@@ -120,7 +120,7 @@ class ReviewDispatcher {
       final formatter = StreamJsonFormatter();
       final result = await executorFactory().runReview(
         prompt: buildReviewPrompt(
-          rolePrompt: buildRolePrompt(agent.role, agent.name),
+          rolePrompt: buildRolePrompt(agent),
           taskPrompt: task.prompt,
           baseSha: worktree.baseSha,
         ),

@@ -14,17 +14,24 @@ void main() {
       () async {
         final machine = await createMachine();
 
+        final role = await AgentRoleDefinition.db.insertRow(
+          sessionBuilder.build(),
+          AgentRoleDefinition(name: 'backend', prompt: 'You are {name}.'),
+        );
+
         final agent = await endpoints.agent.create(
           sessionBuilder,
           'Ana',
           machine.id!,
-          role: AgentRole.generalist,
+          roleId: role.id,
         );
 
         expect(agent.id, isNotNull);
         expect(agent.name, 'Ana');
         expect(agent.machineId, machine.id);
-        expect(agent.role, AgentRole.generalist);
+        expect(agent.roleId, role.id);
+        final fetched = await endpoints.agent.get(sessionBuilder, agent.id!);
+        expect(fetched!.role?.name, 'backend');
       },
     );
 
@@ -34,7 +41,6 @@ void main() {
         sessionBuilder,
         'Ana',
         machine.id!,
-        role: AgentRole.generalist,
       );
 
       final fetched = await endpoints.agent.get(sessionBuilder, created.id!);
@@ -49,13 +55,11 @@ void main() {
         sessionBuilder,
         'Ana',
         machine.id!,
-        role: AgentRole.generalist,
       );
       final second = await endpoints.agent.create(
         sessionBuilder,
         'Adam',
         machine.id!,
-        role: AgentRole.generalist,
       );
 
       final agents = await endpoints.agent.list(sessionBuilder);
@@ -69,7 +73,6 @@ void main() {
         sessionBuilder,
         'Ana',
         machine.id!,
-        role: AgentRole.generalist,
       );
 
       await endpoints.agent.update(
@@ -87,7 +90,6 @@ void main() {
         sessionBuilder,
         'Ana',
         machine.id!,
-        role: AgentRole.generalist,
       );
 
       await endpoints.agent.delete(sessionBuilder, created.id!);

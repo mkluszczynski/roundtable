@@ -14,7 +14,7 @@ import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
-import 'agent_role.dart' as _idfmm35v;
+import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
 import 'machine.dart' as _i0hti3f2;
 import 'task.dart' as _iwn6t6fs;
@@ -27,15 +27,15 @@ abstract class Agent
     required this.machineId,
     this.machine,
     required this.name,
-    _idfmm35v.AgentRole? role,
+    this.roleId,
+    this.role,
     this.defaultModel,
     this.defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
     _i69bozh7.AgentStatus? status,
     DateTime? createdAt,
     this.tasks,
-  }) : role = role ?? _idfmm35v.AgentRole.generalist,
-       executionMode = executionMode ?? _i4babe00.AgentExecutionMode.native,
+  }) : executionMode = executionMode ?? _i4babe00.AgentExecutionMode.native,
        status = status ?? _i69bozh7.AgentStatus.idle,
        createdAt = createdAt ?? DateTime.now();
 
@@ -44,7 +44,8 @@ abstract class Agent
     required int machineId,
     _i0hti3f2.Machine? machine,
     required String name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -63,9 +64,12 @@ abstract class Agent
               jsonSerialization['machine'],
             ),
       name: jsonSerialization['name'] as String,
+      roleId: jsonSerialization['roleId'] as int?,
       role: jsonSerialization['role'] == null
           ? null
-          : _idfmm35v.AgentRole.fromJson((jsonSerialization['role'] as String)),
+          : _i35hmugi.Protocol().deserialize<_i8tbvaw8.AgentRoleDefinition>(
+              jsonSerialization['role'],
+            ),
       defaultModel: jsonSerialization['defaultModel'] as String?,
       defaultEffort: jsonSerialization['defaultEffort'] == null
           ? null
@@ -108,7 +112,11 @@ abstract class Agent
   /// The agent's display name.
   String name;
 
-  _idfmm35v.AgentRole role;
+  int? roleId;
+
+  /// onDelete=SetNull is only a fallback: AgentRoleEndpoint.delete refuses
+  /// a role agents still use. Without a role the agent is a generalist.
+  _i8tbvaw8.AgentRoleDefinition? role;
 
   /// e.g. "claude-opus-4-7" — deliberately String, not an enum: model names change more often than
   /// it's worth migrating the schema for.
@@ -134,7 +142,8 @@ abstract class Agent
     int? machineId,
     _i0hti3f2.Machine? machine,
     String? name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -150,7 +159,8 @@ abstract class Agent
       'machineId': machineId,
       if (machine != null) 'machine': machine?.toJson(),
       'name': name,
-      'role': role.toJson(),
+      if (roleId != null) 'roleId': roleId,
+      if (role != null) 'role': role?.toJson(),
       if (defaultModel != null) 'defaultModel': defaultModel,
       if (defaultEffort != null) 'defaultEffort': defaultEffort?.toJson(),
       'executionMode': executionMode.toJson(),
@@ -168,7 +178,8 @@ abstract class Agent
       'machineId': machineId,
       if (machine != null) 'machine': machine?.toJsonForProtocol(),
       'name': name,
-      'role': role.toJson(),
+      if (roleId != null) 'roleId': roleId,
+      if (role != null) 'role': role?.toJsonForProtocol(),
       if (defaultModel != null) 'defaultModel': defaultModel,
       if (defaultEffort != null) 'defaultEffort': defaultEffort?.toJson(),
       'executionMode': executionMode.toJson(),
@@ -193,7 +204,8 @@ class _AgentImpl extends Agent {
     required int machineId,
     _i0hti3f2.Machine? machine,
     required String name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -205,6 +217,7 @@ class _AgentImpl extends Agent {
          machineId: machineId,
          machine: machine,
          name: name,
+         roleId: roleId,
          role: role,
          defaultModel: defaultModel,
          defaultEffort: defaultEffort,
@@ -223,7 +236,8 @@ class _AgentImpl extends Agent {
     int? machineId,
     Object? machine = _Undefined,
     String? name,
-    _idfmm35v.AgentRole? role,
+    Object? roleId = _Undefined,
+    Object? role = _Undefined,
     Object? defaultModel = _Undefined,
     Object? defaultEffort = _Undefined,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -238,7 +252,10 @@ class _AgentImpl extends Agent {
           ? machine
           : this.machine?.copyWith(),
       name: name ?? this.name,
-      role: role ?? this.role,
+      roleId: roleId is int? ? roleId : this.roleId,
+      role: role is _i8tbvaw8.AgentRoleDefinition?
+          ? role
+          : this.role?.copyWith(),
       defaultModel: defaultModel is String? ? defaultModel : this.defaultModel,
       defaultEffort: defaultEffort is _iexg9pz4.AgentEffort?
           ? defaultEffort

@@ -8,7 +8,9 @@ fields:
   machine: Machine?, relation(name=machine_agents, onDelete=Cascade)
   ### The agent's display name.
   name: String
-  role: AgentRole, default=generalist
+  ### onDelete=SetNull is only a fallback: AgentRoleEndpoint.delete refuses
+  ### a role agents still use. Without a role the agent is a generalist.
+  role: AgentRoleDefinition?, relation(optional, onDelete=SetNull)
   ### e.g. "claude-opus-4-7" — deliberately String, not an enum: model names change more often than
   ### it's worth migrating the schema for.
   defaultModel: String?

@@ -9,7 +9,7 @@ class AgentEndpoint extends Endpoint {
     Session session,
     String name,
     int machineId, {
-    AgentRole role = AgentRole.generalist,
+    int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
   }) async {
@@ -21,19 +21,27 @@ class AgentEndpoint extends Endpoint {
       Agent(
         name: name,
         machineId: machineId,
-        role: role,
+        roleId: roleId,
         defaultModel: defaultModel,
         defaultEffort: defaultEffort,
       ),
     );
   }
 
+  /// With its role — the daemon builds the prompt prefix from it.
   Future<Agent?> get(Session session, int id) async {
-    return Agent.db.findById(session, id);
+    return Agent.db.findById(
+      session,
+      id,
+      include: Agent.include(role: AgentRoleDefinition.include()),
+    );
   }
 
   Future<List<Agent>> list(Session session) async {
-    return Agent.db.find(session);
+    return Agent.db.find(
+      session,
+      include: Agent.include(role: AgentRoleDefinition.include()),
+    );
   }
 
   /// Edits an agent's settings from the panel. The machine it lives on,
@@ -44,7 +52,7 @@ class AgentEndpoint extends Endpoint {
     return Agent.db.updateRow(
       session,
       agent,
-      columns: (t) => [t.name, t.role, t.defaultModel, t.defaultEffort],
+      columns: (t) => [t.name, t.roleId, t.defaultModel, t.defaultEffort],
     );
   }
 

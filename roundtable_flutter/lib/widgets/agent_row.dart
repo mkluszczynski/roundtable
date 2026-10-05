@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/agent_role_label.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../screens/task_detail_screen.dart';
@@ -63,7 +64,7 @@ class AgentRow extends StatelessWidget {
                     if (showDetails) ...[
                       const Spacer(),
                       Text(
-                        agent.role.name,
+                        agent.roleLabel,
                         style: AppTypography.caption,
                       ),
                     ],

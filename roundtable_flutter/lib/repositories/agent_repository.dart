@@ -12,13 +12,13 @@ class AgentRepository {
   Future<Agent> createAgent({
     required String name,
     required int machineId,
-    AgentRole role = AgentRole.generalist,
+    int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
   }) => _client.agent.create(
     name,
     machineId,
-    role: role,
+    roleId: roleId,
     defaultModel: defaultModel,
     defaultEffort: defaultEffort,
   );

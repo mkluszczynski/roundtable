@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/agent_role_label.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
@@ -130,7 +131,7 @@ class _AgentLabel extends StatelessWidget {
           ),
         ),
         const SizedBox(width: Spacing.sm),
-        Text(agent.role.name, style: AppTypography.caption),
+        Text(agent.roleLabel, style: AppTypography.caption),
       ],
     );
   }

@@ -6,6 +6,7 @@ import 'package:serverpod_auth_idp_server/providers/email.dart';
 import 'package:serverpod/protocol.dart' as sp;
 import 'package:serverpod_cloud_storage/serverpod_cloud_storage.dart';
 
+import 'src/default_agent_roles.dart';
 import 'src/agent_runner_binaries.dart';
 import 'src/cache_busting.dart';
 import 'src/generated/serverpod.dart';
@@ -174,6 +175,7 @@ void run(List<String> args) async {
         'PausedTaskResumeCheckFutureCall',
       }),
     );
+    await seedDefaultAgentRoles(session);
   } finally {
     await session.close();
   }

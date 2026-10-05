@@ -14,7 +14,7 @@ Agent _agent(int id, String name, int machineId, {AgentStatus? status}) =>
       id: id,
       name: name,
       machineId: machineId,
-      role: AgentRole.backend,
+      role: AgentRoleDefinition(id: 2, name: 'backend', prompt: 'p'),
       executionMode: AgentExecutionMode.native,
       status: status ?? AgentStatus.idle,
     );

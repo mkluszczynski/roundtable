@@ -15,7 +15,7 @@ import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
-import 'agent_role.dart' as _idfmm35v;
+import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
 import 'machine.dart' as _i0hti3f2;
 import 'task.dart' as _iwn6t6fs;
@@ -27,15 +27,15 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
     required this.machineId,
     this.machine,
     required this.name,
-    _idfmm35v.AgentRole? role,
+    this.roleId,
+    this.role,
     this.defaultModel,
     this.defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
     _i69bozh7.AgentStatus? status,
     DateTime? createdAt,
     this.tasks,
-  }) : role = role ?? _idfmm35v.AgentRole.generalist,
-       executionMode = executionMode ?? _i4babe00.AgentExecutionMode.native,
+  }) : executionMode = executionMode ?? _i4babe00.AgentExecutionMode.native,
        status = status ?? _i69bozh7.AgentStatus.idle,
        createdAt = createdAt ?? DateTime.now();
 
@@ -44,7 +44,8 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
     required int machineId,
     _i0hti3f2.Machine? machine,
     required String name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -63,9 +64,12 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
               jsonSerialization['machine'],
             ),
       name: jsonSerialization['name'] as String,
+      roleId: jsonSerialization['roleId'] as int?,
       role: jsonSerialization['role'] == null
           ? null
-          : _idfmm35v.AgentRole.fromJson((jsonSerialization['role'] as String)),
+          : _iikm6kmi.Protocol().deserialize<_i8tbvaw8.AgentRoleDefinition>(
+              jsonSerialization['role'],
+            ),
       defaultModel: jsonSerialization['defaultModel'] as String?,
       defaultEffort: jsonSerialization['defaultEffort'] == null
           ? null
@@ -110,7 +114,11 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// The agent's display name.
   String name;
 
-  _idfmm35v.AgentRole role;
+  int? roleId;
+
+  /// onDelete=SetNull is only a fallback: AgentRoleEndpoint.delete refuses
+  /// a role agents still use. Without a role the agent is a generalist.
+  _i8tbvaw8.AgentRoleDefinition? role;
 
   /// e.g. "claude-opus-4-7" — deliberately String, not an enum: model names change more often than
   /// it's worth migrating the schema for.
@@ -139,7 +147,8 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? machineId,
     _i0hti3f2.Machine? machine,
     String? name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -155,7 +164,8 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'machineId': machineId,
       if (machine != null) 'machine': machine?.toJson(),
       'name': name,
-      'role': role.toJson(),
+      if (roleId != null) 'roleId': roleId,
+      if (role != null) 'role': role?.toJson(),
       if (defaultModel != null) 'defaultModel': defaultModel,
       if (defaultEffort != null) 'defaultEffort': defaultEffort?.toJson(),
       'executionMode': executionMode.toJson(),
@@ -173,7 +183,8 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'machineId': machineId,
       if (machine != null) 'machine': machine?.toJsonForProtocol(),
       'name': name,
-      'role': role.toJson(),
+      if (roleId != null) 'roleId': roleId,
+      if (role != null) 'role': role?.toJsonForProtocol(),
       if (defaultModel != null) 'defaultModel': defaultModel,
       if (defaultEffort != null) 'defaultEffort': defaultEffort?.toJson(),
       'executionMode': executionMode.toJson(),
@@ -186,10 +197,12 @@ abstract class Agent implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   static AgentInclude include({
     _i0hti3f2.MachineInclude? machine,
+    _i8tbvaw8.AgentRoleDefinitionInclude? role,
     _iwn6t6fs.TaskIncludeList? tasks,
   }) {
     return AgentInclude._(
       machine: machine,
+      role: role,
       tasks: tasks,
     );
   }
@@ -226,7 +239,8 @@ class _AgentImpl extends Agent {
     required int machineId,
     _i0hti3f2.Machine? machine,
     required String name,
-    _idfmm35v.AgentRole? role,
+    int? roleId,
+    _i8tbvaw8.AgentRoleDefinition? role,
     String? defaultModel,
     _iexg9pz4.AgentEffort? defaultEffort,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -238,6 +252,7 @@ class _AgentImpl extends Agent {
          machineId: machineId,
          machine: machine,
          name: name,
+         roleId: roleId,
          role: role,
          defaultModel: defaultModel,
          defaultEffort: defaultEffort,
@@ -256,7 +271,8 @@ class _AgentImpl extends Agent {
     int? machineId,
     Object? machine = _Undefined,
     String? name,
-    _idfmm35v.AgentRole? role,
+    Object? roleId = _Undefined,
+    Object? role = _Undefined,
     Object? defaultModel = _Undefined,
     Object? defaultEffort = _Undefined,
     _i4babe00.AgentExecutionMode? executionMode,
@@ -271,7 +287,10 @@ class _AgentImpl extends Agent {
           ? machine
           : this.machine?.copyWith(),
       name: name ?? this.name,
-      role: role ?? this.role,
+      roleId: roleId is int? ? roleId : this.roleId,
+      role: role is _i8tbvaw8.AgentRoleDefinition?
+          ? role
+          : this.role?.copyWith(),
       defaultModel: defaultModel is String? ? defaultModel : this.defaultModel,
       defaultEffort: defaultEffort is _iexg9pz4.AgentEffort?
           ? defaultEffort
@@ -299,10 +318,8 @@ class AgentUpdateTable extends _is.UpdateTable<AgentTable> {
     value,
   );
 
-  _is.ColumnValue<_idfmm35v.AgentRole, _idfmm35v.AgentRole> role(
-    _idfmm35v.AgentRole value,
-  ) => _is.ColumnValue(
-    table.role,
+  _is.ColumnValue<int, int> roleId(int? value) => _is.ColumnValue(
+    table.roleId,
     value,
   );
 
@@ -350,11 +367,9 @@ class AgentTable extends _is.Table<int?> {
       'name',
       this,
     );
-    role = _is.ColumnEnum(
-      'role',
+    roleId = _is.ColumnInt(
+      'roleId',
       this,
-      _is.EnumSerialization.byName,
-      hasDefault: true,
     );
     defaultModel = _is.ColumnString(
       'defaultModel',
@@ -396,7 +411,11 @@ class AgentTable extends _is.Table<int?> {
   /// The agent's display name.
   late final _is.ColumnString name;
 
-  late final _is.ColumnEnum<_idfmm35v.AgentRole> role;
+  late final _is.ColumnInt roleId;
+
+  /// onDelete=SetNull is only a fallback: AgentRoleEndpoint.delete refuses
+  /// a role agents still use. Without a role the agent is a generalist.
+  _i8tbvaw8.AgentRoleDefinitionTable? _role;
 
   /// e.g. "claude-opus-4-7" — deliberately String, not an enum: model names change more often than
   /// it's worth migrating the schema for.
@@ -427,6 +446,20 @@ class AgentTable extends _is.Table<int?> {
           _i0hti3f2.MachineTable(tableRelation: foreignTableRelation),
     );
     return _machine!;
+  }
+
+  _i8tbvaw8.AgentRoleDefinitionTable get role {
+    if (_role != null) return _role!;
+    _role = _is.createRelationTable(
+      relationFieldName: 'role',
+      field: Agent.t.roleId,
+      foreignField: _i8tbvaw8.AgentRoleDefinition.t.id,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) => _i8tbvaw8.AgentRoleDefinitionTable(
+        tableRelation: foreignTableRelation,
+      ),
+    );
+    return _role!;
   }
 
   _iwn6t6fs.TaskTable get __tasks {
@@ -466,7 +499,7 @@ class AgentTable extends _is.Table<int?> {
     id,
     machineId,
     name,
-    role,
+    roleId,
     defaultModel,
     defaultEffort,
     executionMode,
@@ -479,6 +512,9 @@ class AgentTable extends _is.Table<int?> {
     if (relationField == 'machine') {
       return machine;
     }
+    if (relationField == 'role') {
+      return role;
+    }
     if (relationField == 'tasks') {
       return __tasks;
     }
@@ -489,19 +525,24 @@ class AgentTable extends _is.Table<int?> {
 class AgentInclude extends _is.IncludeObject {
   AgentInclude._({
     _i0hti3f2.MachineInclude? machine,
+    _i8tbvaw8.AgentRoleDefinitionInclude? role,
     _iwn6t6fs.TaskIncludeList? tasks,
   }) {
     _machine = machine;
+    _role = role;
     _tasks = tasks;
   }
 
   _i0hti3f2.MachineInclude? _machine;
+
+  _i8tbvaw8.AgentRoleDefinitionInclude? _role;
 
   _iwn6t6fs.TaskIncludeList? _tasks;
 
   @override
   Map<String, _is.Include?> get includes => {
     'machine': _machine,
+    'role': _role,
     'tasks': _tasks,
   };
 
@@ -990,6 +1031,29 @@ class AgentAttachRowRepository {
     );
   }
 
+  /// Creates a relation between the given [Agent] and [AgentRoleDefinition]
+  /// by setting the [Agent]'s foreign key `roleId` to refer to the [AgentRoleDefinition].
+  Future<void> role(
+    _is.DatabaseSession session,
+    Agent agent,
+    _i8tbvaw8.AgentRoleDefinition role, {
+    _is.Transaction? transaction,
+  }) async {
+    if (agent.id == null) {
+      throw ArgumentError.notNull('agent.id');
+    }
+    if (role.id == null) {
+      throw ArgumentError.notNull('role.id');
+    }
+
+    var $agent = agent.copyWith(roleId: role.id);
+    await session.db.updateRow<Agent>(
+      $agent,
+      columns: [Agent.t.roleId],
+      transaction: transaction,
+    );
+  }
+
   /// Creates a relation between this [Agent] and the given [Task]
   /// by setting the [Task]'s foreign key `agentId` to refer to this [Agent].
   Future<void> tasks(
@@ -1042,6 +1106,28 @@ class AgentDetachRepository {
 
 class AgentDetachRowRepository {
   const AgentDetachRowRepository._();
+
+  /// Detaches the relation between this [Agent] and the [AgentRoleDefinition] set in `role`
+  /// by setting the [Agent]'s foreign key `roleId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> role(
+    _is.DatabaseSession session,
+    Agent agent, {
+    _is.Transaction? transaction,
+  }) async {
+    if (agent.id == null) {
+      throw ArgumentError.notNull('agent.id');
+    }
+
+    var $agent = agent.copyWith(roleId: null);
+    await session.db.updateRow<Agent>(
+      $agent,
+      columns: [Agent.t.roleId],
+      transaction: transaction,
+    );
+  }
 
   /// Detaches the relation between this [Agent] and the given [Task]
   /// by setting the [Task]'s foreign key `agentId` to `null`.
