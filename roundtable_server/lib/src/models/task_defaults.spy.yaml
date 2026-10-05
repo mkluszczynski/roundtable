@@ -7,3 +7,4 @@ fields:
   reviewerAgentId: int?
   autoFixReview: bool
   maxReviewFixRounds: int
+  autoMerge: bool

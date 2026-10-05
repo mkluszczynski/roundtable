@@ -622,6 +622,12 @@ class _TaskDefaultsState extends State<_TaskDefaults> {
           workspaceValue: _workspace?.autoFixReview,
           onChanged: (v) => _save(_project.copyWith(autoFixReview: v)),
         ),
+        _boolOverride(
+          option: autoMergeOption,
+          value: _project.autoMerge,
+          workspaceValue: _workspace?.autoMerge,
+          onChanged: (v) => _save(_project.copyWith(autoMerge: v)),
+        ),
         Tooltip(
           message: maxFixRoundsOption.description,
           child: Text(maxFixRoundsOption.title, style: AppTypography.body),

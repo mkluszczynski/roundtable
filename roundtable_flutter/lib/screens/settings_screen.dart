@@ -175,6 +175,18 @@ class _TaskDefaultsCard extends StatelessWidget {
             ),
           ),
           SettingRow(
+            title: autoMergeOption.title,
+            description: settings.autoMerge && !settings.autoReview
+                ? autoMergeWithoutReviewHint
+                : autoMergeOption.description,
+            control: Switch(
+              value: settings.autoMerge,
+              activeThumbColor: AppColors.accent,
+              onChanged: (value) =>
+                  onChanged(settings.copyWith(autoMerge: value)),
+            ),
+          ),
+          SettingRow(
             title: maxFixRoundsOption.title,
             description: maxFixRoundsOption.description,
             control: PillSelector<int>(

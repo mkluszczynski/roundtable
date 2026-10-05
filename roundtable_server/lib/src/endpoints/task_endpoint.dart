@@ -47,6 +47,7 @@ class TaskEndpoint extends Endpoint {
     int? reviewerAgentId,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     List<int>? attachmentIds,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
@@ -75,6 +76,7 @@ class TaskEndpoint extends Endpoint {
         reviewerAgentId: reviewerAgentId,
         autoFixReview: autoFixReview ?? false,
         maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
+        autoMerge: autoMerge ?? false,
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );

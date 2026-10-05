@@ -27,5 +27,7 @@ fields:
   ### Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
   autoFixReview: bool?
   maxReviewFixRounds: int?
+  ### Default for Task.autoMerge; null inherits WorkspaceSettings.
+  autoMerge: bool?
   createdAt: DateTime, default=now
   tasks: List<Task>?, relation(name=project_tasks)

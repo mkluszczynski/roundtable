@@ -12,4 +12,6 @@ fields:
   ### Defaults for Task.autoFixReview / maxReviewFixRounds.
   autoFixReview: bool, default=false
   maxReviewFixRounds: int, default=2
+  ### Default for Task.autoMerge on new tasks.
+  autoMerge: bool, default=false
   updatedAt: DateTime, default=now

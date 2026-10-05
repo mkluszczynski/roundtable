@@ -1,4 +1,5 @@
 import '../generated/protocol.dart';
+import '../auto_merge.dart';
 import '../pr_checks.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -22,6 +23,17 @@ class PrChecksFutureCall extends FutureCall {
       // Logs (doesn't throw) per task, so one broken repo can't starve the
       // others.
       await syncChecksQuietly(session, task);
+    }
+    // Re-read: the syncs above may have changed the checks.
+    final ready = await Task.db.find(
+      session,
+      where: (t) =>
+          t.status.equals(TaskStatus.awaitingReview) &
+          t.prUrl.notEquals(null) &
+          t.autoMerge.equals(true),
+    );
+    for (final task in ready) {
+      await autoMergeIfReady(session, task);
     }
   }
 }

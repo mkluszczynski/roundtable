@@ -22,6 +22,7 @@ abstract class TaskDefaults
     this.reviewerAgentId,
     required this.autoFixReview,
     required this.maxReviewFixRounds,
+    required this.autoMerge,
   });
 
   factory TaskDefaults({
@@ -30,6 +31,7 @@ abstract class TaskDefaults
     int? reviewerAgentId,
     required bool autoFixReview,
     required int maxReviewFixRounds,
+    required bool autoMerge,
   }) = _TaskDefaultsImpl;
 
   factory TaskDefaults.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -45,6 +47,7 @@ abstract class TaskDefaults
         jsonSerialization['autoFixReview'],
       ),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int,
+      autoMerge: _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
     );
   }
 
@@ -58,6 +61,8 @@ abstract class TaskDefaults
 
   int maxReviewFixRounds;
 
+  bool autoMerge;
+
   /// Returns a shallow copy of this [TaskDefaults]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
@@ -67,6 +72,7 @@ abstract class TaskDefaults
     int? reviewerAgentId,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -77,6 +83,7 @@ abstract class TaskDefaults
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
     };
   }
 
@@ -89,6 +96,7 @@ abstract class TaskDefaults
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
     };
   }
 
@@ -107,12 +115,14 @@ class _TaskDefaultsImpl extends TaskDefaults {
     int? reviewerAgentId,
     required bool autoFixReview,
     required int maxReviewFixRounds,
+    required bool autoMerge,
   }) : super._(
          skipPlanning: skipPlanning,
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
        );
 
   /// Returns a shallow copy of this [TaskDefaults]
@@ -125,6 +135,7 @@ class _TaskDefaultsImpl extends TaskDefaults {
     Object? reviewerAgentId = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
   }) {
     return TaskDefaults(
       skipPlanning: skipPlanning ?? this.skipPlanning,
@@ -134,6 +145,7 @@ class _TaskDefaultsImpl extends TaskDefaults {
           : this.reviewerAgentId,
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
     );
   }
 }

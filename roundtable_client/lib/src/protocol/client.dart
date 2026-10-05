@@ -923,6 +923,7 @@ class EndpointTask extends _isc.EndpointRef {
     int? reviewerAgentId,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     List<int>? attachmentIds,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
@@ -936,6 +937,7 @@ class EndpointTask extends _isc.EndpointRef {
       'reviewerAgentId': reviewerAgentId,
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
       'attachmentIds': attachmentIds,
     },
   );

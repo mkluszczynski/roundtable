@@ -87,6 +87,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   int? _reviewerAgentId;
   bool _autoFix = false;
   int _maxFixRounds = 2;
+  bool _autoMerge = false;
 
   /// The project's resolved defaults, once loaded — [_skipPlanning] follows
   /// them until the dev changes it by hand.
@@ -132,6 +133,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           _reviewerAgentId = defaults.reviewerAgentId;
           _autoFix = defaults.autoFixReview;
           _maxFixRounds = defaults.maxReviewFixRounds;
+          _autoMerge = defaults.autoMerge;
         }
       });
     } catch (_) {
@@ -159,6 +161,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     reviewerAgentId: _reviewerAgentId,
     autoFix: _autoFix,
     maxFixRounds: _maxFixRounds,
+    autoMerge: _autoMerge,
     defaults: _defaults,
   );
 
@@ -263,6 +266,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           reviewerAgentId: _reviewerAgentId,
                           autoFixReview: _autoFix,
                           maxReviewFixRounds: _maxFixRounds,
+                          autoMerge: _autoMerge,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -467,6 +471,25 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                       ),
                     ],
                   ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoMerge,
+                    activeColor: AppColors.accent,
+                    title: Text(autoMergeOption.title),
+                    subtitle: Text(
+                      _autoMerge && !_autoReview
+                          ? autoMergeWithoutReviewHint
+                          : autoMergeOption.description,
+                      style: _autoMerge && !_autoReview
+                          ? const TextStyle(color: AppColors.warning)
+                          : null,
+                    ),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoMerge = value ?? false;
+                    }),
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -498,12 +521,14 @@ String _summaryFor({
   required int? reviewerAgentId,
   required bool autoFix,
   required int maxFixRounds,
+  required bool autoMerge,
   TaskDefaults? defaults,
 }) {
   final on = [
     skipPlanning ? skipPlanningOption.title : 'Plan first',
     if (autoReview) autoReviewOption.title,
     if (autoFix) 'Auto fix ×$maxFixRounds',
+    if (autoMerge) autoMergeOption.title,
   ];
   final text = on.join(' · ');
   final custom =
@@ -512,7 +537,8 @@ String _summaryFor({
           defaults.autoReview != autoReview ||
           defaults.reviewerAgentId != reviewerAgentId ||
           defaults.autoFixReview != autoFix ||
-          (autoFix && defaults.maxReviewFixRounds != maxFixRounds));
+          (autoFix && defaults.maxReviewFixRounds != maxFixRounds) ||
+          defaults.autoMerge != autoMerge);
   return custom ? '$text — changed from project defaults' : text;
 }
 

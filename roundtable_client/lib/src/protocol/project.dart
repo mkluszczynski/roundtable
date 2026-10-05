@@ -32,6 +32,7 @@ abstract class Project
     this.reviewerAgent,
     this.autoFixReview,
     this.maxReviewFixRounds,
+    this.autoMerge,
     DateTime? createdAt,
     this.tasks,
   }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
@@ -52,6 +53,7 @@ abstract class Project
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -90,6 +92,9 @@ abstract class Project
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -142,6 +147,9 @@ abstract class Project
 
   int? maxReviewFixRounds;
 
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  bool? autoMerge;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -163,6 +171,7 @@ abstract class Project
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -184,6 +193,7 @@ abstract class Project
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -208,6 +218,7 @@ abstract class Project
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -237,6 +248,7 @@ class _ProjectImpl extends Project {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -253,6 +265,7 @@ class _ProjectImpl extends Project {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -275,6 +288,7 @@ class _ProjectImpl extends Project {
     Object? reviewerAgent = _Undefined,
     Object? autoFixReview = _Undefined,
     Object? maxReviewFixRounds = _Undefined,
+    Object? autoMerge = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -302,6 +316,7 @@ class _ProjectImpl extends Project {
       maxReviewFixRounds: maxReviewFixRounds is int?
           ? maxReviewFixRounds
           : this.maxReviewFixRounds,
+      autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks

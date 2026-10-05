@@ -940,8 +940,27 @@ List<Widget> _acceptButtons(
     icon: const Icon(Icons.merge, size: 16),
     label: const Text('Accept & merge'),
   );
-  if (blocked == null) return [button];
+  final autoMergeHint = state.task.autoMerge
+      ? const Tooltip(
+          message:
+              'Merges by itself once CI passes and, with auto review, the '
+              'review has no open blockers or issues',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_mode, size: 14, color: AppColors.live),
+              SizedBox(width: Spacing.xs),
+              Text(
+                'Auto merge on',
+                style: TextStyle(color: AppColors.live, fontSize: 12),
+              ),
+            ],
+          ),
+        )
+      : null;
+  if (blocked == null) return [?autoMergeHint, button];
   return [
+    ?autoMergeHint,
     Tooltip(message: blocked, child: button),
     OutlinedButton.icon(
       style: OutlinedButton.styleFrom(

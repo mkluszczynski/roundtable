@@ -34,6 +34,7 @@ abstract class Project
     this.reviewerAgent,
     this.autoFixReview,
     this.maxReviewFixRounds,
+    this.autoMerge,
     DateTime? createdAt,
     this.tasks,
   }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
@@ -55,6 +56,7 @@ abstract class Project
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -94,6 +96,9 @@ abstract class Project
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -151,6 +156,9 @@ abstract class Project
 
   int? maxReviewFixRounds;
 
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  bool? autoMerge;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -176,6 +184,7 @@ abstract class Project
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -198,6 +207,7 @@ abstract class Project
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -222,6 +232,7 @@ abstract class Project
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
+      if (autoMerge != null) 'autoMerge': autoMerge,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -280,6 +291,7 @@ class _ProjectImpl extends Project {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -297,6 +309,7 @@ class _ProjectImpl extends Project {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -320,6 +333,7 @@ class _ProjectImpl extends Project {
     Object? reviewerAgent = _Undefined,
     Object? autoFixReview = _Undefined,
     Object? maxReviewFixRounds = _Undefined,
+    Object? autoMerge = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -350,6 +364,7 @@ class _ProjectImpl extends Project {
       maxReviewFixRounds: maxReviewFixRounds is int?
           ? maxReviewFixRounds
           : this.maxReviewFixRounds,
+      autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -425,6 +440,11 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<bool, bool> autoMerge(bool? value) => _is.ColumnValue(
+    table.autoMerge,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -485,6 +505,10 @@ class ProjectTable extends _is.Table<int?> {
       'maxReviewFixRounds',
       this,
     );
+    autoMerge = _is.ColumnBool(
+      'autoMerge',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -532,6 +556,9 @@ class ProjectTable extends _is.Table<int?> {
   late final _is.ColumnBool autoFixReview;
 
   late final _is.ColumnInt maxReviewFixRounds;
+
+  /// Default for Task.autoMerge; null inherits WorkspaceSettings.
+  late final _is.ColumnBool autoMerge;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -599,6 +626,7 @@ class ProjectTable extends _is.Table<int?> {
     reviewerAgentId,
     autoFixReview,
     maxReviewFixRounds,
+    autoMerge,
     createdAt,
   ];
 

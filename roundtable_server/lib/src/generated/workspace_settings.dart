@@ -27,11 +27,13 @@ abstract class WorkspaceSettings
     this.reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
+       autoMerge = autoMerge ?? false,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -42,6 +44,7 @@ abstract class WorkspaceSettings
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -64,6 +67,9 @@ abstract class WorkspaceSettings
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -93,6 +99,9 @@ abstract class WorkspaceSettings
 
   int maxReviewFixRounds;
 
+  /// Default for Task.autoMerge on new tasks.
+  bool autoMerge;
+
   DateTime updatedAt;
 
   @override
@@ -109,6 +118,7 @@ abstract class WorkspaceSettings
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   });
   @override
@@ -122,6 +132,7 @@ abstract class WorkspaceSettings
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -138,6 +149,7 @@ abstract class WorkspaceSettings
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -183,6 +195,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -192,6 +205,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          updatedAt: updatedAt,
        );
 
@@ -207,6 +221,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     Object? reviewerAgent = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -221,6 +236,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
           : this.reviewerAgent?.copyWith(),
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -252,6 +268,11 @@ class WorkspaceSettingsUpdateTable
 
   _is.ColumnValue<int, int> maxReviewFixRounds(int value) => _is.ColumnValue(
     table.maxReviewFixRounds,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoMerge(bool value) => _is.ColumnValue(
+    table.autoMerge,
     value,
   );
 
@@ -290,6 +311,11 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoMerge = _is.ColumnBool(
+      'autoMerge',
+      this,
+      hasDefault: true,
+    );
     updatedAt = _is.ColumnDateTime(
       'updatedAt',
       this,
@@ -315,6 +341,9 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
 
   late final _is.ColumnInt maxReviewFixRounds;
 
+  /// Default for Task.autoMerge on new tasks.
+  late final _is.ColumnBool autoMerge;
+
   late final _is.ColumnDateTime updatedAt;
 
   _ijo8h3v4.AgentTable get reviewerAgent {
@@ -338,6 +367,7 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
     reviewerAgentId,
     autoFixReview,
     maxReviewFixRounds,
+    autoMerge,
     updatedAt,
   ];
 

@@ -35,3 +35,13 @@ const maxFixRoundsOption = TaskOptionInfo(
 
 /// Choices offered for [maxFixRoundsOption].
 const fixRoundChoices = [1, 2, 3, 5];
+
+const autoMergeOption = TaskOptionInfo(
+  'Auto merge',
+  'Squash-merge the PR once CI passes and, with auto review, the review '
+      'has no open blockers or issues',
+);
+
+/// Shown when auto merge is on without auto review.
+const autoMergeWithoutReviewHint =
+    'Without auto review this merges as soon as CI passes — no review';

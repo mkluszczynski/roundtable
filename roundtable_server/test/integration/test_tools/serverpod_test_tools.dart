@@ -2185,6 +2185,7 @@ class _TaskEndpoint {
     int? reviewerAgentId,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     List<int>? attachmentIds,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
@@ -2207,6 +2208,7 @@ class _TaskEndpoint {
             'reviewerAgentId': reviewerAgentId,
             'autoFixReview': autoFixReview,
             'maxReviewFixRounds': maxReviewFixRounds,
+            'autoMerge': autoMerge,
             'attachmentIds': attachmentIds,
           }),
           serializationManager: _serializationManager,

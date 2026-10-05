@@ -14,6 +14,7 @@ class TaskRepository {
     int? reviewerAgentId,
     bool autoFixReview = false,
     int? maxReviewFixRounds,
+    bool autoMerge = false,
     List<int> attachmentIds = const [],
   }) => _client.task.createTask(
     projectId,
@@ -24,6 +25,7 @@ class TaskRepository {
     reviewerAgentId: reviewerAgentId,
     autoFixReview: autoFixReview,
     maxReviewFixRounds: maxReviewFixRounds,
+    autoMerge: autoMerge,
     attachmentIds: attachmentIds,
   );
 

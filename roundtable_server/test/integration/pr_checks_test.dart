@@ -23,6 +23,7 @@ void main() {
     late String? conclusion;
     late bool noWorkflows;
     late bool actionsForbidden;
+    late bool mergeRefused;
 
     setUp(() {
       githubRequests = [];
@@ -30,11 +31,18 @@ void main() {
       conclusion = 'success';
       noWorkflows = false;
       actionsForbidden = false;
+      mergeRefused = false;
       resetChecksPollSchedule();
       gitHubRepoClient = GitHubRepoClient(
         httpClient: MockClient((request) async {
           githubRequests.add(request);
           if (request.method == 'PUT') {
+            if (mergeRefused) {
+              return http.Response(
+                jsonEncode({'message': 'Required status check is expected'}),
+                405,
+              );
+            }
             return http.Response(jsonEncode({'merged': true}), 200);
           }
           if (actionsForbidden && request.url.path.contains('/actions/')) {
@@ -448,5 +456,121 @@ void main() {
         expect(stored.checkState, PrCheckState.pending);
       },
     );
+
+    group('auto merge', () {
+      Future<Task> withAutoMerge(Task task, {bool autoReview = false}) async =>
+          Task.db.updateRow(
+            sessionBuilder.build(),
+            task.copyWith(autoMerge: true, autoReview: autoReview),
+          );
+
+      bool merged() => githubRequests.any((r) => r.method == 'PUT');
+
+      test(
+        'when CI is green then the PR is merged and the task is done',
+        () async {
+          final task = await withAutoMerge(await seed());
+
+          await poll();
+
+          expect(merged(), isTrue);
+          expect((await reload(task)).status, TaskStatus.done);
+        },
+      );
+
+      test('when auto merge is off then nothing is merged', () async {
+        final task = await seed();
+
+        await poll();
+
+        expect(merged(), isFalse);
+        expect((await reload(task)).status, TaskStatus.awaitingReview);
+      });
+
+      test('when CI is still running then it waits', () async {
+        conclusion = null;
+        final task = await withAutoMerge(await seed());
+
+        await poll();
+
+        expect(merged(), isFalse);
+        final current = await reload(task);
+        expect(current.status, TaskStatus.awaitingReview);
+        expect(current.autoMerge, isTrue);
+      });
+
+      test('when auto review is on and the version is not reviewed then it '
+          'waits', () async {
+        await withAutoMerge(await seed(), autoReview: true);
+
+        await poll();
+
+        expect(merged(), isFalse);
+      });
+
+      test('when the review left an open blocker then it waits', () async {
+        final task = await withAutoMerge(await seed(), autoReview: true);
+        final session = sessionBuilder.build();
+        final review = await CodeReview.db.insertRow(
+          session,
+          CodeReview(
+            taskId: task.id!,
+            status: CodeReviewStatus.completed,
+            summary: 'One problem.',
+          ),
+        );
+        await ReviewComment.db.insertRow(
+          session,
+          ReviewComment(
+            reviewId: review.id!,
+            path: 'lib/a.dart',
+            body: 'Crash on null',
+            severity: ReviewCommentSeverity.blocker,
+          ),
+        );
+
+        await poll();
+        expect(merged(), isFalse);
+
+        // Only a nit left: ready.
+        final comment = (await ReviewComment.db.find(session)).single;
+        await ReviewComment.db.updateRow(
+          session,
+          comment.copyWith(state: ReviewCommentState.resolved),
+        );
+        await poll();
+        expect(merged(), isTrue);
+      });
+
+      test('when CI fails then it waits for a fix', () async {
+        conclusion = 'failure';
+        final task = await withAutoMerge(await seed());
+
+        await poll();
+
+        expect(merged(), isFalse);
+        expect((await reload(task)).autoMerge, isTrue);
+      });
+
+      test('when GitHub refuses the merge then auto merge is switched off '
+          'and the reason logged', () async {
+        mergeRefused = true;
+        final task = await withAutoMerge(await seed());
+
+        await poll();
+
+        final current = await reload(task);
+        expect(current.status, TaskStatus.awaitingReview);
+        expect(current.autoMerge, isFalse);
+        final events = await TaskLogEntry.db.find(
+          sessionBuilder.build(),
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('Auto merge stopped')),
+        );
+      });
+    });
   });
 }

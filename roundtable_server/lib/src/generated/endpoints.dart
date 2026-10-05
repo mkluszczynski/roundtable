@@ -1388,6 +1388,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int?>(),
               nullable: true,
             ),
+            'autoMerge': _is.ParameterDescription(
+              name: 'autoMerge',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
             'attachmentIds': _is.ParameterDescription(
               name: 'attachmentIds',
               type: _is.getType<List<int>?>(),
@@ -1409,6 +1414,7 @@ class Endpoints extends _is.EndpointDispatch {
                     reviewerAgentId: params['reviewerAgentId'],
                     autoFixReview: params['autoFixReview'],
                     maxReviewFixRounds: params['maxReviewFixRounds'],
+                    autoMerge: params['autoMerge'],
                     attachmentIds: params['attachmentIds'],
                   ),
         ),

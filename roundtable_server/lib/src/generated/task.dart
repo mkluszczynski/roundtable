@@ -39,6 +39,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -68,6 +69,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        reviewFixRounds = reviewFixRounds ?? 0,
+       autoMerge = autoMerge ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -88,6 +90,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -147,6 +150,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
       reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -265,6 +271,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   int reviewFixRounds;
 
+  /// Squash-merge the PR without the dev once it's ready: CI green (or no
+  /// CI), no review or fix run in flight, and — with [autoReview] — the
+  /// latest version reviewed with no open blockers or issues. Turned off
+  /// if GitHub refuses the merge, so the dev takes over.
+  bool autoMerge;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -361,6 +373,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -403,6 +416,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -451,6 +465,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -547,6 +562,7 @@ class _TaskImpl extends Task {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -585,6 +601,7 @@ class _TaskImpl extends Task {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          reviewFixRounds: reviewFixRounds,
+         autoMerge: autoMerge,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -629,6 +646,7 @@ class _TaskImpl extends Task {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -674,6 +692,7 @@ class _TaskImpl extends Task {
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -767,6 +786,11 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<int, int> reviewFixRounds(int value) => _is.ColumnValue(
     table.reviewFixRounds,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoMerge(bool value) => _is.ColumnValue(
+    table.autoMerge,
     value,
   );
 
@@ -931,6 +955,11 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoMerge = _is.ColumnBool(
+      'autoMerge',
+      this,
+      hasDefault: true,
+    );
     status = _is.ColumnEnum(
       'status',
       this,
@@ -1060,6 +1089,12 @@ class TaskTable extends _is.Table<int?> {
 
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   late final _is.ColumnInt reviewFixRounds;
+
+  /// Squash-merge the PR without the dev once it's ready: CI green (or no
+  /// CI), no review or fix run in flight, and — with [autoReview] — the
+  /// latest version reviewed with no open blockers or issues. Turned off
+  /// if GitHub refuses the merge, so the dev takes over.
+  late final _is.ColumnBool autoMerge;
 
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
@@ -1324,6 +1359,7 @@ class TaskTable extends _is.Table<int?> {
     autoFixReview,
     maxReviewFixRounds,
     reviewFixRounds,
+    autoMerge,
     status,
     currentPlan,
     failureReason,

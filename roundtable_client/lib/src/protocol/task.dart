@@ -39,6 +39,7 @@ abstract class Task
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -68,6 +69,7 @@ abstract class Task
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        reviewFixRounds = reviewFixRounds ?? 0,
+       autoMerge = autoMerge ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -88,6 +90,7 @@ abstract class Task
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -147,6 +150,9 @@ abstract class Task
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
       reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -265,6 +271,12 @@ abstract class Task
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   int reviewFixRounds;
 
+  /// Squash-merge the PR without the dev once it's ready: CI green (or no
+  /// CI), no review or fix run in flight, and — with [autoReview] — the
+  /// latest version reviewed with no open blockers or issues. Turned off
+  /// if GitHub refuses the merge, so the dev takes over.
+  bool autoMerge;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -358,6 +370,7 @@ abstract class Task
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -400,6 +413,7 @@ abstract class Task
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -448,6 +462,7 @@ abstract class Task
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
+      'autoMerge': autoMerge,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -506,6 +521,7 @@ class _TaskImpl extends Task {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -544,6 +560,7 @@ class _TaskImpl extends Task {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          reviewFixRounds: reviewFixRounds,
+         autoMerge: autoMerge,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -588,6 +605,7 @@ class _TaskImpl extends Task {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     int? reviewFixRounds,
+    bool? autoMerge,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -633,6 +651,7 @@ class _TaskImpl extends Task {
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?

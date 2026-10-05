@@ -25,6 +25,11 @@ fields:
   maxReviewFixRounds: int, default=2
   ### Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   reviewFixRounds: int, default=0
+  ### Squash-merge the PR without the dev once it's ready: CI green (or no
+  ### CI), no review or fix run in flight, and — with [autoReview] — the
+  ### latest version reviewed with no open blockers or issues. Turned off
+  ### if GitHub refuses the merge, so the dev takes over.
+  autoMerge: bool, default=false
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?

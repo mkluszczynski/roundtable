@@ -26,11 +26,13 @@ abstract class WorkspaceSettings
     this.reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
+       autoMerge = autoMerge ?? false,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -41,6 +43,7 @@ abstract class WorkspaceSettings
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -63,6 +66,9 @@ abstract class WorkspaceSettings
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      autoMerge: jsonSerialization['autoMerge'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -90,6 +96,9 @@ abstract class WorkspaceSettings
 
   int maxReviewFixRounds;
 
+  /// Default for Task.autoMerge on new tasks.
+  bool autoMerge;
+
   DateTime updatedAt;
 
   /// Returns a shallow copy of this [WorkspaceSettings]
@@ -103,6 +112,7 @@ abstract class WorkspaceSettings
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   });
   @override
@@ -116,6 +126,7 @@ abstract class WorkspaceSettings
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -132,6 +143,7 @@ abstract class WorkspaceSettings
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -153,6 +165,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -162,6 +175,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         autoMerge: autoMerge,
          updatedAt: updatedAt,
        );
 
@@ -177,6 +191,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     Object? reviewerAgent = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    bool? autoMerge,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -191,6 +206,7 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
           : this.reviewerAgent?.copyWith(),
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      autoMerge: autoMerge ?? this.autoMerge,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

@@ -25,6 +25,7 @@ class SettingsEndpoint extends Endpoint {
         reviewerAgentId: settings.reviewerAgentId,
         autoFixReview: settings.autoFixReview,
         maxReviewFixRounds: settings.maxReviewFixRounds.clamp(1, 10),
+        autoMerge: settings.autoMerge,
         updatedAt: DateTime.now(),
       ),
     );
@@ -48,6 +49,7 @@ class SettingsEndpoint extends Endpoint {
         t.reviewerAgentId,
         t.autoFixReview,
         t.maxReviewFixRounds,
+        t.autoMerge,
       ],
     );
   }
@@ -66,6 +68,7 @@ class SettingsEndpoint extends Endpoint {
       autoFixReview: project.autoFixReview ?? workspace.autoFixReview,
       maxReviewFixRounds:
           project.maxReviewFixRounds ?? workspace.maxReviewFixRounds,
+      autoMerge: project.autoMerge ?? workspace.autoMerge,
     );
   }
 }
