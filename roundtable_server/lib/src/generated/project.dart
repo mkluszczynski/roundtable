@@ -32,6 +32,8 @@ abstract class Project
     this.autoReview,
     this.reviewerAgentId,
     this.reviewerAgent,
+    this.autoFixReview,
+    this.maxReviewFixRounds,
     DateTime? createdAt,
     this.tasks,
   }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
@@ -51,6 +53,8 @@ abstract class Project
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -86,6 +90,10 @@ abstract class Project
           : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
               jsonSerialization['reviewerAgent'],
             ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -138,6 +146,11 @@ abstract class Project
   /// Default reviewer for new tasks; null inherits WorkspaceSettings.
   _ijo8h3v4.Agent? reviewerAgent;
 
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  bool? autoFixReview;
+
+  int? maxReviewFixRounds;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -161,6 +174,8 @@ abstract class Project
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -181,6 +196,8 @@ abstract class Project
       if (autoReview != null) 'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -203,6 +220,8 @@ abstract class Project
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null)
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      if (autoFixReview != null) 'autoFixReview': autoFixReview,
+      if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -259,6 +278,8 @@ class _ProjectImpl extends Project {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -274,6 +295,8 @@ class _ProjectImpl extends Project {
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
          reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -295,6 +318,8 @@ class _ProjectImpl extends Project {
     Object? autoReview = _Undefined,
     Object? reviewerAgentId = _Undefined,
     Object? reviewerAgent = _Undefined,
+    Object? autoFixReview = _Undefined,
+    Object? maxReviewFixRounds = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -319,6 +344,12 @@ class _ProjectImpl extends Project {
       reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
           ? reviewerAgent
           : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview is bool?
+          ? autoFixReview
+          : this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds is int?
+          ? maxReviewFixRounds
+          : this.maxReviewFixRounds,
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -384,6 +415,16 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<bool, bool> autoFixReview(bool? value) => _is.ColumnValue(
+    table.autoFixReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> maxReviewFixRounds(int? value) => _is.ColumnValue(
+    table.maxReviewFixRounds,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -436,6 +477,14 @@ class ProjectTable extends _is.Table<int?> {
       'reviewerAgentId',
       this,
     );
+    autoFixReview = _is.ColumnBool(
+      'autoFixReview',
+      this,
+    );
+    maxReviewFixRounds = _is.ColumnInt(
+      'maxReviewFixRounds',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -478,6 +527,11 @@ class ProjectTable extends _is.Table<int?> {
 
   /// Default reviewer for new tasks; null inherits WorkspaceSettings.
   _ijo8h3v4.AgentTable? _reviewerAgent;
+
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  late final _is.ColumnBool autoFixReview;
+
+  late final _is.ColumnInt maxReviewFixRounds;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -543,6 +597,8 @@ class ProjectTable extends _is.Table<int?> {
     skipPlanning,
     autoReview,
     reviewerAgentId,
+    autoFixReview,
+    maxReviewFixRounds,
     createdAt,
   ];
 

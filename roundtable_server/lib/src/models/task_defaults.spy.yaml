@@ -5,3 +5,5 @@ fields:
   skipPlanning: bool
   autoReview: bool
   reviewerAgentId: int?
+  autoFixReview: bool
+  maxReviewFixRounds: int

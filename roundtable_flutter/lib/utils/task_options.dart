@@ -21,3 +21,17 @@ const reviewerOption = TaskOptionInfo(
   'Reviewer',
   'Reviews the PR — used by auto review and pre-selected for manual ones',
 );
+
+const autoFixOption = TaskOptionInfo(
+  'Auto fix review',
+  'Send the review\'s blockers and issues to the agent without waiting — '
+      'nits stay for you',
+);
+
+const maxFixRoundsOption = TaskOptionInfo(
+  'Fix rounds',
+  'How many review → fix rounds auto fix runs before handing over to you',
+);
+
+/// Choices offered for [maxFixRoundsOption].
+const fixRoundChoices = [1, 2, 3, 5];

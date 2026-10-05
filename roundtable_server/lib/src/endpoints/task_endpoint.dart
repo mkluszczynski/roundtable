@@ -45,6 +45,8 @@ class TaskEndpoint extends Endpoint {
     // defaulted named parameter required.
     bool? autoReview,
     int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     List<int>? attachmentIds,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
@@ -71,6 +73,8 @@ class TaskEndpoint extends Endpoint {
         skipPlanning: skipPlanning,
         autoReview: autoReview ?? false,
         reviewerAgentId: reviewerAgentId,
+        autoFixReview: autoFixReview ?? false,
+        maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );

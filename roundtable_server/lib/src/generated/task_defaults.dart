@@ -20,12 +20,16 @@ abstract class TaskDefaults
     required this.skipPlanning,
     required this.autoReview,
     this.reviewerAgentId,
+    required this.autoFixReview,
+    required this.maxReviewFixRounds,
   });
 
   factory TaskDefaults({
     required bool skipPlanning,
     required bool autoReview,
     int? reviewerAgentId,
+    required bool autoFixReview,
+    required int maxReviewFixRounds,
   }) = _TaskDefaultsImpl;
 
   factory TaskDefaults.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -37,6 +41,10 @@ abstract class TaskDefaults
         jsonSerialization['autoReview'],
       ),
       reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      autoFixReview: _is.BoolJsonExtension.fromJson(
+        jsonSerialization['autoFixReview'],
+      ),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int,
     );
   }
 
@@ -46,6 +54,10 @@ abstract class TaskDefaults
 
   int? reviewerAgentId;
 
+  bool autoFixReview;
+
+  int maxReviewFixRounds;
+
   /// Returns a shallow copy of this [TaskDefaults]
   /// with some or all fields replaced by the given arguments.
   @_is.useResult
@@ -53,6 +65,8 @@ abstract class TaskDefaults
     bool? skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -61,6 +75,8 @@ abstract class TaskDefaults
       'skipPlanning': skipPlanning,
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
     };
   }
 
@@ -71,6 +87,8 @@ abstract class TaskDefaults
       'skipPlanning': skipPlanning,
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
     };
   }
 
@@ -87,10 +105,14 @@ class _TaskDefaultsImpl extends TaskDefaults {
     required bool skipPlanning,
     required bool autoReview,
     int? reviewerAgentId,
+    required bool autoFixReview,
+    required int maxReviewFixRounds,
   }) : super._(
          skipPlanning: skipPlanning,
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
        );
 
   /// Returns a shallow copy of this [TaskDefaults]
@@ -101,6 +123,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
     bool? skipPlanning,
     bool? autoReview,
     Object? reviewerAgentId = _Undefined,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
   }) {
     return TaskDefaults(
       skipPlanning: skipPlanning ?? this.skipPlanning,
@@ -108,6 +132,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
       reviewerAgentId: reviewerAgentId is int?
           ? reviewerAgentId
           : this.reviewerAgentId,
+      autoFixReview: autoFixReview ?? this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
     );
   }
 }

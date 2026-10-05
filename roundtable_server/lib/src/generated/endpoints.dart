@@ -1378,6 +1378,16 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int?>(),
               nullable: true,
             ),
+            'autoFixReview': _is.ParameterDescription(
+              name: 'autoFixReview',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'maxReviewFixRounds': _is.ParameterDescription(
+              name: 'maxReviewFixRounds',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
             'attachmentIds': _is.ParameterDescription(
               name: 'attachmentIds',
               type: _is.getType<List<int>?>(),
@@ -1397,6 +1407,8 @@ class Endpoints extends _is.EndpointDispatch {
                     skipPlanning: params['skipPlanning'],
                     autoReview: params['autoReview'],
                     reviewerAgentId: params['reviewerAgentId'],
+                    autoFixReview: params['autoFixReview'],
+                    maxReviewFixRounds: params['maxReviewFixRounds'],
                     attachmentIds: params['attachmentIds'],
                   ),
         ),

@@ -921,6 +921,8 @@ class EndpointTask extends _isc.EndpointRef {
     required bool skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     List<int>? attachmentIds,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
@@ -932,6 +934,8 @@ class EndpointTask extends _isc.EndpointRef {
       'skipPlanning': skipPlanning,
       'autoReview': autoReview,
       'reviewerAgentId': reviewerAgentId,
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
       'attachmentIds': attachmentIds,
     },
   );

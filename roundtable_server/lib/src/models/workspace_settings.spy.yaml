@@ -9,4 +9,7 @@ fields:
   autoReview: bool, default=false
   ### Default reviewer for new tasks.
   reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### Defaults for Task.autoFixReview / maxReviewFixRounds.
+  autoFixReview: bool, default=false
+  maxReviewFixRounds: int, default=2
   updatedAt: DateTime, default=now

@@ -19,6 +19,12 @@ fields:
   ### The agent that reviews this task's PR: picked up front, used by auto
   ### review and pre-selected when the dev requests one by hand.
   reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### After each AI review, send its open blocker/issue comments to the
+  ### agent without waiting for the dev — up to [maxReviewFixRounds] times.
+  autoFixReview: bool, default=false
+  maxReviewFixRounds: int, default=2
+  ### Review rounds auto fix has sent so far; caps the review ↔ fix loop.
+  reviewFixRounds: int, default=0
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?

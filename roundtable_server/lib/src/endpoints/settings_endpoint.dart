@@ -23,6 +23,8 @@ class SettingsEndpoint extends Endpoint {
         skipPlanning: settings.skipPlanning,
         autoReview: settings.autoReview,
         reviewerAgentId: settings.reviewerAgentId,
+        autoFixReview: settings.autoFixReview,
+        maxReviewFixRounds: settings.maxReviewFixRounds.clamp(1, 10),
         updatedAt: DateTime.now(),
       ),
     );
@@ -40,7 +42,13 @@ class SettingsEndpoint extends Endpoint {
     return Project.db.updateRow(
       session,
       project,
-      columns: (t) => [t.skipPlanning, t.autoReview, t.reviewerAgentId],
+      columns: (t) => [
+        t.skipPlanning,
+        t.autoReview,
+        t.reviewerAgentId,
+        t.autoFixReview,
+        t.maxReviewFixRounds,
+      ],
     );
   }
 
@@ -55,6 +63,9 @@ class SettingsEndpoint extends Endpoint {
       skipPlanning: project.skipPlanning ?? workspace.skipPlanning,
       autoReview: project.autoReview ?? workspace.autoReview,
       reviewerAgentId: project.reviewerAgentId ?? workspace.reviewerAgentId,
+      autoFixReview: project.autoFixReview ?? workspace.autoFixReview,
+      maxReviewFixRounds:
+          project.maxReviewFixRounds ?? workspace.maxReviewFixRounds,
     );
   }
 }

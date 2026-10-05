@@ -111,6 +111,110 @@ void main() {
       );
     }
 
+    group('auto fix', () {
+      Future<CodeReview> reviewWith(
+        Task task,
+        Agent reviewer,
+        List<ReviewCommentDraft> drafts,
+      ) async {
+        final review = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          task.id!,
+          reviewer.id!,
+        );
+        await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+        return endpoints.codeReview.completeReview(
+          sessionBuilder,
+          review.id!,
+          'Findings.',
+          drafts,
+        );
+      }
+
+      Future<List<TaskFeedback>> feedbackOf(Task task) => TaskFeedback.db.find(
+        sessionBuilder.build(),
+        where: (f) => f.taskId.equals(task.id!),
+      );
+
+      Future<Task> withAutoFix(
+        Task task, {
+        int maxRounds = 2,
+        int rounds = 0,
+      }) => Task.db.updateRow(
+        sessionBuilder.build(),
+        task.copyWith(
+          autoFixReview: true,
+          maxReviewFixRounds: maxRounds,
+          reviewFixRounds: rounds,
+        ),
+      );
+
+      final mixed = [
+        ReviewCommentDraft(
+          path: 'lib/a.dart',
+          line: 3,
+          body: 'Crash on null',
+          severity: ReviewCommentSeverity.blocker,
+        ),
+        ReviewCommentDraft(
+          path: 'lib/b.dart',
+          body: 'Rename this',
+          severity: ReviewCommentSeverity.nit,
+        ),
+      ];
+
+      test('when a review completes then its blockers and issues go to the '
+          'agent and nits stay open', () async {
+        final seeded = await seed();
+        final task = await withAutoFix(seeded.task);
+
+        await reviewWith(task, seeded.reviewer, mixed);
+
+        final feedback = await feedbackOf(task);
+        expect(feedback, hasLength(1));
+        expect(feedback.single.message, contains('Crash on null'));
+        expect(feedback.single.message, isNot(contains('Rename this')));
+        final comments = await ReviewComment.db.find(
+          sessionBuilder.build(),
+          orderBy: (c) => c.id,
+        );
+        expect(comments.map((c) => c.state), [
+          ReviewCommentState.sentToFix,
+          ReviewCommentState.open,
+        ]);
+        final updated = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(updated!.reviewFixRounds, 1);
+      });
+
+      test('when auto fix is off then nothing is sent', () async {
+        final seeded = await seed();
+
+        await reviewWith(seeded.task, seeded.reviewer, mixed);
+
+        expect(await feedbackOf(seeded.task), isEmpty);
+      });
+
+      test('when the round limit is reached then nothing is sent', () async {
+        final seeded = await seed();
+        final task = await withAutoFix(seeded.task, maxRounds: 2, rounds: 2);
+
+        await reviewWith(task, seeded.reviewer, mixed);
+
+        expect(await feedbackOf(task), isEmpty);
+        final events = await TaskLogEntry.db.find(
+          sessionBuilder.build(),
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('Auto fix stopped after 2 rounds')),
+        );
+      });
+    });
+
     group('auto review', () {
       Future<Task> finishRun(Task task) async {
         final session = sessionBuilder.build();

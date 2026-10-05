@@ -10,6 +10,7 @@ import '../utils/error_message.dart';
 import '../utils/task_options.dart';
 import '../widgets/app_card.dart';
 import '../widgets/load_failed_view.dart';
+import '../widgets/pill_selector.dart';
 import '../widgets/reviewer_select.dart';
 import '../widgets/setting_row.dart';
 
@@ -161,6 +162,27 @@ class _TaskDefaultsCard extends StatelessWidget {
               selected: settings.reviewerAgentId,
               onChanged: (id) =>
                   onChanged(settings.copyWith(reviewerAgentId: id)),
+            ),
+          ),
+          SettingRow(
+            title: autoFixOption.title,
+            description: autoFixOption.description,
+            control: Switch(
+              value: settings.autoFixReview,
+              activeThumbColor: AppColors.accent,
+              onChanged: (value) =>
+                  onChanged(settings.copyWith(autoFixReview: value)),
+            ),
+          ),
+          SettingRow(
+            title: maxFixRoundsOption.title,
+            description: maxFixRoundsOption.description,
+            control: PillSelector<int>(
+              options: fixRoundChoices,
+              labelBuilder: (n) => '$n',
+              selected: settings.maxReviewFixRounds,
+              onChanged: (n) =>
+                  onChanged(settings.copyWith(maxReviewFixRounds: n)),
             ),
           ),
         ],

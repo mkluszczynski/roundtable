@@ -19,6 +19,7 @@ import '../utils/image_paste.dart';
 import '../utils/task_options.dart';
 import 'agent_picker.dart';
 import 'attachment_thumbnail.dart';
+import 'pill_selector.dart';
 import 'reviewer_select.dart';
 import 'app_modal.dart';
 
@@ -84,6 +85,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   bool _skipPlanning = false;
   bool _autoReview = false;
   int? _reviewerAgentId;
+  bool _autoFix = false;
+  int _maxFixRounds = 2;
 
   /// The project's resolved defaults, once loaded — [_skipPlanning] follows
   /// them until the dev changes it by hand.
@@ -127,6 +130,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           _skipPlanning = defaults.skipPlanning;
           _autoReview = defaults.autoReview;
           _reviewerAgentId = defaults.reviewerAgentId;
+          _autoFix = defaults.autoFixReview;
+          _maxFixRounds = defaults.maxReviewFixRounds;
         }
       });
     } catch (_) {
@@ -152,6 +157,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     skipPlanning: _skipPlanning,
     autoReview: _autoReview,
     reviewerAgentId: _reviewerAgentId,
+    autoFix: _autoFix,
+    maxFixRounds: _maxFixRounds,
     defaults: _defaults,
   );
 
@@ -254,6 +261,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           skipPlanning: _skipPlanning,
                           autoReview: _autoReview,
                           reviewerAgentId: _reviewerAgentId,
+                          autoFixReview: _autoFix,
+                          maxReviewFixRounds: _maxFixRounds,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -426,6 +435,38 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                       ],
                     ),
                   ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoFix,
+                    activeColor: AppColors.accent,
+                    title: Text(autoFixOption.title),
+                    subtitle: Text(autoFixOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoFix = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen && _autoFix)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          maxFixRoundsOption.title,
+                          style: AppTypography.body,
+                        ),
+                      ),
+                      PillSelector<int>(
+                        options: fixRoundChoices,
+                        labelBuilder: (n) => '$n',
+                        selected: _maxFixRounds,
+                        onChanged: (n) => setState(() {
+                          _optionsEdited = true;
+                          _maxFixRounds = n;
+                        }),
+                      ),
+                    ],
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -455,18 +496,23 @@ String _summaryFor({
   required bool skipPlanning,
   required bool autoReview,
   required int? reviewerAgentId,
+  required bool autoFix,
+  required int maxFixRounds,
   TaskDefaults? defaults,
 }) {
   final on = [
     skipPlanning ? skipPlanningOption.title : 'Plan first',
     if (autoReview) autoReviewOption.title,
+    if (autoFix) 'Auto fix ×$maxFixRounds',
   ];
   final text = on.join(' · ');
   final custom =
       defaults != null &&
       (defaults.skipPlanning != skipPlanning ||
           defaults.autoReview != autoReview ||
-          defaults.reviewerAgentId != reviewerAgentId);
+          defaults.reviewerAgentId != reviewerAgentId ||
+          defaults.autoFixReview != autoFix ||
+          (autoFix && defaults.maxReviewFixRounds != maxFixRounds));
   return custom ? '$text — changed from project defaults' : text;
 }
 

@@ -12,6 +12,8 @@ class TaskRepository {
     required bool skipPlanning,
     bool autoReview = false,
     int? reviewerAgentId,
+    bool autoFixReview = false,
+    int? maxReviewFixRounds,
     List<int> attachmentIds = const [],
   }) => _client.task.createTask(
     projectId,
@@ -20,6 +22,8 @@ class TaskRepository {
     skipPlanning: skipPlanning,
     autoReview: autoReview,
     reviewerAgentId: reviewerAgentId,
+    autoFixReview: autoFixReview,
+    maxReviewFixRounds: maxReviewFixRounds,
     attachmentIds: attachmentIds,
   );
 

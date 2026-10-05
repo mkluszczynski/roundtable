@@ -616,6 +616,28 @@ class _TaskDefaultsState extends State<_TaskDefaults> {
           workspaceValue: _workspace?.autoReview,
           onChanged: (v) => _save(_project.copyWith(autoReview: v)),
         ),
+        _boolOverride(
+          option: autoFixOption,
+          value: _project.autoFixReview,
+          workspaceValue: _workspace?.autoFixReview,
+          onChanged: (v) => _save(_project.copyWith(autoFixReview: v)),
+        ),
+        Tooltip(
+          message: maxFixRoundsOption.description,
+          child: Text(maxFixRoundsOption.title, style: AppTypography.body),
+        ),
+        const SizedBox(height: Spacing.sm),
+        PillSelector<int?>(
+          options: const [null, ...fixRoundChoices],
+          labelBuilder: (n) => n == null
+              ? (_workspace == null
+                    ? 'Workspace'
+                    : 'Workspace (${_workspace!.maxReviewFixRounds})')
+              : '$n',
+          selected: _project.maxReviewFixRounds,
+          onChanged: (n) => _save(_project.copyWith(maxReviewFixRounds: n)),
+        ),
+        const SizedBox(height: Spacing.md),
         Tooltip(
           message: reviewerOption.description,
           child: Text(reviewerOption.title, style: AppTypography.body),

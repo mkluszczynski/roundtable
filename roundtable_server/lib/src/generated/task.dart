@@ -36,6 +36,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoReview,
     this.reviewerAgentId,
     this.reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -62,6 +65,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
+       autoFixReview = autoFixReview ?? false,
+       maxReviewFixRounds = maxReviewFixRounds ?? 2,
+       reviewFixRounds = reviewFixRounds ?? 0,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -79,6 +85,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -133,6 +142,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
           : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
               jsonSerialization['reviewerAgent'],
             ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -242,6 +256,15 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// review and pre-selected when the dev requests one by hand.
   _ijo8h3v4.Agent? reviewerAgent;
 
+  /// After each AI review, send its open blocker/issue comments to the
+  /// agent without waiting for the dev — up to [maxReviewFixRounds] times.
+  bool autoFixReview;
+
+  int maxReviewFixRounds;
+
+  /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
+  int reviewFixRounds;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -335,6 +358,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -374,6 +400,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
+      'reviewFixRounds': reviewFixRounds,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -419,6 +448,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null)
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
+      'reviewFixRounds': reviewFixRounds,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -512,6 +544,9 @@ class _TaskImpl extends Task {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -547,6 +582,9 @@ class _TaskImpl extends Task {
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
          reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
+         reviewFixRounds: reviewFixRounds,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -588,6 +626,9 @@ class _TaskImpl extends Task {
     bool? autoReview,
     Object? reviewerAgentId = _Undefined,
     Object? reviewerAgent = _Undefined,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    int? reviewFixRounds,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -630,6 +671,9 @@ class _TaskImpl extends Task {
       reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
           ? reviewerAgent
           : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview ?? this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -708,6 +752,21 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
     table.reviewerAgentId,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoFixReview(bool value) => _is.ColumnValue(
+    table.autoFixReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> maxReviewFixRounds(int value) => _is.ColumnValue(
+    table.maxReviewFixRounds,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewFixRounds(int value) => _is.ColumnValue(
+    table.reviewFixRounds,
     value,
   );
 
@@ -857,6 +916,21 @@ class TaskTable extends _is.Table<int?> {
       'reviewerAgentId',
       this,
     );
+    autoFixReview = _is.ColumnBool(
+      'autoFixReview',
+      this,
+      hasDefault: true,
+    );
+    maxReviewFixRounds = _is.ColumnInt(
+      'maxReviewFixRounds',
+      this,
+      hasDefault: true,
+    );
+    reviewFixRounds = _is.ColumnInt(
+      'reviewFixRounds',
+      this,
+      hasDefault: true,
+    );
     status = _is.ColumnEnum(
       'status',
       this,
@@ -977,6 +1051,15 @@ class TaskTable extends _is.Table<int?> {
   /// The agent that reviews this task's PR: picked up front, used by auto
   /// review and pre-selected when the dev requests one by hand.
   _ijo8h3v4.AgentTable? _reviewerAgent;
+
+  /// After each AI review, send its open blocker/issue comments to the
+  /// agent without waiting for the dev — up to [maxReviewFixRounds] times.
+  late final _is.ColumnBool autoFixReview;
+
+  late final _is.ColumnInt maxReviewFixRounds;
+
+  /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
+  late final _is.ColumnInt reviewFixRounds;
 
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
@@ -1238,6 +1321,9 @@ class TaskTable extends _is.Table<int?> {
     skipPlanning,
     autoReview,
     reviewerAgentId,
+    autoFixReview,
+    maxReviewFixRounds,
+    reviewFixRounds,
     status,
     currentPlan,
     failureReason,

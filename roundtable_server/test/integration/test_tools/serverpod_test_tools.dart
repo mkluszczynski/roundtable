@@ -2183,6 +2183,8 @@ class _TaskEndpoint {
     required bool skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     List<int>? attachmentIds,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
@@ -2203,6 +2205,8 @@ class _TaskEndpoint {
             'skipPlanning': skipPlanning,
             'autoReview': autoReview,
             'reviewerAgentId': reviewerAgentId,
+            'autoFixReview': autoFixReview,
+            'maxReviewFixRounds': maxReviewFixRounds,
             'attachmentIds': attachmentIds,
           }),
           serializationManager: _serializationManager,

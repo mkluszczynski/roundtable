@@ -24,5 +24,8 @@ fields:
   autoReview: bool?
   ### Default reviewer for new tasks; null inherits WorkspaceSettings.
   reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
+  ### Defaults for Task.autoFixReview / maxReviewFixRounds; null inherits.
+  autoFixReview: bool?
+  maxReviewFixRounds: int?
   createdAt: DateTime, default=now
   tasks: List<Task>?, relation(name=project_tasks)

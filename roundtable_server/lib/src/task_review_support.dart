@@ -302,3 +302,123 @@ Future<void> autoReviewIfEnabled(Session session, Task task) async {
     );
   }
 }
+
+/// Sends [comments] — plus an optional [note] from the dev — to [task]'s
+/// agent as one review-feedback iteration. They're marked `sentToFix`, then
+/// `resolved` once that run finishes (`TaskEndpoint.update`).
+Future<TaskFeedback> sendCommentsToAgent(
+  Session session,
+  Task task,
+  List<ReviewComment> comments,
+  String? note,
+) async {
+  var trimmedNote = note?.trim() ?? '';
+  if (comments.isEmpty && trimmedNote.isEmpty) {
+    throw InvalidStateException(
+      message: 'Nothing to send: pick at least one comment',
+    );
+  }
+
+  var message = StringBuffer();
+  if (trimmedNote.isNotEmpty) {
+    message.writeln(trimmedNote);
+  }
+  if (comments.isNotEmpty) {
+    if (message.isNotEmpty) message.writeln();
+    message.writeln('Address these code review comments:');
+    for (var i = 0; i < comments.length; i++) {
+      var c = comments[i];
+      var location = c.line == null ? c.path : '${c.path}:${c.line}';
+      message.writeln('${i + 1}. $location [${c.severity.name}] ${c.body}');
+    }
+  }
+
+  var feedback = await queueReviewFeedback(
+    session,
+    task,
+    message.toString().trim(),
+    alsoWrite: comments.isEmpty
+        ? null
+        : (transaction) => ReviewComment.db.update(
+            session,
+            [
+              for (var c in comments)
+                c.copyWith(state: ReviewCommentState.sentToFix),
+            ],
+            columns: (c) => [c.state],
+            transaction: transaction,
+          ),
+  );
+
+  for (var reviewId in comments.map((c) => c.reviewId).toSet()) {
+    await postReviewChanged(session, reviewId);
+  }
+  return feedback;
+}
+
+/// Severities auto fix sends to the agent; nits are left to the dev.
+const autoFixSeverities = {
+  ReviewCommentSeverity.blocker,
+  ReviewCommentSeverity.issue,
+};
+
+/// Auto fix (`Task.autoFixReview`): once a review completes, sends its open
+/// blocker/issue [comments] to the task's agent, at most
+/// `Task.maxReviewFixRounds` times per task. Best effort — anything that
+/// stops it is noted on the timeline, and the task waits for the dev.
+Future<void> autoFixReviewIfEnabled(
+  Session session,
+  int taskId,
+  List<ReviewComment> comments,
+) async {
+  try {
+    final task = await Task.db.findById(session, taskId);
+    if (task == null || !task.autoFixReview) return;
+    if (task.status != TaskStatus.awaitingReview) return;
+    final toFix = comments
+        .where(
+          (c) =>
+              c.state == ReviewCommentState.open &&
+              autoFixSeverities.contains(c.severity),
+        )
+        .toList();
+    if (toFix.isEmpty) {
+      await logTaskEvent(
+        session,
+        taskId,
+        'Auto fix: the review found no blockers or issues — over to you',
+      );
+      return;
+    }
+    if (task.reviewFixRounds >= task.maxReviewFixRounds) {
+      await logTaskEvent(
+        session,
+        taskId,
+        'Auto fix stopped after ${task.reviewFixRounds} '
+        '${task.reviewFixRounds == 1 ? 'round' : 'rounds'} — '
+        '${toFix.length} ${toFix.length == 1 ? 'comment is' : 'comments are'} '
+        'left for you',
+      );
+      return;
+    }
+    final round = task.reviewFixRounds + 1;
+    await sendCommentsToAgent(session, task, toFix, null);
+    await Task.db.updateRow(
+      session,
+      task.copyWith(reviewFixRounds: round),
+      columns: (t) => [t.reviewFixRounds],
+    );
+    await logTaskEvent(
+      session,
+      taskId,
+      'Auto fix: sent ${toFix.length} review '
+      '${toFix.length == 1 ? 'comment' : 'comments'} to the agent '
+      '(round $round of ${task.maxReviewFixRounds})',
+    );
+  } catch (e) {
+    session.log(
+      'Auto fix of task $taskId failed: $e',
+      level: LogLevel.warning,
+    );
+  }
+}

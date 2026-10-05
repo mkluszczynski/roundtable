@@ -24,9 +24,13 @@ abstract class WorkspaceSettings
     bool? autoReview,
     this.reviewerAgentId,
     this.reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
+       autoFixReview = autoFixReview ?? false,
+       maxReviewFixRounds = maxReviewFixRounds ?? 2,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -35,6 +39,8 @@ abstract class WorkspaceSettings
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -53,6 +59,10 @@ abstract class WorkspaceSettings
           : _i35hmugi.Protocol().deserialize<_ijo8h3v4.Agent>(
               jsonSerialization['reviewerAgent'],
             ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -75,6 +85,11 @@ abstract class WorkspaceSettings
   /// Default reviewer for new tasks.
   _ijo8h3v4.Agent? reviewerAgent;
 
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds.
+  bool autoFixReview;
+
+  int maxReviewFixRounds;
+
   DateTime updatedAt;
 
   /// Returns a shallow copy of this [WorkspaceSettings]
@@ -86,6 +101,8 @@ abstract class WorkspaceSettings
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   });
   @override
@@ -97,6 +114,8 @@ abstract class WorkspaceSettings
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -111,6 +130,8 @@ abstract class WorkspaceSettings
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null)
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -130,6 +151,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -137,6 +160,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
          reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
          updatedAt: updatedAt,
        );
 
@@ -150,6 +175,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoReview,
     Object? reviewerAgentId = _Undefined,
     Object? reviewerAgent = _Undefined,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -162,6 +189,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
       reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
           ? reviewerAgent
           : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview ?? this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

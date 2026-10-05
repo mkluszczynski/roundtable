@@ -25,9 +25,13 @@ abstract class WorkspaceSettings
     bool? autoReview,
     this.reviewerAgentId,
     this.reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
+       autoFixReview = autoFixReview ?? false,
+       maxReviewFixRounds = maxReviewFixRounds ?? 2,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -36,6 +40,8 @@ abstract class WorkspaceSettings
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -54,6 +60,10 @@ abstract class WorkspaceSettings
           : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
               jsonSerialization['reviewerAgent'],
             ),
+      autoFixReview: jsonSerialization['autoFixReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
+      maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -78,6 +88,11 @@ abstract class WorkspaceSettings
   /// Default reviewer for new tasks.
   _ijo8h3v4.Agent? reviewerAgent;
 
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds.
+  bool autoFixReview;
+
+  int maxReviewFixRounds;
+
   DateTime updatedAt;
 
   @override
@@ -92,6 +107,8 @@ abstract class WorkspaceSettings
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   });
   @override
@@ -103,6 +120,8 @@ abstract class WorkspaceSettings
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -117,6 +136,8 @@ abstract class WorkspaceSettings
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
       if (reviewerAgent != null)
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -160,6 +181,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoReview,
     int? reviewerAgentId,
     _ijo8h3v4.Agent? reviewerAgent,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -167,6 +190,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
          reviewerAgent: reviewerAgent,
+         autoFixReview: autoFixReview,
+         maxReviewFixRounds: maxReviewFixRounds,
          updatedAt: updatedAt,
        );
 
@@ -180,6 +205,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoReview,
     Object? reviewerAgentId = _Undefined,
     Object? reviewerAgent = _Undefined,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -192,6 +219,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
       reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
           ? reviewerAgent
           : this.reviewerAgent?.copyWith(),
+      autoFixReview: autoFixReview ?? this.autoFixReview,
+      maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -213,6 +242,16 @@ class WorkspaceSettingsUpdateTable
 
   _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
     table.reviewerAgentId,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoFixReview(bool value) => _is.ColumnValue(
+    table.autoFixReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> maxReviewFixRounds(int value) => _is.ColumnValue(
+    table.maxReviewFixRounds,
     value,
   );
 
@@ -241,6 +280,16 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
       'reviewerAgentId',
       this,
     );
+    autoFixReview = _is.ColumnBool(
+      'autoFixReview',
+      this,
+      hasDefault: true,
+    );
+    maxReviewFixRounds = _is.ColumnInt(
+      'maxReviewFixRounds',
+      this,
+      hasDefault: true,
+    );
     updatedAt = _is.ColumnDateTime(
       'updatedAt',
       this,
@@ -260,6 +309,11 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
 
   /// Default reviewer for new tasks.
   _ijo8h3v4.AgentTable? _reviewerAgent;
+
+  /// Defaults for Task.autoFixReview / maxReviewFixRounds.
+  late final _is.ColumnBool autoFixReview;
+
+  late final _is.ColumnInt maxReviewFixRounds;
 
   late final _is.ColumnDateTime updatedAt;
 
@@ -282,6 +336,8 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
     skipPlanning,
     autoReview,
     reviewerAgentId,
+    autoFixReview,
+    maxReviewFixRounds,
     updatedAt,
   ];
 
