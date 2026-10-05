@@ -1,5 +1,7 @@
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
+import '../github_repo_client.dart';
+import '../project_tools.dart';
 import 'package:serverpod/serverpod.dart';
 
 /// Basic CRUD for [Project]. Deletion is blocked while it has non-terminal
@@ -11,6 +13,7 @@ class ProjectEndpoint extends Endpoint {
     String repoUrl, {
     String? repoAccessToken,
     String? dockerImage,
+    List<ProjectTool>? tools,
   }) async {
     return Project.db.insertRow(
       session,
@@ -22,6 +25,7 @@ class ProjectEndpoint extends Endpoint {
             ? null
             : DateTime.now(),
         dockerImage: dockerImage,
+        tools: validateProjectTools(tools ?? const []),
       ),
     );
   }
@@ -49,6 +53,57 @@ class ProjectEndpoint extends Endpoint {
         t.repoUrl,
         t.dockerImage,
       ],
+    );
+  }
+
+  /// Replaces the toolchains the runner installs before each task.
+  Future<Project> updateTools(
+    Session session,
+    int projectId,
+    List<ProjectTool> tools,
+  ) async {
+    final project = await Project.db.findById(session, projectId);
+    if (project == null) {
+      throw NotFoundException(message: 'Project $projectId not found');
+    }
+    return Project.db.updateRow(
+      session,
+      project.copyWith(tools: validateProjectTools(tools)),
+      columns: (t) => [t.tools],
+    );
+  }
+
+  /// Suggests the toolchains of the GitHub repo at [repoUrl] from its
+  /// manifests (pubspec.yaml, package.json, .nvmrc, …) — a proposal the
+  /// panel shows for confirmation. Uses [repoAccessToken], else the stored
+  /// token of [projectId], else none (public repos). Empty for a non-GitHub
+  /// URL.
+  Future<List<ProjectTool>> detectTools(
+    Session session,
+    String repoUrl, {
+    String? repoAccessToken,
+    int? projectId,
+  }) async {
+    final repo = parseGitHubRepoUrl(repoUrl);
+    if (repo == null) return [];
+    var token = repoAccessToken;
+    if ((token == null || token.isEmpty) && projectId != null) {
+      token = (await Project.db.findById(session, projectId))?.repoAccessToken;
+    }
+    if (token != null && token.isEmpty) token = null;
+    final paths = await gitHubRepoClient.listRepoFiles(
+      owner: repo.owner,
+      repo: repo.repo,
+      token: token,
+    );
+    return detectProjectTools(
+      paths: paths,
+      read: (path) => gitHubRepoClient.getRepoFile(
+        owner: repo.owner,
+        repo: repo.repo,
+        path: path,
+        token: token,
+      ),
     );
   }
 

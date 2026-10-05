@@ -27,5 +27,8 @@ fields:
   maxReviewFixRounds: int?
   ### Default for Task.autoMerge; null inherits WorkspaceSettings.
   autoMerge: bool?
+  ### Toolchains the runner installs (via mise) before each task — e.g.
+  ### flutter 3.24, node 20. Null or empty: only what the machine has.
+  tools: List<ProjectTool>?
   createdAt: DateTime, default=now
   tasks: List<Task>?, relation(name=project_tasks)

@@ -599,8 +599,62 @@ class GitHubRepoClient {
     }
   }
 
-  Map<String, String> _headers(String token) => {
-    'Authorization': 'Bearer $token',
+  /// Every file path on the default branch of [owner]/[repo]. [token] may
+  /// be null for a public repo. GitHub truncates very large trees, which is
+  /// fine for its only use, spotting manifests to detect toolchains.
+  Future<List<String>> listRepoFiles({
+    required String owner,
+    required String repo,
+    String? token,
+  }) async {
+    final response = await _http.get(
+      Uri.https(
+        'api.github.com',
+        '/repos/$owner/$repo/git/trees/HEAD',
+        {'recursive': '1'},
+      ),
+      headers: _headers(token),
+    );
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: response.statusCode == 404
+            ? "Repository $owner/$repo not found — it's private without a "
+                  'token, or the URL is wrong'
+            : 'Failed to list files of $owner/$repo',
+        statusCode: response.statusCode,
+      );
+    }
+    final tree = (jsonDecode(response.body) as Map<String, dynamic>)['tree'];
+    return [
+      for (final entry in tree as List)
+        if (entry['type'] == 'blob') entry['path'] as String,
+    ];
+  }
+
+  /// The raw content of [path] on the default branch of [owner]/[repo], or
+  /// null when it doesn't exist.
+  Future<String?> getRepoFile({
+    required String owner,
+    required String repo,
+    required String path,
+    String? token,
+  }) async {
+    final response = await _http.get(
+      Uri.https('api.github.com', '/repos/$owner/$repo/contents/$path'),
+      headers: {..._headers(token), 'Accept': 'application/vnd.github.raw'},
+    );
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw GitHubException(
+        message: 'Failed to fetch $path from $owner/$repo',
+        statusCode: response.statusCode,
+      );
+    }
+    return response.body;
+  }
+
+  Map<String, String> _headers(String? token) => {
+    if (token != null) 'Authorization': 'Bearer $token',
     'Accept': 'application/vnd.github+json',
     'User-Agent': 'roundtable-server',
   };
@@ -630,6 +684,19 @@ class GitHubRepoClient {
 
     return (owner: segments[0], repo: segments[1], number: segments[3]);
   }
+}
+
+/// Parses a repo URL (`https://github.com/{owner}/{repo}`, optionally with
+/// `.git`) into its `owner` and `repo`; null when it isn't a GitHub repo.
+({String owner, String repo})? parseGitHubRepoUrl(String repoUrl) {
+  final uri = Uri.tryParse(repoUrl.trim());
+  if (uri == null || uri.host != 'github.com') return null;
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segments.length < 2) return null;
+  final repo = segments[1].endsWith('.git')
+      ? segments[1].substring(0, segments[1].length - 4)
+      : segments[1];
+  return (owner: segments[0], repo: repo);
 }
 
 /// The new-file (`RIGHT` side) line numbers that a unified diff [patch]

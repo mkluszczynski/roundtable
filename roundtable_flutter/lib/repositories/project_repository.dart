@@ -13,10 +13,27 @@ class ProjectRepository {
     required String name,
     required String repoUrl,
     String? repoAccessToken,
+    List<ProjectTool>? tools,
   }) => _client.project.create(
     name,
     repoUrl,
     repoAccessToken: repoAccessToken,
+    tools: tools,
+  );
+
+  Future<Project> updateTools(int projectId, List<ProjectTool> tools) =>
+      _client.project.updateTools(projectId, tools);
+
+  /// Suggested toolchains from the repo's manifests — see
+  /// `ProjectEndpoint.detectTools`.
+  Future<List<ProjectTool>> detectTools(
+    String repoUrl, {
+    String? repoAccessToken,
+    int? projectId,
+  }) => _client.project.detectTools(
+    repoUrl,
+    repoAccessToken: repoAccessToken,
+    projectId: projectId,
   );
 
   Future<Project> updateProject(Project project) =>

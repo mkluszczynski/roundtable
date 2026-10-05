@@ -13,6 +13,7 @@
 import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent.dart' as _ijo8h3v4;
+import 'project_tool.dart' as _icptw1qc;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -33,6 +34,7 @@ abstract class Project
     this.autoFixReview,
     this.maxReviewFixRounds,
     this.autoMerge,
+    this.tools,
     DateTime? createdAt,
     this.tasks,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -52,6 +54,7 @@ abstract class Project
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -93,6 +96,11 @@ abstract class Project
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      tools: jsonSerialization['tools'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<List<_icptw1qc.ProjectTool>>(
+              jsonSerialization['tools'],
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -146,6 +154,10 @@ abstract class Project
   /// Default for Task.autoMerge; null inherits WorkspaceSettings.
   bool? autoMerge;
 
+  /// Toolchains the runner installs (via mise) before each task — e.g.
+  /// flutter 3.24, node 20. Null or empty: only what the machine has.
+  List<_icptw1qc.ProjectTool>? tools;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -168,6 +180,7 @@ abstract class Project
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -192,6 +205,7 @@ abstract class Project
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       if (autoMerge != null) 'autoMerge': autoMerge,
+      if (tools != null) 'tools': tools?.toJson(valueToJson: (v) => v.toJson()),
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -219,6 +233,8 @@ abstract class Project
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       if (autoMerge != null) 'autoMerge': autoMerge,
+      if (tools != null)
+        'tools': tools?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -249,6 +265,7 @@ class _ProjectImpl extends Project {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -266,6 +283,7 @@ class _ProjectImpl extends Project {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          autoMerge: autoMerge,
+         tools: tools,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -289,6 +307,7 @@ class _ProjectImpl extends Project {
     Object? autoFixReview = _Undefined,
     Object? maxReviewFixRounds = _Undefined,
     Object? autoMerge = _Undefined,
+    Object? tools = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -321,6 +340,9 @@ class _ProjectImpl extends Project {
           ? maxReviewFixRounds
           : this.maxReviewFixRounds,
       autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
+      tools: tools is List<_icptw1qc.ProjectTool>?
+          ? tools
+          : this.tools?.map((e0) => e0.copyWith()).toList(),
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks

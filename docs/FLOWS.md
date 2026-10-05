@@ -253,3 +253,29 @@ Every 8 s the daemon reads `/proc/stat` and `/proc/meminfo` and calls
 `reportMetric`. `watchLatestMetric` streams the newest row to
 `MachineMetricCubit` → `MachineMetrics` on the machine cards.
 `MachineMetricCleanupFutureCall` keeps one hour of history.
+
+## 7. Project toolchains
+
+Agents run as an unprivileged system user with a minimal `PATH`, so an SDK
+installed in a developer's home directory (Flutter, nvm, …) is invisible to
+them. Instead, a project declares the toolchains it needs and the runner
+installs them itself through [mise](https://mise.jdx.dev), without sudo,
+into its own home directory.
+
+1. **Declare.** In the add-project dialog, leaving the repo URL field runs
+   `ProjectEndpoint.detectTools`: the server lists the repo's files through
+   the GitHub API (with the entered token, or none for a public repo) and
+   suggests tools from its manifests:
+   - a root `.mise.toml` or `.tool-versions` is taken as-is;
+   - otherwise each manifest maps to a tool: `pubspec.yaml` with
+     `sdk: flutter` → flutter, else dart; `package.json` → node and its
+     `packageManager`; `go.mod` → go; plus python, rust, ruby and java;
+   - versions come from `.fvmrc`, `.nvmrc`/`.node-version`, `go.mod` and
+     similar files, else `latest` (`lts` for node).
+   The suggestions are only filled into the form. Project settings →
+   TOOLS edits the list later (`updateTools`) and can re-run "Detect from
+   repo", which adds only tools that aren't listed yet.
+2. **Install** *(next step, not implemented yet)*. Before each task the
+   runner bootstraps mise, runs `mise install` for the project's tools, with
+   the config kept outside the worktree, and starts `claude` with the
+   resulting `PATH`.

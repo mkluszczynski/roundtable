@@ -1,0 +1,7 @@
+### One toolchain a project needs, installed by the runner via mise.
+class: ProjectTool
+fields:
+  ### The mise tool id, e.g. `flutter`, `node`, `python`.
+  name: String
+  ### A mise version spec: `3.24`, `20.11.1`, `lts` or `latest`.
+  version: String

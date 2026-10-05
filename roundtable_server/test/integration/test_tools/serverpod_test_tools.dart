@@ -34,6 +34,7 @@ import 'package:roundtable_server/src/generated/pr_checks.dart' as _iuvdgnoc;
 import 'package:roundtable_server/src/generated/pr_merge_status.dart'
     as _idwnfayv;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/project_tool.dart' as _i1odv8ju;
 import 'package:roundtable_server/src/generated/review_comment.dart'
     as _ibdwjaau;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
@@ -1810,6 +1811,7 @@ class _ProjectEndpoint {
     String repoUrl, {
     String? repoAccessToken,
     String? dockerImage,
+    List<_i1odv8ju.ProjectTool>? tools,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -1827,6 +1829,7 @@ class _ProjectEndpoint {
             'repoUrl': repoUrl,
             'repoAccessToken': repoAccessToken,
             'dockerImage': dockerImage,
+            'tools': tools,
           }),
           serializationManager: _serializationManager,
         );
@@ -1928,6 +1931,78 @@ class _ProjectEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<_ii35q81x.Project>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_ii35q81x.Project> updateTools(
+    _ist.TestSessionBuilder sessionBuilder,
+    int projectId,
+    List<_i1odv8ju.ProjectTool> tools,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'project',
+            method: 'updateTools',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'project',
+          methodName: 'updateTools',
+          parameters: _ist.testObjectToJson({
+            'projectId': projectId,
+            'tools': tools,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ii35q81x.Project>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<List<_i1odv8ju.ProjectTool>> detectTools(
+    _ist.TestSessionBuilder sessionBuilder,
+    String repoUrl, {
+    String? repoAccessToken,
+    int? projectId,
+  }) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'project',
+            method: 'detectTools',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'project',
+          methodName: 'detectTools',
+          parameters: _ist.testObjectToJson({
+            'repoUrl': repoUrl,
+            'repoAccessToken': repoAccessToken,
+            'projectId': projectId,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<List<_i1odv8ju.ProjectTool>>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

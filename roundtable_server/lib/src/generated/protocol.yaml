@@ -53,6 +53,8 @@ project:
   - get:
   - list:
   - update:
+  - updateTools:
+  - detectTools:
   - updateRepoAccessToken:
   - delete:
   - getCloneUrl:

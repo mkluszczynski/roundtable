@@ -17,6 +17,7 @@ import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
+import 'package:roundtable_client/src/protocol/project_tool.dart' as _itcevbxn;
 import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
     as _ithbrqha;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
@@ -54,6 +55,7 @@ import 'pr_check_state.dart' as _ivypql97;
 import 'pr_checks.dart' as _ik1qpwq1;
 import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
+import 'project_tool.dart' as _icptw1qc;
 import 'review_comment.dart' as _itpwl327;
 import 'review_comment_draft.dart' as _i6wlz106;
 import 'review_comment_severity.dart' as _iml08ymk;
@@ -95,6 +97,7 @@ export 'pr_check_state.dart';
 export 'pr_checks.dart';
 export 'pr_merge_status.dart';
 export 'project.dart';
+export 'project_tool.dart';
 export 'review_comment.dart';
 export 'review_comment_draft.dart';
 export 'review_comment_severity.dart';
@@ -225,6 +228,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _ifiazq2p.Project) {
       return _ifiazq2p.Project.fromJson(data) as T;
+    }
+    if (t == _icptw1qc.ProjectTool) {
+      return _icptw1qc.ProjectTool.fromJson(data) as T;
     }
     if (t == _itpwl327.ReviewComment) {
       return _itpwl327.ReviewComment.fromJson(data) as T;
@@ -374,6 +380,9 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isc.getType<_ifiazq2p.Project?>()) {
       return (data != null ? _ifiazq2p.Project.fromJson(data) : null) as T;
     }
+    if (t == _isc.getType<_icptw1qc.ProjectTool?>()) {
+      return (data != null ? _icptw1qc.ProjectTool.fromJson(data) : null) as T;
+    }
     if (t == _isc.getType<_itpwl327.ReviewComment?>()) {
       return (data != null ? _itpwl327.ReviewComment.fromJson(data) : null)
           as T;
@@ -492,6 +501,20 @@ class Protocol extends _isc.SerializationManager {
               .toList()
           as T;
     }
+    if (t == List<_icptw1qc.ProjectTool>) {
+      return (data as List)
+              .map((e) => deserialize<_icptw1qc.ProjectTool>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<_icptw1qc.ProjectTool>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_icptw1qc.ProjectTool>(e))
+                    .toList()
+              : null)
+          as T;
+    }
     if (t == List<_ihv3trno.TaskLogEntry>) {
       return (data as List)
               .map((e) => deserialize<_ihv3trno.TaskLogEntry>(e))
@@ -576,6 +599,20 @@ class Protocol extends _isc.SerializationManager {
     if (t == List<String>) {
       return (data as List).map((e) => deserialize<String>(e)).toList() as T;
     }
+    if (t == List<_itcevbxn.ProjectTool>) {
+      return (data as List)
+              .map((e) => deserialize<_itcevbxn.ProjectTool>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<_itcevbxn.ProjectTool>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_itcevbxn.ProjectTool>(e))
+                    .toList()
+              : null)
+          as T;
+    }
     if (t == List<_i76mncv2.Project>) {
       return (data as List)
               .map((e) => deserialize<_i76mncv2.Project>(e))
@@ -642,6 +679,7 @@ class Protocol extends _isc.SerializationManager {
       _ik1qpwq1.PrChecks => 'PrChecks',
       _ixuoipsp.PrMergeStatus => 'PrMergeStatus',
       _ifiazq2p.Project => 'Project',
+      _icptw1qc.ProjectTool => 'ProjectTool',
       _itpwl327.ReviewComment => 'ReviewComment',
       _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
       _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
@@ -724,6 +762,8 @@ class Protocol extends _isc.SerializationManager {
         return 'PrMergeStatus';
       case _ifiazq2p.Project():
         return 'Project';
+      case _icptw1qc.ProjectTool():
+        return 'ProjectTool';
       case _itpwl327.ReviewComment():
         return 'ReviewComment';
       case _i6wlz106.ReviewCommentDraft():
@@ -854,6 +894,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'Project') {
       return deserialize<_ifiazq2p.Project>(data['data']);
+    }
+    if (dataClassName == 'ProjectTool') {
+      return deserialize<_icptw1qc.ProjectTool>(data['data']);
     }
     if (dataClassName == 'ReviewComment') {
       return deserialize<_itpwl327.ReviewComment>(data['data']);

@@ -7,12 +7,15 @@ import '../cubits/add_project_cubit.dart';
 import '../repositories/project_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
+import '../theme/typography.dart';
+import '../utils/tool_catalog.dart';
 import 'app_modal.dart';
 import 'token_help_accordion.dart';
+import 'tool_list_editor.dart';
 
 /// Name, repo URL, and (create-mode only) an optional repo access token
-/// with in-panel help (docs/ARCHITECTURE.md), or (edit-mode only) the CI
-/// auto-fix settings (docs/FLOWS.md §4 "CI checks"). Opened from
+/// with in-panel help (docs/ARCHITECTURE.md) and the project's toolchains,
+/// detected from the repo once its URL is entered. Opened from
 /// `projects_screen.dart`
 /// to create a project, or from `project_detail_screen.dart`'s "Edit" button
 /// with [existingProject] set to rename/repoint one — editing never touches
@@ -50,6 +53,27 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
     text: widget.existingProject?.repoUrl,
   );
   final _tokenController = TextEditingController();
+  final _repoFocus = FocusNode();
+  final _toolsKey = GlobalKey<ToolListEditorState>();
+  List<ProjectTool> _tools = const [];
+
+  /// The repo URL tools were last detected for, so leaving the field again
+  /// doesn't re-run detection.
+  String? _detectedFor;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fill in the tools as soon as the repo is known — the user only
+    // confirms or tweaks them.
+    _repoFocus.addListener(() {
+      final url = _repoUrlController.text.trim();
+      if (_repoFocus.hasFocus || _editing || url.isEmpty) return;
+      if (url == _detectedFor || !url.contains('github.com/')) return;
+      _detectedFor = url;
+      _toolsKey.currentState?.detect();
+    });
+  }
 
   bool get _editing => widget.existingProject != null;
 
@@ -58,7 +82,13 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
     _nameController.dispose();
     _repoUrlController.dispose();
     _tokenController.dispose();
+    _repoFocus.dispose();
     super.dispose();
+  }
+
+  String? get _token {
+    final token = _tokenController.text.trim();
+    return token.isEmpty ? null : token;
   }
 
   bool get _canSubmit =>
@@ -96,10 +126,8 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
                           : context.read<AddProjectCubit>().submit(
                               name: _nameController.text.trim(),
                               repoUrl: _repoUrlController.text.trim(),
-                              repoAccessToken:
-                                  _tokenController.text.trim().isEmpty
-                                  ? null
-                                  : _tokenController.text.trim(),
+                              repoAccessToken: _token,
+                              tools: _tools,
                             )
                     : null,
                 child: submitting
@@ -126,6 +154,7 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
                     const SizedBox(height: Spacing.lg),
                     TextField(
                       controller: _repoUrlController,
+                      focusNode: _repoFocus,
                       decoration: const InputDecoration(
                         labelText: 'Repository URL',
                       ),
@@ -142,6 +171,19 @@ class _AddProjectDialogContentState extends State<_AddProjectDialogContent> {
                       ),
                       const SizedBox(height: Spacing.sm),
                       const TokenHelpAccordion(),
+                      const SizedBox(height: Spacing.xl),
+                      Text('TOOLS', style: AppTypography.label),
+                      const SizedBox(height: Spacing.xs),
+                      Text(toolsDescription, style: AppTypography.caption),
+                      ToolListEditor(
+                        key: _toolsKey,
+                        tools: _tools,
+                        onChanged: (tools) => setState(() => _tools = tools),
+                        onDetect: () => ProjectRepository(client).detectTools(
+                          _repoUrlController.text.trim(),
+                          repoAccessToken: _token,
+                        ),
+                      ),
                     ],
                     if (state is AddProjectError) ...[
                       const SizedBox(height: Spacing.md),

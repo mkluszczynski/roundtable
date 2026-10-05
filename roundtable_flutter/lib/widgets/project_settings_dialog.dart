@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
+import '../repositories/project_repository.dart';
 import '../repositories/settings_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
 import '../utils/task_options.dart';
+import '../utils/tool_catalog.dart';
 import 'app_modal.dart';
 import 'pill_selector.dart';
 import 'reviewer_select.dart';
 import 'setting_row.dart';
+import 'tool_list_editor.dart';
 
 /// A project's overrides of the workspace task defaults, saved as each one
 /// changes: every option either inherits the workspace value (shown in
@@ -28,6 +31,7 @@ class ProjectSettingsDialog extends StatefulWidget {
 
 class _ProjectSettingsDialogState extends State<ProjectSettingsDialog> {
   late final _repository = SettingsRepository(client);
+  late final _projects = ProjectRepository(client);
   late Project _project = widget.project;
   WorkspaceSettings? _workspace;
   String? _loadError;
@@ -55,6 +59,23 @@ class _ProjectSettingsDialogState extends State<ProjectSettingsDialog> {
       setState(() => _project = previous);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text("Couldn't save: ${errorMessage(e)}")),
+      );
+    }
+  }
+
+  Future<void> _saveTools(List<ProjectTool> tools) async {
+    final previous = _project;
+    setState(() => _project = _project.copyWith(tools: tools));
+    try {
+      final saved = await _projects.updateTools(_project.id!, tools);
+      if (mounted) {
+        setState(() => _project = _project.copyWith(tools: saved.tools));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _project = previous);
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text("Couldn't save the tools: ${errorMessage(e)}")),
       );
     }
   }
@@ -112,8 +133,9 @@ class _ProjectSettingsDialogState extends State<ProjectSettingsDialog> {
       icon: Icons.tune,
       title: '${p.name} settings',
       subtitle:
-          'Defaults for new tasks in this project — each task can still '
-          'change them in the form. Changes save right away.',
+          'Toolchains and defaults for new tasks in this project — each '
+          'task can still change its options in the form. Changes save '
+          'right away.',
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_project),
@@ -134,6 +156,20 @@ class _ProjectSettingsDialogState extends State<ProjectSettingsDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _section('TOOLS'),
+                    Text(
+                      toolsDescription,
+                      style: AppTypography.caption,
+                    ),
+                    const SizedBox(height: Spacing.xs),
+                    ToolListEditor(
+                      tools: p.tools ?? const [],
+                      onChanged: _saveTools,
+                      onDetect: () => _projects.detectTools(
+                        p.repoUrl,
+                        projectId: p.id,
+                      ),
+                    ),
                     _section('PLANNING'),
                     _bool(
                       skipPlanningOption,

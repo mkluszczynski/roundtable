@@ -32,6 +32,7 @@ import 'package:roundtable_client/src/protocol/pr_checks.dart' as _ixcrf414;
 import 'package:roundtable_client/src/protocol/pr_merge_status.dart'
     as _ikiwas8h;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
+import 'package:roundtable_client/src/protocol/project_tool.dart' as _itcevbxn;
 import 'package:roundtable_client/src/protocol/review_comment.dart'
     as _ij6tkwdt;
 import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
@@ -777,6 +778,7 @@ class EndpointProject extends _isc.EndpointRef {
     String repoUrl, {
     String? repoAccessToken,
     String? dockerImage,
+    List<_itcevbxn.ProjectTool>? tools,
   }) => caller.callServerEndpoint<_i76mncv2.Project>(
     'project',
     'create',
@@ -785,6 +787,7 @@ class EndpointProject extends _isc.EndpointRef {
       'repoUrl': repoUrl,
       'repoAccessToken': repoAccessToken,
       'dockerImage': dockerImage,
+      'tools': tools,
     },
   );
 
@@ -811,6 +814,38 @@ class EndpointProject extends _isc.EndpointRef {
         'update',
         {'project': project},
       );
+
+  /// Replaces the toolchains the runner installs before each task.
+  _ida.Future<_i76mncv2.Project> updateTools(
+    int projectId,
+    List<_itcevbxn.ProjectTool> tools,
+  ) => caller.callServerEndpoint<_i76mncv2.Project>(
+    'project',
+    'updateTools',
+    {
+      'projectId': projectId,
+      'tools': tools,
+    },
+  );
+
+  /// Suggests the toolchains of the GitHub repo at [repoUrl] from its
+  /// manifests (pubspec.yaml, package.json, .nvmrc, …) — a proposal the
+  /// panel shows for confirmation. Uses [repoAccessToken], else the stored
+  /// token of [projectId], else none (public repos). Empty for a non-GitHub
+  /// URL.
+  _ida.Future<List<_itcevbxn.ProjectTool>> detectTools(
+    String repoUrl, {
+    String? repoAccessToken,
+    int? projectId,
+  }) => caller.callServerEndpoint<List<_itcevbxn.ProjectTool>>(
+    'project',
+    'detectTools',
+    {
+      'repoUrl': repoUrl,
+      'repoAccessToken': repoAccessToken,
+      'projectId': projectId,
+    },
+  );
 
   /// Sets a new repo access token, keeping `scope=serverOnly` intact — the
   /// token itself is never echoed back, only the (non-sensitive)

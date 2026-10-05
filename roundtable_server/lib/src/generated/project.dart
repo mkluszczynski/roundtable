@@ -14,6 +14,7 @@
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent.dart' as _ijo8h3v4;
+import 'project_tool.dart' as _icptw1qc;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -35,6 +36,7 @@ abstract class Project
     this.autoFixReview,
     this.maxReviewFixRounds,
     this.autoMerge,
+    this.tools,
     DateTime? createdAt,
     this.tasks,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -55,6 +57,7 @@ abstract class Project
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -97,6 +100,11 @@ abstract class Project
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      tools: jsonSerialization['tools'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<List<_icptw1qc.ProjectTool>>(
+              jsonSerialization['tools'],
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -155,6 +163,10 @@ abstract class Project
   /// Default for Task.autoMerge; null inherits WorkspaceSettings.
   bool? autoMerge;
 
+  /// Toolchains the runner installs (via mise) before each task — e.g.
+  /// flutter 3.24, node 20. Null or empty: only what the machine has.
+  List<_icptw1qc.ProjectTool>? tools;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -181,6 +193,7 @@ abstract class Project
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -206,6 +219,7 @@ abstract class Project
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       if (autoMerge != null) 'autoMerge': autoMerge,
+      if (tools != null) 'tools': tools?.toJson(valueToJson: (v) => v.toJson()),
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -233,6 +247,8 @@ abstract class Project
       if (autoFixReview != null) 'autoFixReview': autoFixReview,
       if (maxReviewFixRounds != null) 'maxReviewFixRounds': maxReviewFixRounds,
       if (autoMerge != null) 'autoMerge': autoMerge,
+      if (tools != null)
+        'tools': tools?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -292,6 +308,7 @@ class _ProjectImpl extends Project {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    List<_icptw1qc.ProjectTool>? tools,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -310,6 +327,7 @@ class _ProjectImpl extends Project {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          autoMerge: autoMerge,
+         tools: tools,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -334,6 +352,7 @@ class _ProjectImpl extends Project {
     Object? autoFixReview = _Undefined,
     Object? maxReviewFixRounds = _Undefined,
     Object? autoMerge = _Undefined,
+    Object? tools = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -369,6 +388,9 @@ class _ProjectImpl extends Project {
           ? maxReviewFixRounds
           : this.maxReviewFixRounds,
       autoMerge: autoMerge is bool? ? autoMerge : this.autoMerge,
+      tools: tools is List<_icptw1qc.ProjectTool>?
+          ? tools
+          : this.tools?.map((e0) => e0.copyWith()).toList(),
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -449,6 +471,12 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<List<_icptw1qc.ProjectTool>, List<_icptw1qc.ProjectTool>>
+  tools(List<_icptw1qc.ProjectTool>? value) => _is.ColumnValue(
+    table.tools,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -511,6 +539,10 @@ class ProjectTable extends _is.Table<int?> {
       'autoMerge',
       this,
     );
+    tools = _is.ColumnSerializable<List<_icptw1qc.ProjectTool>>(
+      'tools',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -559,6 +591,10 @@ class ProjectTable extends _is.Table<int?> {
 
   /// Default for Task.autoMerge; null inherits WorkspaceSettings.
   late final _is.ColumnBool autoMerge;
+
+  /// Toolchains the runner installs (via mise) before each task — e.g.
+  /// flutter 3.24, node 20. Null or empty: only what the machine has.
+  late final _is.ColumnSerializable<List<_icptw1qc.ProjectTool>> tools;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -627,6 +663,7 @@ class ProjectTable extends _is.Table<int?> {
     autoFixReview,
     maxReviewFixRounds,
     autoMerge,
+    tools,
     createdAt,
   ];
 

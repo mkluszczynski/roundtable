@@ -20,6 +20,7 @@ import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
+import 'package:roundtable_server/src/generated/project_tool.dart' as _i1odv8ju;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
 import 'package:roundtable_server/src/generated/review_comment_state.dart'
@@ -1126,6 +1127,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String?>(),
               nullable: true,
             ),
+            'tools': _is.ParameterDescription(
+              name: 'tools',
+              type: _is.getType<List<_i1odv8ju.ProjectTool>?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -1138,6 +1144,7 @@ class Endpoints extends _is.EndpointDispatch {
                     params['repoUrl'],
                     repoAccessToken: params['repoAccessToken'],
                     dockerImage: params['dockerImage'],
+                    tools: params['tools'],
                   ),
         ),
         'get': _is.MethodConnector(
@@ -1186,6 +1193,62 @@ class Endpoints extends _is.EndpointDispatch {
                   (endpoints['project'] as _iemg8ri2.ProjectEndpoint).update(
                     session,
                     params['project'],
+                  ),
+        ),
+        'updateTools': _is.MethodConnector(
+          name: 'updateTools',
+          params: {
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'tools': _is.ParameterDescription(
+              name: 'tools',
+              type: _is.getType<List<_i1odv8ju.ProjectTool>>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .updateTools(
+                    session,
+                    params['projectId'],
+                    params['tools'],
+                  ),
+        ),
+        'detectTools': _is.MethodConnector(
+          name: 'detectTools',
+          params: {
+            'repoUrl': _is.ParameterDescription(
+              name: 'repoUrl',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'repoAccessToken': _is.ParameterDescription(
+              name: 'repoAccessToken',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+            'projectId': _is.ParameterDescription(
+              name: 'projectId',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['project'] as _iemg8ri2.ProjectEndpoint)
+                  .detectTools(
+                    session,
+                    params['repoUrl'],
+                    repoAccessToken: params['repoAccessToken'],
+                    projectId: params['projectId'],
                   ),
         ),
         'updateRepoAccessToken': _is.MethodConnector(

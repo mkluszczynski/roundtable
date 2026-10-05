@@ -37,6 +37,7 @@ class AddProjectCubit extends Cubit<AddProjectState> {
     required String name,
     required String repoUrl,
     String? repoAccessToken,
+    List<ProjectTool>? tools,
   }) async {
     emit(const AddProjectSubmitting());
     try {
@@ -44,6 +45,7 @@ class AddProjectCubit extends Cubit<AddProjectState> {
         name: name,
         repoUrl: repoUrl,
         repoAccessToken: repoAccessToken,
+        tools: tools,
       );
       emit(AddProjectSuccess(project));
     } catch (e) {
