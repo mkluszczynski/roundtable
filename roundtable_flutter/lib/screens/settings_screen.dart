@@ -10,6 +10,7 @@ import '../utils/error_message.dart';
 import '../utils/task_options.dart';
 import '../widgets/app_card.dart';
 import '../widgets/load_failed_view.dart';
+import '../widgets/reviewer_select.dart';
 import '../widgets/setting_row.dart';
 
 /// Workspace-wide settings. For now: the advanced task options every
@@ -141,6 +142,25 @@ class _TaskDefaultsCard extends StatelessWidget {
               activeThumbColor: AppColors.accent,
               onChanged: (value) =>
                   onChanged(settings.copyWith(skipPlanning: value)),
+            ),
+          ),
+          SettingRow(
+            title: autoReviewOption.title,
+            description: autoReviewOption.description,
+            control: Switch(
+              value: settings.autoReview,
+              activeThumbColor: AppColors.accent,
+              onChanged: (value) =>
+                  onChanged(settings.copyWith(autoReview: value)),
+            ),
+          ),
+          SettingRow(
+            title: reviewerOption.title,
+            description: reviewerOption.description,
+            control: ReviewerSelect(
+              selected: settings.reviewerAgentId,
+              onChanged: (id) =>
+                  onChanged(settings.copyWith(reviewerAgentId: id)),
             ),
           ),
         ],

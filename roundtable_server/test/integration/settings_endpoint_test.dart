@@ -42,8 +42,7 @@ void main() {
 
       await endpoints.settings.updateProjectTaskDefaults(
         sessionBuilder,
-        project.id!,
-        skipPlanning: false,
+        project.copyWith(skipPlanning: false),
       );
       expect(
         (await endpoints.settings.taskDefaults(
@@ -56,7 +55,7 @@ void main() {
       // Back to inheriting.
       final reset = await endpoints.settings.updateProjectTaskDefaults(
         sessionBuilder,
-        project.id!,
+        project.copyWith(skipPlanning: null),
       );
       expect(reset.skipPlanning, isNull);
       expect(

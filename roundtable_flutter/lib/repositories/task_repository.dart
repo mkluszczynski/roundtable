@@ -10,12 +10,16 @@ class TaskRepository {
     int? agentId,
     String prompt, {
     required bool skipPlanning,
+    bool autoReview = false,
+    int? reviewerAgentId,
     List<int> attachmentIds = const [],
   }) => _client.task.createTask(
     projectId,
     agentId,
     prompt,
     skipPlanning: skipPlanning,
+    autoReview: autoReview,
+    reviewerAgentId: reviewerAgentId,
     attachmentIds: attachmentIds,
   );
 

@@ -13,6 +13,12 @@ fields:
   prompt: String
   ### Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   skipPlanning: bool, default=false
+  ### Queue an AI code review by [reviewerAgent] every time a run leaves the
+  ### task awaiting review with a PR.
+  autoReview: bool, default=false
+  ### The agent that reviews this task's PR: picked up front, used by auto
+  ### review and pre-selected when the dev requests one by hand.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?

@@ -33,6 +33,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.agent,
     required this.prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -58,6 +61,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.questions,
     this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
+       autoReview = autoReview ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -72,6 +76,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -117,6 +124,15 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -216,6 +232,16 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   bool skipPlanning;
 
+  /// Queue an AI code review by [reviewerAgent] every time a run leaves the
+  /// task awaiting review with a PR.
+  bool autoReview;
+
+  int? reviewerAgentId;
+
+  /// The agent that reviews this task's PR: picked up front, used by auto
+  /// review and pre-selected when the dev requests one by hand.
+  _ijo8h3v4.Agent? reviewerAgent;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -306,6 +332,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? agent,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -342,6 +371,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (agent != null) 'agent': agent?.toJson(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -383,6 +415,10 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (agent != null) 'agent': agent?.toJsonForProtocol(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -421,6 +457,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   static TaskInclude include({
     _ifiazq2p.ProjectInclude? project,
     _ijo8h3v4.AgentInclude? agent,
+    _ijo8h3v4.AgentInclude? reviewerAgent,
     _ihv3trno.TaskLogEntryIncludeList? logs,
     _i5hi2zxr.TaskFeedbackIncludeList? feedback,
     _ivtt8ejd.TaskQuestionIncludeList? questions,
@@ -429,6 +466,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     return TaskInclude._(
       project: project,
       agent: agent,
+      reviewerAgent: reviewerAgent,
       logs: logs,
       feedback: feedback,
       questions: questions,
@@ -471,6 +509,9 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -503,6 +544,9 @@ class _TaskImpl extends Task {
          agent: agent,
          prompt: prompt,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -541,6 +585,9 @@ class _TaskImpl extends Task {
     Object? agent = _Undefined,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -576,6 +623,13 @@ class _TaskImpl extends Task {
       agent: agent is _ijo8h3v4.Agent? ? agent : this.agent?.copyWith(),
       prompt: prompt ?? this.prompt,
       skipPlanning: skipPlanning ?? this.skipPlanning,
+      autoReview: autoReview ?? this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -644,6 +698,16 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<bool, bool> skipPlanning(bool value) => _is.ColumnValue(
     table.skipPlanning,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoReview(bool value) => _is.ColumnValue(
+    table.autoReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
+    table.reviewerAgentId,
     value,
   );
 
@@ -784,6 +848,15 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoReview = _is.ColumnBool(
+      'autoReview',
+      this,
+      hasDefault: true,
+    );
+    reviewerAgentId = _is.ColumnInt(
+      'reviewerAgentId',
+      this,
+    );
     status = _is.ColumnEnum(
       'status',
       this,
@@ -895,6 +968,16 @@ class TaskTable extends _is.Table<int?> {
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   late final _is.ColumnBool skipPlanning;
 
+  /// Queue an AI code review by [reviewerAgent] every time a run leaves the
+  /// task awaiting review with a PR.
+  late final _is.ColumnBool autoReview;
+
+  late final _is.ColumnInt reviewerAgentId;
+
+  /// The agent that reviews this task's PR: picked up front, used by auto
+  /// review and pre-selected when the dev requests one by hand.
+  _ijo8h3v4.AgentTable? _reviewerAgent;
+
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -1003,6 +1086,19 @@ class TaskTable extends _is.Table<int?> {
           _ijo8h3v4.AgentTable(tableRelation: foreignTableRelation),
     );
     return _agent!;
+  }
+
+  _ijo8h3v4.AgentTable get reviewerAgent {
+    if (_reviewerAgent != null) return _reviewerAgent!;
+    _reviewerAgent = _is.createRelationTable(
+      relationFieldName: 'reviewerAgent',
+      field: Task.t.reviewerAgentId,
+      foreignField: _ijo8h3v4.Agent.t.id,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _ijo8h3v4.AgentTable(tableRelation: foreignTableRelation),
+    );
+    return _reviewerAgent!;
   }
 
   _ihv3trno.TaskLogEntryTable get __logs {
@@ -1140,6 +1236,8 @@ class TaskTable extends _is.Table<int?> {
     agentId,
     prompt,
     skipPlanning,
+    autoReview,
+    reviewerAgentId,
     status,
     currentPlan,
     failureReason,
@@ -1170,6 +1268,9 @@ class TaskTable extends _is.Table<int?> {
     if (relationField == 'agent') {
       return agent;
     }
+    if (relationField == 'reviewerAgent') {
+      return reviewerAgent;
+    }
     if (relationField == 'logs') {
       return __logs;
     }
@@ -1190,6 +1291,7 @@ class TaskInclude extends _is.IncludeObject {
   TaskInclude._({
     _ifiazq2p.ProjectInclude? project,
     _ijo8h3v4.AgentInclude? agent,
+    _ijo8h3v4.AgentInclude? reviewerAgent,
     _ihv3trno.TaskLogEntryIncludeList? logs,
     _i5hi2zxr.TaskFeedbackIncludeList? feedback,
     _ivtt8ejd.TaskQuestionIncludeList? questions,
@@ -1197,6 +1299,7 @@ class TaskInclude extends _is.IncludeObject {
   }) {
     _project = project;
     _agent = agent;
+    _reviewerAgent = reviewerAgent;
     _logs = logs;
     _feedback = feedback;
     _questions = questions;
@@ -1206,6 +1309,8 @@ class TaskInclude extends _is.IncludeObject {
   _ifiazq2p.ProjectInclude? _project;
 
   _ijo8h3v4.AgentInclude? _agent;
+
+  _ijo8h3v4.AgentInclude? _reviewerAgent;
 
   _ihv3trno.TaskLogEntryIncludeList? _logs;
 
@@ -1219,6 +1324,7 @@ class TaskInclude extends _is.IncludeObject {
   Map<String, _is.Include?> get includes => {
     'project': _project,
     'agent': _agent,
+    'reviewerAgent': _reviewerAgent,
     'logs': _logs,
     'feedback': _feedback,
     'questions': _questions,
@@ -1810,6 +1916,29 @@ class TaskAttachRowRepository {
     );
   }
 
+  /// Creates a relation between the given [Task] and [Agent]
+  /// by setting the [Task]'s foreign key `reviewerAgentId` to refer to the [Agent].
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Task task,
+    _ijo8h3v4.Agent reviewerAgent, {
+    _is.Transaction? transaction,
+  }) async {
+    if (task.id == null) {
+      throw ArgumentError.notNull('task.id');
+    }
+    if (reviewerAgent.id == null) {
+      throw ArgumentError.notNull('reviewerAgent.id');
+    }
+
+    var $task = task.copyWith(reviewerAgentId: reviewerAgent.id);
+    await session.db.updateRow<Task>(
+      $task,
+      columns: [Task.t.reviewerAgentId],
+      transaction: transaction,
+    );
+  }
+
   /// Creates a relation between this [Task] and the given [TaskLogEntry]
   /// by setting the [TaskLogEntry]'s foreign key `taskId` to refer to this [Task].
   Future<void> logs(
@@ -1952,6 +2081,28 @@ class TaskDetachRowRepository {
     await session.db.updateRow<Task>(
       $task,
       columns: [Task.t.agentId],
+      transaction: transaction,
+    );
+  }
+
+  /// Detaches the relation between this [Task] and the [Agent] set in `reviewerAgent`
+  /// by setting the [Task]'s foreign key `reviewerAgentId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Task task, {
+    _is.Transaction? transaction,
+  }) async {
+    if (task.id == null) {
+      throw ArgumentError.notNull('task.id');
+    }
+
+    var $task = task.copyWith(reviewerAgentId: null);
+    await session.db.updateRow<Task>(
+      $task,
+      columns: [Task.t.reviewerAgentId],
       transaction: transaction,
     );
   }

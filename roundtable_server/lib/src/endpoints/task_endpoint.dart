@@ -41,10 +41,18 @@ class TaskEndpoint extends Endpoint {
     int? agentId,
     String prompt, {
     bool skipPlanning = false,
+    // Nullable rather than defaulted: the generated test tools would make a
+    // defaulted named parameter required.
+    bool? autoReview,
+    int? reviewerAgentId,
     List<int>? attachmentIds,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
       throw NotFoundException(message: 'Project $projectId not found');
+    }
+    if (reviewerAgentId != null &&
+        await Agent.db.findById(session, reviewerAgentId) == null) {
+      throw NotFoundException(message: 'Agent $reviewerAgentId not found');
     }
     Agent? agent;
     if (agentId != null) {
@@ -61,6 +69,8 @@ class TaskEndpoint extends Endpoint {
         agentId: agentId,
         prompt: prompt,
         skipPlanning: skipPlanning,
+        autoReview: autoReview ?? false,
+        reviewerAgentId: reviewerAgentId,
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );
@@ -161,6 +171,13 @@ class TaskEndpoint extends Endpoint {
       await resolveCommentsSentToFix(session, updated);
       final current = await Task.db.findById(session, updated.id!);
       if (current != null) await syncChecksQuietly(session, current);
+    }
+    if (previous.status != TaskStatus.awaitingReview &&
+        updated.status == TaskStatus.awaitingReview) {
+      // Re-read: the daemon's snapshot may predate (or, from an older
+      // runner, lack) the review settings.
+      final current = await Task.db.findById(session, updated.id!);
+      if (current != null) await autoReviewIfEnabled(session, current);
     }
     return updated;
   }

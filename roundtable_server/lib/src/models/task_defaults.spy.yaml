@@ -3,3 +3,5 @@
 class: TaskDefaults
 fields:
   skipPlanning: bool
+  autoReview: bool
+  reviewerAgentId: int?

@@ -10,13 +10,9 @@ class SettingsRepository {
   Future<WorkspaceSettings> updateWorkspace(WorkspaceSettings settings) =>
       _client.settings.updateWorkspace(settings);
 
-  Future<Project> updateProjectTaskDefaults(
-    int projectId, {
-    bool? skipPlanning,
-  }) => _client.settings.updateProjectTaskDefaults(
-    projectId,
-    skipPlanning: skipPlanning,
-  );
+  /// Saves [project]'s task-default overrides; other fields are ignored.
+  Future<Project> updateProjectTaskDefaults(Project project) =>
+      _client.settings.updateProjectTaskDefaults(project);
 
   Future<TaskDefaults> taskDefaults(int projectId) =>
       _client.settings.taskDefaults(projectId);

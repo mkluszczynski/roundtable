@@ -15,9 +15,6 @@ import 'task_review_support.dart';
 /// Channel the panel's `TaskEndpoint.watchChecks` listens on.
 String channelForTaskChecks(int taskId) => 'task-$taskId-checks';
 
-/// Channel the panel's `TaskEndpoint.watchLogs` listens on.
-String channelForTaskLogs(int taskId) => 'task-$taskId-logs';
-
 /// How long a new head commit without any workflow run counts as "CI hasn't
 /// started yet" (pending) rather than "this repo has no CI" (mergeable).
 const noCiGracePeriod = Duration(minutes: 2);
@@ -74,8 +71,7 @@ PrCheckState aggregateCheckState(
   }
   if (runs.isNotEmpty) return PrCheckState.success;
   final current = now ?? DateTime.now().toUtc();
-  if (headSeenAt != null &&
-      current.difference(headSeenAt) < noCiGracePeriod) {
+  if (headSeenAt != null && current.difference(headSeenAt) < noCiGracePeriod) {
     return PrCheckState.pending;
   }
   return PrCheckState.none;
@@ -233,8 +229,7 @@ Future<Task> syncChecks(
   _lastSyncedAt[taskId] = now;
 
   var runs = stored;
-  final runsChanged =
-      newCommit || _signature(stored) != _signature(fresh);
+  final runsChanged = newCommit || _signature(stored) != _signature(fresh);
   if (runsChanged) {
     runs = await session.db.transaction((transaction) async {
       await PrCheckRun.db.deleteWhere(
@@ -253,9 +248,7 @@ Future<Task> syncChecks(
   }
 
   final previousState = task.checkState;
-  final fixAttempts = state == PrCheckState.success
-      ? 0
-      : task.checkFixAttempts;
+  final fixAttempts = state == PrCheckState.success ? 0 : task.checkFixAttempts;
   var updated = task;
   final taskChanged =
       newCommit ||
@@ -305,7 +298,7 @@ Future<Task> syncChecks(
   }
 
   if (newCommit && previousSha != null) {
-    await _logEvent(
+    await logTaskEvent(
       session,
       taskId,
       'New commit ${shortSha(head.sha)} — CI checks restarted',
@@ -317,9 +310,9 @@ Future<Task> syncChecks(
           .where(isFailedCheck)
           .map((r) => '${r.workflowName} / ${r.jobName}')
           .join(', ');
-      await _logEvent(session, taskId, 'CI failed: $failed');
+      await logTaskEvent(session, taskId, 'CI failed: $failed');
     } else if (state == PrCheckState.success) {
-      await _logEvent(
+      await logTaskEvent(
         session,
         taskId,
         'CI passed (${runs.length} ${runs.length == 1 ? 'job' : 'jobs'})',
@@ -344,12 +337,14 @@ Future<(List<PrCheckRun>, bool)> _fetchJobs(
   required String token,
   required List<PrCheckRun> cachedForSha,
 }) async {
-  final workflowRuns = await github.listWorkflowRuns(
-    owner: owner,
-    repo: repo,
-    headSha: headSha,
-    token: token,
-  )..sort((a, b) => a.id.compareTo(b.id));
+  final workflowRuns =
+      await github.listWorkflowRuns(
+          owner: owner,
+          repo: repo,
+          headSha: headSha,
+          token: token,
+        )
+        ..sort((a, b) => a.id.compareTo(b.id));
 
   final fresh = <PrCheckRun>[];
   var hasUnstartedRuns = false;
@@ -469,12 +464,15 @@ Future<TaskFeedback> sendFailingChecksToFix(
   final failing = headSha == null
       ? const <PrCheckRun>[]
       : (await PrCheckRun.db.find(
-          session,
-          where: (r) => r.taskId.equals(taskId) & r.headSha.equals(headSha),
-          orderBy: (r) => r.id,
-        )).where(isFailedCheck).where(
-          (r) => jobIds == null || jobIds.contains(r.jobId),
-        ).toList();
+              session,
+              where: (r) => r.taskId.equals(taskId) & r.headSha.equals(headSha),
+              orderBy: (r) => r.id,
+            ))
+            .where(isFailedCheck)
+            .where(
+              (r) => jobIds == null || jobIds.contains(r.jobId),
+            )
+            .toList();
   if (failing.isEmpty) {
     throw InvalidStateException(
       message: 'Task $taskId has no failing CI checks to fix',
@@ -524,7 +522,8 @@ Future<TaskFeedback> sendFailingChecksToFix(
       }
       if (oncePerCommit && current.checkFixSentForSha == headSha) {
         throw InvalidStateException(
-          message: 'The failing checks of ${shortSha(headSha)} were already '
+          message:
+              'The failing checks of ${shortSha(headSha)} were already '
               'sent to the agent',
         );
       }
@@ -625,7 +624,7 @@ Future<void> _autoFix(Session session, Task task) async {
   }
   try {
     await sendFailingChecksToFix(session, task, oncePerCommit: true);
-    await _logEvent(
+    await logTaskEvent(
       session,
       task.id!,
       'Failing CI checks sent to the agent automatically '
@@ -645,31 +644,6 @@ Future<void> _autoFix(Session session, Task task) async {
       level: LogLevel.warning,
     );
   }
-}
-
-/// Adds a system event to [taskId]'s timeline, inside its latest run (an
-/// entry without a run would land in a separate legacy run).
-Future<void> _logEvent(Session session, int taskId, String text) async {
-  final latest = await TaskLogEntry.db.findFirstRow(
-    session,
-    where: (e) =>
-        e.taskId.equals(taskId) &
-        e.runId.notEquals(null) &
-        e.reviewId.equals(null),
-    orderBy: (e) => e.createdAt.desc(),
-  );
-  final entry = await TaskLogEntry.db.insertRow(
-    session,
-    TaskLogEntry(
-      taskId: taskId,
-      content: text,
-      source: LogSource.system,
-      kind: LogKind.event,
-      runId: latest?.runId,
-      phase: latest?.phase,
-    ),
-  );
-  await session.messages.postMessage(channelForTaskLogs(taskId), entry);
 }
 
 /// Identifies what the panel shows of [runs], to tell whether a sync

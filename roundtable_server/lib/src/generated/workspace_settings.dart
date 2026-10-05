@@ -8,9 +8,12 @@
 // ignore_for_file: type_literal_in_constant_pattern
 // ignore_for_file: use_super_parameters
 // ignore_for_file: invalid_use_of_internal_member
+// ignore_for_file: dead_code, unnecessary_null_comparison
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
+import 'agent.dart' as _ijo8h3v4;
 
 /// Workspace-wide settings — a single row while the app is single-tenant.
 /// Holds the defaults a project inherits unless it overrides them.
@@ -19,13 +22,20 @@ abstract class WorkspaceSettings
   WorkspaceSettings._({
     this.id,
     bool? skipPlanning,
+    bool? autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
+       autoReview = autoReview ?? false,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
     int? id,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -35,6 +45,15 @@ abstract class WorkspaceSettings
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -51,6 +70,14 @@ abstract class WorkspaceSettings
   /// Default for Task.skipPlanning on new tasks.
   bool skipPlanning;
 
+  /// Default for Task.autoReview on new tasks.
+  bool autoReview;
+
+  int? reviewerAgentId;
+
+  /// Default reviewer for new tasks.
+  _ijo8h3v4.Agent? reviewerAgent;
+
   DateTime updatedAt;
 
   @override
@@ -62,6 +89,9 @@ abstract class WorkspaceSettings
   WorkspaceSettings copyWith({
     int? id,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? updatedAt,
   });
   @override
@@ -70,6 +100,9 @@ abstract class WorkspaceSettings
       '__className__': 'WorkspaceSettings',
       if (id != null) 'id': id,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -80,12 +113,18 @@ abstract class WorkspaceSettings
       '__className__': 'WorkspaceSettings',
       if (id != null) 'id': id,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'updatedAt': updatedAt.toJson(),
     };
   }
 
-  static WorkspaceSettingsInclude include() {
-    return WorkspaceSettingsInclude._();
+  static WorkspaceSettingsInclude include({
+    _ijo8h3v4.AgentInclude? reviewerAgent,
+  }) {
+    return WorkspaceSettingsInclude._(reviewerAgent: reviewerAgent);
   }
 
   static WorkspaceSettingsIncludeList includeList({
@@ -118,10 +157,16 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
   _WorkspaceSettingsImpl({
     int? id,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? updatedAt,
   }) : super._(
          id: id,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
          updatedAt: updatedAt,
        );
 
@@ -132,11 +177,21 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
   WorkspaceSettings copyWith({
     Object? id = _Undefined,
     bool? skipPlanning,
+    bool? autoReview,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
       id: id is int? ? id : this.id,
       skipPlanning: skipPlanning ?? this.skipPlanning,
+      autoReview: autoReview ?? this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -148,6 +203,16 @@ class WorkspaceSettingsUpdateTable
 
   _is.ColumnValue<bool, bool> skipPlanning(bool value) => _is.ColumnValue(
     table.skipPlanning,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoReview(bool value) => _is.ColumnValue(
+    table.autoReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
+    table.reviewerAgentId,
     value,
   );
 
@@ -167,6 +232,15 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoReview = _is.ColumnBool(
+      'autoReview',
+      this,
+      hasDefault: true,
+    );
+    reviewerAgentId = _is.ColumnInt(
+      'reviewerAgentId',
+      this,
+    );
     updatedAt = _is.ColumnDateTime(
       'updatedAt',
       this,
@@ -179,21 +253,56 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
   /// Default for Task.skipPlanning on new tasks.
   late final _is.ColumnBool skipPlanning;
 
+  /// Default for Task.autoReview on new tasks.
+  late final _is.ColumnBool autoReview;
+
+  late final _is.ColumnInt reviewerAgentId;
+
+  /// Default reviewer for new tasks.
+  _ijo8h3v4.AgentTable? _reviewerAgent;
+
   late final _is.ColumnDateTime updatedAt;
+
+  _ijo8h3v4.AgentTable get reviewerAgent {
+    if (_reviewerAgent != null) return _reviewerAgent!;
+    _reviewerAgent = _is.createRelationTable(
+      relationFieldName: 'reviewerAgent',
+      field: WorkspaceSettings.t.reviewerAgentId,
+      foreignField: _ijo8h3v4.Agent.t.id,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _ijo8h3v4.AgentTable(tableRelation: foreignTableRelation),
+    );
+    return _reviewerAgent!;
+  }
 
   @override
   List<_is.Column> get columns => [
     id,
     skipPlanning,
+    autoReview,
+    reviewerAgentId,
     updatedAt,
   ];
+
+  @override
+  _is.Table? getRelationTable(String relationField) {
+    if (relationField == 'reviewerAgent') {
+      return reviewerAgent;
+    }
+    return null;
+  }
 }
 
 class WorkspaceSettingsInclude extends _is.IncludeObject {
-  WorkspaceSettingsInclude._();
+  WorkspaceSettingsInclude._({_ijo8h3v4.AgentInclude? reviewerAgent}) {
+    _reviewerAgent = reviewerAgent;
+  }
+
+  _ijo8h3v4.AgentInclude? _reviewerAgent;
 
   @override
-  Map<String, _is.Include?> get includes => {};
+  Map<String, _is.Include?> get includes => {'reviewerAgent': _reviewerAgent};
 
   @override
   _is.Table<int?> get table => WorkspaceSettings.t;
@@ -220,6 +329,10 @@ class WorkspaceSettingsIncludeList extends _is.IncludeList {
 
 class WorkspaceSettingsRepository {
   const WorkspaceSettingsRepository._();
+
+  final attachRow = const WorkspaceSettingsAttachRowRepository._();
+
+  final detachRow = const WorkspaceSettingsDetachRowRepository._();
 
   /// Returns a list of [WorkspaceSettings]s matching the given query parameters.
   ///
@@ -251,6 +364,7 @@ class WorkspaceSettingsRepository {
     _is.OrderByBuilder<WorkspaceSettingsTable>? orderBy,
     _is.OrderByListBuilder<WorkspaceSettingsTable>? orderByList,
     _is.Transaction? transaction,
+    WorkspaceSettingsInclude? include,
     _is.LockMode? lockMode,
     _is.LockBehavior? lockBehavior,
   }) async {
@@ -261,6 +375,7 @@ class WorkspaceSettingsRepository {
       limit: limit,
       offset: offset,
       transaction: transaction,
+      include: include,
       lockMode: lockMode,
       lockBehavior: lockBehavior,
     );
@@ -290,6 +405,7 @@ class WorkspaceSettingsRepository {
     _is.OrderByBuilder<WorkspaceSettingsTable>? orderBy,
     _is.OrderByListBuilder<WorkspaceSettingsTable>? orderByList,
     _is.Transaction? transaction,
+    WorkspaceSettingsInclude? include,
     _is.LockMode? lockMode,
     _is.LockBehavior? lockBehavior,
   }) async {
@@ -299,6 +415,7 @@ class WorkspaceSettingsRepository {
       orderByList: orderByList?.call(WorkspaceSettings.t),
       offset: offset,
       transaction: transaction,
+      include: include,
       lockMode: lockMode,
       lockBehavior: lockBehavior,
     );
@@ -309,12 +426,14 @@ class WorkspaceSettingsRepository {
     _is.DatabaseSession session,
     int id, {
     _is.Transaction? transaction,
+    WorkspaceSettingsInclude? include,
     _is.LockMode? lockMode,
     _is.LockBehavior? lockBehavior,
   }) async {
     return session.db.findById<WorkspaceSettings>(
       id,
       transaction: transaction,
+      include: include,
       lockMode: lockMode,
       lockBehavior: lockBehavior,
     );
@@ -610,6 +729,61 @@ class WorkspaceSettingsRepository {
       where: where(WorkspaceSettings.t),
       lockMode: lockMode,
       lockBehavior: lockBehavior,
+      transaction: transaction,
+    );
+  }
+}
+
+class WorkspaceSettingsAttachRowRepository {
+  const WorkspaceSettingsAttachRowRepository._();
+
+  /// Creates a relation between the given [WorkspaceSettings] and [Agent]
+  /// by setting the [WorkspaceSettings]'s foreign key `reviewerAgentId` to refer to the [Agent].
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    WorkspaceSettings workspaceSettings,
+    _ijo8h3v4.Agent reviewerAgent, {
+    _is.Transaction? transaction,
+  }) async {
+    if (workspaceSettings.id == null) {
+      throw ArgumentError.notNull('workspaceSettings.id');
+    }
+    if (reviewerAgent.id == null) {
+      throw ArgumentError.notNull('reviewerAgent.id');
+    }
+
+    var $workspaceSettings = workspaceSettings.copyWith(
+      reviewerAgentId: reviewerAgent.id,
+    );
+    await session.db.updateRow<WorkspaceSettings>(
+      $workspaceSettings,
+      columns: [WorkspaceSettings.t.reviewerAgentId],
+      transaction: transaction,
+    );
+  }
+}
+
+class WorkspaceSettingsDetachRowRepository {
+  const WorkspaceSettingsDetachRowRepository._();
+
+  /// Detaches the relation between this [WorkspaceSettings] and the [Agent] set in `reviewerAgent`
+  /// by setting the [WorkspaceSettings]'s foreign key `reviewerAgentId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    WorkspaceSettings workspaceSettings, {
+    _is.Transaction? transaction,
+  }) async {
+    if (workspaceSettings.id == null) {
+      throw ArgumentError.notNull('workspaceSettings.id');
+    }
+
+    var $workspaceSettings = workspaceSettings.copyWith(reviewerAgentId: null);
+    await session.db.updateRow<WorkspaceSettings>(
+      $workspaceSettings,
+      columns: [WorkspaceSettings.t.reviewerAgentId],
       transaction: transaction,
     );
   }

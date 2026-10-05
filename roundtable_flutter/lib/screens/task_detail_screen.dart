@@ -127,13 +127,16 @@ void _openReassignAgentDialog(
   );
 }
 
-void _openRequestReviewDialog(BuildContext context, int taskId) {
+void _openRequestReviewDialog(BuildContext context, Task task) {
   final bloc = context.read<TaskDetailBloc>();
   showDialog<void>(
     context: context,
     builder: (_) => BlocProvider.value(
       value: bloc,
-      child: RequestReviewDialog(taskId: taskId),
+      child: RequestReviewDialog(
+        taskId: task.id!,
+        initialAgentId: task.reviewerAgentId,
+      ),
     ),
   );
 }
@@ -1689,7 +1692,7 @@ class _ReviewView extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: reviewActive || state.reviewBusy
                       ? null
-                      : () => _openRequestReviewDialog(context, state.task.id!),
+                      : () => _openRequestReviewDialog(context, state.task),
                   icon: const Icon(Icons.rate_review_outlined, size: 16),
                   label: Text(
                     state.reviews.isEmpty

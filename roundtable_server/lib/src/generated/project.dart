@@ -13,6 +13,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
+import 'agent.dart' as _ijo8h3v4;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -28,6 +29,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     this.skipPlanning,
+    this.autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
     DateTime? createdAt,
     this.tasks,
   }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
@@ -44,6 +48,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -70,6 +77,15 @@ abstract class Project
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -114,6 +130,14 @@ abstract class Project
   /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
   bool? skipPlanning;
 
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  bool? autoReview;
+
+  int? reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.Agent? reviewerAgent;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -134,6 +158,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -151,6 +178,9 @@ abstract class Project
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -169,14 +199,24 @@ abstract class Project
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
     };
   }
 
-  static ProjectInclude include({_iwn6t6fs.TaskIncludeList? tasks}) {
-    return ProjectInclude._(tasks: tasks);
+  static ProjectInclude include({
+    _ijo8h3v4.AgentInclude? reviewerAgent,
+    _iwn6t6fs.TaskIncludeList? tasks,
+  }) {
+    return ProjectInclude._(
+      reviewerAgent: reviewerAgent,
+      tasks: tasks,
+    );
   }
 
   static ProjectIncludeList includeList({
@@ -216,6 +256,9 @@ class _ProjectImpl extends Project {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -228,6 +271,9 @@ class _ProjectImpl extends Project {
          autoFixFailingChecks: autoFixFailingChecks,
          maxCheckFixAttempts: maxCheckFixAttempts,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -246,6 +292,9 @@ class _ProjectImpl extends Project {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     Object? skipPlanning = _Undefined,
+    Object? autoReview = _Undefined,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -263,6 +312,13 @@ class _ProjectImpl extends Project {
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
       maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
+      autoReview: autoReview is bool? ? autoReview : this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks
@@ -318,6 +374,16 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
+  _is.ColumnValue<bool, bool> autoReview(bool? value) => _is.ColumnValue(
+    table.autoReview,
+    value,
+  );
+
+  _is.ColumnValue<int, int> reviewerAgentId(int? value) => _is.ColumnValue(
+    table.reviewerAgentId,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -362,6 +428,14 @@ class ProjectTable extends _is.Table<int?> {
       'skipPlanning',
       this,
     );
+    autoReview = _is.ColumnBool(
+      'autoReview',
+      this,
+    );
+    reviewerAgentId = _is.ColumnInt(
+      'reviewerAgentId',
+      this,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -397,11 +471,32 @@ class ProjectTable extends _is.Table<int?> {
   /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
   late final _is.ColumnBool skipPlanning;
 
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  late final _is.ColumnBool autoReview;
+
+  late final _is.ColumnInt reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.AgentTable? _reviewerAgent;
+
   late final _is.ColumnDateTime createdAt;
 
   _iwn6t6fs.TaskTable? ___tasks;
 
   _is.ManyRelation<_iwn6t6fs.TaskTable>? _tasks;
+
+  _ijo8h3v4.AgentTable get reviewerAgent {
+    if (_reviewerAgent != null) return _reviewerAgent!;
+    _reviewerAgent = _is.createRelationTable(
+      relationFieldName: 'reviewerAgent',
+      field: Project.t.reviewerAgentId,
+      foreignField: _ijo8h3v4.Agent.t.id,
+      tableRelation: tableRelation,
+      createTable: (foreignTableRelation) =>
+          _ijo8h3v4.AgentTable(tableRelation: foreignTableRelation),
+    );
+    return _reviewerAgent!;
+  }
 
   _iwn6t6fs.TaskTable get __tasks {
     if (___tasks != null) return ___tasks!;
@@ -446,11 +541,16 @@ class ProjectTable extends _is.Table<int?> {
     autoFixFailingChecks,
     maxCheckFixAttempts,
     skipPlanning,
+    autoReview,
+    reviewerAgentId,
     createdAt,
   ];
 
   @override
   _is.Table? getRelationTable(String relationField) {
+    if (relationField == 'reviewerAgent') {
+      return reviewerAgent;
+    }
     if (relationField == 'tasks') {
       return __tasks;
     }
@@ -459,14 +559,23 @@ class ProjectTable extends _is.Table<int?> {
 }
 
 class ProjectInclude extends _is.IncludeObject {
-  ProjectInclude._({_iwn6t6fs.TaskIncludeList? tasks}) {
+  ProjectInclude._({
+    _ijo8h3v4.AgentInclude? reviewerAgent,
+    _iwn6t6fs.TaskIncludeList? tasks,
+  }) {
+    _reviewerAgent = reviewerAgent;
     _tasks = tasks;
   }
+
+  _ijo8h3v4.AgentInclude? _reviewerAgent;
 
   _iwn6t6fs.TaskIncludeList? _tasks;
 
   @override
-  Map<String, _is.Include?> get includes => {'tasks': _tasks};
+  Map<String, _is.Include?> get includes => {
+    'reviewerAgent': _reviewerAgent,
+    'tasks': _tasks,
+  };
 
   @override
   _is.Table<int?> get table => Project.t;
@@ -497,6 +606,8 @@ class ProjectRepository {
   final attach = const ProjectAttachRepository._();
 
   final attachRow = const ProjectAttachRowRepository._();
+
+  final detachRow = const ProjectDetachRowRepository._();
 
   /// Returns a list of [Project]s matching the given query parameters.
   ///
@@ -926,6 +1037,29 @@ class ProjectAttachRepository {
 class ProjectAttachRowRepository {
   const ProjectAttachRowRepository._();
 
+  /// Creates a relation between the given [Project] and [Agent]
+  /// by setting the [Project]'s foreign key `reviewerAgentId` to refer to the [Agent].
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Project project,
+    _ijo8h3v4.Agent reviewerAgent, {
+    _is.Transaction? transaction,
+  }) async {
+    if (project.id == null) {
+      throw ArgumentError.notNull('project.id');
+    }
+    if (reviewerAgent.id == null) {
+      throw ArgumentError.notNull('reviewerAgent.id');
+    }
+
+    var $project = project.copyWith(reviewerAgentId: reviewerAgent.id);
+    await session.db.updateRow<Project>(
+      $project,
+      columns: [Project.t.reviewerAgentId],
+      transaction: transaction,
+    );
+  }
+
   /// Creates a relation between this [Project] and the given [Task]
   /// by setting the [Task]'s foreign key `projectId` to refer to this [Project].
   Future<void> tasks(
@@ -945,6 +1079,32 @@ class ProjectAttachRowRepository {
     await session.db.updateRow<_iwn6t6fs.Task>(
       $task,
       columns: [_iwn6t6fs.Task.t.projectId],
+      transaction: transaction,
+    );
+  }
+}
+
+class ProjectDetachRowRepository {
+  const ProjectDetachRowRepository._();
+
+  /// Detaches the relation between this [Project] and the [Agent] set in `reviewerAgent`
+  /// by setting the [Project]'s foreign key `reviewerAgentId` to `null`.
+  ///
+  /// This removes the association between the two models without deleting
+  /// the related record.
+  Future<void> reviewerAgent(
+    _is.DatabaseSession session,
+    Project project, {
+    _is.Transaction? transaction,
+  }) async {
+    if (project.id == null) {
+      throw ArgumentError.notNull('project.id');
+    }
+
+    var $project = project.copyWith(reviewerAgentId: null);
+    await session.db.updateRow<Project>(
+      $project,
+      columns: [Project.t.reviewerAgentId],
       transaction: transaction,
     );
   }

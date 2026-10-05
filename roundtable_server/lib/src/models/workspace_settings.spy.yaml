@@ -5,4 +5,8 @@ table: workspace_settings
 fields:
   ### Default for Task.skipPlanning on new tasks.
   skipPlanning: bool, default=false
+  ### Default for Task.autoReview on new tasks.
+  autoReview: bool, default=false
+  ### Default reviewer for new tasks.
+  reviewerAgent: Agent?, relation(optional, onDelete=SetNull)
   updatedAt: DateTime, default=now

@@ -111,6 +111,80 @@ void main() {
       );
     }
 
+    group('auto review', () {
+      Future<Task> finishRun(Task task) async {
+        final session = sessionBuilder.build();
+        final running = await Task.db.updateRow(
+          session,
+          task.copyWith(status: TaskStatus.running),
+        );
+        return endpoints.task.update(
+          sessionBuilder,
+          running.copyWith(status: TaskStatus.awaitingReview),
+        );
+      }
+
+      Future<List<CodeReview>> reviewsOf(Task task) => CodeReview.db.find(
+        sessionBuilder.build(),
+        where: (r) => r.taskId.equals(task.id!),
+      );
+
+      test(
+        'when a run ends awaiting review then the reviewer is queued',
+        () async {
+          final seeded = await seed();
+          final task = await Task.db.updateRow(
+            sessionBuilder.build(),
+            seeded.task.copyWith(
+              autoReview: true,
+              reviewerAgentId: seeded.reviewer.id,
+            ),
+          );
+
+          await finishRun(task);
+
+          final reviews = await reviewsOf(task);
+          expect(reviews, hasLength(1));
+          expect(reviews.single.reviewerAgentId, seeded.reviewer.id);
+          expect(reviews.single.status, CodeReviewStatus.queued);
+        },
+      );
+
+      test('when auto review is off then no review is queued', () async {
+        final seeded = await seed();
+        final task = await Task.db.updateRow(
+          sessionBuilder.build(),
+          seeded.task.copyWith(reviewerAgentId: seeded.reviewer.id),
+        );
+
+        await finishRun(task);
+
+        expect(await reviewsOf(task), isEmpty);
+      });
+
+      test('when no reviewer is set then the run still finishes and the '
+          'skip is logged', () async {
+        final seeded = await seed();
+        final task = await Task.db.updateRow(
+          sessionBuilder.build(),
+          seeded.task.copyWith(autoReview: true),
+        );
+
+        final updated = await finishRun(task);
+
+        expect(updated.status, TaskStatus.awaitingReview);
+        expect(await reviewsOf(task), isEmpty);
+        final events = await TaskLogEntry.db.find(
+          sessionBuilder.build(),
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('Auto review skipped')),
+        );
+      });
+    });
+
     test(
       'when the task is not awaiting review then requesting one throws',
       () async {

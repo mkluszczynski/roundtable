@@ -230,14 +230,15 @@ class _WorkflowCard extends StatelessWidget {
         children: [
           Text(name.toUpperCase(), style: AppTypography.label),
           const SizedBox(height: Spacing.sm),
-          for (final job in jobs) _JobRow(
-            job: job,
-            selected: selectedJobIds.contains(job.jobId),
-            onToggle: onToggleJob != null && isFailedCheckRun(job)
-                ? () => onToggleJob!(job.jobId)
-                : null,
-            onOpenUrl: onOpenUrl,
-          ),
+          for (final job in jobs)
+            _JobRow(
+              job: job,
+              selected: selectedJobIds.contains(job.jobId),
+              onToggle: onToggleJob != null && isFailedCheckRun(job)
+                  ? () => onToggleJob!(job.jobId)
+                  : null,
+              onOpenUrl: onOpenUrl,
+            ),
         ],
       ),
     );

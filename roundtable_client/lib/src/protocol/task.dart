@@ -33,6 +33,9 @@ abstract class Task
     this.agent,
     required this.prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -58,6 +61,7 @@ abstract class Task
     this.questions,
     this.attachments,
   }) : skipPlanning = skipPlanning ?? false,
+       autoReview = autoReview ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -72,6 +76,9 @@ abstract class Task
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -117,6 +124,15 @@ abstract class Task
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -216,6 +232,16 @@ abstract class Task
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   bool skipPlanning;
 
+  /// Queue an AI code review by [reviewerAgent] every time a run leaves the
+  /// task awaiting review with a PR.
+  bool autoReview;
+
+  int? reviewerAgentId;
+
+  /// The agent that reviews this task's PR: picked up front, used by auto
+  /// review and pre-selected when the dev requests one by hand.
+  _ijo8h3v4.Agent? reviewerAgent;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -303,6 +329,9 @@ abstract class Task
     _ijo8h3v4.Agent? agent,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -339,6 +368,9 @@ abstract class Task
       if (agent != null) 'agent': agent?.toJson(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -380,6 +412,10 @@ abstract class Task
       if (agent != null) 'agent': agent?.toJsonForProtocol(),
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -432,6 +468,9 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? agent,
     required String prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -464,6 +503,9 @@ class _TaskImpl extends Task {
          agent: agent,
          prompt: prompt,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -502,6 +544,9 @@ class _TaskImpl extends Task {
     Object? agent = _Undefined,
     String? prompt,
     bool? skipPlanning,
+    bool? autoReview,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -537,6 +582,13 @@ class _TaskImpl extends Task {
       agent: agent is _ijo8h3v4.Agent? ? agent : this.agent?.copyWith(),
       prompt: prompt ?? this.prompt,
       skipPlanning: skipPlanning ?? this.skipPlanning,
+      autoReview: autoReview ?? this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?

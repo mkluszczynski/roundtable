@@ -7,9 +7,6 @@ import '../task_review_support.dart';
 /// AI code review of a task's PR: a reviewer agent leaves comments, the dev
 /// triages them and sends the ones worth fixing back to the task's agent.
 class CodeReviewEndpoint extends Endpoint {
-  static String _channelForMachine(int machineId) =>
-      'machine-$machineId-reviews';
-
   /// Queues a review of [taskId]'s PR by [agentId]. The reviewer's daemon
   /// picks it up via [watchAssignedReviews].
   Future<CodeReview> requestReview(
@@ -35,15 +32,7 @@ class CodeReviewEndpoint extends Endpoint {
       throw InvalidStateException(message: '${agent.name} is busy');
     }
 
-    var review = await CodeReview.db.insertRow(
-      session,
-      CodeReview(taskId: taskId, reviewerAgentId: agentId),
-    );
-    await session.messages.postMessage(
-      _channelForMachine(agent.machineId),
-      review,
-    );
-    return postReviewChanged(session, review.id!);
+    return queueCodeReview(session, task, agent);
   }
 
   /// Streams reviews assigned to agents hosted on [machineId], for the
@@ -70,7 +59,7 @@ class CodeReviewEndpoint extends Endpoint {
     }
 
     var updates = session.messages.createStream<CodeReview>(
-      _channelForMachine(machineId),
+      reviewChannelForMachine(machineId),
     );
     await for (var review in updates) {
       yield review;

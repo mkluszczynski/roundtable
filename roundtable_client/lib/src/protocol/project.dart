@@ -12,6 +12,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
+import 'agent.dart' as _ijo8h3v4;
 import 'task.dart' as _iwn6t6fs;
 
 /// A git repository that agents run tasks against.
@@ -26,6 +27,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     this.skipPlanning,
+    this.autoReview,
+    this.reviewerAgentId,
+    this.reviewerAgent,
     DateTime? createdAt,
     this.tasks,
   }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
@@ -41,6 +45,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) = _ProjectImpl;
@@ -66,6 +73,15 @@ abstract class Project
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
+      autoReview: jsonSerialization['autoReview'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoReview']),
+      reviewerAgentId: jsonSerialization['reviewerAgentId'] as int?,
+      reviewerAgent: jsonSerialization['reviewerAgent'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<_ijo8h3v4.Agent>(
+              jsonSerialization['reviewerAgent'],
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -105,6 +121,14 @@ abstract class Project
   /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
   bool? skipPlanning;
 
+  /// Default for Task.autoReview; null inherits WorkspaceSettings.
+  bool? autoReview;
+
+  int? reviewerAgentId;
+
+  /// Default reviewer for new tasks; null inherits WorkspaceSettings.
+  _ijo8h3v4.Agent? reviewerAgent;
+
   DateTime createdAt;
 
   List<_iwn6t6fs.Task>? tasks;
@@ -121,6 +145,9 @@ abstract class Project
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   });
@@ -137,6 +164,9 @@ abstract class Project
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'createdAt': createdAt.toJson(),
       if (tasks != null) 'tasks': tasks?.toJson(valueToJson: (v) => v.toJson()),
     };
@@ -155,6 +185,10 @@ abstract class Project
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
+      if (autoReview != null) 'autoReview': autoReview,
+      if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
+      if (reviewerAgent != null)
+        'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'createdAt': createdAt.toJson(),
       if (tasks != null)
         'tasks': tasks?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -179,6 +213,9 @@ class _ProjectImpl extends Project {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    _ijo8h3v4.Agent? reviewerAgent,
     DateTime? createdAt,
     List<_iwn6t6fs.Task>? tasks,
   }) : super._(
@@ -190,6 +227,9 @@ class _ProjectImpl extends Project {
          autoFixFailingChecks: autoFixFailingChecks,
          maxCheckFixAttempts: maxCheckFixAttempts,
          skipPlanning: skipPlanning,
+         autoReview: autoReview,
+         reviewerAgentId: reviewerAgentId,
+         reviewerAgent: reviewerAgent,
          createdAt: createdAt,
          tasks: tasks,
        );
@@ -207,6 +247,9 @@ class _ProjectImpl extends Project {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     Object? skipPlanning = _Undefined,
+    Object? autoReview = _Undefined,
+    Object? reviewerAgentId = _Undefined,
+    Object? reviewerAgent = _Undefined,
     DateTime? createdAt,
     Object? tasks = _Undefined,
   }) {
@@ -221,6 +264,13 @@ class _ProjectImpl extends Project {
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
       maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
+      autoReview: autoReview is bool? ? autoReview : this.autoReview,
+      reviewerAgentId: reviewerAgentId is int?
+          ? reviewerAgentId
+          : this.reviewerAgentId,
+      reviewerAgent: reviewerAgent is _ijo8h3v4.Agent?
+          ? reviewerAgent
+          : this.reviewerAgent?.copyWith(),
       createdAt: createdAt ?? this.createdAt,
       tasks: tasks is List<_iwn6t6fs.Task>?
           ? tasks

@@ -19,6 +19,7 @@ import '../utils/image_paste.dart';
 import '../utils/task_options.dart';
 import 'agent_picker.dart';
 import 'attachment_thumbnail.dart';
+import 'reviewer_select.dart';
 import 'app_modal.dart';
 
 class CreateTaskDialog extends StatelessWidget {
@@ -81,6 +82,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   late int? _projectId = widget.initialProjectId;
   late int? _agentId = widget.initialAgentId;
   bool _skipPlanning = false;
+  bool _autoReview = false;
+  int? _reviewerAgentId;
 
   /// The project's resolved defaults, once loaded — [_skipPlanning] follows
   /// them until the dev changes it by hand.
@@ -120,7 +123,11 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
       if (!mounted || _projectId != projectId) return;
       setState(() {
         _defaults = defaults;
-        if (!_optionsEdited) _skipPlanning = defaults.skipPlanning;
+        if (!_optionsEdited) {
+          _skipPlanning = defaults.skipPlanning;
+          _autoReview = defaults.autoReview;
+          _reviewerAgentId = defaults.reviewerAgentId;
+        }
       });
     } catch (_) {
       // Keep the current values; the form still works without defaults.
@@ -141,8 +148,12 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     super.dispose();
   }
 
-  String get _advancedSummary =>
-      _summaryFor(skipPlanning: _skipPlanning, defaults: _defaults);
+  String get _advancedSummary => _summaryFor(
+    skipPlanning: _skipPlanning,
+    autoReview: _autoReview,
+    reviewerAgentId: _reviewerAgentId,
+    defaults: _defaults,
+  );
 
   bool get _uploading => _images.any((i) => i.uploading);
 
@@ -241,6 +252,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           agentId: _agentId,
                           prompt: _promptController.text.trim(),
                           skipPlanning: _skipPlanning,
+                          autoReview: _autoReview,
+                          reviewerAgentId: _reviewerAgentId,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -366,6 +379,53 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                       _skipPlanning = value ?? false;
                     }),
                   ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoReview,
+                    activeColor: AppColors.accent,
+                    title: Text(autoReviewOption.title),
+                    subtitle: Text(
+                      _autoReview && _reviewerAgentId == null
+                          ? 'Pick a reviewer below, or auto review is skipped'
+                          : autoReviewOption.description,
+                    ),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoReview = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen)
+                  Padding(
+                    padding: const EdgeInsets.only(top: Spacing.sm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                reviewerOption.title,
+                                style: AppTypography.body,
+                              ),
+                              Text(
+                                reviewerOption.description,
+                                style: AppTypography.caption,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.md),
+                        ReviewerSelect(
+                          selected: _reviewerAgentId,
+                          onChanged: (id) => setState(() {
+                            _optionsEdited = true;
+                            _reviewerAgentId = id;
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -391,10 +451,22 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
 
 /// Collapsed by default, so the summary has to say what's on — and whether
 /// it differs from the project's defaults.
-String _summaryFor({required bool skipPlanning, TaskDefaults? defaults}) {
-  final on = [if (skipPlanning) skipPlanningOption.title];
-  final text = on.isEmpty ? 'Plan first' : on.join(' · ');
-  final custom = defaults != null && defaults.skipPlanning != skipPlanning;
+String _summaryFor({
+  required bool skipPlanning,
+  required bool autoReview,
+  required int? reviewerAgentId,
+  TaskDefaults? defaults,
+}) {
+  final on = [
+    skipPlanning ? skipPlanningOption.title : 'Plan first',
+    if (autoReview) autoReviewOption.title,
+  ];
+  final text = on.join(' · ');
+  final custom =
+      defaults != null &&
+      (defaults.skipPlanning != skipPlanning ||
+          defaults.autoReview != autoReview ||
+          defaults.reviewerAgentId != reviewerAgentId);
   return custom ? '$text — changed from project defaults' : text;
 }
 

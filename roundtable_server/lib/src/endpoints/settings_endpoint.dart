@@ -21,25 +21,26 @@ class SettingsEndpoint extends Endpoint {
       session,
       current.copyWith(
         skipPlanning: settings.skipPlanning,
+        autoReview: settings.autoReview,
+        reviewerAgentId: settings.reviewerAgentId,
         updatedAt: DateTime.now(),
       ),
     );
   }
 
-  /// Sets a project's overrides; a null field inherits the workspace value.
+  /// Saves [project]'s task-default overrides (a null field inherits the
+  /// workspace value); its other fields are ignored.
   Future<Project> updateProjectTaskDefaults(
     Session session,
-    int projectId, {
-    bool? skipPlanning,
-  }) async {
-    final project = await Project.db.findById(session, projectId);
-    if (project == null) {
-      throw NotFoundException(message: 'Project $projectId not found');
+    Project project,
+  ) async {
+    if (await Project.db.findById(session, project.id!) == null) {
+      throw NotFoundException(message: 'Project ${project.id} not found');
     }
     return Project.db.updateRow(
       session,
-      project.copyWith(skipPlanning: skipPlanning),
-      columns: (t) => [t.skipPlanning],
+      project,
+      columns: (t) => [t.skipPlanning, t.autoReview, t.reviewerAgentId],
     );
   }
 
@@ -52,6 +53,8 @@ class SettingsEndpoint extends Endpoint {
     final workspace = await workspaceSettings(session);
     return TaskDefaults(
       skipPlanning: project.skipPlanning ?? workspace.skipPlanning,
+      autoReview: project.autoReview ?? workspace.autoReview,
+      reviewerAgentId: project.reviewerAgentId ?? workspace.reviewerAgentId,
     );
   }
 }

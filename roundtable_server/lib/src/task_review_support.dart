@@ -11,6 +11,9 @@ import 'github_repo_client.dart';
 /// (`TaskEndpoint.watchAssignedTasks`).
 String taskChannelForMachine(int machineId) => 'machine-$machineId-tasks';
 
+/// Channel the panel's `TaskEndpoint.watchLogs` listens on.
+String channelForTaskLogs(int taskId) => 'task-$taskId-logs';
+
 /// Records review-phase feedback on [task] (docs/FLOWS.md §4)
 /// and wakes its agent's daemon via the same channel `createTask` uses —
 /// the daemon picks it up through its `watchAssignedTasks` subscription and
@@ -214,4 +217,88 @@ Future<CodeReview> postReviewChanged(Session session, int reviewId) async {
     review,
   );
   return review;
+}
+
+/// Adds a system event to [taskId]'s timeline, inside its latest run (an
+/// entry without a run would land in a separate legacy run).
+Future<void> logTaskEvent(Session session, int taskId, String text) async {
+  final latest = await TaskLogEntry.db.findFirstRow(
+    session,
+    where: (e) =>
+        e.taskId.equals(taskId) &
+        e.runId.notEquals(null) &
+        e.reviewId.equals(null),
+    orderBy: (e) => e.createdAt.desc(),
+  );
+  final entry = await TaskLogEntry.db.insertRow(
+    session,
+    TaskLogEntry(
+      taskId: taskId,
+      content: text,
+      source: LogSource.system,
+      kind: LogKind.event,
+      runId: latest?.runId,
+      phase: latest?.phase,
+    ),
+  );
+  await session.messages.postMessage(channelForTaskLogs(taskId), entry);
+}
+
+/// Channel a machine's daemon receives its assigned reviews on
+/// (`CodeReviewEndpoint.watchAssignedReviews`).
+String reviewChannelForMachine(int machineId) => 'machine-$machineId-reviews';
+
+/// Queues a review of [task]'s PR by [reviewer] and wakes its daemon.
+Future<CodeReview> queueCodeReview(
+  Session session,
+  Task task,
+  Agent reviewer,
+) async {
+  var review = await CodeReview.db.insertRow(
+    session,
+    CodeReview(taskId: task.id!, reviewerAgentId: reviewer.id!),
+  );
+  await session.messages.postMessage(
+    reviewChannelForMachine(reviewer.machineId),
+    review,
+  );
+  return postReviewChanged(session, review.id!);
+}
+
+/// Auto review (`Task.autoReview`): queues a review of the version a run
+/// just left awaiting review. Best effort — a missing reviewer or a review
+/// already in flight is noted on the timeline instead of failing the run.
+Future<void> autoReviewIfEnabled(Session session, Task task) async {
+  final reviewerId = task.reviewerAgentId;
+  if (!task.autoReview || task.prUrl == null) return;
+  try {
+    final reviewer = reviewerId == null
+        ? null
+        : await Agent.db.findById(session, reviewerId);
+    if (reviewer == null) {
+      await logTaskEvent(
+        session,
+        task.id!,
+        'Auto review skipped — no reviewer agent is set',
+      );
+      return;
+    }
+    final active = await CodeReview.db.count(
+      session,
+      where: (r) =>
+          r.taskId.equals(task.id!) & r.status.inSet(activeCodeReviewStatuses),
+    );
+    if (active > 0) return;
+    await queueCodeReview(session, task, reviewer);
+    await logTaskEvent(
+      session,
+      task.id!,
+      'Auto review requested from ${reviewer.name}',
+    );
+  } catch (e) {
+    session.log(
+      'Auto review of task ${task.id} failed: $e',
+      level: LogLevel.warning,
+    );
+  }
 }

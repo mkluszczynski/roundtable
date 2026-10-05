@@ -833,17 +833,14 @@ class EndpointSettings extends _isc.EndpointRef {
     {'settings': settings},
   );
 
-  /// Sets a project's overrides; a null field inherits the workspace value.
+  /// Saves [project]'s task-default overrides (a null field inherits the
+  /// workspace value); its other fields are ignored.
   _ida.Future<_i76mncv2.Project> updateProjectTaskDefaults(
-    int projectId, {
-    bool? skipPlanning,
-  }) => caller.callServerEndpoint<_i76mncv2.Project>(
+    _i76mncv2.Project project,
+  ) => caller.callServerEndpoint<_i76mncv2.Project>(
     'settings',
     'updateProjectTaskDefaults',
-    {
-      'projectId': projectId,
-      'skipPlanning': skipPlanning,
-    },
+    {'project': project},
   );
 
   /// The options a new task in [projectId] starts with.
@@ -922,6 +919,8 @@ class EndpointTask extends _isc.EndpointRef {
     int? agentId,
     String prompt, {
     required bool skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
     List<int>? attachmentIds,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
@@ -931,6 +930,8 @@ class EndpointTask extends _isc.EndpointRef {
       'agentId': agentId,
       'prompt': prompt,
       'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      'reviewerAgentId': reviewerAgentId,
       'attachmentIds': attachmentIds,
     },
   );

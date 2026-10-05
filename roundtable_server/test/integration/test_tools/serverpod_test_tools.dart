@@ -1965,9 +1965,8 @@ class _SettingsEndpoint {
 
   _ida.Future<_ii35q81x.Project> updateProjectTaskDefaults(
     _ist.TestSessionBuilder sessionBuilder,
-    int projectId, {
-    bool? skipPlanning,
-  }) async {
+    _ii35q81x.Project project,
+  ) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1979,10 +1978,7 @@ class _SettingsEndpoint {
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'settings',
           methodName: 'updateProjectTaskDefaults',
-          parameters: _ist.testObjectToJson({
-            'projectId': projectId,
-            'skipPlanning': skipPlanning,
-          }),
+          parameters: _ist.testObjectToJson({'project': project}),
           serializationManager: _serializationManager,
         );
         var _localReturnValue =
@@ -2185,6 +2181,8 @@ class _TaskEndpoint {
     int? agentId,
     String prompt, {
     required bool skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
     List<int>? attachmentIds,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
@@ -2203,6 +2201,8 @@ class _TaskEndpoint {
             'agentId': agentId,
             'prompt': prompt,
             'skipPlanning': skipPlanning,
+            'autoReview': autoReview,
+            'reviewerAgentId': reviewerAgentId,
             'attachmentIds': attachmentIds,
           }),
           serializationManager: _serializationManager,

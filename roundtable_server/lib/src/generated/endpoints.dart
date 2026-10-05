@@ -1208,15 +1208,10 @@ class Endpoints extends _is.EndpointDispatch {
         'updateProjectTaskDefaults': _is.MethodConnector(
           name: 'updateProjectTaskDefaults',
           params: {
-            'projectId': _is.ParameterDescription(
-              name: 'projectId',
-              type: _is.getType<int>(),
+            'project': _is.ParameterDescription(
+              name: 'project',
+              type: _is.getType<_ii35q81x.Project>(),
               nullable: false,
-            ),
-            'skipPlanning': _is.ParameterDescription(
-              name: 'skipPlanning',
-              type: _is.getType<bool?>(),
-              nullable: true,
             ),
           },
           call:
@@ -1226,8 +1221,7 @@ class Endpoints extends _is.EndpointDispatch {
               ) async => (endpoints['settings'] as _ivmxe84z.SettingsEndpoint)
                   .updateProjectTaskDefaults(
                     session,
-                    params['projectId'],
-                    skipPlanning: params['skipPlanning'],
+                    params['project'],
                   ),
         ),
         'taskDefaults': _is.MethodConnector(
@@ -1374,6 +1368,16 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<bool>(),
               nullable: false,
             ),
+            'autoReview': _is.ParameterDescription(
+              name: 'autoReview',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'reviewerAgentId': _is.ParameterDescription(
+              name: 'reviewerAgentId',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
             'attachmentIds': _is.ParameterDescription(
               name: 'attachmentIds',
               type: _is.getType<List<int>?>(),
@@ -1391,6 +1395,8 @@ class Endpoints extends _is.EndpointDispatch {
                     params['agentId'],
                     params['prompt'],
                     skipPlanning: params['skipPlanning'],
+                    autoReview: params['autoReview'],
+                    reviewerAgentId: params['reviewerAgentId'],
                     attachmentIds: params['attachmentIds'],
                   ),
         ),

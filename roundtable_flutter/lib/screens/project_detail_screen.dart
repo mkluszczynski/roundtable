@@ -20,6 +20,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
 import '../widgets/pill_selector.dart';
+import '../widgets/reviewer_select.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/update_token_dialog.dart';
@@ -525,7 +526,7 @@ class _TaskStats extends StatelessWidget {
 }
 
 /// The project's overrides of the workspace task defaults: each option is
-/// inherited (showing the workspace value) or forced on/off.
+/// inherited (showing the workspace value) or set for this project.
 class _TaskDefaults extends StatefulWidget {
   const _TaskDefaults({required this.project});
 
@@ -537,7 +538,7 @@ class _TaskDefaults extends StatefulWidget {
 
 class _TaskDefaultsState extends State<_TaskDefaults> {
   late final _repository = SettingsRepository(client);
-  late bool? _skipPlanning = widget.project.skipPlanning;
+  late Project _project = widget.project;
   WorkspaceSettings? _workspace;
 
   @override
@@ -548,51 +549,83 @@ class _TaskDefaultsState extends State<_TaskDefaults> {
     }).ignore();
   }
 
-  Future<void> _setSkipPlanning(bool? value) async {
-    final previous = _skipPlanning;
-    setState(() => _skipPlanning = value);
+  Future<void> _save(Project updated) async {
+    final previous = _project;
+    setState(() => _project = updated);
     try {
-      await _repository.updateProjectTaskDefaults(
-        widget.project.id!,
-        skipPlanning: value,
-      );
+      await _repository.updateProjectTaskDefaults(updated);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _skipPlanning = previous);
+      setState(() => _project = previous);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Couldn't save: ${errorMessage(e)}")),
       );
     }
   }
 
-  String _inheritLabel(bool? workspaceValue) => workspaceValue == null
-      ? 'Workspace'
-      : 'Workspace (${workspaceValue ? 'on' : 'off'})';
+  Widget _boolOverride({
+    required TaskOptionInfo option,
+    required bool? value,
+    required bool? workspaceValue,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Tooltip(
+            message: option.description,
+            child: Text(option.title, style: AppTypography.body),
+          ),
+          const SizedBox(height: Spacing.sm),
+          PillSelector<bool?>(
+            options: const [null, true, false],
+            labelBuilder: (v) => switch (v) {
+              null =>
+                workspaceValue == null
+                    ? 'Workspace'
+                    : 'Workspace (${workspaceValue ? 'on' : 'off'})',
+              true => 'On',
+              false => 'Off',
+            },
+            selected: value,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Pre-filled in the new-task form.',
-          style: AppTypography.caption,
-        ),
+        Text('Pre-filled in the new-task form.', style: AppTypography.caption),
         const SizedBox(height: Spacing.md),
+        _boolOverride(
+          option: skipPlanningOption,
+          value: _project.skipPlanning,
+          workspaceValue: _workspace?.skipPlanning,
+          onChanged: (v) => _save(_project.copyWith(skipPlanning: v)),
+        ),
+        _boolOverride(
+          option: autoReviewOption,
+          value: _project.autoReview,
+          workspaceValue: _workspace?.autoReview,
+          onChanged: (v) => _save(_project.copyWith(autoReview: v)),
+        ),
         Tooltip(
-          message: skipPlanningOption.description,
-          child: Text(skipPlanningOption.title, style: AppTypography.body),
+          message: reviewerOption.description,
+          child: Text(reviewerOption.title, style: AppTypography.body),
         ),
         const SizedBox(height: Spacing.sm),
-        PillSelector<bool?>(
-          options: const [null, true, false],
-          labelBuilder: (v) => switch (v) {
-            null => _inheritLabel(_workspace?.skipPlanning),
-            true => 'On',
-            false => 'Off',
-          },
-          selected: _skipPlanning,
-          onChanged: _setSkipPlanning,
+        ReviewerSelect(
+          width: double.infinity,
+          selected: _project.reviewerAgentId,
+          noneLabel: 'Workspace default',
+          onChanged: (id) => _save(_project.copyWith(reviewerAgentId: id)),
         ),
       ],
     );

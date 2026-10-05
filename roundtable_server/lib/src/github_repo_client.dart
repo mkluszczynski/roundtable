@@ -359,11 +359,12 @@ class GitHubRepoClient {
     required String token,
   }) async {
     final runs = await _listAllPages(
-      (page) => Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
-        'head_sha': headSha,
-        'per_page': '100',
-        'page': '$page',
-      }),
+      (page) =>
+          Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
+            'head_sha': headSha,
+            'per_page': '100',
+            'page': '$page',
+          }),
       token,
       itemsKey: 'workflow_runs',
       errorMessage: 'Failed to list workflow runs for $owner/$repo@$headSha',
