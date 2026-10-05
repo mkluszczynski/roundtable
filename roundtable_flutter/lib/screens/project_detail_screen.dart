@@ -7,8 +7,6 @@ import '../client.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../repositories/project_repository.dart';
-import '../repositories/settings_repository.dart';
-import '../utils/task_options.dart';
 import '../utils/error_message.dart';
 import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
@@ -19,8 +17,7 @@ import '../widgets/add_project_dialog.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
-import '../widgets/pill_selector.dart';
-import '../widgets/reviewer_select.dart';
+import '../widgets/project_settings_dialog.dart';
 import '../widgets/rail_section.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/update_token_dialog.dart';
@@ -328,10 +325,6 @@ class _ProjectRail extends StatelessWidget {
                   label: 'Tasks',
                   child: _TaskStats(columns: columns),
                 ),
-                RailSection(
-                  label: 'Task defaults',
-                  child: _TaskDefaults(project: project),
-                ),
               ],
             ),
           ),
@@ -344,6 +337,19 @@ class _ProjectRail extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  // Settings save as they change, so reload however it closes.
+                  await showDialog<Project>(
+                    context: context,
+                    builder: (_) => ProjectSettingsDialog(project: project),
+                  );
+                  onChanged();
+                },
+                icon: const Icon(Icons.tune, size: 16),
+                label: const Text('Settings'),
+              ),
+              const SizedBox(height: Spacing.sm),
               OutlinedButton.icon(
                 onPressed: () async {
                   final saved = await showDialog<bool>(
@@ -520,174 +526,6 @@ class _TaskStats extends StatelessWidget {
             style: AppTypography.caption.copyWith(color: AppColors.accentSoft),
           ),
         ],
-      ],
-    );
-  }
-}
-
-/// The project's overrides of the workspace task defaults: each option is
-/// inherited (showing the workspace value) or set for this project.
-class _TaskDefaults extends StatefulWidget {
-  const _TaskDefaults({required this.project});
-
-  final Project project;
-
-  @override
-  State<_TaskDefaults> createState() => _TaskDefaultsState();
-}
-
-class _TaskDefaultsState extends State<_TaskDefaults> {
-  late final _repository = SettingsRepository(client);
-  late Project _project = widget.project;
-  WorkspaceSettings? _workspace;
-
-  @override
-  void initState() {
-    super.initState();
-    _repository.getWorkspace().then((w) {
-      if (mounted) setState(() => _workspace = w);
-    }).ignore();
-  }
-
-  Future<void> _save(Project updated) async {
-    final previous = _project;
-    setState(() => _project = updated);
-    try {
-      await _repository.updateProjectTaskDefaults(updated);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _project = previous);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't save: ${errorMessage(e)}")),
-      );
-    }
-  }
-
-  Widget _boolOverride({
-    required TaskOptionInfo option,
-    required bool? value,
-    required bool? workspaceValue,
-    required ValueChanged<bool?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tooltip(
-            message: option.description,
-            child: Text(option.title, style: AppTypography.body),
-          ),
-          const SizedBox(height: Spacing.sm),
-          PillSelector<bool?>(
-            options: const [null, true, false],
-            labelBuilder: (v) => switch (v) {
-              null =>
-                workspaceValue == null
-                    ? 'Workspace'
-                    : 'Workspace (${workspaceValue ? 'on' : 'off'})',
-              true => 'On',
-              false => 'Off',
-            },
-            selected: value,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _countOverride({
-    required TaskOptionInfo option,
-    required int? value,
-    required int? workspaceValue,
-    required ValueChanged<int?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tooltip(
-            message: option.description,
-            child: Text(option.title, style: AppTypography.body),
-          ),
-          const SizedBox(height: Spacing.sm),
-          PillSelector<int?>(
-            options: const [null, ...fixRoundChoices],
-            labelBuilder: (n) => n == null
-                ? (workspaceValue == null
-                      ? 'Workspace'
-                      : 'Workspace ($workspaceValue)')
-                : '$n',
-            selected: value,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Pre-filled in the new-task form.', style: AppTypography.caption),
-        const SizedBox(height: Spacing.md),
-        _boolOverride(
-          option: skipPlanningOption,
-          value: _project.skipPlanning,
-          workspaceValue: _workspace?.skipPlanning,
-          onChanged: (v) => _save(_project.copyWith(skipPlanning: v)),
-        ),
-        _boolOverride(
-          option: autoReviewOption,
-          value: _project.autoReview,
-          workspaceValue: _workspace?.autoReview,
-          onChanged: (v) => _save(_project.copyWith(autoReview: v)),
-        ),
-        _boolOverride(
-          option: autoFixOption,
-          value: _project.autoFixReview,
-          workspaceValue: _workspace?.autoFixReview,
-          onChanged: (v) => _save(_project.copyWith(autoFixReview: v)),
-        ),
-        _boolOverride(
-          option: autoMergeOption,
-          value: _project.autoMerge,
-          workspaceValue: _workspace?.autoMerge,
-          onChanged: (v) => _save(_project.copyWith(autoMerge: v)),
-        ),
-        _countOverride(
-          option: maxFixRoundsOption,
-          value: _project.maxReviewFixRounds,
-          workspaceValue: _workspace?.maxReviewFixRounds,
-          onChanged: (n) => _save(_project.copyWith(maxReviewFixRounds: n)),
-        ),
-        _boolOverride(
-          option: autoFixChecksOption,
-          value: _project.autoFixFailingChecks,
-          workspaceValue: _workspace?.autoFixFailingChecks,
-          onChanged: (v) => _save(_project.copyWith(autoFixFailingChecks: v)),
-        ),
-        _countOverride(
-          option: maxCheckFixAttemptsOption,
-          value: _project.maxCheckFixAttempts,
-          workspaceValue: _workspace?.maxCheckFixAttempts,
-          onChanged: (n) => _save(_project.copyWith(maxCheckFixAttempts: n)),
-        ),
-        Tooltip(
-          message: reviewerOption.description,
-          child: Text(reviewerOption.title, style: AppTypography.body),
-        ),
-        const SizedBox(height: Spacing.sm),
-        ReviewerSelect(
-          width: double.infinity,
-          selected: _project.reviewerAgentId,
-          noneLabel: 'Workspace default',
-          onChanged: (id) => _save(_project.copyWith(reviewerAgentId: id)),
-        ),
       ],
     );
   }

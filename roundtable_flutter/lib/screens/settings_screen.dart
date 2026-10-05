@@ -68,60 +68,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = _settings;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(Spacing.xl),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Settings', style: AppTypography.screenTitle),
-                const SizedBox(height: Spacing.xs),
-                Text(
-                  "Workspace defaults and agent roles",
-                  style: AppTypography.caption,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _loadError != null
-                ? LoadFailedView(
-                    title: "Couldn't load settings",
-                    message: errorMessage(_loadError!),
-                    onRetry: _load,
-                  )
-                : settings == null
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      Spacing.xl,
-                      0,
-                      Spacing.xl,
-                      Spacing.xl,
-                    ),
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 720),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _TaskDefaultsCard(
-                              settings: settings,
-                              onChanged: _save,
-                            ),
-                            const SizedBox(height: Spacing.xl),
-                            const _AgentRolesCard(),
-                          ],
-                        ),
+      body: _loadError != null
+          ? LoadFailedView(
+              title: "Couldn't load settings",
+              message: errorMessage(_loadError!),
+              onRetry: _load,
+            )
+          : settings == null
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(Spacing.xl),
+              // A centered reading column, like the task detail views.
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Settings', style: AppTypography.screenTitle),
+                      const SizedBox(height: Spacing.xs),
+                      Text(
+                        'Workspace defaults and agent roles',
+                        style: AppTypography.caption,
                       ),
-                    ),
+                      const SizedBox(height: Spacing.xl),
+                      _TaskDefaultsCard(settings: settings, onChanged: _save),
+                      const SizedBox(height: Spacing.xl),
+                      const _AgentRolesCard(),
+                    ],
                   ),
-          ),
-        ],
-      ),
+                ),
+              ),
+            ),
     );
   }
 }
@@ -132,8 +111,37 @@ class _TaskDefaultsCard extends StatelessWidget {
   final WorkspaceSettings settings;
   final ValueChanged<WorkspaceSettings> onChanged;
 
+  Widget _switch(TaskOptionInfo option, bool value, ValueChanged<bool> set) =>
+      SettingRow(
+        title: option.title,
+        description: option.description,
+        control: Switch(
+          value: value,
+          activeThumbColor: AppColors.accent,
+          onChanged: set,
+        ),
+      );
+
+  Widget _count(TaskOptionInfo option, int value, ValueChanged<int> set) =>
+      SettingRow(
+        title: option.title,
+        description: option.description,
+        control: PillSelector<int>(
+          options: fixRoundChoices,
+          labelBuilder: (n) => '$n',
+          selected: value,
+          onChanged: set,
+        ),
+      );
+
+  Widget _section(String label) => Padding(
+    padding: const EdgeInsets.only(top: Spacing.lg, bottom: Spacing.xs),
+    child: Text(label, style: AppTypography.label),
+  );
+
   @override
   Widget build(BuildContext context) {
+    final s = settings;
     return AppCard(
       padding: const EdgeInsets.all(Spacing.xl),
       child: Column(
@@ -149,88 +157,57 @@ class _TaskDefaultsCard extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.sm),
           Divider(color: AppColors.border, height: 1),
-          SettingRow(
-            title: skipPlanningOption.title,
-            description: skipPlanningOption.description,
-            control: Switch(
-              value: settings.skipPlanning,
-              activeThumbColor: AppColors.accent,
-              onChanged: (value) =>
-                  onChanged(settings.copyWith(skipPlanning: value)),
-            ),
+          _section('PLANNING'),
+          _switch(
+            skipPlanningOption,
+            s.skipPlanning,
+            (v) => onChanged(s.copyWith(skipPlanning: v)),
           ),
-          SettingRow(
-            title: autoReviewOption.title,
-            description: autoReviewOption.description,
-            control: Switch(
-              value: settings.autoReview,
-              activeThumbColor: AppColors.accent,
-              onChanged: (value) =>
-                  onChanged(settings.copyWith(autoReview: value)),
-            ),
+          _section('REVIEW'),
+          _switch(
+            autoReviewOption,
+            s.autoReview,
+            (v) => onChanged(s.copyWith(autoReview: v)),
           ),
           SettingRow(
             title: reviewerOption.title,
             description: reviewerOption.description,
             control: ReviewerSelect(
-              selected: settings.reviewerAgentId,
-              onChanged: (id) =>
-                  onChanged(settings.copyWith(reviewerAgentId: id)),
+              selected: s.reviewerAgentId,
+              onChanged: (id) => onChanged(s.copyWith(reviewerAgentId: id)),
             ),
           ),
-          SettingRow(
-            title: autoFixOption.title,
-            description: autoFixOption.description,
-            control: Switch(
-              value: settings.autoFixReview,
-              activeThumbColor: AppColors.accent,
-              onChanged: (value) =>
-                  onChanged(settings.copyWith(autoFixReview: value)),
-            ),
+          _switch(
+            autoFixOption,
+            s.autoFixReview,
+            (v) => onChanged(s.copyWith(autoFixReview: v)),
           ),
+          _count(
+            maxFixRoundsOption,
+            s.maxReviewFixRounds,
+            (n) => onChanged(s.copyWith(maxReviewFixRounds: n)),
+          ),
+          _section('MERGE & CI'),
           SettingRow(
             title: autoMergeOption.title,
-            description: settings.autoMerge && !settings.autoReview
+            description: s.autoMerge && !s.autoReview
                 ? autoMergeWithoutReviewHint
                 : autoMergeOption.description,
             control: Switch(
-              value: settings.autoMerge,
+              value: s.autoMerge,
               activeThumbColor: AppColors.accent,
-              onChanged: (value) =>
-                  onChanged(settings.copyWith(autoMerge: value)),
+              onChanged: (v) => onChanged(s.copyWith(autoMerge: v)),
             ),
           ),
-          SettingRow(
-            title: autoFixChecksOption.title,
-            description: autoFixChecksOption.description,
-            control: Switch(
-              value: settings.autoFixFailingChecks,
-              activeThumbColor: AppColors.accent,
-              onChanged: (value) =>
-                  onChanged(settings.copyWith(autoFixFailingChecks: value)),
-            ),
+          _switch(
+            autoFixChecksOption,
+            s.autoFixFailingChecks,
+            (v) => onChanged(s.copyWith(autoFixFailingChecks: v)),
           ),
-          SettingRow(
-            title: maxCheckFixAttemptsOption.title,
-            description: maxCheckFixAttemptsOption.description,
-            control: PillSelector<int>(
-              options: fixRoundChoices,
-              labelBuilder: (n) => '$n',
-              selected: settings.maxCheckFixAttempts,
-              onChanged: (n) =>
-                  onChanged(settings.copyWith(maxCheckFixAttempts: n)),
-            ),
-          ),
-          SettingRow(
-            title: maxFixRoundsOption.title,
-            description: maxFixRoundsOption.description,
-            control: PillSelector<int>(
-              options: fixRoundChoices,
-              labelBuilder: (n) => '$n',
-              selected: settings.maxReviewFixRounds,
-              onChanged: (n) =>
-                  onChanged(settings.copyWith(maxReviewFixRounds: n)),
-            ),
+          _count(
+            maxCheckFixAttemptsOption,
+            s.maxCheckFixAttempts,
+            (n) => onChanged(s.copyWith(maxCheckFixAttempts: n)),
           ),
         ],
       ),
