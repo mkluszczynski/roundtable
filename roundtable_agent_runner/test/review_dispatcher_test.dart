@@ -155,7 +155,10 @@ exit 0
           id: id,
           machineId: 1,
           name: 'Ana',
-          role: AgentRole.backend,
+          role: AgentRoleDefinition(
+            name: 'backend',
+            prompt: 'You are {name}, the backend specialist.',
+          ),
           status: AgentStatus.idle,
         ),
         startReview: (_) async => Task(
