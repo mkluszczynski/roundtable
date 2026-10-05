@@ -7,6 +7,7 @@ import 'claude_code_executor.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'stream_json_formatter.dart';
+import 'task_images.dart';
 import 'worktree_manager.dart';
 
 /// Runs an assigned [CodeReview]: checks the task's branch out read-only,
@@ -26,7 +27,15 @@ class ReviewDispatcher {
     required this.appendLog,
     required this.log,
     this.environmentPrompt,
+    this.fetchAttachments = _noAttachments,
   });
+
+  static Future<List<TaskImage>> _noAttachments(int taskId) async => const [];
+
+  /// The images attached to the task's prompt — part of the requirements the
+  /// reviewer checks the change against. Bound to `client.taskAttachment` in
+  /// production.
+  final Future<List<TaskImage>> Function(int taskId) fetchAttachments;
 
   /// Describes this machine to the reviewer (`--append-system-prompt`) —
   /// see `buildEnvironmentPrompt`. Null when not yet known.
@@ -76,6 +85,7 @@ class ReviewDispatcher {
     }
 
     final projectId = '${task.projectId}';
+    Directory? attachmentDir;
     try {
       final agent = await fetchAgent(agentId);
       final cloneUrl = await getCloneUrl(task.projectId);
@@ -90,6 +100,17 @@ class ReviewDispatcher {
         fetchUrl: cloneUrl,
       );
       log('review $reviewId: reviewing $branch at ${worktree.path}');
+
+      var imagePaths = const <String>[];
+      final images = await fetchAttachments(task.id!);
+      if (images.isNotEmpty) {
+        attachmentDir = await Directory.systemTemp.createTemp(
+          'roundtable-review-$reviewId-',
+        );
+        imagePaths = await writeTaskImages(attachmentDir, images);
+        log('review $reviewId: ${images.length} attached image(s)');
+      }
+
       final runId = newRunId('review-$reviewId');
       void append(LogItem item) {
         // The verdict JSON is shown as cards in the panel, not as text.
@@ -123,11 +144,13 @@ class ReviewDispatcher {
           rolePrompt: buildRolePrompt(agent),
           taskPrompt: task.prompt,
           baseSha: worktree.baseSha,
+          imagePaths: imagePaths,
         ),
         workingDirectory: worktree.path,
         oauthToken: oauthToken,
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
+        additionalDirectories: [?attachmentDir?.path],
         appendSystemPrompt: environmentPrompt?.call(),
         onLine: (line) => formatter.feedEntries(line).forEach(append),
       );
@@ -161,16 +184,23 @@ class ReviewDispatcher {
       } catch (e) {
         log('review $reviewId: could not remove worktree: $e');
       }
+      try {
+        await attachmentDir?.delete(recursive: true);
+      } catch (e) {
+        log('review $reviewId: could not remove attached images: $e');
+      }
     }
   }
 }
 
 /// The instructions given to the reviewer agent. The working tree is the
 /// task's branch; [baseSha] is where it forked off the default branch.
+/// [imagePaths] are the images attached to the task's prompt.
 String buildReviewPrompt({
   required String rolePrompt,
   required String taskPrompt,
   required String baseSha,
+  List<String> imagePaths = const [],
 }) =>
     '''
 $rolePrompt You are reviewing another agent's change. Do not modify any files.
@@ -179,12 +209,20 @@ The change was made for this task:
 <task>
 $taskPrompt
 </task>
-
+${_attachedImagesSection(imagePaths)}
 Inspect it with `git diff $baseSha...HEAD` and read surrounding code as needed. Look for bugs, missed requirements, security problems, and clear maintainability issues. Skip pure style preferences.
 
 End your reply with exactly one fenced ```json block of this shape:
 {"summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]}
 Use an empty comments list if the change is good.''';
+
+String _attachedImagesSection(List<String> imagePaths) {
+  if (imagePaths.isEmpty) return '';
+  final list = imagePaths.map((p) => '- $p').join('\n');
+  return '\nThe developer attached ${imagePaths.length} image(s) to this task '
+      '(screenshots or mockups). They are part of the requirements: open '
+      'each one with the Read tool before reviewing the change:\n$list\n';
+}
 
 /// Parses the reviewer's final reply: the last fenced ```json block (or the
 /// whole text, if it's bare JSON). Returns `null` if no valid block is found.

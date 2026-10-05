@@ -9,6 +9,7 @@ import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'usage_limit.dart';
 import 'stream_json_formatter.dart';
+import 'task_images.dart';
 import 'worktree_manager.dart';
 
 /// Runs an assigned [Task]: worktree, Claude Code (planning, execution, or a
@@ -319,12 +320,7 @@ class TaskDispatcher {
           final dir = await Directory(
             '${mcpConfigDir.path}/attachments',
           ).create();
-          final paths = <String>[];
-          for (final (i, image) in images.indexed) {
-            final file = File('${dir.path}/${i + 1}-${image.fileName}');
-            await file.writeAsBytes(image.bytes);
-            paths.add(file.path);
-          }
+          final paths = await writeTaskImages(dir, images);
           attachmentDirs.add(dir.path);
           prompt = attachedImagesPrompt(prompt, paths);
           log('task ${task.id}: ${images.length} attached image(s)');
@@ -536,19 +532,6 @@ class TaskDispatcher {
 String _shortSummary(String prompt) {
   final firstLine = prompt.trim().split('\n').first;
   return firstLine.length > 72 ? '${firstLine.substring(0, 69)}...' : firstLine;
-}
-
-/// An image attached to a task's prompt, as downloaded by the runner.
-typedef TaskImage = ({String fileName, List<int> bytes});
-
-/// [prompt] followed by the paths of the task's attached images and an
-/// instruction to look at them before starting.
-String attachedImagesPrompt(String prompt, List<String> paths) {
-  final list = paths.map((p) => '- $p').join('\n');
-  return '$prompt\n\n'
-      'The developer attached ${paths.length} image(s) to this task '
-      '(screenshots or mockups). Open each one with the Read tool before '
-      'you start, and use them to understand the request:\n$list';
 }
 
 /// The PR description: the task's prompt, then the agent's final message —

@@ -10,6 +10,7 @@ import 'src/review_dispatcher.dart';
 import 'src/runner_update.dart';
 import 'src/environment_prompt.dart';
 import 'src/task_dispatcher.dart';
+import 'src/task_images.dart';
 import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
 
@@ -23,6 +24,7 @@ export 'src/stream_json_formatter.dart';
 export 'src/environment_prompt.dart';
 export 'src/log_entries.dart';
 export 'src/task_dispatcher.dart';
+export 'src/task_images.dart';
 export 'src/usage_limit.dart';
 export 'src/worktree_janitor.dart';
 export 'src/worktree_manager.dart';
@@ -206,6 +208,7 @@ class AgentRunnerService {
     appendLog: (entry) => _client.task.appendLogEntry(entry),
     log: _log,
     environmentPrompt: () => _environmentPrompt(review: true),
+    fetchAttachments: _fetchAttachments,
   );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
