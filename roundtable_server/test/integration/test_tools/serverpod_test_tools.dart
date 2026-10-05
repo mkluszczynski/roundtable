@@ -2186,6 +2186,8 @@ class _TaskEndpoint {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     List<int>? attachmentIds,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
@@ -2209,6 +2211,8 @@ class _TaskEndpoint {
             'autoFixReview': autoFixReview,
             'maxReviewFixRounds': maxReviewFixRounds,
             'autoMerge': autoMerge,
+            'autoFixFailingChecks': autoFixFailingChecks,
+            'maxCheckFixAttempts': maxCheckFixAttempts,
             'attachmentIds': attachmentIds,
           }),
           serializationManager: _serializationManager,

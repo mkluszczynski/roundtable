@@ -30,6 +30,10 @@ fields:
   ### latest version reviewed with no open blockers or issues. Turned off
   ### if GitHub refuses the merge, so the dev takes over.
   autoMerge: bool, default=false
+  ### Send failing CI checks to the agent without waiting for the dev —
+  ### once per commit, at most [maxCheckFixAttempts] times until they pass.
+  autoFixFailingChecks: bool, default=false
+  maxCheckFixAttempts: int, default=2
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?
@@ -67,7 +71,7 @@ fields:
   ### protection decides whether the PR can merge.
   checkError: String?
   ### Fix runs sent for failing checks since they last passed — caps the
-  ### project's auto-fix (`Project.maxCheckFixAttempts`).
+  ### task's auto-fix ([maxCheckFixAttempts]).
   checkFixAttempts: int, default=0
   ### The head commit whose failing checks were last sent to the agent, so
   ### the same failure is never auto-sent twice.

@@ -45,3 +45,14 @@ const autoMergeOption = TaskOptionInfo(
 /// Shown when auto merge is on without auto review.
 const autoMergeWithoutReviewHint =
     'Without auto review this merges as soon as CI passes — no review';
+
+const autoFixChecksOption = TaskOptionInfo(
+  'Auto fix CI',
+  'Send failing GitHub Actions checks and their logs to the agent without '
+      'waiting',
+);
+
+const maxCheckFixAttemptsOption = TaskOptionInfo(
+  'CI fix attempts',
+  'How many automatic CI fix runs a task gets before handing over to you',
+);

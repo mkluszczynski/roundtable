@@ -40,6 +40,8 @@ abstract class Task
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -70,6 +72,8 @@ abstract class Task
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        reviewFixRounds = reviewFixRounds ?? 0,
        autoMerge = autoMerge ?? false,
+       autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -91,6 +95,8 @@ abstract class Task
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -153,6 +159,12 @@ abstract class Task
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -277,6 +289,12 @@ abstract class Task
   /// if GitHub refuses the merge, so the dev takes over.
   bool autoMerge;
 
+  /// Send failing CI checks to the agent without waiting for the dev —
+  /// once per commit, at most [maxCheckFixAttempts] times until they pass.
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -328,7 +346,7 @@ abstract class Task
   String? checkError;
 
   /// Fix runs sent for failing checks since they last passed — caps the
-  /// project's auto-fix (`Project.maxCheckFixAttempts`).
+  /// task's auto-fix ([maxCheckFixAttempts]).
   int checkFixAttempts;
 
   /// The head commit whose failing checks were last sent to the agent, so
@@ -371,6 +389,8 @@ abstract class Task
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -414,6 +434,8 @@ abstract class Task
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -463,6 +485,8 @@ abstract class Task
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -522,6 +546,8 @@ class _TaskImpl extends Task {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -561,6 +587,8 @@ class _TaskImpl extends Task {
          maxReviewFixRounds: maxReviewFixRounds,
          reviewFixRounds: reviewFixRounds,
          autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -606,6 +634,8 @@ class _TaskImpl extends Task {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -652,6 +682,8 @@ class _TaskImpl extends Task {
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?

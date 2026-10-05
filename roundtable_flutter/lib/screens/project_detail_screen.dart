@@ -597,6 +597,37 @@ class _TaskDefaultsState extends State<_TaskDefaults> {
     );
   }
 
+  Widget _countOverride({
+    required TaskOptionInfo option,
+    required int? value,
+    required int? workspaceValue,
+    required ValueChanged<int?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Tooltip(
+            message: option.description,
+            child: Text(option.title, style: AppTypography.body),
+          ),
+          const SizedBox(height: Spacing.sm),
+          PillSelector<int?>(
+            options: const [null, ...fixRoundChoices],
+            labelBuilder: (n) => n == null
+                ? (workspaceValue == null
+                      ? 'Workspace'
+                      : 'Workspace ($workspaceValue)')
+                : '$n',
+            selected: value,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -628,22 +659,24 @@ class _TaskDefaultsState extends State<_TaskDefaults> {
           workspaceValue: _workspace?.autoMerge,
           onChanged: (v) => _save(_project.copyWith(autoMerge: v)),
         ),
-        Tooltip(
-          message: maxFixRoundsOption.description,
-          child: Text(maxFixRoundsOption.title, style: AppTypography.body),
-        ),
-        const SizedBox(height: Spacing.sm),
-        PillSelector<int?>(
-          options: const [null, ...fixRoundChoices],
-          labelBuilder: (n) => n == null
-              ? (_workspace == null
-                    ? 'Workspace'
-                    : 'Workspace (${_workspace!.maxReviewFixRounds})')
-              : '$n',
-          selected: _project.maxReviewFixRounds,
+        _countOverride(
+          option: maxFixRoundsOption,
+          value: _project.maxReviewFixRounds,
+          workspaceValue: _workspace?.maxReviewFixRounds,
           onChanged: (n) => _save(_project.copyWith(maxReviewFixRounds: n)),
         ),
-        const SizedBox(height: Spacing.md),
+        _boolOverride(
+          option: autoFixChecksOption,
+          value: _project.autoFixFailingChecks,
+          workspaceValue: _workspace?.autoFixFailingChecks,
+          onChanged: (v) => _save(_project.copyWith(autoFixFailingChecks: v)),
+        ),
+        _countOverride(
+          option: maxCheckFixAttemptsOption,
+          value: _project.maxCheckFixAttempts,
+          workspaceValue: _workspace?.maxCheckFixAttempts,
+          onChanged: (n) => _save(_project.copyWith(maxCheckFixAttempts: n)),
+        ),
         Tooltip(
           message: reviewerOption.description,
           child: Text(reviewerOption.title, style: AppTypography.body),

@@ -40,6 +40,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -70,6 +72,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        reviewFixRounds = reviewFixRounds ?? 0,
        autoMerge = autoMerge ?? false,
+       autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -91,6 +95,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -153,6 +159,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -277,6 +289,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// if GitHub refuses the merge, so the dev takes over.
   bool autoMerge;
 
+  /// Send failing CI checks to the agent without waiting for the dev —
+  /// once per commit, at most [maxCheckFixAttempts] times until they pass.
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -328,7 +346,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   String? checkError;
 
   /// Fix runs sent for failing checks since they last passed — caps the
-  /// project's auto-fix (`Project.maxCheckFixAttempts`).
+  /// task's auto-fix ([maxCheckFixAttempts]).
   int checkFixAttempts;
 
   /// The head commit whose failing checks were last sent to the agent, so
@@ -374,6 +392,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -417,6 +437,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -466,6 +488,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'maxReviewFixRounds': maxReviewFixRounds,
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -563,6 +587,8 @@ class _TaskImpl extends Task {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -602,6 +628,8 @@ class _TaskImpl extends Task {
          maxReviewFixRounds: maxReviewFixRounds,
          reviewFixRounds: reviewFixRounds,
          autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -647,6 +675,8 @@ class _TaskImpl extends Task {
     int? maxReviewFixRounds,
     int? reviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -693,6 +723,8 @@ class _TaskImpl extends Task {
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -791,6 +823,17 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<bool, bool> autoMerge(bool value) => _is.ColumnValue(
     table.autoMerge,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool value) =>
+      _is.ColumnValue(
+        table.autoFixFailingChecks,
+        value,
+      );
+
+  _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
+    table.maxCheckFixAttempts,
     value,
   );
 
@@ -960,6 +1003,16 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoFixFailingChecks = _is.ColumnBool(
+      'autoFixFailingChecks',
+      this,
+      hasDefault: true,
+    );
+    maxCheckFixAttempts = _is.ColumnInt(
+      'maxCheckFixAttempts',
+      this,
+      hasDefault: true,
+    );
     status = _is.ColumnEnum(
       'status',
       this,
@@ -1096,6 +1149,12 @@ class TaskTable extends _is.Table<int?> {
   /// if GitHub refuses the merge, so the dev takes over.
   late final _is.ColumnBool autoMerge;
 
+  /// Send failing CI checks to the agent without waiting for the dev —
+  /// once per commit, at most [maxCheckFixAttempts] times until they pass.
+  late final _is.ColumnBool autoFixFailingChecks;
+
+  late final _is.ColumnInt maxCheckFixAttempts;
+
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -1147,7 +1206,7 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnString checkError;
 
   /// Fix runs sent for failing checks since they last passed — caps the
-  /// project's auto-fix (`Project.maxCheckFixAttempts`).
+  /// task's auto-fix ([maxCheckFixAttempts]).
   late final _is.ColumnInt checkFixAttempts;
 
   /// The head commit whose failing checks were last sent to the agent, so
@@ -1360,6 +1419,8 @@ class TaskTable extends _is.Table<int?> {
     maxReviewFixRounds,
     reviewFixRounds,
     autoMerge,
+    autoFixFailingChecks,
+    maxCheckFixAttempts,
     status,
     currentPlan,
     failureReason,

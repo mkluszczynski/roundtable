@@ -43,6 +43,8 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
     bool autoFixReview = false,
     int? maxReviewFixRounds,
     bool autoMerge = false,
+    bool autoFixFailingChecks = false,
+    int? maxCheckFixAttempts,
     List<int> attachmentIds = const [],
   }) async {
     emit(const CreateTaskSubmitting());
@@ -57,6 +59,8 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
         autoFixReview: autoFixReview,
         maxReviewFixRounds: maxReviewFixRounds,
         autoMerge: autoMerge,
+        autoFixFailingChecks: autoFixFailingChecks,
+        maxCheckFixAttempts: maxCheckFixAttempts,
         attachmentIds: attachmentIds,
       );
       emit(CreateTaskSuccess(task));

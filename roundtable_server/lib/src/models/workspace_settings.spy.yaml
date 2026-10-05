@@ -14,4 +14,7 @@ fields:
   maxReviewFixRounds: int, default=2
   ### Default for Task.autoMerge on new tasks.
   autoMerge: bool, default=false
+  ### Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts.
+  autoFixFailingChecks: bool, default=false
+  maxCheckFixAttempts: int, default=2
   updatedAt: DateTime, default=now

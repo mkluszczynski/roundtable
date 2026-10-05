@@ -34,17 +34,12 @@ class ProjectEndpoint extends Endpoint {
     return Project.db.find(session);
   }
 
-  /// Edits a project's name, repo URL, docker image and CI auto-fix
-  /// settings. The access token goes through [updateRepoAccessToken]
-  /// instead.
+  /// Edits a project's name, repo URL and docker image. The access token
+  /// goes through [updateRepoAccessToken], task defaults through
+  /// `SettingsEndpoint.updateProjectTaskDefaults`.
   Future<Project> update(Session session, Project project) async {
     if (await Project.db.findById(session, project.id!) == null) {
       throw NotFoundException(message: 'Project ${project.id} not found');
-    }
-    if (project.maxCheckFixAttempts < 0) {
-      throw InvalidStateException(
-        message: 'maxCheckFixAttempts cannot be negative',
-      );
     }
     return Project.db.updateRow(
       session,
@@ -53,8 +48,6 @@ class ProjectEndpoint extends Endpoint {
         t.name,
         t.repoUrl,
         t.dockerImage,
-        t.autoFixFailingChecks,
-        t.maxCheckFixAttempts,
       ],
     );
   }

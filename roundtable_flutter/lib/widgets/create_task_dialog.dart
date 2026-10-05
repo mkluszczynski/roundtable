@@ -88,6 +88,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   bool _autoFix = false;
   int _maxFixRounds = 2;
   bool _autoMerge = false;
+  bool _autoFixChecks = false;
+  int _maxCheckFixAttempts = 2;
 
   /// The project's resolved defaults, once loaded — [_skipPlanning] follows
   /// them until the dev changes it by hand.
@@ -134,6 +136,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
           _autoFix = defaults.autoFixReview;
           _maxFixRounds = defaults.maxReviewFixRounds;
           _autoMerge = defaults.autoMerge;
+          _autoFixChecks = defaults.autoFixFailingChecks;
+          _maxCheckFixAttempts = defaults.maxCheckFixAttempts;
         }
       });
     } catch (_) {
@@ -162,6 +166,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     autoFix: _autoFix,
     maxFixRounds: _maxFixRounds,
     autoMerge: _autoMerge,
+    autoFixChecks: _autoFixChecks,
+    maxCheckFixAttempts: _maxCheckFixAttempts,
     defaults: _defaults,
   );
 
@@ -267,6 +273,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           autoFixReview: _autoFix,
                           maxReviewFixRounds: _maxFixRounds,
                           autoMerge: _autoMerge,
+                          autoFixFailingChecks: _autoFixChecks,
+                          maxCheckFixAttempts: _maxCheckFixAttempts,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -490,6 +498,38 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                       _autoMerge = value ?? false;
                     }),
                   ),
+                if (_advancedOpen)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _autoFixChecks,
+                    activeColor: AppColors.accent,
+                    title: Text(autoFixChecksOption.title),
+                    subtitle: Text(autoFixChecksOption.description),
+                    onChanged: (value) => setState(() {
+                      _optionsEdited = true;
+                      _autoFixChecks = value ?? false;
+                    }),
+                  ),
+                if (_advancedOpen && _autoFixChecks)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          maxCheckFixAttemptsOption.title,
+                          style: AppTypography.body,
+                        ),
+                      ),
+                      PillSelector<int>(
+                        options: fixRoundChoices,
+                        labelBuilder: (n) => '$n',
+                        selected: _maxCheckFixAttempts,
+                        onChanged: (n) => setState(() {
+                          _optionsEdited = true;
+                          _maxCheckFixAttempts = n;
+                        }),
+                      ),
+                    ],
+                  ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
                     if (state is CreateTaskError) {
@@ -522,6 +562,8 @@ String _summaryFor({
   required bool autoFix,
   required int maxFixRounds,
   required bool autoMerge,
+  required bool autoFixChecks,
+  required int maxCheckFixAttempts,
   TaskDefaults? defaults,
 }) {
   final on = [
@@ -529,6 +571,7 @@ String _summaryFor({
     if (autoReview) autoReviewOption.title,
     if (autoFix) 'Auto fix ×$maxFixRounds',
     if (autoMerge) autoMergeOption.title,
+    if (autoFixChecks) 'Auto fix CI ×$maxCheckFixAttempts',
   ];
   final text = on.join(' · ');
   final custom =
@@ -538,7 +581,10 @@ String _summaryFor({
           defaults.reviewerAgentId != reviewerAgentId ||
           defaults.autoFixReview != autoFix ||
           (autoFix && defaults.maxReviewFixRounds != maxFixRounds) ||
-          defaults.autoMerge != autoMerge);
+          defaults.autoMerge != autoMerge ||
+          defaults.autoFixFailingChecks != autoFixChecks ||
+          (autoFixChecks &&
+              defaults.maxCheckFixAttempts != maxCheckFixAttempts));
   return custom ? '$text — changed from project defaults' : text;
 }
 

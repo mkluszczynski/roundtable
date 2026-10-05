@@ -27,12 +27,16 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        autoMerge = autoMerge ?? false,
+       autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -44,6 +48,8 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -69,6 +75,12 @@ abstract class WorkspaceSettings
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -99,6 +111,11 @@ abstract class WorkspaceSettings
   /// Default for Task.autoMerge on new tasks.
   bool autoMerge;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts.
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   DateTime updatedAt;
 
   /// Returns a shallow copy of this [WorkspaceSettings]
@@ -113,6 +130,8 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   });
   @override
@@ -127,6 +146,8 @@ abstract class WorkspaceSettings
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -144,6 +165,8 @@ abstract class WorkspaceSettings
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -166,6 +189,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -176,6 +201,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
          updatedAt: updatedAt,
        );
 
@@ -192,6 +219,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -207,6 +236,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

@@ -8,3 +8,5 @@ fields:
   autoFixReview: bool
   maxReviewFixRounds: int
   autoMerge: bool
+  autoFixFailingChecks: bool
+  maxCheckFixAttempts: int

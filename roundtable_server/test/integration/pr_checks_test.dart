@@ -80,8 +80,6 @@ void main() {
           name: 'Roundtable',
           repoUrl: 'https://github.com/example/roundtable',
           repoAccessToken: 'token',
-          autoFixFailingChecks: autoFix,
-          maxCheckFixAttempts: maxAttempts,
         ),
       );
       final agent = await Agent.db.insertRow(
@@ -99,6 +97,8 @@ void main() {
           branchName: 'task-1',
           prUrl: _prUrl,
           finishedAt: DateTime.now().toUtc(),
+          autoFixFailingChecks: autoFix,
+          maxCheckFixAttempts: maxAttempts,
         ),
       );
     }

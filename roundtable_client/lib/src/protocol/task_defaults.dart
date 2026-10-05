@@ -23,6 +23,8 @@ abstract class TaskDefaults
     required this.autoFixReview,
     required this.maxReviewFixRounds,
     required this.autoMerge,
+    required this.autoFixFailingChecks,
+    required this.maxCheckFixAttempts,
   });
 
   factory TaskDefaults({
@@ -32,6 +34,8 @@ abstract class TaskDefaults
     required bool autoFixReview,
     required int maxReviewFixRounds,
     required bool autoMerge,
+    required bool autoFixFailingChecks,
+    required int maxCheckFixAttempts,
   }) = _TaskDefaultsImpl;
 
   factory TaskDefaults.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -50,6 +54,10 @@ abstract class TaskDefaults
       autoMerge: _isc.BoolJsonExtension.fromJson(
         jsonSerialization['autoMerge'],
       ),
+      autoFixFailingChecks: _isc.BoolJsonExtension.fromJson(
+        jsonSerialization['autoFixFailingChecks'],
+      ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int,
     );
   }
 
@@ -65,6 +73,10 @@ abstract class TaskDefaults
 
   bool autoMerge;
 
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   /// Returns a shallow copy of this [TaskDefaults]
   /// with some or all fields replaced by the given arguments.
   @_isc.useResult
@@ -75,6 +87,8 @@ abstract class TaskDefaults
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -86,6 +100,8 @@ abstract class TaskDefaults
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
     };
   }
 
@@ -99,6 +115,8 @@ abstract class TaskDefaults
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
     };
   }
 
@@ -118,6 +136,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
     required bool autoFixReview,
     required int maxReviewFixRounds,
     required bool autoMerge,
+    required bool autoFixFailingChecks,
+    required int maxCheckFixAttempts,
   }) : super._(
          skipPlanning: skipPlanning,
          autoReview: autoReview,
@@ -125,6 +145,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
        );
 
   /// Returns a shallow copy of this [TaskDefaults]
@@ -138,6 +160,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
   }) {
     return TaskDefaults(
       skipPlanning: skipPlanning ?? this.skipPlanning,
@@ -148,6 +172,8 @@ class _TaskDefaultsImpl extends TaskDefaults {
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
     );
   }
 }

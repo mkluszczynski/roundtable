@@ -15,6 +15,8 @@ class TaskRepository {
     bool autoFixReview = false,
     int? maxReviewFixRounds,
     bool autoMerge = false,
+    bool autoFixFailingChecks = false,
+    int? maxCheckFixAttempts,
     List<int> attachmentIds = const [],
   }) => _client.task.createTask(
     projectId,
@@ -26,6 +28,8 @@ class TaskRepository {
     autoFixReview: autoFixReview,
     maxReviewFixRounds: maxReviewFixRounds,
     autoMerge: autoMerge,
+    autoFixFailingChecks: autoFixFailingChecks,
+    maxCheckFixAttempts: maxCheckFixAttempts,
     attachmentIds: attachmentIds,
   );
 

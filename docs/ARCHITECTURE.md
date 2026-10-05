@@ -96,7 +96,7 @@ erDiagram
 
 | Entity | Notable fields |
 |---|---|
-| `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused), `autoFixFailingChecks`, `maxCheckFixAttempts` |
+| `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (unused), task-default overrides (`skipPlanning`, `autoReview`, `reviewerAgent`, `autoFixReview`, `maxReviewFixRounds`, `autoMerge`, `autoFixFailingChecks`, `maxCheckFixAttempts` — null inherits `WorkspaceSettings`) |
 | `Machine` | `tokenHash` (**serverOnly**, unique index), `status` online/offline, `lastSeenAt`, `claudeExecutableOk/Error`, `runnerVersion`, `updateRequestedAt` |
 | `Agent` | `machine` (cascade on delete), `name`, `role`, `defaultModel`, `defaultEffort`, `executionMode` (only `native` is implemented), `status` |
 | `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `skipPlanning`, `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkError`, `checkFixAttempts`, `checkFixSentForSha` |

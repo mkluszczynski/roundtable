@@ -1393,6 +1393,16 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<bool?>(),
               nullable: true,
             ),
+            'autoFixFailingChecks': _is.ParameterDescription(
+              name: 'autoFixFailingChecks',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'maxCheckFixAttempts': _is.ParameterDescription(
+              name: 'maxCheckFixAttempts',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
             'attachmentIds': _is.ParameterDescription(
               name: 'attachmentIds',
               type: _is.getType<List<int>?>(),
@@ -1415,6 +1425,8 @@ class Endpoints extends _is.EndpointDispatch {
                     autoFixReview: params['autoFixReview'],
                     maxReviewFixRounds: params['maxReviewFixRounds'],
                     autoMerge: params['autoMerge'],
+                    autoFixFailingChecks: params['autoFixFailingChecks'],
+                    maxCheckFixAttempts: params['maxCheckFixAttempts'],
                     attachmentIds: params['attachmentIds'],
                   ),
         ),

@@ -187,6 +187,27 @@ class _TaskDefaultsCard extends StatelessWidget {
             ),
           ),
           SettingRow(
+            title: autoFixChecksOption.title,
+            description: autoFixChecksOption.description,
+            control: Switch(
+              value: settings.autoFixFailingChecks,
+              activeThumbColor: AppColors.accent,
+              onChanged: (value) =>
+                  onChanged(settings.copyWith(autoFixFailingChecks: value)),
+            ),
+          ),
+          SettingRow(
+            title: maxCheckFixAttemptsOption.title,
+            description: maxCheckFixAttemptsOption.description,
+            control: PillSelector<int>(
+              options: fixRoundChoices,
+              labelBuilder: (n) => '$n',
+              selected: settings.maxCheckFixAttempts,
+              onChanged: (n) =>
+                  onChanged(settings.copyWith(maxCheckFixAttempts: n)),
+            ),
+          ),
+          SettingRow(
             title: maxFixRoundsOption.title,
             description: maxFixRoundsOption.description,
             control: PillSelector<int>(

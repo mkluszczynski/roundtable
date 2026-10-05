@@ -761,9 +761,9 @@ class EndpointProject extends _isc.EndpointRef {
         {},
       );
 
-  /// Edits a project's name, repo URL, docker image and CI auto-fix
-  /// settings. The access token goes through [updateRepoAccessToken]
-  /// instead.
+  /// Edits a project's name, repo URL and docker image. The access token
+  /// goes through [updateRepoAccessToken], task defaults through
+  /// `SettingsEndpoint.updateProjectTaskDefaults`.
   _ida.Future<_i76mncv2.Project> update(_i76mncv2.Project project) =>
       caller.callServerEndpoint<_i76mncv2.Project>(
         'project',
@@ -924,6 +924,8 @@ class EndpointTask extends _isc.EndpointRef {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     List<int>? attachmentIds,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
@@ -938,6 +940,8 @@ class EndpointTask extends _isc.EndpointRef {
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'attachmentIds': attachmentIds,
     },
   );

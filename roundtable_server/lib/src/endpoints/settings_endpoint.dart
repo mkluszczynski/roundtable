@@ -26,6 +26,8 @@ class SettingsEndpoint extends Endpoint {
         autoFixReview: settings.autoFixReview,
         maxReviewFixRounds: settings.maxReviewFixRounds.clamp(1, 10),
         autoMerge: settings.autoMerge,
+        autoFixFailingChecks: settings.autoFixFailingChecks,
+        maxCheckFixAttempts: settings.maxCheckFixAttempts.clamp(1, 10),
         updatedAt: DateTime.now(),
       ),
     );
@@ -50,6 +52,8 @@ class SettingsEndpoint extends Endpoint {
         t.autoFixReview,
         t.maxReviewFixRounds,
         t.autoMerge,
+        t.autoFixFailingChecks,
+        t.maxCheckFixAttempts,
       ],
     );
   }
@@ -69,6 +73,10 @@ class SettingsEndpoint extends Endpoint {
       maxReviewFixRounds:
           project.maxReviewFixRounds ?? workspace.maxReviewFixRounds,
       autoMerge: project.autoMerge ?? workspace.autoMerge,
+      autoFixFailingChecks:
+          project.autoFixFailingChecks ?? workspace.autoFixFailingChecks,
+      maxCheckFixAttempts:
+          project.maxCheckFixAttempts ?? workspace.maxCheckFixAttempts,
     );
   }
 }

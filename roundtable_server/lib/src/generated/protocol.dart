@@ -668,16 +668,14 @@ class Protocol extends _is.DatabaseSerializationManager {
         _isp.ColumnDefinition(
           name: 'autoFixFailingChecks',
           columnType: _isp.ColumnType.boolean,
-          isNullable: false,
-          dartType: 'bool',
-          columnDefault: 'false',
+          isNullable: true,
+          dartType: 'bool?',
         ),
         _isp.ColumnDefinition(
           name: 'maxCheckFixAttempts',
           columnType: _isp.ColumnType.bigint,
-          isNullable: false,
-          dartType: 'int',
-          columnDefault: '2',
+          isNullable: true,
+          dartType: 'int?',
         ),
         _isp.ColumnDefinition(
           name: 'skipPlanning',
@@ -910,6 +908,20 @@ class Protocol extends _is.DatabaseSerializationManager {
           isNullable: false,
           dartType: 'bool',
           columnDefault: 'false',
+        ),
+        _isp.ColumnDefinition(
+          name: 'autoFixFailingChecks',
+          columnType: _isp.ColumnType.boolean,
+          isNullable: false,
+          dartType: 'bool',
+          columnDefault: 'false',
+        ),
+        _isp.ColumnDefinition(
+          name: 'maxCheckFixAttempts',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int',
+          columnDefault: '2',
         ),
         _isp.ColumnDefinition(
           name: 'status',
@@ -1526,6 +1538,20 @@ class Protocol extends _is.DatabaseSerializationManager {
           isNullable: false,
           dartType: 'bool',
           columnDefault: 'false',
+        ),
+        _isp.ColumnDefinition(
+          name: 'autoFixFailingChecks',
+          columnType: _isp.ColumnType.boolean,
+          isNullable: false,
+          dartType: 'bool',
+          columnDefault: 'false',
+        ),
+        _isp.ColumnDefinition(
+          name: 'maxCheckFixAttempts',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int',
+          columnDefault: '2',
         ),
         _isp.ColumnDefinition(
           name: 'updatedAt',

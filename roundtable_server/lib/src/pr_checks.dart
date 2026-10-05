@@ -154,7 +154,7 @@ Future<bool> hasQueuedFixRun(
 /// [PrCheckRun] rows and `Task.checkState`, and notifies the panel of any
 /// change. A new head commit (a fix run's push, a manual push) replaces the
 /// previous commit's checks. Logs a timeline event when the checks fail or
-/// pass, and sends a failure to the agent when the project's auto-fix is on.
+/// pass, and sends a failure to the agent when the task's auto-fix is on.
 /// Returns the task as stored afterwards.
 ///
 /// Throws when the task has no PR or token, or when GitHub fails — see
@@ -608,18 +608,14 @@ String checkFixPrompt({
   return buffer.toString();
 }
 
-/// Sends [task]'s failing checks to its agent when its project has auto-fix
-/// on, the attempt cap isn't reached and this commit wasn't sent already.
+/// Sends [task]'s failing checks to its agent when its auto-fix is on, the
+/// attempt cap isn't reached and this commit wasn't sent already.
 Future<void> _autoFix(Session session, Task task) async {
   if (task.status != TaskStatus.awaitingReview ||
       task.prHeadSha == null ||
-      task.checkFixSentForSha == task.prHeadSha) {
-    return;
-  }
-  final project = await Project.db.findById(session, task.projectId);
-  if (project == null ||
-      !project.autoFixFailingChecks ||
-      task.checkFixAttempts >= project.maxCheckFixAttempts) {
+      task.checkFixSentForSha == task.prHeadSha ||
+      !task.autoFixFailingChecks ||
+      task.checkFixAttempts >= task.maxCheckFixAttempts) {
     return;
   }
   try {
@@ -629,7 +625,7 @@ Future<void> _autoFix(Session session, Task task) async {
       task.id!,
       'Failing CI checks sent to the agent automatically '
       '(attempt ${task.checkFixAttempts + 1} of '
-      '${project.maxCheckFixAttempts})',
+      '${task.maxCheckFixAttempts})',
     );
   } on InvalidStateException catch (e) {
     // E.g. a code review in progress — the next sync tries again.

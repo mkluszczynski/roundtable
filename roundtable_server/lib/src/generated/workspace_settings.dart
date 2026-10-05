@@ -28,12 +28,16 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) : skipPlanning = skipPlanning ?? false,
        autoReview = autoReview ?? false,
        autoFixReview = autoFixReview ?? false,
        maxReviewFixRounds = maxReviewFixRounds ?? 2,
        autoMerge = autoMerge ?? false,
+       autoFixFailingChecks = autoFixFailingChecks ?? false,
+       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
        updatedAt = updatedAt ?? DateTime.now();
 
   factory WorkspaceSettings({
@@ -45,6 +49,8 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) = _WorkspaceSettingsImpl;
 
@@ -70,6 +76,12 @@ abstract class WorkspaceSettings
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoMerge']),
+      autoFixFailingChecks: jsonSerialization['autoFixFailingChecks'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['autoFixFailingChecks'],
+            ),
+      maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
       updatedAt: jsonSerialization['updatedAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['updatedAt']),
@@ -102,6 +114,11 @@ abstract class WorkspaceSettings
   /// Default for Task.autoMerge on new tasks.
   bool autoMerge;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts.
+  bool autoFixFailingChecks;
+
+  int maxCheckFixAttempts;
+
   DateTime updatedAt;
 
   @override
@@ -119,6 +136,8 @@ abstract class WorkspaceSettings
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   });
   @override
@@ -133,6 +152,8 @@ abstract class WorkspaceSettings
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -150,6 +171,8 @@ abstract class WorkspaceSettings
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
       'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
       'updatedAt': updatedAt.toJson(),
     };
   }
@@ -196,6 +219,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) : super._(
          id: id,
@@ -206,6 +231,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
          autoMerge: autoMerge,
+         autoFixFailingChecks: autoFixFailingChecks,
+         maxCheckFixAttempts: maxCheckFixAttempts,
          updatedAt: updatedAt,
        );
 
@@ -222,6 +249,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
     bool? autoFixReview,
     int? maxReviewFixRounds,
     bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
     DateTime? updatedAt,
   }) {
     return WorkspaceSettings(
@@ -237,6 +266,8 @@ class _WorkspaceSettingsImpl extends WorkspaceSettings {
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -273,6 +304,17 @@ class WorkspaceSettingsUpdateTable
 
   _is.ColumnValue<bool, bool> autoMerge(bool value) => _is.ColumnValue(
     table.autoMerge,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool value) =>
+      _is.ColumnValue(
+        table.autoFixFailingChecks,
+        value,
+      );
+
+  _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
+    table.maxCheckFixAttempts,
     value,
   );
 
@@ -316,6 +358,16 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    autoFixFailingChecks = _is.ColumnBool(
+      'autoFixFailingChecks',
+      this,
+      hasDefault: true,
+    );
+    maxCheckFixAttempts = _is.ColumnInt(
+      'maxCheckFixAttempts',
+      this,
+      hasDefault: true,
+    );
     updatedAt = _is.ColumnDateTime(
       'updatedAt',
       this,
@@ -344,6 +396,11 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
   /// Default for Task.autoMerge on new tasks.
   late final _is.ColumnBool autoMerge;
 
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts.
+  late final _is.ColumnBool autoFixFailingChecks;
+
+  late final _is.ColumnInt maxCheckFixAttempts;
+
   late final _is.ColumnDateTime updatedAt;
 
   _ijo8h3v4.AgentTable get reviewerAgent {
@@ -368,6 +425,8 @@ class WorkspaceSettingsTable extends _is.Table<int?> {
     autoFixReview,
     maxReviewFixRounds,
     autoMerge,
+    autoFixFailingChecks,
+    maxCheckFixAttempts,
     updatedAt,
   ];
 

@@ -26,8 +26,8 @@ abstract class Project
     this.repoAccessToken,
     this.repoAccessTokenUpdatedAt,
     this.dockerImage,
-    bool? autoFixFailingChecks,
-    int? maxCheckFixAttempts,
+    this.autoFixFailingChecks,
+    this.maxCheckFixAttempts,
     this.skipPlanning,
     this.autoReview,
     this.reviewerAgentId,
@@ -37,9 +37,7 @@ abstract class Project
     this.autoMerge,
     DateTime? createdAt,
     this.tasks,
-  }) : autoFixFailingChecks = autoFixFailingChecks ?? false,
-       maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
-       createdAt = createdAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now();
 
   factory Project({
     int? id,
@@ -132,13 +130,11 @@ abstract class Project
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   String? dockerImage;
 
-  /// Send a task's failing CI checks to its agent automatically, without
-  /// waiting for the dev to click "Send to agent".
-  bool autoFixFailingChecks;
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  /// inherits WorkspaceSettings.
+  bool? autoFixFailingChecks;
 
-  /// How many fix runs auto-fix sends for a task before leaving the
-  /// failure to the dev; reset once the checks pass.
-  int maxCheckFixAttempts;
+  int? maxCheckFixAttempts;
 
   /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.
   bool? skipPlanning;
@@ -199,8 +195,10 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
-      'autoFixFailingChecks': autoFixFailingChecks,
-      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
       if (autoReview != null) 'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
@@ -223,8 +221,10 @@ abstract class Project
       if (repoAccessTokenUpdatedAt != null)
         'repoAccessTokenUpdatedAt': repoAccessTokenUpdatedAt?.toJson(),
       if (dockerImage != null) 'dockerImage': dockerImage,
-      'autoFixFailingChecks': autoFixFailingChecks,
-      'maxCheckFixAttempts': maxCheckFixAttempts,
+      if (autoFixFailingChecks != null)
+        'autoFixFailingChecks': autoFixFailingChecks,
+      if (maxCheckFixAttempts != null)
+        'maxCheckFixAttempts': maxCheckFixAttempts,
       if (skipPlanning != null) 'skipPlanning': skipPlanning,
       if (autoReview != null) 'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
@@ -325,8 +325,8 @@ class _ProjectImpl extends Project {
     Object? repoAccessToken = _Undefined,
     Object? repoAccessTokenUpdatedAt = _Undefined,
     Object? dockerImage = _Undefined,
-    bool? autoFixFailingChecks,
-    int? maxCheckFixAttempts,
+    Object? autoFixFailingChecks = _Undefined,
+    Object? maxCheckFixAttempts = _Undefined,
     Object? skipPlanning = _Undefined,
     Object? autoReview = _Undefined,
     Object? reviewerAgentId = _Undefined,
@@ -348,8 +348,12 @@ class _ProjectImpl extends Project {
           ? repoAccessTokenUpdatedAt
           : this.repoAccessTokenUpdatedAt,
       dockerImage: dockerImage is String? ? dockerImage : this.dockerImage,
-      autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
-      maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
+      autoFixFailingChecks: autoFixFailingChecks is bool?
+          ? autoFixFailingChecks
+          : this.autoFixFailingChecks,
+      maxCheckFixAttempts: maxCheckFixAttempts is int?
+          ? maxCheckFixAttempts
+          : this.maxCheckFixAttempts,
       skipPlanning: skipPlanning is bool? ? skipPlanning : this.skipPlanning,
       autoReview: autoReview is bool? ? autoReview : this.autoReview,
       reviewerAgentId: reviewerAgentId is int?
@@ -404,13 +408,13 @@ class ProjectUpdateTable extends _is.UpdateTable<ProjectTable> {
     value,
   );
 
-  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool value) =>
+  _is.ColumnValue<bool, bool> autoFixFailingChecks(bool? value) =>
       _is.ColumnValue(
         table.autoFixFailingChecks,
         value,
       );
 
-  _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
+  _is.ColumnValue<int, int> maxCheckFixAttempts(int? value) => _is.ColumnValue(
     table.maxCheckFixAttempts,
     value,
   );
@@ -478,12 +482,10 @@ class ProjectTable extends _is.Table<int?> {
     autoFixFailingChecks = _is.ColumnBool(
       'autoFixFailingChecks',
       this,
-      hasDefault: true,
     );
     maxCheckFixAttempts = _is.ColumnInt(
       'maxCheckFixAttempts',
       this,
-      hasDefault: true,
     );
     skipPlanning = _is.ColumnBool(
       'skipPlanning',
@@ -533,12 +535,10 @@ class ProjectTable extends _is.Table<int?> {
   /// Base image for agents in docker mode. Only relevant once docker execution mode is implemented.
   late final _is.ColumnString dockerImage;
 
-  /// Send a task's failing CI checks to its agent automatically, without
-  /// waiting for the dev to click "Send to agent".
+  /// Defaults for Task.autoFixFailingChecks / maxCheckFixAttempts; null
+  /// inherits WorkspaceSettings.
   late final _is.ColumnBool autoFixFailingChecks;
 
-  /// How many fix runs auto-fix sends for a task before leaving the
-  /// failure to the dev; reset once the checks pass.
   late final _is.ColumnInt maxCheckFixAttempts;
 
   /// Default for Task.skipPlanning on new tasks; null inherits WorkspaceSettings.

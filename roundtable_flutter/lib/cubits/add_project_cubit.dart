@@ -58,8 +58,6 @@ class AddProjectCubit extends Cubit<AddProjectState> {
     required Project existing,
     required String name,
     required String repoUrl,
-    bool? autoFixFailingChecks,
-    int? maxCheckFixAttempts,
   }) async {
     emit(const AddProjectSubmitting());
     try {
@@ -67,8 +65,6 @@ class AddProjectCubit extends Cubit<AddProjectState> {
         existing.copyWith(
           name: name,
           repoUrl: repoUrl,
-          autoFixFailingChecks: autoFixFailingChecks,
-          maxCheckFixAttempts: maxCheckFixAttempts,
         ),
       );
       emit(AddProjectSuccess(project));

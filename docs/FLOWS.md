@@ -211,7 +211,8 @@ branch protection.
    runner reports the task back in `awaitingReview`, `update` syncs right
    away. A fix run that pushed nothing gets its real state back from the
    unchanged commit.
-5. Auto-fix (`Project.autoFixFailingChecks`): once all jobs finished and
+5. Auto-fix (`Task.autoFixFailingChecks`, defaulted from the project or
+   workspace when the task is created): once all jobs finished and
    some failed, the failure is sent like `fixFailingChecks` — once per
    commit (`checkFixSentForSha`) and at most `maxCheckFixAttempts` times
    until the checks pass (`checkFixAttempts` resets on `success`). Both
