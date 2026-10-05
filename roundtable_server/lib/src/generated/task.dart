@@ -32,6 +32,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.agentId,
     this.agent,
     required this.prompt,
+    this.title,
     bool? skipPlanning,
     bool? autoReview,
     this.reviewerAgentId,
@@ -87,6 +88,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? agentId,
     _ijo8h3v4.Agent? agent,
     required String prompt,
+    String? title,
     bool? skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
@@ -139,6 +141,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
               jsonSerialization['agent'],
             ),
       prompt: jsonSerialization['prompt'] as String,
+      title: jsonSerialization['title'] as String?,
       skipPlanning: jsonSerialization['skipPlanning'] == null
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['skipPlanning']),
@@ -260,6 +263,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   /// The task prompt given by the dev.
   String prompt;
+
+  /// Short name shown on the board instead of the prompt. Suggested by the
+  /// agent at the start of its first run (only while null, see
+  /// `TaskEndpoint.suggestTitle`); the dev can rename it any time.
+  String? title;
 
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   bool skipPlanning;
@@ -384,6 +392,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     int? agentId,
     _ijo8h3v4.Agent? agent,
     String? prompt,
+    String? title,
     bool? skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
@@ -429,6 +438,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (agentId != null) 'agentId': agentId,
       if (agent != null) 'agent': agent?.toJson(),
       'prompt': prompt,
+      if (title != null) 'title': title,
       'skipPlanning': skipPlanning,
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
@@ -479,6 +489,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (agentId != null) 'agentId': agentId,
       if (agent != null) 'agent': agent?.toJsonForProtocol(),
       'prompt': prompt,
+      if (title != null) 'title': title,
       'skipPlanning': skipPlanning,
       'autoReview': autoReview,
       if (reviewerAgentId != null) 'reviewerAgentId': reviewerAgentId,
@@ -579,6 +590,7 @@ class _TaskImpl extends Task {
     int? agentId,
     _ijo8h3v4.Agent? agent,
     required String prompt,
+    String? title,
     bool? skipPlanning,
     bool? autoReview,
     int? reviewerAgentId,
@@ -620,6 +632,7 @@ class _TaskImpl extends Task {
          agentId: agentId,
          agent: agent,
          prompt: prompt,
+         title: title,
          skipPlanning: skipPlanning,
          autoReview: autoReview,
          reviewerAgentId: reviewerAgentId,
@@ -667,6 +680,7 @@ class _TaskImpl extends Task {
     Object? agentId = _Undefined,
     Object? agent = _Undefined,
     String? prompt,
+    Object? title = _Undefined,
     bool? skipPlanning,
     bool? autoReview,
     Object? reviewerAgentId = _Undefined,
@@ -711,6 +725,7 @@ class _TaskImpl extends Task {
       agentId: agentId is int? ? agentId : this.agentId,
       agent: agent is _ijo8h3v4.Agent? ? agent : this.agent?.copyWith(),
       prompt: prompt ?? this.prompt,
+      title: title is String? ? title : this.title,
       skipPlanning: skipPlanning ?? this.skipPlanning,
       autoReview: autoReview ?? this.autoReview,
       reviewerAgentId: reviewerAgentId is int?
@@ -788,6 +803,11 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<String, String> prompt(String value) => _is.ColumnValue(
     table.prompt,
+    value,
+  );
+
+  _is.ColumnValue<String, String> title(String? value) => _is.ColumnValue(
+    table.title,
     value,
   );
 
@@ -969,6 +989,10 @@ class TaskTable extends _is.Table<int?> {
       'prompt',
       this,
     );
+    title = _is.ColumnString(
+      'title',
+      this,
+    );
     skipPlanning = _is.ColumnBool(
       'skipPlanning',
       this,
@@ -1120,6 +1144,11 @@ class TaskTable extends _is.Table<int?> {
 
   /// The task prompt given by the dev.
   late final _is.ColumnString prompt;
+
+  /// Short name shown on the board instead of the prompt. Suggested by the
+  /// agent at the start of its first run (only while null, see
+  /// `TaskEndpoint.suggestTitle`); the dev can rename it any time.
+  late final _is.ColumnString title;
 
   /// Saves Claude Code usage on trivial tasks by skipping the planning phase entirely.
   late final _is.ColumnBool skipPlanning;
@@ -1412,6 +1441,7 @@ class TaskTable extends _is.Table<int?> {
     projectId,
     agentId,
     prompt,
+    title,
     skipPlanning,
     autoReview,
     reviewerAgentId,

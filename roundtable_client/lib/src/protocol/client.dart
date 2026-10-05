@@ -1261,6 +1261,37 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
+  /// Sets [taskId]'s title from the agent's `set_task_title` tool
+  /// (docs/FLOWS.md §4) — only while the task has none, so it never
+  /// replaces a title the dev chose or one from an earlier run. A blank
+  /// [title] is ignored. Returns the current task either way.
+  _ida.Future<_iw53rmon.Task> suggestTitle(
+    int taskId,
+    String title,
+  ) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'suggestTitle',
+    {
+      'taskId': taskId,
+      'title': title,
+    },
+  );
+
+  /// Renames [taskId] from the panel. A blank [title] clears it: the board
+  /// falls back to the prompt and the agent may suggest one again on its
+  /// next run.
+  _ida.Future<_iw53rmon.Task> setTitle(
+    int taskId,
+    String? title,
+  ) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'setTitle',
+    {
+      'taskId': taskId,
+      'title': title,
+    },
+  );
+
   /// Records a plan-mode clarifying question (docs/FLOWS.md §4
   /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
   /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the

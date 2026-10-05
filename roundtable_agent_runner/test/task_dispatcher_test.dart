@@ -108,6 +108,30 @@ esac
       return ToolchainInstaller(home: home);
     }
 
+    group('task title', () {
+      Future<String> argsFor(Task task) async {
+        final outFile = '${tempDir.path}/out.txt';
+        final claudeScript = writeFakeClaude('''
+echo "\$@" > $outFile
+echo "x" > x.txt
+echo '{"type":"result","subtype":"success","session_id":"s"}'
+''');
+        await dispatcherFor(claudeScript, taskUpdates: []).handle(task);
+        return File(outFile).readAsStringSync();
+      }
+
+      test('an untitled task asks the agent to name it', () async {
+        final out = await argsFor(buildTask());
+        expect(out, contains('# Task title'));
+        expect(out, contains('mcp__roundtable-permission__set_task_title'));
+      });
+
+      test('a titled task does not', () async {
+        final out = await argsFor(buildTask().copyWith(title: 'Named'));
+        expect(out, isNot(contains('# Task title')));
+      });
+    });
+
     group('with project tools', () {
       final flutter = [ProjectTool(name: 'flutter', version: '3.24.0')];
 

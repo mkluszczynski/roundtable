@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'permission_prompt_tool.dart';
+
 /// A command-line tool the runner looked for; [version] is null when it
 /// isn't on this machine's `PATH`.
 typedef ToolInfo = ({String name, String? version});
@@ -94,3 +96,10 @@ String projectToolchainPrompt(List<String> tools) => '''
 # Project toolchains
 
 Installed for this project and first on your PATH: ${tools.join(', ')}. Use them to run the project's analyzer, formatter and tests — they take precedence over the machine tools listed above.''';
+
+/// Appended for a task that has no title yet, asking the agent to name it
+/// through the `set_task_title` MCP tool (see `PermissionPromptTool`).
+String taskTitlePrompt() => '''
+# Task title
+
+This task has no title yet. Before anything else, call the `mcp__roundtable-permission__$setTaskTitleToolName` tool once with a short title for it: at most ~60 characters, imperative mood (e.g. "Add a dark mode toggle"), in the language of the task's prompt, without a task number. Then carry on with the task; do not mention the title in your final message.''';

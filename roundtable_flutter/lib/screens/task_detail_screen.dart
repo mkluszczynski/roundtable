@@ -32,6 +32,7 @@ import '../widgets/rail_section.dart';
 import '../widgets/plan_content.dart';
 import '../widgets/pr_checks_view.dart';
 import '../widgets/reassign_agent_dialog.dart';
+import '../widgets/rename_task_dialog.dart';
 import '../widgets/request_review_dialog.dart';
 import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
@@ -108,6 +109,17 @@ Future<void> _confirmDeleteTask(BuildContext context, int taskId) async {
   );
   if (confirmed ?? false) {
     bloc.add(TaskDeleteRequested(taskId));
+  }
+}
+
+Future<void> _openRenameTaskDialog(BuildContext context, Task task) async {
+  final bloc = context.read<TaskDetailBloc>();
+  final title = await showDialog<String>(
+    context: context,
+    builder: (_) => RenameTaskDialog(taskId: task.id!, title: task.title),
+  );
+  if (title != null && title != (task.title ?? '')) {
+    bloc.add(TaskRenamed(task.id!, title));
   }
 }
 
@@ -499,9 +511,33 @@ class _Header extends StatelessWidget {
                       color: AppColors.text0,
                     ),
                   ),
+                  const TextSpan(text: '  ·  '),
+                  task.title == null
+                      ? TextSpan(
+                          text: 'Untitled',
+                          style: AppTypography.body.copyWith(
+                            color: AppColors.text2,
+                          ),
+                        )
+                      : TextSpan(
+                          text: task.title,
+                          style: AppTypography.bodyStrong.copyWith(
+                            color: AppColors.text0,
+                          ),
+                        ),
                 ],
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Rename',
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: AppColors.text1,
+            ),
+            onPressed: () => _openRenameTaskDialog(context, task),
+            visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: Spacing.md),
           StatusPill.fromAppearance(

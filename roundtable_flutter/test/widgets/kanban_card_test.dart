@@ -29,6 +29,24 @@ void main() {
     expect(find.text('vps-1'), findsOneWidget);
   });
 
+  testWidgets('shows the title instead of the prompt once it has one', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KanbanCard(
+            task: task().copyWith(title: 'Login fix'),
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Login fix'), findsOneWidget);
+    expect(find.text('Fix the login bug'), findsNothing);
+  });
+
   testWidgets('tapping it calls onTap', (tester) async {
     var tapped = false;
     await tester.pumpWidget(

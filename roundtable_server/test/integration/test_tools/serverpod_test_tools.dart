@@ -3002,6 +3002,76 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_i77xifuu.Task> suggestTitle(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    String title,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'suggestTitle',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'suggestTitle',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'title': title,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i77xifuu.Task> setTitle(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    String? title,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'setTitle',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'setTitle',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'title': title,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_i8te1t8t.TaskQuestion> createQuestion(
     _ist.TestSessionBuilder sessionBuilder,
     int taskId,

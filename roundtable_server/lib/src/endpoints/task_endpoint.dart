@@ -647,6 +647,50 @@ class TaskEndpoint extends Endpoint {
     return results.isEmpty ? null : results.first;
   }
 
+  /// Longest title kept; anything past it is cut off.
+  static const maxTitleLength = 80;
+
+  /// Sets [taskId]'s title from the agent's `set_task_title` tool
+  /// (docs/FLOWS.md §4) — only while the task has none, so it never
+  /// replaces a title the dev chose or one from an earlier run. A blank
+  /// [title] is ignored. Returns the current task either way.
+  Future<Task> suggestTitle(Session session, int taskId, String title) async {
+    var task = await _requireTask(session, taskId);
+    final normalized = _normalizeTitle(title);
+    if (task.title != null || normalized == null) return task;
+    return _writeTitle(session, task, normalized);
+  }
+
+  /// Renames [taskId] from the panel. A blank [title] clears it: the board
+  /// falls back to the prompt and the agent may suggest one again on its
+  /// next run.
+  Future<Task> setTitle(Session session, int taskId, String? title) async {
+    var task = await _requireTask(session, taskId);
+    return _writeTitle(session, task, _normalizeTitle(title));
+  }
+
+  static String? _normalizeTitle(String? title) {
+    final line = (title ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .firstWhere((l) => l.isNotEmpty, orElse: () => '');
+    if (line.isEmpty) return null;
+    return line.length > maxTitleLength
+        ? '${line.substring(0, maxTitleLength - 1).trimRight()}…'
+        : line;
+  }
+
+  Future<Task> _writeTitle(Session session, Task task, String? title) async {
+    var updated = await Task.db.updateRow(
+      session,
+      task.copyWith(title: title),
+      columns: (t) => [t.title],
+    );
+    await session.messages.postMessage(channelForTask(updated.id!), updated);
+    await session.messages.postMessage(channelForAllTasks(), updated);
+    return updated;
+  }
+
   /// Records a plan-mode clarifying question (docs/FLOWS.md §4
   /// `AskUserQuestion`), asked by the permission-prompt-tool intercepting
   /// Claude Code's tool call. Flips `Task.status = waitingForAnswer` so the

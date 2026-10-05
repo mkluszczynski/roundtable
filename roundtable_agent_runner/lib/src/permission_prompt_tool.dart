@@ -48,6 +48,7 @@ class PermissionPromptTool {
     required this.setPlanReady,
     required this.watchPlanDecision,
     required this.latestFeedback,
+    this.suggestTitle,
   });
 
   final int taskId;
@@ -61,6 +62,13 @@ class PermissionPromptTool {
   final Future<Task> Function(int taskId, String plan) setPlanReady;
   final Stream<Task> Function(int taskId) watchPlanDecision;
   final Future<TaskFeedback?> Function(int taskId) latestFeedback;
+
+  /// Backs the `set_task_title` tool; without it the tool isn't offered.
+  final Future<Task> Function(int taskId, String title)? suggestTitle;
+
+  /// Handles a `set_task_title` call: the server keeps the title only while
+  /// the task has none (`TaskEndpoint.suggestTitle`).
+  Future<void> setTitle(String title) => suggestTitle!(taskId, title);
 
   Future<PermissionDecision> decide(
     String toolName,
@@ -152,9 +160,15 @@ class PermissionPromptTool {
   }
 }
 
-/// Runs [tool] as a minimal stdio MCP server exposing one tool named
-/// [toolName] (invoked by `claude` as `mcp__<serverName>__<toolName>`, see
-/// `ClaudeCodeExecutor.runPlanning`'s `permissionPromptTool` argument).
+/// Name of the MCP tool the agent calls to name its task, next to the
+/// permission prompt tool (`mcp__roundtable-permission__set_task_title`).
+const setTaskTitleToolName = 'set_task_title';
+
+/// Runs [tool] as a minimal stdio MCP server exposing the permission prompt
+/// tool named [toolName] (invoked by `claude` as
+/// `mcp__<serverName>__<toolName>`, see `ClaudeCodeExecutor.runPlanning`'s
+/// `permissionPromptTool` argument) and, when [PermissionPromptTool.suggestTitle]
+/// is set, the agent-facing [setTaskTitleToolName] tool.
 ///
 /// Hand-rolls the MCP stdio wire protocol (newline-delimited JSON-RPC 2.0)
 /// rather than depending on an external MCP package — the protocol surface
@@ -227,6 +241,26 @@ Future<void> runPermissionPromptToolServer(
                   'required': ['tool_name', 'input'],
                 },
               },
+              if (tool.suggestTitle != null)
+                {
+                  'name': setTaskTitleToolName,
+                  'description':
+                      'Set a short, human-readable title for the task you '
+                      'are working on, shown to the developer on the task '
+                      'board. Call it once, at the start of your work.',
+                  'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {
+                        'type': 'string',
+                        'description':
+                            'At most ~60 characters, imperative mood, in the '
+                            "language of the task's prompt.",
+                      },
+                    },
+                    'required': ['title'],
+                  },
+                },
             ],
           },
         });
@@ -235,6 +269,31 @@ Future<void> runPermissionPromptToolServer(
             (request['params'] as Map?)?.cast<String, dynamic>() ?? const {};
         final arguments =
             (params['arguments'] as Map?)?.cast<String, dynamic>() ?? const {};
+        if (params['name'] == setTaskTitleToolName &&
+            tool.suggestTitle != null) {
+          var isError = false;
+          String text;
+          try {
+            await tool.setTitle(arguments['title']?.toString() ?? '');
+            text = 'Title set.';
+          } catch (e) {
+            // Naming the task is cosmetic — report it, never crash the
+            // server the permission prompt tool also lives in.
+            isError = true;
+            text = 'Could not set the title: $e';
+          }
+          send({
+            'jsonrpc': '2.0',
+            'id': id,
+            'result': {
+              'content': [
+                {'type': 'text', 'text': text},
+              ],
+              'isError': isError,
+            },
+          });
+          break;
+        }
         final callToolName = arguments['tool_name']?.toString() ?? '';
         final callInput =
             (arguments['input'] as Map?)?.cast<String, dynamic>() ?? const {};

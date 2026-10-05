@@ -1925,6 +1925,55 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'suggestTitle': _is.MethodConnector(
+          name: 'suggestTitle',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'title': _is.ParameterDescription(
+              name: 'title',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).suggestTitle(
+                    session,
+                    params['taskId'],
+                    params['title'],
+                  ),
+        ),
+        'setTitle': _is.MethodConnector(
+          name: 'setTitle',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'title': _is.ParameterDescription(
+              name: 'title',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint).setTitle(
+                session,
+                params['taskId'],
+                params['title'],
+              ),
+        ),
         'createQuestion': _is.MethodConnector(
           name: 'createQuestion',
           params: {

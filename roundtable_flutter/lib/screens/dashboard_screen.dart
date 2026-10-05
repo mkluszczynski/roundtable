@@ -18,6 +18,7 @@ import '../widgets/add_agent_dialog.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/kanban_column.dart';
 import '../widgets/machine_summary_card.dart';
+import '../utils/task_title.dart';
 
 /// Live overview: a kanban board of tasks — every project's, or one picked
 /// in the header — plus a machines panel. Management (add/edit/delete) stays
@@ -384,7 +385,7 @@ class _NeedsYouTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    task.prompt.split('\n').first,
+                    taskDisplayTitle(task),
                     style: AppTypography.body,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

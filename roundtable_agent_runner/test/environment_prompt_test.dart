@@ -55,4 +55,11 @@ void main() {
       isNot(contains('summary')),
     );
   });
+
+  test('the task title prompt names the MCP tool to call', () {
+    expect(
+      taskTitlePrompt(),
+      contains('`mcp__roundtable-permission__set_task_title`'),
+    );
+  });
 }
