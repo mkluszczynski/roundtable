@@ -315,13 +315,14 @@ class _OtherToolDialogState extends State<_OtherToolDialog> {
               style: AppTypography.code,
               decoration: const InputDecoration(
                 labelText: 'Tool id',
-                hintText: 'e.g. kotlin, terraform, npm:prettier',
+                hintText: 'e.g. terraform, npm:prettier, pub:melos',
               ),
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: Spacing.sm),
             Text(
-              'Any tool from the mise registry (mise.jdx.dev/registry).',
+              'Any tool from the mise registry (mise.jdx.dev/registry), or '
+              'a Dart CLI from pub.dev as pub:<package>.',
               style: AppTypography.caption,
             ),
           ],

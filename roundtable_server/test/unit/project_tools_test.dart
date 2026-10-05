@@ -30,6 +30,24 @@ void main() {
       );
     });
 
+    test('a serverpod dependency adds its CLI at the same version', () async {
+      expect(
+        await _detect({
+          'app/pubspec.yaml': _flutterPubspec,
+          'server/pubspec.yaml':
+              'dependencies:\n  serverpod: ^4.0.3\n'
+              '  serverpod_test: 4.0.3\n',
+        }),
+        ['flutter@latest', 'pub:serverpod_cli@4.0.3'],
+      );
+      expect(
+        await _detect({
+          'pubspec.yaml': 'dependencies:\n  serverpod: ">=4.0.0"\n',
+        }),
+        ['dart@latest', 'pub:serverpod_cli@latest'],
+      );
+    });
+
     test('a plain Dart package means dart', () async {
       expect(await _detect({'pubspec.yaml': 'name: cli\n'}), ['dart@latest']);
     });
@@ -154,6 +172,22 @@ void main() {
         );
       });
     }
+
+    test('a pub: tool needs dart or flutter', () {
+      expect(
+        () => validateProjectTools([
+          ProjectTool(name: 'pub:serverpod_cli', version: '4.0.3'),
+        ]),
+        throwsA(isA<InvalidStateException>()),
+      );
+      expect(
+        validateProjectTools([
+          ProjectTool(name: 'flutter', version: 'latest'),
+          ProjectTool(name: 'pub:serverpod_cli', version: '4.0.3'),
+        ]),
+        hasLength(2),
+      );
+    });
 
     test('rejects duplicates', () {
       expect(

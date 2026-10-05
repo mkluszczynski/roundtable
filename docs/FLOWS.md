@@ -271,7 +271,9 @@ into its own home directory.
      `sdk: flutter` → flutter, else dart; `package.json` → node and its
      `packageManager`; `go.mod` → go; plus python, rust, ruby and java;
    - versions come from `.fvmrc`, `.nvmrc`/`.node-version`, `go.mod` and
-     similar files, else `latest` (`lts` for node).
+     similar files, else `latest` (`lts` for node);
+   - a `serverpod:` dependency adds `pub:serverpod_cli` at the same version,
+     so agents can run `serverpod generate`.
    The suggestions are only filled into the form. Project settings →
    TOOLS edits the list later (`updateTools`) and can re-run "Detect from
    repo", which adds only tools that aren't listed yet.
@@ -288,6 +290,11 @@ into its own home directory.
      cached in `~/.local/share/mise`, shared by every project: a cached
      version costs ~0.1 s and adds nothing to the timeline. A `latest` or
      `lts` spec downloads again once a newer release is out.
+   - `pub:<package>` tools (Dart CLIs — mise has no pub backend) are
+     activated after that with `dart pub global activate <package>
+     <version>`, using the toolchain's `dart`, into `~/.pub-cache`, whose
+     `bin` goes first on PATH. Already-active versions are skipped. The
+     server only accepts them next to dart or flutter.
 3. **Run.** `claude` starts with the `PATH` from `mise env`, the project's
    tools first, and a "Project toolchains" note appended to the system
    prompt. A failed install is shown on the timeline as an error, but the

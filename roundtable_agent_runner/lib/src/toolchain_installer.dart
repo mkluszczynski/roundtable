@@ -92,12 +92,86 @@ class ToolchainInstaller {
     }
 
     final vars = jsonDecode(await _mise(['env', '--json'], env)) as Map;
+    final environment = {
+      for (final MapEntry(:key, :value) in vars.entries) '$key': '$value',
+    };
+
+    final pubTools = [
+      for (final t in tools)
+        if (t.name.startsWith(pubPrefix)) t,
+    ];
+    if (pubTools.isNotEmpty) {
+      await _activatePubTools(pubTools, environment, onInstalling);
+    }
+
     return (
-      environment: {
-        for (final MapEntry(:key, :value) in vars.entries) '$key': '$value',
-      },
+      environment: environment,
       tools: [for (final t in tools) '${t.name} ${t.version}'],
     );
+  }
+
+  /// Activates `pub:` tools with `dart pub global activate` — the `dart`
+  /// from the project's toolchain — into a pub cache under [home], and puts
+  /// its `bin` first on [environment]'s PATH. Skips packages already active
+  /// at the wanted version (any version for `latest`).
+  Future<void> _activatePubTools(
+    List<ProjectTool> tools,
+    Map<String, String> environment,
+    void Function(List<String> missing)? onInstalling,
+  ) async {
+    final path = environment['PATH'] ?? Platform.environment['PATH'] ?? '';
+    final dart = _which('dart', path);
+    if (dart == null) {
+      throw ToolchainException(
+        '${tools.first.name} needs dart — add dart or flutter to the tools',
+      );
+    }
+    final pubCache = '$home/.pub-cache';
+    final env = {...environment, 'HOME': home, 'PUB_CACHE': pubCache};
+
+    final listed = await runProcess(dart, [
+      'pub',
+      'global',
+      'list',
+    ], environment: env);
+    final active = activePubPackages('${listed.stdout}');
+    final toActivate = [
+      for (final t in tools)
+        if (!pubToolActive(t, active)) t,
+    ];
+    if (toActivate.isNotEmpty) {
+      onInstalling?.call([
+        for (final t in toActivate) '${t.name} ${t.version}',
+      ]);
+      for (final tool in toActivate) {
+        final package = tool.name.substring(pubPrefix.length);
+        final result = await runProcess(dart, [
+          'pub',
+          'global',
+          'activate',
+          package,
+          if (tool.version != 'latest') tool.version,
+        ], environment: env);
+        if (result.exitCode != 0) {
+          throw ToolchainException(
+            'dart pub global activate $package failed: '
+            '${lastLines('${result.stderr}\n${result.stdout}')}',
+          );
+        }
+      }
+    }
+
+    environment
+      ..['PUB_CACHE'] = pubCache
+      ..['PATH'] = '$pubCache/bin:$path';
+  }
+
+  String? _which(String name, String path) {
+    for (final dir in path.split(':')) {
+      if (dir.isEmpty) continue;
+      if (File('$dir/$name').existsSync()) return '$dir/$name';
+    }
+    return null;
   }
 
   Future<void> _ensureMise() async {
@@ -140,11 +214,30 @@ class ToolchainException implements Exception {
 
 /// The mise config for [tools] — names and versions are validated by the
 /// server (`validateProjectTools`), quoted here anyway.
+/// `pub:` tools aren't mise's — they're activated separately.
 String miseConfig(List<ProjectTool> tools) => [
   '# Written by the Roundtable agent runner — edit tools in the panel.',
   '[tools]',
-  for (final t in tools) '"${t.name}" = "${t.version}"',
+  for (final t in tools)
+    if (!t.name.startsWith(pubPrefix)) '"${t.name}" = "${t.version}"',
 ].join('\n');
+
+/// The prefix of a Dart CLI package in [Project.tools], e.g.
+/// `pub:serverpod_cli`.
+const pubPrefix = 'pub:';
+
+/// `dart pub global list` → package → version (`serverpod_cli 4.0.3`).
+Map<String, String> activePubPackages(String output) => {
+  for (final line in output.split('\n'))
+    if (line.trim().split(RegExp(r'\s+')) case [final name, final version, ...])
+      name: version,
+};
+
+bool pubToolActive(ProjectTool tool, Map<String, String> active) {
+  final version = active[tool.name.substring(pubPrefix.length)];
+  return version != null &&
+      (tool.version == 'latest' || version == tool.version);
+}
 
 /// `mise ls --missing --json` → `["flutter 3.47.6", …]` (resolved versions).
 List<String> missingTools(String json) {

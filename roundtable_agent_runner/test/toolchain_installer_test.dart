@@ -28,4 +28,27 @@ void main() {
   test('lastLines keeps the tail of the output', () {
     expect(lastLines('a\nb\nc\n', count: 2), 'b\nc');
   });
+
+  test('miseConfig leaves pub: tools out', () {
+    expect(
+      miseConfig([
+        ProjectTool(name: 'flutter', version: 'latest'),
+        ProjectTool(name: 'pub:serverpod_cli', version: '4.0.3'),
+      ]),
+      isNot(contains('serverpod')),
+    );
+  });
+
+  test('activePubPackages and pubToolActive', () {
+    final active = activePubPackages(
+      'serverpod_cli 4.0.3\nmelos 6.1.0 at path "/x"\n',
+    );
+    expect(active, {'serverpod_cli': '4.0.3', 'melos': '6.1.0'});
+    bool isActive(String name, String version) =>
+        pubToolActive(ProjectTool(name: name, version: version), active);
+    expect(isActive('pub:serverpod_cli', '4.0.3'), isTrue);
+    expect(isActive('pub:serverpod_cli', '4.0.4'), isFalse);
+    expect(isActive('pub:melos', 'latest'), isTrue);
+    expect(isActive('pub:very_good_cli', 'latest'), isFalse);
+  });
 }

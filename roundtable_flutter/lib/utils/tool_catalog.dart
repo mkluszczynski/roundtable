@@ -3,7 +3,7 @@
 typedef CatalogTool = ({String name, String label, String versionHint});
 
 /// The common toolchains, in the "Add tool" menu. Anything else mise knows
-/// can still be added by id ("Other…").
+/// can still be added by id ("Other…"), and any Dart CLI as `pub:<package>`.
 const toolCatalog = <CatalogTool>[
   (name: 'flutter', label: 'Flutter (includes Dart)', versionHint: '3.24.0'),
   (name: 'dart', label: 'Dart', versionHint: '3.5.0'),
@@ -14,6 +14,11 @@ const toolCatalog = <CatalogTool>[
   (name: 'java', label: 'Java', versionHint: '21'),
   (name: 'rust', label: 'Rust', versionHint: '1.80'),
   (name: 'ruby', label: 'Ruby', versionHint: '3.3'),
+  (
+    name: 'pub:serverpod_cli',
+    label: 'Serverpod CLI (needs Dart or Flutter)',
+    versionHint: '4.0.3',
+  ),
 ];
 
 /// The catalog label for mise id [name], or the id itself.

@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'generated/protocol.dart';
 
 /// A mise tool id: lowercase, optionally with a backend prefix
-/// (`aqua:cli/cli`, `npm:prettier`).
+/// (`aqua:cli/cli`, `npm:prettier`) — or `pub:<package>`, a Dart CLI the
+/// runner activates itself (mise has no pub backend).
 final _toolName = RegExp(r'^[a-z0-9][a-z0-9._:/@-]*$');
 final _toolVersion = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+/-]*$');
 
@@ -11,7 +12,7 @@ final _toolVersion = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+/-]*$');
 /// runner never passes junk to `mise install`. Throws [InvalidStateException].
 List<ProjectTool> validateProjectTools(List<ProjectTool> tools) {
   final seen = <String>{};
-  return [
+  final valid = [
     for (final tool in tools)
       () {
         final name = tool.name.trim().toLowerCase();
@@ -32,6 +33,16 @@ List<ProjectTool> validateProjectTools(List<ProjectTool> tools) {
         return ProjectTool(name: name, version: version);
       }(),
   ];
+  // `pub:` packages are activated with `dart pub global activate`.
+  final pub = valid.where((t) => t.name.startsWith('pub:'));
+  if (pub.isNotEmpty && !seen.contains('dart') && !seen.contains('flutter')) {
+    throw InvalidStateException(
+      message:
+          '${pub.first.name} needs dart or flutter in the tools — it is '
+          'installed with dart pub global activate',
+    );
+  }
+  return valid;
 }
 
 /// Directories that hold dependencies or build output, never the project's
@@ -61,8 +72,8 @@ const _flutterPlatformDirs = {
 /// Manifests deeper than this are examples or fixtures, not the project.
 const _maxDepth = 3;
 
-/// At most this many pubspecs are read to tell Flutter from plain Dart.
-const _maxPubspecs = 6;
+/// At most this many pubspecs are read (Flutter vs Dart, serverpod).
+const _maxPubspecs = 8;
 
 /// Guesses the toolchains a repo needs from its file list [paths] — reading
 /// a few files through [read] (null when missing) for versions. The result
@@ -114,20 +125,25 @@ Future<List<ProjectTool>> detectProjectTools({
   }
 
   // Dart / Flutter: Flutter ships Dart, so it replaces it.
-  final pubspecs = files.where((p) => _basename(p) == 'pubspec.yaml');
+  final pubspecs = [
+    for (final path
+        in files
+            .where((p) => _basename(p) == 'pubspec.yaml')
+            .take(
+              _maxPubspecs,
+            ))
+      await read(path) ?? '',
+  ];
   if (pubspecs.isNotEmpty) {
-    var flutter = false;
-    for (final pubspec in pubspecs.take(_maxPubspecs)) {
-      if (_dependsOnFlutter(await read(pubspec) ?? '')) {
-        flutter = true;
-        break;
-      }
-    }
-    if (flutter || rootFiles.contains('.fvmrc')) {
+    if (pubspecs.any(_dependsOnFlutter) || rootFiles.contains('.fvmrc')) {
       tools['flutter'] = await versionFrom('.fvmrc', _fvmVersion);
     } else {
       tools['dart'] = 'latest';
     }
+    // Serverpod's code generator is a separate CLI, matched to the
+    // framework version so the generated code is what the repo expects.
+    final serverpod = pubspecs.map(_serverpodVersion).nonNulls.firstOrNull;
+    if (serverpod != null) tools['pub:serverpod_cli'] = serverpod;
   }
 
   if (names.contains('package.json')) {
@@ -199,6 +215,19 @@ String _firstLine(String content) =>
 
 bool _dependsOnFlutter(String pubspec) =>
     RegExp(r'^\s+sdk:\s*flutter\s*$', multiLine: true).hasMatch(pubspec);
+
+/// The `serverpod:` dependency's version (`4.0.3`, `^4.0.3` → `4.0.3`), or
+/// `latest` for a range it can't pin; null without serverpod.
+String? _serverpodVersion(String pubspec) {
+  final match = RegExp(
+    r'^\s+serverpod:\s*(.*)$',
+    multiLine: true,
+  ).firstMatch(pubspec);
+  if (match == null) return null;
+  final spec = match.group(1)!.trim().replaceAll(RegExp('["\']'), '');
+  final version = RegExp(r'^\^?(\d+\.\d+\.\d+)$').firstMatch(spec);
+  return version?.group(1) ?? 'latest';
+}
 
 /// `.fvmrc` is JSON (`{"flutter": "3.24.0"}`); a channel isn't a version.
 String _fvmVersion(String content) {
