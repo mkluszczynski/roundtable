@@ -51,4 +51,16 @@ void main() {
     expect(isActive('pub:melos', 'latest'), isTrue);
     expect(isActive('pub:very_good_cli', 'latest'), isFalse);
   });
+
+  test('installedVersions skips entries mise marks as not installed', () {
+    expect(
+      installedVersions(
+        '{"flutter": [{"version": "3.47.6", "installed": true}],'
+        ' "node": [{"version": "22.1.0", "installed": false},'
+        ' {"version": "20.1.0"}]}',
+      ),
+      {'flutter 3.47.6', 'node 20.1.0'},
+    );
+    expect(installedVersions('{}'), isEmpty);
+  });
 }

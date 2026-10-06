@@ -72,17 +72,7 @@ class ToolchainInstaller {
     await configDir.create(recursive: true);
     final config = File('${configDir.path}/project-$projectId.toml');
     await config.writeAsString(miseConfig(tools));
-    final env = {
-      // [home] decides where everything lives, even if the runner's own
-      // `$HOME` or XDG dirs point elsewhere (tests, a desktop session).
-      'HOME': home,
-      'MISE_DATA_DIR': '$home/.local/share/mise',
-      'MISE_CACHE_DIR': '$home/.cache/mise',
-      'MISE_STATE_DIR': '$home/.local/state/mise',
-      'MISE_CONFIG_DIR': '$home/.config/mise',
-      'MISE_GLOBAL_CONFIG_FILE': config.path,
-      'MISE_YES': '1',
-    };
+    final env = _miseEnv(config.path);
 
     final missing = await _mise(['ls', '--missing', '--json'], env);
     final toInstall = missingTools(missing);
@@ -174,6 +164,71 @@ class ToolchainInstaller {
     return null;
   }
 
+  Map<String, String> _miseEnv(String configPath) => {
+    // [home] decides where everything lives, even if the runner's own
+    // `$HOME` or XDG dirs point elsewhere (tests, a desktop session).
+    'HOME': home,
+    'MISE_DATA_DIR': '$home/.local/share/mise',
+    'MISE_CACHE_DIR': '$home/.cache/mise',
+    'MISE_STATE_DIR': '$home/.local/state/mise',
+    'MISE_CONFIG_DIR': '$home/.config/mise',
+    'MISE_GLOBAL_CONFIG_FILE': configPath,
+    'MISE_YES': '1',
+  };
+
+  Directory get _configDir => Directory('$home/.config/roundtable/toolchains');
+
+  /// Frees disk space: forgets project configs unused for [keepUnused]
+  /// (each run rewrites its project's config, so the file's mtime is its
+  /// last use), then uninstalls every mise version no remaining config
+  /// resolves to — older `latest`s, versions a project moved off, tools of
+  /// deleted projects. Runs between installs, never during one. Returns
+  /// the removed `tool version`s. `pub:` packages are small and stay.
+  Future<List<String>> prune({Duration keepUnused = const Duration(days: 30)}) {
+    final result = _queue.then((_) => _prune(keepUnused));
+    _queue = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<List<String>> _prune(Duration keepUnused) async {
+    if (!await File(misePath).exists() || !await _configDir.exists()) {
+      return const [];
+    }
+    final cutoff = DateTime.now().subtract(keepUnused);
+    final configs = <File>[];
+    await for (final entry in _configDir.list()) {
+      if (entry is! File || !entry.path.endsWith('.toml')) continue;
+      if ((await entry.lastModified()).isBefore(cutoff)) {
+        await entry.delete();
+      } else {
+        configs.add(entry);
+      }
+    }
+
+    final wanted = <String>{};
+    for (final config in configs) {
+      wanted.addAll(
+        installedVersions(
+          await _mise(['ls', '--current', '--json'], _miseEnv(config.path)),
+        ),
+      );
+    }
+    // Lists every install without a project's config getting in the way.
+    final empty = File('$home/.config/roundtable/no-tools.toml');
+    await empty.writeAsString('');
+    final installed = installedVersions(
+      await _mise(['ls', '--installed', '--json'], _miseEnv(empty.path)),
+    );
+    final stale = installed.difference(wanted).toList()..sort();
+    if (stale.isNotEmpty) {
+      await _mise([
+        'uninstall',
+        for (final v in stale) v.replaceFirst(' ', '@'),
+      ], _miseEnv(empty.path));
+    }
+    return stale;
+  }
+
   Future<void> _ensureMise() async {
     if (await File(misePath).exists()) return;
     await Directory('$home/.local/bin').create(recursive: true);
@@ -237,6 +292,20 @@ bool pubToolActive(ProjectTool tool, Map<String, String> active) {
   final version = active[tool.name.substring(pubPrefix.length)];
   return version != null &&
       (tool.version == 'latest' || version == tool.version);
+}
+
+/// `mise ls --json` → the `tool version`s it lists as installed.
+Set<String> installedVersions(String json) {
+  if (json.trim().isEmpty) return const {};
+  final decoded = jsonDecode(json);
+  if (decoded is! Map) return const {};
+  return {
+    for (final MapEntry(:key, :value) in decoded.entries)
+      for (final install in value as List)
+        if ((install as Map)['installed'] != false &&
+            install['version'] != null)
+          '$key ${install['version']}',
+  };
 }
 
 /// `mise ls --missing --json` → `["flutter 3.47.6", …]` (resolved versions).

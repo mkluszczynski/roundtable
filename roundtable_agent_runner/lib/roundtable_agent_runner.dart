@@ -233,12 +233,15 @@ class AgentRunnerService {
     environmentPrompt: _environmentPrompt,
     fetchProjectTools: (projectId) async =>
         (await _client.project.get(projectId))?.tools ?? const [],
-    // Under the service account's own home (/var/lib/agent-runner), which
-    // it owns — installs need no sudo and outlive every worktree.
-    toolchainInstaller: ToolchainInstaller(
-      home: Platform.environment['HOME'] ?? Directory.systemTemp.path,
-    ),
+    toolchainInstaller: _toolchainInstaller,
   );
+
+  // Under the service account's own home (/var/lib/agent-runner), which
+  // it owns — installs need no sudo and outlive every worktree.
+  late final _toolchainInstaller = ToolchainInstaller(
+    home: Platform.environment['HOME'] ?? Directory.systemTemp.path,
+  );
+  DateTime? _lastToolchainPrune;
 
   /// This machine's name and detected tools, set during [run].
   String? _machineName;
@@ -301,6 +304,26 @@ class AgentRunnerService {
       await _janitor.sweep();
     } catch (e) {
       _log('worktree cleanup failed, will retry: $e');
+    }
+    await _pruneToolchains();
+  }
+
+  /// Uninstalls toolchain versions no project uses anymore — once a day,
+  /// riding the janitor's timer.
+  Future<void> _pruneToolchains() async {
+    final last = _lastToolchainPrune;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(days: 1)) {
+      return;
+    }
+    _lastToolchainPrune = DateTime.now();
+    try {
+      final removed = await _toolchainInstaller.prune();
+      if (removed.isNotEmpty) {
+        _log('toolchains: removed unused ${removed.join(', ')}');
+      }
+    } catch (e) {
+      _log('toolchain cleanup failed, will retry tomorrow: $e');
     }
   }
 

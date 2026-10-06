@@ -308,3 +308,10 @@ into its own home directory.
    task still runs: the agent reports what it couldn't verify.
 
 Code reviews don't install tools: the reviewer only reads the diff.
+
+4. **Clean up.** Once a day (on the worktree janitor's timer) the runner
+   deletes project configs unused for 30 days — each run rewrites its
+   project's config, so the file's mtime is its last use — and runs
+   `mise uninstall` on every installed version no remaining config resolves
+   to: an older `latest`, a version a project moved off, the tools of a
+   deleted project. `pub:` packages are small and stay.
