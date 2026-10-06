@@ -211,8 +211,11 @@ class AgentRunnerService {
         _client.codeReview.failReview(reviewId, reason),
     appendLog: (entry) => _client.task.appendLogEntry(entry),
     log: _log,
-    environmentPrompt: () => _environmentPrompt(review: true),
+    environmentPrompt: ({container = false}) =>
+        _environmentPrompt(review: true, container: container),
     fetchAttachments: _fetchAttachments,
+    fetchProject: (projectId) => _client.project.get(projectId),
+    sandboxFor: _sandboxFor,
   );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
@@ -293,7 +296,7 @@ class AgentRunnerService {
       image: request.image?.trim().isNotEmpty == true
           ? request.image!.trim()
           : defaultContainerImage,
-      name: 'roundtable-task-${request.taskId}',
+      name: request.name,
       workingDirectory: request.worktreePath,
       home: containerHome.path,
       claudePath: claude,

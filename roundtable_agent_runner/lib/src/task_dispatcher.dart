@@ -368,7 +368,7 @@ class TaskDispatcher {
         }
         sandbox = build((
           projectId: projectId,
-          taskId: task.id!,
+          name: 'roundtable-task-${task.id}',
           worktreePath: worktreePath,
           readOnlyDirectories: [mcpConfigDir.path],
           image: project?.dockerImage,

@@ -5,12 +5,14 @@ import 'dart:io';
 /// from the host — `claude` and the project's toolchains are mounted in.
 const defaultContainerImage = 'docker.io/library/buildpack-deps:bookworm-scm';
 
-/// What a task's run needs from its container — see
-/// `TaskDispatcher.sandboxFor`. [readOnlyDirectories] hold the run's MCP
-/// config and attached images; [image] is `Project.dockerImage`.
+/// What a task's or review's run needs from its container — see
+/// `TaskDispatcher.sandboxFor`. [name] is the container's name
+/// (`roundtable-task-12`, `roundtable-review-4`); [readOnlyDirectories] hold
+/// the run's MCP config and attached images; [image] is
+/// `Project.dockerImage`.
 typedef ContainerRequest = ({
   int projectId,
-  int taskId,
+  String name,
   String worktreePath,
   List<String> readOnlyDirectories,
   String? image,

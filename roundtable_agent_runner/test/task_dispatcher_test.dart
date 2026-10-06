@@ -182,7 +182,7 @@ exec "\$@"
               request = r;
               return ContainerSandbox(
                 image: r.image!,
-                name: 'roundtable-task-${r.taskId}',
+                name: r.name,
                 workingDirectory: r.worktreePath,
                 mounts: [(path: r.worktreePath, readOnly: false)],
                 home: '${tempDir.path}/chome',

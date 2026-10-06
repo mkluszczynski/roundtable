@@ -142,6 +142,9 @@ exit 0
       required List<int> fetchedFor,
       required List<String> completed,
       required List<String> failed,
+      AgentExecutionMode executionMode = AgentExecutionMode.native,
+      ContainerSandbox Function(ContainerRequest request)? sandboxFor,
+      List<bool>? containerPrompts,
     }) {
       final script = writeFakeClaude();
       return ReviewDispatcher(
@@ -160,6 +163,7 @@ exit 0
             prompt: 'You are {name}, the backend specialist.',
           ),
           status: AgentStatus.idle,
+          executionMode: executionMode,
         ),
         startReview: (_) async => Task(
           id: 1,
@@ -174,6 +178,17 @@ exit 0
         failReview: (_, reason) async => failed.add(reason),
         appendLog: (_) async {},
         log: (_) {},
+        fetchProject: (id) async => Project(
+          id: id,
+          name: 'Demo',
+          repoUrl: 'https://github.com/o/demo',
+          dockerImage: 'my/image:1',
+        ),
+        sandboxFor: sandboxFor,
+        environmentPrompt: ({container = false}) {
+          containerPrompts?.add(container);
+          return 'ENV';
+        },
         fetchAttachments: (taskId) async {
           fetchedFor.add(taskId);
           return [
@@ -220,6 +235,90 @@ exit 0
         contains('1-mockup.png'),
       );
       expect(Directory(addDir).existsSync(), isFalse);
+    });
+
+    test('runs a docker-mode reviewer in its own container', () async {
+      final podmanArgs = '${tempDir.path}/podman-args.txt';
+      final podman = File('${tempDir.path}/podman')
+        ..writeAsStringSync('''#!/bin/sh
+echo "\$@" >> $podmanArgs
+[ "\$3" = "rm" ] && exit 0
+while [ "\$1" != "my/image:1" ]; do shift; done
+shift
+exec "\$@"
+''');
+      Process.runSync('chmod', ['+x', podman.path]);
+      ContainerRequest? request;
+      final completed = <String>[];
+      final failed = <String>[];
+      final containerPrompts = <bool>[];
+      late String claude;
+      final dispatcher = buildDispatcher(
+        fetchedFor: [],
+        completed: completed,
+        failed: failed,
+        executionMode: AgentExecutionMode.docker,
+        containerPrompts: containerPrompts,
+        sandboxFor: (r) {
+          request = r;
+          return ContainerSandbox(
+            image: r.image!,
+            name: r.name,
+            workingDirectory: r.worktreePath,
+            mounts: [(path: r.worktreePath, readOnly: false)],
+            home: '${tempDir.path}/chome',
+            claudePath: claude,
+            podman: podman.path,
+          );
+        },
+      );
+      claude = '${tempDir.path}/fake_claude.sh';
+
+      await dispatcher.handle(
+        CodeReview(
+          id: 7,
+          taskId: 1,
+          reviewerAgentId: 2,
+          status: CodeReviewStatus.queued,
+        ),
+      );
+
+      expect(failed, isEmpty);
+      expect(completed, ['Looks good.']);
+      expect(request!.name, 'roundtable-review-7');
+      expect(request!.projectId, 1);
+      expect(request!.worktreePath, endsWith('/reviews/7'));
+      expect(
+        request!.readOnlyDirectories,
+        hasLength(1),
+        reason: 'the attached images are mounted read-only',
+      );
+      expect(containerPrompts, [true]);
+      final podmanCall = File(podmanArgs).readAsStringSync();
+      expect(podmanCall, contains('--userns=keep-id'));
+      expect(podmanCall, contains('my/image:1 $claude'));
+      expect(podmanCall, contains('rm --force --ignore roundtable-review-7'));
+    });
+
+    test('fails a docker-mode review on a machine without podman', () async {
+      final completed = <String>[];
+      final failed = <String>[];
+      await buildDispatcher(
+        fetchedFor: [],
+        completed: completed,
+        failed: failed,
+        executionMode: AgentExecutionMode.docker,
+      ).handle(
+        CodeReview(
+          id: 8,
+          taskId: 1,
+          reviewerAgentId: 2,
+          status: CodeReviewStatus.queued,
+        ),
+      );
+
+      expect(completed, isEmpty);
+      expect(failed.single, contains('docker mode'));
     });
   });
 }

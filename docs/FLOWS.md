@@ -354,3 +354,9 @@ Podman container that sees only what that task needs.
    native agent, and removes the container if it outlived the run.
    An agent's mode can only change while it has no open task: a task's
    Claude Code session lives either on the machine or in the container.
+4. **Code reviews.** A docker-mode reviewer (`ReviewDispatcher`) runs in
+   the same kind of container (`roundtable-review-<id>`): the review
+   worktree and the project's bare repo, the project's container home, and
+   the task's attached images read-only. No toolchains are installed — the
+   reviewer only reads — but without the container its `Read`/`Grep` could
+   reach any file the runner's user can.

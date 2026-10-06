@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
+import 'container_sandbox.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'stream_json_formatter.dart';
@@ -28,6 +29,8 @@ class ReviewDispatcher {
     required this.log,
     this.environmentPrompt,
     this.fetchAttachments = _noAttachments,
+    this.fetchProject,
+    this.sandboxFor,
   });
 
   static Future<List<TaskImage>> _noAttachments(int taskId) async => const [];
@@ -39,7 +42,17 @@ class ReviewDispatcher {
 
   /// Describes this machine to the reviewer (`--append-system-prompt`) —
   /// see `buildEnvironmentPrompt`. Null when not yet known.
-  final String? Function()? environmentPrompt;
+  final String? Function({bool container})? environmentPrompt;
+
+  /// The project under review — its `dockerImage` for a docker-mode
+  /// reviewer.
+  final Future<Project?> Function(int projectId)? fetchProject;
+
+  /// Builds the container a docker-mode reviewer runs in, like
+  /// `TaskDispatcher.sandboxFor`: only the review worktree, the project's
+  /// git data and the attached images are visible, never the machine's
+  /// other files. Null when the machine has no container runtime.
+  final ContainerSandbox Function(ContainerRequest request)? sandboxFor;
 
   final WorktreeManager worktreeManager;
   final ClaudeCodeExecutor Function() executorFactory;
@@ -86,6 +99,7 @@ class ReviewDispatcher {
 
     final projectId = '${task.projectId}';
     Directory? attachmentDir;
+    ContainerSandbox? sandbox;
     try {
       final agent = await fetchAgent(agentId);
       final cloneUrl = await getCloneUrl(task.projectId);
@@ -138,8 +152,37 @@ class ReviewDispatcher {
         ),
       );
 
+      final inContainer = agent.executionMode == AgentExecutionMode.docker;
+      if (inContainer) {
+        final build = sandboxFor;
+        if (build == null) {
+          throw StateError(
+            '${agent.name} runs in docker mode, but this machine has no '
+            'container runtime — install podman (install-agent.sh --docker) '
+            'or switch the agent to native',
+          );
+        }
+        final project = await fetchProject?.call(task.projectId);
+        sandbox = build((
+          projectId: task.projectId,
+          name: 'roundtable-review-$reviewId',
+          worktreePath: worktree.path,
+          readOnlyDirectories: [?attachmentDir?.path],
+          image: project?.dockerImage,
+        ));
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content: 'Running in a container (${sandbox.image})',
+          ),
+        );
+      }
+
       final formatter = StreamJsonFormatter();
-      final result = await executorFactory().runReview(
+      final executor = sandbox == null
+          ? executorFactory()
+          : executorFactory().inContainer(sandbox);
+      final result = await executor.runReview(
         prompt: buildReviewPrompt(
           rolePrompt: buildRolePrompt(agent),
           taskPrompt: task.prompt,
@@ -151,12 +194,18 @@ class ReviewDispatcher {
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
         additionalDirectories: [?attachmentDir?.path],
-        appendSystemPrompt: environmentPrompt?.call(),
+        appendSystemPrompt: environmentPrompt?.call(container: inContainer),
         onLine: (line) => formatter.feedEntries(line).forEach(append),
       );
 
       if (!result.success) {
-        await failReview(reviewId, result.errorSummary ?? 'Review run failed');
+        await failReview(
+          reviewId,
+          (sandbox != null
+                  ? describeContainerFailure(result.errorSummary)
+                  : result.errorSummary) ??
+              'Review run failed',
+        );
         return;
       }
       final findings = parseReviewOutput(result.resultText ?? '');
@@ -176,6 +225,7 @@ class ReviewDispatcher {
         e is ProcessException ? describeClaudeLaunchFailure(e) : '$e',
       );
     } finally {
+      await sandbox?.remove();
       try {
         await worktreeManager.removeReviewWorktree(
           projectId: projectId,

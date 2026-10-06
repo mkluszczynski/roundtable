@@ -54,9 +54,8 @@ share one Claude Pro/Max token and its usage limits.
 ### The `cloning` status is not implemented
 `TaskStatus.cloning` exists in the schema but nothing uses it.
 
-### Docker mode: code reviews run on the machine, the network is open
-Docker mode (docs/FLOWS.md §8) isolates task runs only. Code reviews still
-run on the machine (the reviewer only reads). The container's network stays
+### Docker mode: the network is open
+In docker mode (docs/FLOWS.md §8) the container's network stays
 open on purpose: the agent needs the Claude API and package registries, and
 does web research. A dev runner started from source (`dart run`) can't
 mount its permission-prompt-tool into the container; use the compiled
