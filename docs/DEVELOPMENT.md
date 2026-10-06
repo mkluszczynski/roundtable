@@ -83,6 +83,20 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
   (PRs, files with real `git diff`, reviews and threads, squash merge, no
   Actions runs). The server finds it through `ROUNDTABLE_GITHUB_URL`; the
   runner derives the API from the clone URL.
+- **Fake claude** (`bin/fake_claude.dart`): plays the agents from a
+  scenario (plan, per-run file edits, review verdicts). In plan mode it
+  talks MCP to the real permission prompt tool, so plan approval goes
+  through the server like with the real CLI. Every call is logged for
+  assertions (`E2EHarness.claudeRuns`).
+- **Harness** (`lib/src/harness.dart`): compiles the runner, its
+  permission prompt tool and the fake claude; starts the real server
+  (`--mode test`, a fresh embedded Postgres in a temp dir, ports and
+  passwords from `SERVERPOD_*` env vars — no `passwords.yaml` needed) and
+  the runner as processes; tests drive it through the generated client.
+
+`E2E_VERBOSE=1` echoes the server's and runner's output; `E2E_KEEP=1`
+keeps the temp dir (repos, worktrees, fake claude log) for a look after a
+failure. A run takes ~20 s per test.
 
 ## Conventions
 

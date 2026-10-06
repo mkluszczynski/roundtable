@@ -3,3 +3,4 @@
 library;
 
 export 'src/fake_github.dart';
+export 'src/harness.dart';
