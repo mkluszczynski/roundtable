@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../utils/agent_role_label.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -313,11 +315,17 @@ bool _hasPullRequestViews(Task task) =>
         task.status == TaskStatus.done) &&
     (task.prUrl != null || task.branchName != null);
 
-/// The section a task opens on: the live log while the agent works, the
-/// diff once there's a PR, otherwise whatever needs the dev's attention.
+/// The section a task opens on: the log while the agent works and while its
+/// PR awaits review (so the dev reads the agent's closing message before the
+/// diff), the diff of a done task's PR, otherwise whatever needs the dev's
+/// attention.
 _TaskSection _defaultSectionFor(Task task) {
   if (_isLive(task.status)) return _TaskSection.logs;
-  if (_hasPullRequestViews(task)) return _TaskSection.changes;
+  if (_hasPullRequestViews(task)) {
+    return task.status == TaskStatus.awaitingReview
+        ? _TaskSection.logs
+        : _TaskSection.changes;
+  }
   return _TaskSection.overview;
 }
 
@@ -407,11 +415,8 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
       child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
         builder: (context, state) {
           return switch (state) {
-            TaskDetailInitial() ||
-            TaskDetailLoading() ||
-            TaskDetailDeleted() => const Center(
-              child: CircularProgressIndicator(),
-            ),
+            TaskDetailInitial() || TaskDetailLoading() || TaskDetailDeleted() =>
+              const Center(child: CircularProgressIndicator()),
             TaskDetailError(:final message) => Center(
               child: Text(
                 'Failed to load task: $message',
@@ -811,9 +816,8 @@ class _RailNav extends StatelessWidget {
                       when state.task.checkState != PrCheckState.none =>
                     StatusDot(
                       color: checkStateAppearance(state.task.checkState).color,
-                      pulsing: checkStateAppearance(
-                        state.task.checkState,
-                      ).pulsing,
+                      pulsing: checkStateAppearance(state.task.checkState)
+                          .pulsing,
                     ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
@@ -1123,14 +1127,10 @@ class _Overview extends StatelessWidget {
         state: state,
       ),
       TaskStatus.planReady => _PlanReview(state: state),
-      TaskStatus.planning || TaskStatus.running => _LiveExecution(
-        state: state,
-      ),
+      TaskStatus.planning || TaskStatus.running => _LiveExecution(state: state),
       // Only reachable for a task that finished without changing code —
       // with a PR, Changes/AI review replace Overview.
-      TaskStatus.awaitingReview || TaskStatus.done => _ResultView(
-        state: state,
-      ),
+      TaskStatus.awaitingReview || TaskStatus.done => _ResultView(state: state),
       TaskStatus.paused => _PausedView(state: state),
       TaskStatus.failed => SingleChildScrollView(
         child: Column(
@@ -1633,9 +1633,7 @@ class _ChangesView extends StatelessWidget {
     if (placeholder != null) return placeholder;
     final files = state.files!;
     if (files.isEmpty) {
-      return Center(
-        child: Text('No changed files', style: AppTypography.body),
-      );
+      return Center(child: Text('No changed files', style: AppTypography.body));
     }
 
     final comments = state.reviewComments;
@@ -1792,9 +1790,7 @@ class _ReviewView extends StatelessWidget {
                 ],
                 if (comments.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: Spacing.xxl,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: Spacing.xxl),
                     child: Text(
                       latestReview == null
                           ? 'No AI review yet — request one to get comments '
@@ -1983,9 +1979,9 @@ class _ReviewerLogState extends State<_ReviewerLog> {
 
   @override
   Widget build(BuildContext context) {
-    final reviewRuns = buildLogTimeline(
-      widget.logs,
-    ).where((r) => r.isReview).toList();
+    final reviewRuns = buildLogTimeline(widget.logs)
+        .where((r) => r.isReview)
+        .toList();
     // Structured runs carry their review; older logs only allow "the
     // latest review run" for the latest review.
     final run =
