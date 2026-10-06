@@ -100,7 +100,11 @@ stateDiagram-v2
   done --> [*]
 ```
 
-Any non-terminal status can go to `cancelled` (`cancelTask`). A task can
+`cancelTask` sends any non-terminal status except `draft` back to the
+backlog as an agent-less `draft`, reset like a retry (plan, session, result
+and timestamps cleared; branch and PR kept, so a later run pushes onto
+them). Assigning an agent (`reassignAgent`) starts it again. `cancelled` is
+no longer set; it only remains on older rows (still retryable). A task can
 also go to `failed` in three cases:
 - its machine goes offline
 - it stalls for 15 min (agent-driven states only)
@@ -157,8 +161,10 @@ terminal, the runner can't change it through `update` anymore.
      `running`). `submitPlanFeedback` → deny with the feedback as the reason,
      and Claude plans again (task → `planning`).
    - Every other tool → auto-allow.
-6. **Finish.** Cancelled during the run → `SIGTERM`, reset the worktree,
-   `cancelled`. Success with changes → commit + push `task-<id>`, open a PR
+6. **Finish.** Cancelled during the run (the task turns `draft` on
+   `watchTask`) → `SIGTERM`, reset the worktree, report nothing more: the
+   server ignores daemon writes (`update`, `createQuestion`,
+   `setPlanReady`) to a draft. Success with changes → commit + push `task-<id>`, open a PR
    on the first run (later runs push to the same PR) → `awaitingReview`.
    Success with **no changes on the first run** → `failed` ("Agent finished
    without changing any files."). Every outcome sets the agent back to `idle`.

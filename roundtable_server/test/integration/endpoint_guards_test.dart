@@ -94,6 +94,27 @@ void main() {
           expect(updated.prUrl, isNull);
         },
       );
+
+      test(
+        'when the task was cancelled back to a draft then a late daemon '
+        'write is ignored',
+        () async {
+          final task = await createTask(
+            await createAgent(await createMachine()),
+            await createProject(),
+            TaskStatus.running,
+          );
+          await endpoints.task.cancelTask(sessionBuilder, task.id!);
+
+          final updated = await endpoints.task.update(
+            sessionBuilder,
+            task.copyWith(status: TaskStatus.failed, failureReason: 'killed'),
+          );
+
+          expect(updated.status, TaskStatus.draft);
+          expect(updated.failureReason, isNull);
+        },
+      );
     });
 
     group('generic updates', () {

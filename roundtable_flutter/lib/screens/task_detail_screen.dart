@@ -44,11 +44,11 @@ import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
 import '../utils/relative_time.dart';
 
-/// Mirrors the server's `nonTerminalTaskStatuses` (docs/ARCHITECTURE.md) —
-/// the header's "Cancel task" button only shows while the task is still
-/// something a `cancelTask` call can act on.
+/// Mirrors the server's `cancelTask` guard (`nonTerminalTaskStatuses` minus
+/// `draft`, docs/ARCHITECTURE.md) — the header's "Cancel task" button, which
+/// moves the task back to the backlog as an agent-less draft, only shows
+/// while the task is still something a `cancelTask` call can act on.
 const _cancellableStatuses = {
-  TaskStatus.draft,
   TaskStatus.queued,
   TaskStatus.cloning,
   TaskStatus.planning,
@@ -923,13 +923,16 @@ class _RailActions extends StatelessWidget {
           label: const Text('Retry task'),
         ),
       if (_cancellableStatuses.contains(task.status))
-        OutlinedButton.icon(
-          style: destructive,
-          onPressed: state.submitting
-              ? null
-              : () => bloc.add(TaskCancelled(task.id!)),
-          icon: const Icon(Icons.stop_circle_outlined, size: 16),
-          label: const Text('Cancel task'),
+        Tooltip(
+          message: 'Move back to the backlog as a draft',
+          child: OutlinedButton.icon(
+            style: destructive,
+            onPressed: state.submitting
+                ? null
+                : () => bloc.add(TaskCancelled(task.id!)),
+            icon: const Icon(Icons.stop_circle_outlined, size: 16),
+            label: const Text('Cancel task'),
+          ),
         ),
       if (task.status == TaskStatus.done)
         OutlinedButton.icon(

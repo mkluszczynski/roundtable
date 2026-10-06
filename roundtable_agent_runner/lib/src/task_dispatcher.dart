@@ -90,7 +90,8 @@ class TaskDispatcher {
 
   /// Streams a task's status (docs/FLOWS.md §4 "Cancelling mid-run") —
   /// subscribed to for the task currently being executed, to detect a
-  /// transition to `cancelled` while [ClaudeCodeExecutor.run] is in flight.
+  /// cancellation while [ClaudeCodeExecutor.run] is in flight: the task moves
+  /// back to `draft` (or, from an older server, to `cancelled`).
   /// Bound to `client.task.watchTask` in production.
   final Stream<Task> Function(int taskId) watchTask;
 
@@ -298,7 +299,8 @@ class TaskDispatcher {
       Process? liveProcess;
       watchSub = watchTask(task.id!).listen(
         (updated) {
-          if (updated.status == TaskStatus.cancelled) {
+          if (updated.status == TaskStatus.draft ||
+              updated.status == TaskStatus.cancelled) {
             cancelRequested = true;
             liveProcess?.kill(ProcessSignal.sigterm);
           } else if (needsPlanning) {
@@ -427,16 +429,12 @@ class TaskDispatcher {
       }
 
       if (cancelRequested) {
+        // The server already moved the task back to the backlog; there's no
+        // status left to report.
         log('task ${task.id}: cancelled, resetting worktree');
         await worktreeManager.resetWorktree(
           projectId: '$projectId',
           taskId: '${task.id}',
-        );
-        await updateTask(
-          task.copyWith(
-            status: TaskStatus.cancelled,
-            finishedAt: DateTime.now().toUtc(),
-          ),
         );
         await updateAgent(agent.copyWith(status: AgentStatus.idle));
         return;
@@ -549,16 +547,17 @@ class TaskDispatcher {
       log('task ${task.id}: finished with status ${status.name}');
     } catch (e) {
       log('task ${task.id}: execution failed: $e');
-      final failureReason = cancelRequested
-          ? null
-          : (e is ProcessException ? describeClaudeLaunchFailure(e) : '$e');
-      await updateTask(
-        task.copyWith(
-          status: cancelRequested ? TaskStatus.cancelled : TaskStatus.failed,
-          finishedAt: DateTime.now().toUtc(),
-          failureReason: failureReason,
-        ),
-      );
+      if (!cancelRequested) {
+        await updateTask(
+          task.copyWith(
+            status: TaskStatus.failed,
+            finishedAt: DateTime.now().toUtc(),
+            failureReason: e is ProcessException
+                ? describeClaudeLaunchFailure(e)
+                : '$e',
+          ),
+        );
+      }
       if (agent != null) {
         await updateAgent(agent.copyWith(status: AgentStatus.idle));
       }
