@@ -34,6 +34,10 @@ fields:
   ### so the dev can see what agents here can build and test with. Null
   ### for daemons that predate toolchain detection.
   toolchain: List<String>?
+  ### Until when the machine's Claude account is rate limited, as reported by
+  ### the daemon when a run hits the usage limit. The daemon starts no new
+  ### work until then; the panel shows it while it's in the future.
+  usageLimitedUntil: DateTime?
   createdAt: DateTime, default=now
   agents: List<Agent>?, relation(name=machine_agents)
   metrics: List<MachineMetric>?, relation(name=machine_metrics)

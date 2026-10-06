@@ -68,3 +68,51 @@ DateTime usageLimitResetAt(String message, {DateTime? now}) {
   }
   return reset.add(const Duration(minutes: 1)).toUtc();
 }
+
+/// The machine's Claude usage limit (docs/FLOWS.md §4): every task run and
+/// review on this machine shares one Claude account, so once one run hits
+/// the limit, work that hasn't started yet waits here until the reset
+/// instead of starting `claude` only to hit it again.
+class UsageLimitGate {
+  UsageLimitGate({this.onHit, DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  /// Called when the limit is hit (or pushed later), e.g. to report it to
+  /// the server for the panel.
+  final void Function(DateTime until)? onHit;
+  final DateTime Function() _now;
+  DateTime? _until;
+
+  /// When the limit resets, or null while there's none.
+  DateTime? get limitedUntil {
+    final until = _until;
+    return until != null && until.isAfter(_now()) ? until : null;
+  }
+
+  /// Records a run hitting the limit, which resets at [until].
+  void hit(DateTime until) {
+    final current = _until;
+    if (current != null && !until.isAfter(current)) return;
+    _until = until;
+    onHit?.call(until);
+  }
+
+  /// Waits until the limit resets — again if it's pushed later meanwhile.
+  /// [onWaiting] is told when, once per wait. Returns whether it waited.
+  Future<bool> wait({void Function(DateTime until)? onWaiting}) async {
+    var waited = false;
+    for (var until = limitedUntil; until != null; until = limitedUntil) {
+      onWaiting?.call(until);
+      waited = true;
+      await Future<void>.delayed(until.difference(_now()));
+    }
+    return waited;
+  }
+}
+
+/// [time] (UTC) as the machine's local "HH:MM", for timeline messages.
+String localClock(DateTime time) {
+  final local = time.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+}

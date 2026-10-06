@@ -661,6 +661,26 @@ class Endpoints extends _is.EndpointDispatch {
                         verdict: params['verdict'],
                       ),
         ),
+        'requeueReview': _is.MethodConnector(
+          name: 'requeueReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .requeueReview(
+                        session,
+                        params['reviewId'],
+                      ),
+        ),
         'failReview': _is.MethodConnector(
           name: 'failReview',
           params: {
@@ -920,6 +940,31 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['token'],
                     params['runnerVersion'],
+                  ),
+        ),
+        'reportUsageLimit': _is.MethodConnector(
+          name: 'reportUsageLimit',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'until': _is.ParameterDescription(
+              name: 'until',
+              type: _is.getType<DateTime>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportUsageLimit(
+                    session,
+                    params['token'],
+                    params['until'],
                   ),
         ),
         'latestRunnerVersion': _is.MethodConnector(

@@ -43,7 +43,9 @@ deletes the existing rows and schedules them again, so they don't pile up:
   `failed` ("Machine went offline mid-task").
 - `StalledTaskFutureCall` (every 30 s): a task in an agent-driven state
   (`queued`, `cloning`, `planning`, `running`) with no progress
-  (`lastProgressAt`) for 15 min goes to `failed`.
+  (`lastProgressAt`) for 15 min goes to `failed` — except a `queued` one
+  whose agent is busy with other work or whose machine is usage limited,
+  which the runner holds back on purpose.
 - `MachineMetricCleanupFutureCall` (every 10 min): deletes `MachineMetric`
   rows older than 1 h.
 - `PausedTaskResumeFutureCall` (every 30 s): a task `paused` by a Claude

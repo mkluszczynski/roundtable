@@ -479,6 +479,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'List<String>?',
         ),
         _isp.ColumnDefinition(
+          name: 'usageLimitedUntil',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
+        ),
+        _isp.ColumnDefinition(
           name: 'createdAt',
           columnType: _isp.ColumnType.timestampWithoutTimeZone,
           isNullable: false,

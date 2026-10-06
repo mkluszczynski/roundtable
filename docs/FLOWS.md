@@ -241,6 +241,22 @@ Other actions: `retryTask` (failed/cancelled → fresh `queued`, clears
 `claudeSessionId`), `reassignAgent` (allowed in draft/queued/cloning/
 awaitingReview, or when the task has no agent).
 
+### Claude usage limit
+
+All runs on a machine share one Claude account. A run that hits the usage
+limit ("You've hit your session limit · resets 3pm") pauses its task
+(`paused`, `pausedUntil` = the reset, `PausedTaskResumeFutureCall` queues
+it again then and the same session resumes). It also closes the runner's
+`UsageLimitGate` until the reset and reports it (`reportUsageLimit` →
+`Machine.usageLimitedUntil`, "Usage limit until HH:MM" on the machine).
+Until then, work that hasn't started waits instead of hitting the limit
+again: a task stays as it is with "Waiting for the Claude usage limit to
+reset at HH:MM" on its timeline and is re-read before it starts; a review
+stays `queued`. A review cut short by the limit goes back to `queued`
+(`requeueReview`) and runs again after the reset. `StalledTaskFutureCall`
+leaves a queued task alone while its machine is limited or its agent is
+busy with other work (§5).
+
 ## 5. AI code review
 
 1. On a task in `awaitingReview`, **Request review**

@@ -14,6 +14,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
 import '../utils/relative_time.dart';
+import '../widgets/usage_limit_note.dart';
 import '../widgets/add_agent_dialog.dart';
 import '../widgets/agent_row.dart';
 import '../widgets/app_card.dart';
@@ -370,6 +371,11 @@ class _MachineRail extends StatelessWidget {
                   label: 'Toolchain',
                   child: ToolchainChips(toolchain: machine.toolchain),
                 ),
+                if (UsageLimitNote.isActive(machine.usageLimitedUntil))
+                  RailSection(
+                    label: 'Claude usage',
+                    child: UsageLimitNote(until: machine.usageLimitedUntil),
+                  ),
                 RailSection(
                   label: 'Claude CLI',
                   child: switch (machine.claudeExecutableOk) {

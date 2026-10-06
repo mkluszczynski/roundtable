@@ -34,10 +34,59 @@ class StalledTaskFutureCall extends FutureCall {
           (t.lastProgressAt < cutoff),
     );
 
+    final waiting = <int>{};
+    for (final task in stalledTasks) {
+      if (task.status == TaskStatus.queued &&
+          await _waitsForItsTurn(session, task)) {
+        waiting.add(task.id!);
+      }
+    }
+
     await failTasks(
       session,
-      stalledTasks,
+      [
+        for (final t in stalledTasks)
+          if (!waiting.contains(t.id)) t,
+      ],
       'Task made no progress for over ${_stalledThreshold.inMinutes} minutes',
     );
   }
+
+  /// A queued task isn't stalled while the runner holds it back on purpose
+  /// (docs/FLOWS.md §5): its agent is busy with another task or review —
+  /// one piece of work per agent — or its machine is usage limited.
+  Future<bool> _waitsForItsTurn(Session session, Task task) async {
+    final agentId = task.agentId;
+    if (agentId == null) return false;
+    final otherWork = await Task.db.count(
+      session,
+      where: (t) =>
+          t.agentId.equals(agentId) &
+          t.id.notEquals(task.id) &
+          t.status.inSet(_agentBusyStatuses),
+    );
+    if (otherWork > 0) return true;
+    final reviewing = await CodeReview.db.count(
+      session,
+      where: (r) =>
+          r.reviewerAgentId.equals(agentId) &
+          r.status.equals(CodeReviewStatus.running),
+    );
+    if (reviewing > 0) return true;
+    final agent = await Agent.db.findById(
+      session,
+      agentId,
+      include: Agent.include(machine: Machine.include()),
+    );
+    final limitedUntil = agent?.machine?.usageLimitedUntil;
+    return limitedUntil != null && limitedUntil.isAfter(DateTime.now());
+  }
+
+  /// Task statuses that occupy their agent's turn on the runner.
+  static const _agentBusyStatuses = {
+    TaskStatus.cloning,
+    TaskStatus.planning,
+    TaskStatus.running,
+    TaskStatus.waitingForAnswer,
+  };
 }

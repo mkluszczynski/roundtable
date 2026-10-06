@@ -67,7 +67,9 @@ void main() {
       Agent? agent,
       ContainerSandbox Function(ContainerRequest request)? sandboxFor,
       String? dockerImage,
+      UsageLimitGate? usageLimit,
     }) => TaskDispatcher(
+      usageLimit: usageLimit,
       worktreeManager: WorktreeManager(
         workspaceRoot: '${tempDir.path}/workspace',
       ),
@@ -322,6 +324,27 @@ echo '{"type":"result","subtype":"success","session_id":"s"}'
       });
     });
 
+    test('a task waits while the machine is usage limited', () async {
+      final claudeScript = writeFakeClaude('exit 0');
+      final taskUpdates = <Task>[];
+      final logEntries = <TaskLogEntry>[];
+      final gate = UsageLimitGate()
+        ..hit(DateTime.now().add(const Duration(milliseconds: 100)));
+
+      await dispatcherFor(
+        claudeScript,
+        taskUpdates: taskUpdates,
+        logEntries: logEntries,
+        usageLimit: gate,
+      ).handle(buildTask());
+
+      expect(
+        logEntries.first.content,
+        startsWith('Waiting for the Claude usage limit to reset at'),
+      );
+      expect(taskUpdates, isNotEmpty, reason: 'it ran after the reset');
+    });
+
     test('a run stopped by the usage limit pauses the task with the reset '
         'time, its phase and session', () async {
       final claudeScript = writeFakeClaude('''
@@ -329,12 +352,15 @@ echo '{"type":"result","subtype":"error_during_execution","is_error":true,"sessi
 exit 1
 ''');
       final taskUpdates = <Task>[];
+      final gate = UsageLimitGate();
 
       await dispatcherFor(
         claudeScript,
         taskUpdates: taskUpdates,
+        usageLimit: gate,
       ).handle(buildTask());
 
+      expect(gate.limitedUntil, isNotNull, reason: 'the machine waits too');
       final paused = taskUpdates.last;
       expect(paused.status, TaskStatus.paused);
       expect(paused.pausedPhase, LogPhase.execution);

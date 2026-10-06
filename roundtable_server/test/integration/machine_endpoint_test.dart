@@ -266,6 +266,26 @@ void main() {
       },
     );
 
+    test('when the daemon reports a usage limit then it is stored', () async {
+      final registration = await endpoints.machine.register(
+        sessionBuilder,
+        'VPS',
+      );
+      final until = DateTime.utc(2026, 10, 7, 15, 30);
+
+      await endpoints.machine.reportUsageLimit(
+        sessionBuilder,
+        registration.token,
+        until,
+      );
+
+      final machine = await Machine.db.findById(
+        sessionBuilder.build(),
+        registration.machine.id!,
+      );
+      expect(machine!.usageLimitedUntil, until);
+    });
+
     test(
       'when checking in then the machine is marked online and its runner '
       'version is recorded',

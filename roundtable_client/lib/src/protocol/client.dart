@@ -490,6 +490,16 @@ class EndpointCodeReview extends _isc.EndpointRef {
     },
   );
 
+  /// Called by the daemon when a running review was cut short by the Claude
+  /// usage limit: it goes back to `queued`, and the daemon runs it again
+  /// once the limit resets.
+  _ida.Future<_i38oxrkr.CodeReview> requeueReview(int reviewId) =>
+      caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+        'codeReview',
+        'requeueReview',
+        {'reviewId': reviewId},
+      );
+
   /// Called by the daemon when the review run couldn't produce findings.
   _ida.Future<_i38oxrkr.CodeReview> failReview(
     int reviewId,
@@ -633,6 +643,20 @@ class EndpointMachine extends _isc.EndpointRef {
     {
       'token': token,
       'runnerVersion': runnerVersion,
+    },
+  );
+
+  /// Called by the daemon when a run hits the Claude usage limit: the
+  /// machine starts no new work until [until] (docs/FLOWS.md §4).
+  _ida.Future<void> reportUsageLimit(
+    String token,
+    DateTime until,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportUsageLimit',
+    {
+      'token': token,
+      'until': until,
     },
   );
 

@@ -13,6 +13,7 @@ import 'task_images.dart';
 import 'environment_prompt.dart';
 import 'toolchain_installer.dart';
 import 'task_dispatcher.dart';
+import 'usage_limit.dart';
 import 'worktree_manager.dart';
 
 /// Runs an assigned [CodeReview]: checks the task's branch out read-only,
@@ -38,7 +39,19 @@ class ReviewDispatcher {
     this.sandboxFor,
     this.toolchainInstaller,
     AgentWorkQueue? workQueue,
-  }) : workQueue = workQueue ?? AgentWorkQueue();
+    UsageLimitGate? usageLimit,
+    this.requeueReview,
+  }) : workQueue = workQueue ?? AgentWorkQueue(),
+       usageLimit = usageLimit ?? UsageLimitGate();
+
+  /// The machine's Claude usage limit, shared with `TaskDispatcher`: a
+  /// review waits (still `queued`) while it's active.
+  final UsageLimitGate usageLimit;
+
+  /// Bound to `client.codeReview.requeueReview`: puts a review cut short
+  /// by the usage limit back to `queued`, to run again after the reset.
+  /// Without it, such a review fails.
+  final Future<void> Function(int reviewId)? requeueReview;
 
   /// One piece of work at a time per agent, shared with `TaskDispatcher`: a
   /// review by a busy agent stays `queued` here until it's free.
@@ -100,39 +113,62 @@ class ReviewDispatcher {
       log('review $reviewId: not queued (status=${review.status}), skipping');
       return;
     }
-    await workQueue.run(
+    await usageLimit.wait(
+      onWaiting: (until) {
+        log('review $reviewId: usage limit, waiting until $until');
+        _logEvent(
+          review.taskId,
+          reviewId,
+          'Review waiting for the Claude usage limit to reset at '
+          '${localClock(until)}',
+        );
+      },
+    );
+    final requeued = await workQueue.run(
       agentId,
       'the review of task #${review.taskId}',
       () => _handle(review, reviewId, agentId),
       onWaiting: (busyWith) {
         log('review $reviewId: reviewer $agentId is busy with $busyWith');
-        appendLog(
-          TaskLogEntry(
-            taskId: review.taskId,
-            content: 'Review waiting — the reviewer is busy with $busyWith',
-            source: LogSource.system,
-            kind: LogKind.event,
-          ),
-        ).catchError(
-          (Object e) => log('review $reviewId: appendLog failed: $e'),
+        _logEvent(
+          review.taskId,
+          reviewId,
+          'Review waiting — the reviewer is busy with $busyWith',
         );
       },
     );
+    // Cut short by the usage limit: run it again once the limit resets.
+    if (requeued) {
+      await handle(review.copyWith(status: CodeReviewStatus.queued));
+    }
   }
 
-  Future<void> _handle(CodeReview review, int reviewId, int agentId) async {
+  void _logEvent(int taskId, int reviewId, String content) {
+    appendLog(
+      TaskLogEntry(
+        taskId: taskId,
+        content: content,
+        source: LogSource.system,
+        kind: LogKind.event,
+      ),
+    ).catchError((Object e) => log('review $reviewId: appendLog failed: $e'));
+  }
+
+  /// Runs the review; returns true when the usage limit cut it short and it
+  /// went back to `queued`.
+  Future<bool> _handle(CodeReview review, int reviewId, int agentId) async {
     final Task task;
     try {
       task = await startReview(reviewId);
     } catch (e) {
       // Another subscription (e.g. a replay after reconnect) won the race.
       log('review $reviewId: could not start: $e');
-      return;
+      return false;
     }
     final branch = task.branchName;
     if (branch == null) {
       await failReview(reviewId, 'Task ${task.id} has no pushed branch.');
-      return;
+      return false;
     }
 
     final projectId = '${task.projectId}';
@@ -256,6 +292,24 @@ class ReviewDispatcher {
         onLine: (line) => formatter.feedEntries(line).forEach(append),
       );
 
+      final requeue = requeueReview;
+      if (!result.success &&
+          requeue != null &&
+          isUsageLimitMessage(result.errorSummary)) {
+        final until = usageLimitResetAt(result.errorSummary!);
+        usageLimit.hit(until);
+        log('review $reviewId: usage limit, queued again until $until');
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content:
+                'Stopped by the Claude usage limit — the review runs again '
+                'at ${localClock(until)}',
+          ),
+        );
+        await requeue(reviewId);
+        return true;
+      }
       if (!result.success) {
         await failReview(
           reviewId,
@@ -264,7 +318,7 @@ class ReviewDispatcher {
                   : result.errorSummary) ??
               'Review run failed',
         );
-        return;
+        return false;
       }
       final findings = parseReviewOutput(result.resultText ?? '');
       if (findings == null) {
@@ -272,7 +326,7 @@ class ReviewDispatcher {
           reviewId,
           'The reviewer did not end with the expected JSON block.',
         );
-        return;
+        return false;
       }
       await completeReview(reviewId, findings);
       log(
@@ -301,6 +355,7 @@ class ReviewDispatcher {
         log('review $reviewId: could not remove attached images: $e');
       }
     }
+    return false;
   }
 }
 

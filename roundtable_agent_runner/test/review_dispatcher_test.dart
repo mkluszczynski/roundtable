@@ -234,9 +234,13 @@ exit 0
       AgentWorkQueue? workQueue,
       List<int>? started,
       List<String>? events,
+      UsageLimitGate? usageLimit,
+      Future<void> Function(int reviewId)? requeueReview,
     }) {
       final script = writeFakeClaude();
       return ReviewDispatcher(
+        usageLimit: usageLimit,
+        requeueReview: requeueReview,
         worktreeManager: WorktreeManager(
           workspaceRoot: '${tempDir.path}/workspace',
         ),
@@ -439,6 +443,73 @@ exec "\$@"
       await busy;
       await handled;
       expect(started, [7]);
+      expect(completed, ['Looks good.']);
+    });
+
+    test('waits for the usage limit to reset before starting', () async {
+      final gate = UsageLimitGate()
+        ..hit(DateTime.now().add(const Duration(milliseconds: 100)));
+      final started = <int>[];
+      final events = <String>[];
+      await buildDispatcher(
+        fetchedFor: [],
+        completed: [],
+        failed: [],
+        usageLimit: gate,
+        started: started,
+        events: events,
+      ).handle(
+        CodeReview(
+          id: 7,
+          taskId: 1,
+          reviewerAgentId: 2,
+          status: CodeReviewStatus.queued,
+        ),
+      );
+      expect(events.first, startsWith('Review waiting for the Claude usage'));
+      expect(started, [7]);
+    });
+
+    test('a review cut short by the usage limit is queued again and runs '
+        'after the reset', () async {
+      var clock = DateTime.now();
+      final gate = UsageLimitGate(now: () => clock);
+      final started = <int>[];
+      final completed = <String>[];
+      final failed = <String>[];
+      final requeued = <int>[];
+      final dispatcher = buildDispatcher(
+        fetchedFor: [],
+        completed: completed,
+        failed: failed,
+        usageLimit: gate,
+        started: started,
+        requeueReview: (id) async {
+          requeued.add(id);
+          // The limit resets and the next run succeeds.
+          clock = DateTime.now().add(const Duration(days: 2));
+          writeFakeClaude();
+        },
+      );
+      File('${tempDir.path}/fake_claude.sh').writeAsStringSync(
+        '#!/bin/sh\n'
+        r'''echo '{"type":"result","subtype":"error_during_execution","session_id":"s","result":"You have hit your session limit · resets 3pm"}'
+exit 1
+''',
+      );
+
+      await dispatcher.handle(
+        CodeReview(
+          id: 7,
+          taskId: 1,
+          reviewerAgentId: 2,
+          status: CodeReviewStatus.queued,
+        ),
+      );
+
+      expect(requeued, [7]);
+      expect(failed, isEmpty);
+      expect(started, [7, 7]);
       expect(completed, ['Looks good.']);
     });
 

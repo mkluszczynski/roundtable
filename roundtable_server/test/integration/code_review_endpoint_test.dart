@@ -483,6 +483,31 @@ void main() {
       });
     });
 
+    test('when a running review hits the usage limit then it is queued '
+        'again and the reviewer freed', () async {
+      final seeded = await seed();
+      final review = await endpoints.codeReview.requestReview(
+        sessionBuilder,
+        seeded.task.id!,
+        seeded.reviewer.id!,
+      );
+      await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+
+      final requeued = await endpoints.codeReview.requeueReview(
+        sessionBuilder,
+        review.id!,
+      );
+
+      expect(requeued.status, CodeReviewStatus.queued);
+      final reviewer = await Agent.db.findById(
+        sessionBuilder.build(),
+        seeded.reviewer.id!,
+      );
+      expect(reviewer!.status, AgentStatus.idle);
+      // It can start again once the limit resets.
+      await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+    });
+
     group('when the reviewer also works on its own task', () {
       Future<(Agent reviewer, CodeReview review)> reviewWhile(
         TaskStatus ownTaskStatus,

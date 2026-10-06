@@ -44,4 +44,34 @@ void main() {
     final at = usageLimitResetAt('usage limit reached', now: now).toLocal();
     expect(at, now.add(usageLimitFallbackWait));
   });
+
+  group('UsageLimitGate', () {
+    test('is open until a run hits the limit, then until the reset', () {
+      var clock = DateTime.utc(2026, 10, 7, 12);
+      final reported = <DateTime>[];
+      final gate = UsageLimitGate(now: () => clock, onHit: reported.add);
+      expect(gate.limitedUntil, isNull);
+
+      final reset = DateTime.utc(2026, 10, 7, 15);
+      gate.hit(reset);
+      gate.hit(DateTime.utc(2026, 10, 7, 14)); // an earlier reset is ignored
+      expect(gate.limitedUntil, reset);
+      expect(reported, [reset]);
+
+      clock = DateTime.utc(2026, 10, 7, 15, 1);
+      expect(gate.limitedUntil, isNull);
+    });
+
+    test('waits for the reset', () async {
+      final gate = UsageLimitGate();
+      expect(await gate.wait(), isFalse);
+
+      gate.hit(DateTime.now().add(const Duration(milliseconds: 50)));
+      final told = <DateTime>[];
+      final stopwatch = Stopwatch()..start();
+      expect(await gate.wait(onWaiting: told.add), isTrue);
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(40));
+      expect(told, hasLength(1));
+    });
+  });
 }

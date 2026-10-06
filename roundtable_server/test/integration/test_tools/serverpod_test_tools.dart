@@ -1134,6 +1134,37 @@ class _CodeReviewEndpoint {
     });
   }
 
+  _ida.Future<_i42ca4ig.CodeReview> requeueReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'requeueReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'requeueReview',
+          parameters: _ist.testObjectToJson({'reviewId': reviewId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_i42ca4ig.CodeReview> failReview(
     _ist.TestSessionBuilder sessionBuilder,
     int reviewId,
@@ -1501,6 +1532,41 @@ class _MachineEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<bool>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<void> reportUsageLimit(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+    DateTime until,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'reportUsageLimit',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'reportUsageLimit',
+          parameters: _ist.testObjectToJson({
+            'token': token,
+            'until': until,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

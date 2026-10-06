@@ -9,6 +9,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/relative_time.dart';
+import '../widgets/usage_limit_note.dart';
 import '../widgets/add_agent_dialog.dart';
 import '../widgets/add_machine_dialog.dart';
 import '../widgets/agent_row.dart';
@@ -409,6 +410,10 @@ class _MachineCard extends StatelessWidget {
                 status: updateStatus,
                 onUpdate: () => _confirmAndUpdate(context),
               ),
+            ],
+            if (UsageLimitNote.isActive(machine.usageLimitedUntil)) ...[
+              const SizedBox(height: Spacing.md),
+              UsageLimitNote(until: machine.usageLimitedUntil),
             ],
             if (machine.claudeExecutableOk == false) ...[
               const SizedBox(height: Spacing.md),

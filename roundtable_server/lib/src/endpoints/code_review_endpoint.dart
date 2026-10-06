@@ -200,6 +200,21 @@ class CodeReviewEndpoint extends Endpoint {
     return posted;
   }
 
+  /// Called by the daemon when a running review was cut short by the Claude
+  /// usage limit: it goes back to `queued`, and the daemon runs it again
+  /// once the limit resets.
+  Future<CodeReview> requeueReview(Session session, int reviewId) async {
+    var review = await _requireReview(session, reviewId);
+    if (review.status != CodeReviewStatus.running) return review;
+    await CodeReview.db.updateRow(
+      session,
+      review.copyWith(status: CodeReviewStatus.queued),
+      columns: (r) => [r.status],
+    );
+    await _setReviewerStatus(session, review, AgentStatus.idle);
+    return postReviewChanged(session, reviewId);
+  }
+
   /// Called by the daemon when the review run couldn't produce findings.
   Future<CodeReview> failReview(
     Session session,

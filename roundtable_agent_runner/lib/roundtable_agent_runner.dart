@@ -15,6 +15,7 @@ import 'src/task_dispatcher.dart';
 import 'src/task_images.dart';
 import 'src/toolchain_installer.dart';
 import 'src/worktree_janitor.dart';
+import 'src/usage_limit.dart';
 import 'src/worktree_manager.dart';
 
 export 'src/agent_work_queue.dart';
@@ -227,10 +228,22 @@ class AgentRunnerService {
     sandboxFor: _sandboxFor,
     toolchainInstaller: _toolchainInstaller,
     workQueue: _workQueue,
+    usageLimit: _usageLimit,
+    requeueReview: (reviewId) => _client.codeReview.requeueReview(reviewId),
   );
 
   /// Shared by both dispatchers: one task run or review at a time per agent.
   final _workQueue = AgentWorkQueue();
+
+  /// Shared by both dispatchers: the machine's Claude usage limit, reported
+  /// to the panel (`Machine.usageLimitedUntil`) when a run hits it.
+  late final _usageLimit = UsageLimitGate(
+    onHit: (until) => unawaited(
+      _client.machine
+          .reportUsageLimit(_config.registrationToken, until)
+          .catchError((Object e) => _log('reportUsageLimit failed: $e')),
+    ),
+  );
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
     worktreeManager: _worktreeManager,
@@ -257,6 +270,7 @@ class AgentRunnerService {
     toolchainInstaller: _toolchainInstaller,
     sandboxFor: _sandboxFor,
     workQueue: _workQueue,
+    usageLimit: _usageLimit,
   );
 
   // Under the service account's own home (/var/lib/agent-runner), which

@@ -46,7 +46,13 @@ class TaskDispatcher {
     this.toolchainInstaller,
     this.sandboxFor,
     AgentWorkQueue? workQueue,
-  }) : workQueue = workQueue ?? AgentWorkQueue();
+    UsageLimitGate? usageLimit,
+  }) : workQueue = workQueue ?? AgentWorkQueue(),
+       usageLimit = usageLimit ?? UsageLimitGate();
+
+  /// The machine's Claude usage limit, shared with `ReviewDispatcher`: a
+  /// run hitting it closes the gate, and work that hasn't started waits.
+  final UsageLimitGate usageLimit;
 
   /// One piece of work at a time per agent, shared with `ReviewDispatcher`:
   /// a task for a busy agent waits here.
@@ -191,7 +197,17 @@ class TaskDispatcher {
           agentId,
           'task #$id',
           () async {
-            if (waited) {
+            final limited = await usageLimit.wait(
+              onWaiting: (until) {
+                log('task $id: usage limit, waiting until $until');
+                _logEvent(
+                  id,
+                  'Waiting for the Claude usage limit to reset at '
+                  '${localClock(until)}',
+                );
+              },
+            );
+            if (waited || limited) {
               final current = await (fetchTask?.call(id) ?? Future.value(task));
               if (current == null || current.agentId != agentId) {
                 log('task $id: deleted or reassigned while waiting, skipping');
@@ -204,7 +220,7 @@ class TaskDispatcher {
           onWaiting: (busyWith) {
             waited = true;
             log('task $id: agent $agentId is busy with $busyWith, waiting');
-            _logWaiting(id, busyWith);
+            _logEvent(id, 'Waiting — the agent is busy with $busyWith');
           },
         );
       }
@@ -220,12 +236,12 @@ class TaskDispatcher {
     }
   }
 
-  /// Notes on [taskId]'s timeline that its agent is busy — best effort.
-  void _logWaiting(int taskId, String busyWith) {
+  /// Notes [content] on [taskId]'s timeline — best effort.
+  void _logEvent(int taskId, String content) {
     appendLog(
       TaskLogEntry(
         taskId: taskId,
-        content: 'Waiting — the agent is busy with $busyWith',
+        content: content,
         source: LogSource.system,
         kind: LogKind.event,
       ),
@@ -547,10 +563,8 @@ class TaskDispatcher {
       if (!result.success && isUsageLimitMessage(result.errorSummary)) {
         final message = result.errorSummary!;
         final resumeAt = usageLimitResetAt(message);
-        final local = resumeAt.toLocal();
-        final at =
-            '${local.hour.toString().padLeft(2, '0')}:'
-            '${local.minute.toString().padLeft(2, '0')}';
+        usageLimit.hit(resumeAt);
+        final at = localClock(resumeAt);
         log('task ${task.id}: usage limit, paused until $resumeAt');
         append(
           LogItem(

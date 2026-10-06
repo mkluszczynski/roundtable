@@ -135,6 +135,21 @@ class MachineEndpoint extends Endpoint {
     return updateRequestedAt != null;
   }
 
+  /// Called by the daemon when a run hits the Claude usage limit: the
+  /// machine starts no new work until [until] (docs/FLOWS.md §4).
+  Future<void> reportUsageLimit(
+    Session session,
+    String token,
+    DateTime until,
+  ) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(usageLimitedUntil: until.toUtc()),
+      columns: (m) => [m.usageLimitedUntil],
+    );
+  }
+
   /// The version of the agent-runner binaries the server currently serves —
   /// a machine whose [Machine.runnerVersion] differs is out of date. Null if
   /// the binaries can't be resolved (e.g. the dev-mode build failed).
