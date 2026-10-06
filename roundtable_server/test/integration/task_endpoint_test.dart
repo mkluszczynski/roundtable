@@ -280,6 +280,45 @@ void main() {
         );
       }
 
+      test(
+        'when a queued task resumes a paused run then the prompt is rejected but the automation options change',
+        () async {
+          final task = await Task.db.updateRow(
+            sessionBuilder.build(),
+            (await createTask()).copyWith(pausedPhase: LogPhase.execution),
+          );
+
+          await expectLater(
+            endpoints.task.updateTaskSettings(
+              sessionBuilder,
+              task.id!,
+              'New prompt',
+            ),
+            throwsA(isA<InvalidStateException>()),
+          );
+          await expectLater(
+            endpoints.task.updateTaskSettings(
+              sessionBuilder,
+              task.id!,
+              task.prompt,
+              skipPlanning: true,
+            ),
+            throwsA(isA<InvalidStateException>()),
+          );
+
+          final updated = await endpoints.task.updateTaskSettings(
+            sessionBuilder,
+            task.id!,
+            task.prompt,
+            autoMerge: true,
+          );
+          expect(updated.autoMerge, isTrue);
+          expect(updated.prompt, 'Do something');
+          expect(updated.skipPlanning, isFalse);
+          expect(updated.status, TaskStatus.queued);
+        },
+      );
+
       test('a failed task can get a new prompt before a retry', () async {
         final task = await setStatus(await createTask(), TaskStatus.failed);
 

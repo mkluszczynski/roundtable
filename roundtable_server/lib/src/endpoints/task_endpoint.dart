@@ -669,7 +669,8 @@ class TaskEndpoint extends Endpoint {
 
   /// Statuses [updateTaskSettings] may change the prompt and `skipPlanning`
   /// in — both only matter when a run starts, so only before the first run
-  /// or before a retry (which starts a fresh session).
+  /// or before a retry (which starts a fresh session). Not while queued to
+  /// resume a paused run (`pausedPhase`), which keeps its session.
   static const _promptEditableStatuses = {
     TaskStatus.draft,
     TaskStatus.queued,
@@ -708,12 +709,22 @@ class TaskEndpoint extends Endpoint {
       throw InvalidStateException(message: 'Write what the agent should do');
     }
     final newSkipPlanning = skipPlanning ?? task.skipPlanning;
-    if ((trimmed != task.prompt || newSkipPlanning != task.skipPlanning) &&
-        !_promptEditableStatuses.contains(task.status)) {
+    final promptChanged =
+        trimmed != task.prompt || newSkipPlanning != task.skipPlanning;
+    if (promptChanged && !_promptEditableStatuses.contains(task.status)) {
       throw InvalidStateException(
         message:
             'The prompt of task $taskId can\'t change while '
             '${task.status.name} — send the agent feedback instead',
+      );
+    }
+    // Requeued after a usage-limit pause: the run continues its session
+    // in the paused phase, so a new prompt would be silently ignored.
+    if (promptChanged && task.pausedPhase != null) {
+      throw InvalidStateException(
+        message:
+            'Task $taskId resumes its paused run — its prompt can\'t '
+            'change, send the agent feedback instead',
       );
     }
     if (reviewerAgentId != null &&

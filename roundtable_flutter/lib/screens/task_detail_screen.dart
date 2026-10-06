@@ -636,7 +636,7 @@ class _InfoRail extends StatelessWidget {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (promptEditableStatuses.contains(task.status))
+                      if (canEditPrompt(task))
                         IconButton(
                           tooltip: 'Edit prompt',
                           icon: const Icon(

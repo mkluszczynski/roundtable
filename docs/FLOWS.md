@@ -129,7 +129,8 @@ terminal, the runner can't change it through `update` anymore.
    `TaskEndpoint.updateTaskSettings`, from the task view's Prompt and
    Settings rail sections). The prompt and `skipPlanning` only change in
    `draft`, `queued`, `failed` or `cancelled`, i.e. before a run or a retry
-   reads them. A task stays `queued` while its worktree is prepared, so the
+   reads them — and not while it's queued to resume a usage-limit pause
+   (`pausedPhase`), whose run continues its session. A task stays `queued` while its worktree is prepared, so the
    daemon re-reads the row (`fetchTask`) before starting claude: an edit
    made meanwhile still applies, and a task cancelled or reassigned
    meanwhile is skipped. The automation options (auto review, reviewer, auto fix, auto

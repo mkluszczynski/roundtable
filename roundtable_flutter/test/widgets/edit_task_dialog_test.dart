@@ -112,6 +112,30 @@ void main() {
     expect(find.byType(EditTaskDialog), findsOneWidget);
   });
 
+  test('the prompt is editable before a run, not while resuming a paused '
+      'one', () {
+    expect(canEditPrompt(task()), isTrue);
+    expect(canEditPrompt(task(status: TaskStatus.failed)), isTrue);
+    expect(canEditPrompt(task(status: TaskStatus.running)), isFalse);
+    expect(canEditPrompt(task(status: TaskStatus.done)), isFalse);
+    expect(
+      canEditPrompt(task().copyWith(pausedPhase: LogPhase.execution)),
+      isFalse,
+    );
+  });
+
+  testWidgets('a task queued to resume a paused run keeps its prompt locked', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      task().copyWith(pausedPhase: LogPhase.planning),
+      onSave: (_, _) async {},
+    );
+
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+  });
+
   test('options equality ignores round counts of options that are off', () {
     const base = TaskOptions();
     expect(base.copyWith(maxReviewFixRounds: 5), base);

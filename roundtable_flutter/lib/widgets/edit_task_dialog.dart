@@ -8,15 +8,20 @@ import '../utils/error_message.dart';
 import 'app_modal.dart';
 import 'task_options_form.dart';
 
-/// Mirrors the server's `updateTaskSettings` guard: the prompt and skip
-/// planning only matter when a run starts — before the first one, or
-/// before a retry.
-const promptEditableStatuses = {
+const _promptEditableStatuses = {
   TaskStatus.draft,
   TaskStatus.queued,
   TaskStatus.failed,
   TaskStatus.cancelled,
 };
+
+/// Mirrors the server's `updateTaskSettings` guard: the prompt and skip
+/// planning only matter when a run starts — before the first one, or
+/// before a retry. A task queued to resume a paused run continues its
+/// session instead, so they're locked then too.
+bool canEditPrompt(Task task) =>
+    _promptEditableStatuses.contains(task.status) &&
+    !(task.status == TaskStatus.queued && task.pausedPhase != null);
 
 /// Edits a task's prompt and advanced options. [onSave] sends them to the
 /// server; the dialog closes once it succeeds and shows its error otherwise
@@ -41,8 +46,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
   bool _saving = false;
   String? _error;
 
-  bool get _promptEditable =>
-      promptEditableStatuses.contains(widget.task.status);
+  bool get _promptEditable => canEditPrompt(widget.task);
 
   bool get _changed =>
       _promptController.text.trim() != widget.task.prompt ||
