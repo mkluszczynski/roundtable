@@ -88,6 +88,7 @@ task:
   - reassignAgent:
   - submitFeedback:
   - latestFeedback:
+  - updateTaskSettings:
   - suggestTitle:
   - setTitle:
   - createQuestion:

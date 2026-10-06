@@ -125,6 +125,14 @@ terminal, the runner can't change it through `update` anymore.
    `machine-<id>-tasks`. Without one, it's a `draft` until `reassignAgent`.
    On (re)subscribe, `watchAssignedTasks` replays queued tasks so nothing is
    lost while the daemon is down.
+   **Editing** (`widgets/edit_task_dialog.dart` →
+   `TaskEndpoint.updateTaskSettings`, from the task view's Prompt and
+   Settings rail sections). The prompt and `skipPlanning` only change in
+   `draft`, `queued`, `failed` or `cancelled`, i.e. before a run or a retry
+   reads them. The automation options (auto review, reviewer, auto fix, auto
+   merge, auto fix CI) are read fresh whenever they apply, so they change in
+   any status except `done`. Turning auto review on applies from the next
+   version the agent finishes.
 2. **Dispatch** (`TaskDispatcher.handle`). It gets the clone URL
    (`getCloneUrl`, token embedded), runs `ensureProjectCloned` (bare clone),
    then `createWorktree` (`task-<id>`, reused for later iterations). The agent

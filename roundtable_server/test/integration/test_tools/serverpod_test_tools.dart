@@ -3045,6 +3045,57 @@ class _TaskEndpoint {
     });
   }
 
+  _ida.Future<_i77xifuu.Task> updateTaskSettings(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+    String prompt, {
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+  }) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'updateTaskSettings',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'updateTaskSettings',
+          parameters: _ist.testObjectToJson({
+            'taskId': taskId,
+            'prompt': prompt,
+            'skipPlanning': skipPlanning,
+            'autoReview': autoReview,
+            'reviewerAgentId': reviewerAgentId,
+            'autoFixReview': autoFixReview,
+            'maxReviewFixRounds': maxReviewFixRounds,
+            'autoMerge': autoMerge,
+            'autoFixFailingChecks': autoFixFailingChecks,
+            'maxCheckFixAttempts': maxCheckFixAttempts,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i77xifuu.Task>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_i77xifuu.Task> suggestTitle(
     _ist.TestSessionBuilder sessionBuilder,
     int taskId,

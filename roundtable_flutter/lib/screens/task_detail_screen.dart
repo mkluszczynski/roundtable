@@ -29,6 +29,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/code_block.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/diff_view.dart';
+import '../widgets/edit_task_dialog.dart';
 import '../widgets/pill_selector.dart';
 import '../widgets/rail_nav_item.dart';
 import '../widgets/rail_section.dart';
@@ -41,6 +42,7 @@ import '../widgets/review_comment_card.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/task_attachments_view.dart';
+import '../widgets/task_options_form.dart';
 import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
 import '../utils/relative_time.dart';
@@ -124,6 +126,28 @@ Future<void> _openRenameTaskDialog(BuildContext context, Task task) async {
   if (title != null && title != (task.title ?? '')) {
     bloc.add(TaskRenamed(task.id!, title));
   }
+}
+
+void _openEditTaskDialog(BuildContext context, Task task) {
+  final repository = TaskRepository(client);
+  showDialog<void>(
+    context: context,
+    builder: (_) => EditTaskDialog(
+      task: task,
+      onSave: (prompt, options) => repository.updateTaskSettings(
+        task.id!,
+        prompt,
+        skipPlanning: options.skipPlanning,
+        autoReview: options.autoReview,
+        reviewerAgentId: options.reviewerAgentId,
+        autoFixReview: options.autoFixReview,
+        maxReviewFixRounds: options.maxReviewFixRounds,
+        autoMerge: options.autoMerge,
+        autoFixFailingChecks: options.autoFixFailingChecks,
+        maxCheckFixAttempts: options.maxCheckFixAttempts,
+      ),
+    ),
+  );
 }
 
 void _openReassignAgentDialog(
@@ -609,9 +633,22 @@ class _InfoRail extends StatelessWidget {
                 ),
                 RailSection(
                   label: 'Prompt',
-                  trailing: CopyIconButton(
-                    text: task.prompt,
-                    tooltip: 'Copy prompt',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (promptEditableStatuses.contains(task.status))
+                        IconButton(
+                          tooltip: 'Edit prompt',
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 16,
+                            color: AppColors.text1,
+                          ),
+                          onPressed: () => _openEditTaskDialog(context, task),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      CopyIconButton(text: task.prompt, tooltip: 'Copy prompt'),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,6 +673,7 @@ class _InfoRail extends StatelessWidget {
                     ],
                   ),
                 ),
+                _SettingsSection(task: task),
                 RailSection(
                   label: 'Timeline',
                   child: Column(
@@ -655,6 +693,72 @@ class _InfoRail extends StatelessWidget {
         ),
         _RailActions(state: state),
       ],
+    );
+  }
+}
+
+/// The task's advanced options, editable until it's done.
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.task});
+
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    final reviewerId = task.reviewerAgentId;
+    return RailSection(
+      label: 'Settings',
+      trailing: task.status == TaskStatus.done
+          ? null
+          : IconButton(
+              tooltip: 'Edit settings',
+              icon: const Icon(
+                Icons.tune,
+                size: 16,
+                color: AppColors.text1,
+              ),
+              onPressed: () => _openEditTaskDialog(context, task),
+              visualDensity: VisualDensity.compact,
+            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            taskOptionsSummary(TaskOptions.fromTask(task)),
+            style: AppTypography.body,
+          ),
+          if (reviewerId != null) ...[
+            const SizedBox(height: Spacing.xs),
+            _ReviewerName(key: ValueKey(reviewerId), agentId: reviewerId),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewerName extends StatefulWidget {
+  const _ReviewerName({super.key, required this.agentId});
+
+  final int agentId;
+
+  @override
+  State<_ReviewerName> createState() => _ReviewerNameState();
+}
+
+class _ReviewerNameState extends State<_ReviewerName> {
+  late final Future<Agent?> _agent = AgentRepository(
+    client,
+  ).getAgent(widget.agentId);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Agent?>(
+      future: _agent,
+      builder: (context, snapshot) => Text(
+        'Reviewer: ${snapshot.data?.name ?? '…'}',
+        style: AppTypography.caption,
+      ),
     );
   }
 }
@@ -817,8 +921,9 @@ class _RailNav extends StatelessWidget {
                       when state.task.checkState != PrCheckState.none =>
                     StatusDot(
                       color: checkStateAppearance(state.task.checkState).color,
-                      pulsing: checkStateAppearance(state.task.checkState)
-                          .pulsing,
+                      pulsing: checkStateAppearance(
+                        state.task.checkState,
+                      ).pulsing,
                     ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
@@ -1996,9 +2101,9 @@ class _ReviewerLogState extends State<_ReviewerLog> {
 
   @override
   Widget build(BuildContext context) {
-    final reviewRuns = buildLogTimeline(widget.logs)
-        .where((r) => r.isReview)
-        .toList();
+    final reviewRuns = buildLogTimeline(
+      widget.logs,
+    ).where((r) => r.isReview).toList();
     // Structured runs carry their review; older logs only allow "the
     // latest review run" for the latest review.
     final run =

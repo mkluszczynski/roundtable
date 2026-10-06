@@ -667,6 +667,93 @@ class TaskEndpoint extends Endpoint {
     return results.isEmpty ? null : results.first;
   }
 
+  /// Statuses [updateTaskSettings] may change the prompt and `skipPlanning`
+  /// in — both only matter when a run starts, so only before the first run
+  /// or before a retry (which starts a fresh session).
+  static const _promptEditableStatuses = {
+    TaskStatus.draft,
+    TaskStatus.queued,
+    TaskStatus.failed,
+    TaskStatus.cancelled,
+  };
+
+  /// Edits [taskId]'s prompt and advanced options from the panel. Every
+  /// value is sent; a null [reviewerAgentId] clears the reviewer. The
+  /// automation options are read fresh each time they apply, so they can
+  /// change any time before the task is `done`; the prompt and
+  /// [skipPlanning] only while no run is under way (see
+  /// [_promptEditableStatuses]). Turning auto review on applies from the
+  /// next version the agent finishes.
+  Future<Task> updateTaskSettings(
+    Session session,
+    int taskId,
+    String prompt, {
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+  }) async {
+    final task = await _requireTask(session, taskId);
+    if (task.status == TaskStatus.done) {
+      throw InvalidStateException(
+        message: 'Task $taskId is done — its settings can no longer change',
+      );
+    }
+    final trimmed = prompt.trim();
+    if (trimmed.isEmpty) {
+      throw InvalidStateException(message: 'Write what the agent should do');
+    }
+    final newSkipPlanning = skipPlanning ?? task.skipPlanning;
+    if ((trimmed != task.prompt || newSkipPlanning != task.skipPlanning) &&
+        !_promptEditableStatuses.contains(task.status)) {
+      throw InvalidStateException(
+        message:
+            'The prompt of task $taskId can\'t change while '
+            '${task.status.name} — send the agent feedback instead',
+      );
+    }
+    if (reviewerAgentId != null &&
+        await Agent.db.findById(session, reviewerAgentId) == null) {
+      throw NotFoundException(message: 'Agent $reviewerAgentId not found');
+    }
+
+    // Only these columns, so a concurrent daemon `update` isn't reverted.
+    final updated = await Task.db.updateRow(
+      session,
+      task.copyWith(
+        prompt: trimmed,
+        skipPlanning: newSkipPlanning,
+        autoReview: autoReview ?? task.autoReview,
+        reviewerAgentId: reviewerAgentId,
+        autoFixReview: autoFixReview ?? task.autoFixReview,
+        maxReviewFixRounds: (maxReviewFixRounds ?? task.maxReviewFixRounds)
+            .clamp(1, 10),
+        autoMerge: autoMerge ?? task.autoMerge,
+        autoFixFailingChecks: autoFixFailingChecks ?? task.autoFixFailingChecks,
+        maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
+            .clamp(1, 10),
+      ),
+      columns: (t) => [
+        t.prompt,
+        t.skipPlanning,
+        t.autoReview,
+        t.reviewerAgentId,
+        t.autoFixReview,
+        t.maxReviewFixRounds,
+        t.autoMerge,
+        t.autoFixFailingChecks,
+        t.maxCheckFixAttempts,
+      ],
+    );
+    await session.messages.postMessage(channelForTask(updated.id!), updated);
+    await session.messages.postMessage(channelForAllTasks(), updated);
+    return updated;
+  }
+
   /// Longest title kept; anything past it is cut off.
   static const maxTitleLength = 80;
 

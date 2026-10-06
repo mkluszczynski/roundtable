@@ -162,6 +162,174 @@ void main() {
       );
     });
 
+    group('task settings', () {
+      late Agent agent;
+
+      Future<Task> createTask() async {
+        final machine = await createMachine();
+        final project = await createProject();
+        agent = await createAgent(machine);
+        return endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+      }
+
+      Future<Task> setStatus(Task task, TaskStatus status) => Task.db.updateRow(
+        sessionBuilder.build(),
+        task.copyWith(status: status),
+      );
+
+      test(
+        'when the dev edits a queued task then the prompt and every option are stored',
+        () async {
+          final task = await createTask();
+
+          final updated = await endpoints.task.updateTaskSettings(
+            sessionBuilder,
+            task.id!,
+            '  Do something else  ',
+            skipPlanning: true,
+            autoReview: true,
+            reviewerAgentId: agent.id,
+            autoFixReview: true,
+            maxReviewFixRounds: 3,
+            autoMerge: true,
+            autoFixFailingChecks: true,
+            maxCheckFixAttempts: 5,
+          );
+
+          final stored = await Task.db.findById(
+            sessionBuilder.build(),
+            task.id!,
+          );
+          for (final t in [updated, stored!]) {
+            expect(t.prompt, 'Do something else');
+            expect(t.skipPlanning, isTrue);
+            expect(t.autoReview, isTrue);
+            expect(t.reviewerAgentId, agent.id);
+            expect(t.autoFixReview, isTrue);
+            expect(t.maxReviewFixRounds, 3);
+            expect(t.autoMerge, isTrue);
+            expect(t.autoFixFailingChecks, isTrue);
+            expect(t.maxCheckFixAttempts, 5);
+            expect(t.status, TaskStatus.queued);
+          }
+        },
+      );
+
+      test('a null reviewer clears it and the rounds are clamped', () async {
+        final task = await createTask();
+        await endpoints.task.updateTaskSettings(
+          sessionBuilder,
+          task.id!,
+          task.prompt,
+          reviewerAgentId: agent.id,
+        );
+
+        final updated = await endpoints.task.updateTaskSettings(
+          sessionBuilder,
+          task.id!,
+          task.prompt,
+          maxReviewFixRounds: 50,
+          maxCheckFixAttempts: 0,
+        );
+
+        expect(updated.reviewerAgentId, isNull);
+        expect(updated.maxReviewFixRounds, 10);
+        expect(updated.maxCheckFixAttempts, 1);
+      });
+
+      for (final status in [TaskStatus.running, TaskStatus.awaitingReview]) {
+        test(
+          'when the task is ${status.name} then the prompt is rejected but the automation options change',
+          () async {
+            final task = await setStatus(await createTask(), status);
+
+            await expectLater(
+              endpoints.task.updateTaskSettings(
+                sessionBuilder,
+                task.id!,
+                'New prompt',
+              ),
+              throwsA(isA<InvalidStateException>()),
+            );
+            await expectLater(
+              endpoints.task.updateTaskSettings(
+                sessionBuilder,
+                task.id!,
+                task.prompt,
+                skipPlanning: true,
+              ),
+              throwsA(isA<InvalidStateException>()),
+            );
+
+            final updated = await endpoints.task.updateTaskSettings(
+              sessionBuilder,
+              task.id!,
+              task.prompt,
+              autoMerge: true,
+            );
+            expect(updated.autoMerge, isTrue);
+            expect(updated.prompt, 'Do something');
+            expect(updated.status, status);
+          },
+        );
+      }
+
+      test('a failed task can get a new prompt before a retry', () async {
+        final task = await setStatus(await createTask(), TaskStatus.failed);
+
+        final updated = await endpoints.task.updateTaskSettings(
+          sessionBuilder,
+          task.id!,
+          'Try differently',
+        );
+
+        expect(updated.prompt, 'Try differently');
+      });
+
+      test('a done task cannot be edited', () async {
+        final task = await setStatus(await createTask(), TaskStatus.done);
+
+        await expectLater(
+          endpoints.task.updateTaskSettings(
+            sessionBuilder,
+            task.id!,
+            task.prompt,
+            autoMerge: true,
+          ),
+          throwsA(isA<InvalidStateException>()),
+        );
+      });
+
+      test('a blank prompt is rejected', () async {
+        final task = await createTask();
+
+        await expectLater(
+          endpoints.task.updateTaskSettings(sessionBuilder, task.id!, '   '),
+          throwsA(isA<InvalidStateException>()),
+        );
+      });
+
+      test('an unknown reviewer is rejected', () async {
+        final task = await createTask();
+
+        await expectLater(
+          endpoints.task.updateTaskSettings(
+            sessionBuilder,
+            task.id!,
+            task.prompt,
+            reviewerAgentId: 999999,
+          ),
+          throwsA(isA<NotFoundException>()),
+        );
+      });
+    });
+
     test(
       'when creating a task without an agent then it is persisted as a draft',
       () async {

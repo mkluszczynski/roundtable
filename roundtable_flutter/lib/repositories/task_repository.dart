@@ -43,6 +43,33 @@ class TaskRepository {
   Future<Task> setTitle(int taskId, String? title) =>
       _client.task.setTitle(taskId, title);
 
+  /// Replaces [taskId]'s prompt and advanced options; a null
+  /// [reviewerAgentId] clears the reviewer. The prompt and [skipPlanning]
+  /// can only change before a run starts.
+  Future<Task> updateTaskSettings(
+    int taskId,
+    String prompt, {
+    required bool skipPlanning,
+    required bool autoReview,
+    required int? reviewerAgentId,
+    required bool autoFixReview,
+    required int maxReviewFixRounds,
+    required bool autoMerge,
+    required bool autoFixFailingChecks,
+    required int maxCheckFixAttempts,
+  }) => _client.task.updateTaskSettings(
+    taskId,
+    prompt,
+    skipPlanning: skipPlanning,
+    autoReview: autoReview,
+    reviewerAgentId: reviewerAgentId,
+    autoFixReview: autoFixReview,
+    maxReviewFixRounds: maxReviewFixRounds,
+    autoMerge: autoMerge,
+    autoFixFailingChecks: autoFixFailingChecks,
+    maxCheckFixAttempts: maxCheckFixAttempts,
+  );
+
   Stream<Task> watchTask(int taskId) => _client.task.watchTask(taskId);
 
   /// Streams every task as it's created/changed, for the dashboard kanban.
