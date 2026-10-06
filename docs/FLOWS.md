@@ -129,7 +129,10 @@ terminal, the runner can't change it through `update` anymore.
    `TaskEndpoint.updateTaskSettings`, from the task view's Prompt and
    Settings rail sections). The prompt and `skipPlanning` only change in
    `draft`, `queued`, `failed` or `cancelled`, i.e. before a run or a retry
-   reads them. The automation options (auto review, reviewer, auto fix, auto
+   reads them. A task stays `queued` while its worktree is prepared, so the
+   daemon re-reads the row (`fetchTask`) before starting claude: an edit
+   made meanwhile still applies, and a task cancelled or reassigned
+   meanwhile is skipped. The automation options (auto review, reviewer, auto fix, auto
    merge, auto fix CI) are read fresh whenever they apply, so they change in
    any status except `done`. Turning auto review on applies from the next
    version the agent finishes.
