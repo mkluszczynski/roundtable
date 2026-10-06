@@ -223,7 +223,9 @@ class ClaudeCodeExecutor {
   /// else), so the reviewer can explore the code and diff but never edit it.
   ///
   /// [additionalDirectories] are passed as `--add-dir` (e.g. the task's
-  /// attached images).
+  /// attached images). [allowBash] lets the reviewer run any command — only
+  /// inside a container, to run the project's checks; otherwise it gets
+  /// git's read-only commands. Editing tools stay off either way.
   Future<ClaudeCodeExecutionResult> runReview({
     required String prompt,
     required String workingDirectory,
@@ -233,6 +235,7 @@ class ClaudeCodeExecutor {
     String? effort,
     List<String> additionalDirectories = const [],
     String? appendSystemPrompt,
+    bool allowBash = false,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) {
@@ -244,7 +247,9 @@ class ClaudeCodeExecutor {
       '--verbose',
       '--include-partial-messages',
       '--allowedTools',
-      'Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)',
+      allowBash
+          ? 'Read,Grep,Glob,Bash'
+          : 'Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)',
       '--disallowedTools',
       'Edit,Write,NotebookEdit',
       if (model != null) ...['--model', model],

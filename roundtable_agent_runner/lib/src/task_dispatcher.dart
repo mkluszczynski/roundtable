@@ -434,11 +434,13 @@ class TaskDispatcher {
       }
 
       final project = await fetchProject?.call(projectId);
-      final toolchain = await _prepareToolchain(
-        task.id!,
+      final toolchain = await prepareToolchainForRun(
+        toolchainInstaller,
+        'task ${task.id}',
         projectId,
         project?.tools ?? const [],
         append,
+        log,
       );
       if (inContainer) {
         final build = sandboxFor;
@@ -669,57 +671,6 @@ class TaskDispatcher {
     }
   }
 
-  /// Installs the project's toolchains before a run, reporting a download
-  /// on the task's timeline. A failure is logged there too, but doesn't
-  /// fail the task: the agent works on and reports what it couldn't verify.
-  Future<PreparedToolchain?> _prepareToolchain(
-    int taskId,
-    int projectId,
-    List<ProjectTool> tools,
-    void Function(LogItem item) append,
-  ) async {
-    final installer = toolchainInstaller;
-    if (installer == null || tools.isEmpty) return null;
-    try {
-      var installed = false;
-      final prepared = await installer.prepare(
-        projectId: projectId,
-        tools: tools,
-        onInstalling: (missing) {
-          installed = true;
-          log('task $taskId: installing ${missing.join(', ')}');
-          append(
-            LogItem(
-              kind: LogKind.event,
-              content:
-                  'Installing ${missing.join(', ')} — the first time takes '
-                  'a few minutes',
-            ),
-          );
-        },
-      );
-      if (installed) {
-        append(
-          LogItem(
-            kind: LogKind.event,
-            content: 'Tools ready: ${prepared.tools.join(', ')}',
-          ),
-        );
-      }
-      return prepared;
-    } catch (e) {
-      log('task $taskId: toolchain install failed: $e');
-      append(
-        LogItem(
-          kind: LogKind.event,
-          content: "Couldn't install the project's tools: $e",
-          isError: true,
-        ),
-      );
-      return null;
-    }
-  }
-
   /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
   /// (docs/FLOWS.md §4) for [taskId]'s planning-phase run. Kept outside the
   /// worktree so it never ends up in the task's commit. The tool process
@@ -787,3 +738,55 @@ String pullRequestBody({
 const usageLimitResumePrompt =
     'You were interrupted by the Claude usage limit, which has now reset. '
     'Continue exactly where you left off.';
+
+/// Installs the project's toolchains before a run, reporting a download
+/// on the task's timeline. A failure is logged there too, but doesn't
+/// fail the task: the agent works on and reports what it couldn't verify.
+Future<PreparedToolchain?> prepareToolchainForRun(
+  ToolchainInstaller? installer,
+  String label,
+  int projectId,
+  List<ProjectTool> tools,
+  void Function(LogItem item) append,
+  void Function(String message) log,
+) async {
+  if (installer == null || tools.isEmpty) return null;
+  try {
+    var installed = false;
+    final prepared = await installer.prepare(
+      projectId: projectId,
+      tools: tools,
+      onInstalling: (missing) {
+        installed = true;
+        log('$label: installing ${missing.join(', ')}');
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content:
+                'Installing ${missing.join(', ')} — the first time takes '
+                'a few minutes',
+          ),
+        );
+      },
+    );
+    if (installed) {
+      append(
+        LogItem(
+          kind: LogKind.event,
+          content: 'Tools ready: ${prepared.tools.join(', ')}',
+        ),
+      );
+    }
+    return prepared;
+  } catch (e) {
+    log('$label: toolchain install failed: $e');
+    append(
+      LogItem(
+        kind: LogKind.event,
+        content: "Couldn't install the project's tools: $e",
+        isError: true,
+      ),
+    );
+    return null;
+  }
+}

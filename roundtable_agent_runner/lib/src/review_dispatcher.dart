@@ -10,6 +10,9 @@ import 'role_prompts.dart';
 import 'log_entries.dart';
 import 'stream_json_formatter.dart';
 import 'task_images.dart';
+import 'environment_prompt.dart';
+import 'toolchain_installer.dart';
+import 'task_dispatcher.dart';
 import 'worktree_manager.dart';
 
 /// Runs an assigned [CodeReview]: checks the task's branch out read-only,
@@ -33,6 +36,7 @@ class ReviewDispatcher {
     this.fetchPreviousComments = _noPreviousComments,
     this.fetchProject,
     this.sandboxFor,
+    this.toolchainInstaller,
     AgentWorkQueue? workQueue,
   }) : workQueue = workQueue ?? AgentWorkQueue();
 
@@ -67,6 +71,10 @@ class ReviewDispatcher {
   /// git data and the attached images are visible, never the machine's
   /// other files. Null when the machine has no container runtime.
   final ContainerSandbox Function(ContainerRequest request)? sandboxFor;
+
+  /// Installs the project's toolchains for a docker-mode reviewer, which
+  /// can then run the project's checks (docs/FLOWS.md §5).
+  final ToolchainInstaller? toolchainInstaller;
 
   final WorktreeManager worktreeManager;
   final ClaudeCodeExecutor Function() executorFactory;
@@ -183,6 +191,7 @@ class ReviewDispatcher {
       );
 
       final inContainer = agent.executionMode == AgentExecutionMode.docker;
+      PreparedToolchain? toolchain;
       if (inContainer) {
         final build = sandboxFor;
         if (build == null) {
@@ -193,6 +202,14 @@ class ReviewDispatcher {
           );
         }
         final project = await fetchProject?.call(task.projectId);
+        toolchain = await prepareToolchainForRun(
+          toolchainInstaller,
+          'review $reviewId',
+          task.projectId,
+          project?.tools ?? const [],
+          append,
+          log,
+        );
         sandbox = build((
           projectId: task.projectId,
           name: 'roundtable-review-$reviewId',
@@ -210,6 +227,11 @@ class ReviewDispatcher {
 
       final previous = await fetchPreviousComments(reviewId);
 
+      final systemPrompt = [
+        ?environmentPrompt?.call(container: inContainer),
+        if (toolchain != null) projectToolchainPrompt(toolchain.tools),
+      ].join('\n\n');
+
       final formatter = StreamJsonFormatter();
       final executor = sandbox == null
           ? executorFactory()
@@ -221,13 +243,16 @@ class ReviewDispatcher {
           baseSha: worktree.baseSha,
           imagePaths: imagePaths,
           previousComments: previous,
+          canRunChecks: inContainer,
         ),
         workingDirectory: worktree.path,
+        environment: toolchain?.environment,
+        allowBash: inContainer,
         oauthToken: oauthToken,
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
         additionalDirectories: [?attachmentDir?.path],
-        appendSystemPrompt: environmentPrompt?.call(container: inContainer),
+        appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
         onLine: (line) => formatter.feedEntries(line).forEach(append),
       );
 
@@ -289,6 +314,7 @@ String buildReviewPrompt({
   required String baseSha,
   List<String> imagePaths = const [],
   List<ReviewComment> previousComments = const [],
+  bool canRunChecks = false,
 }) =>
     '''
 $rolePrompt You are reviewing another agent's change. Do not modify any files.
@@ -311,6 +337,8 @@ Severity:
 When unsure between two severities, pick the lower one.
 
 Each comment names the problem and how to fix it, concretely enough for another agent to act on without asking.
+
+${canRunChecks ? '''Verify, don't guess: you run in a disposable container and may run any command. Run the project's checks that cover the change — analyzer, formatter check, tests, build — with the project toolchains. A failing check is a blocker or issue like any other finding. Never fix anything yourself. Say in the summary which checks you ran and their result, and which you couldn't run.''' : '''You can't run commands here other than git's read-only ones: judge the code by reading it, and say in the summary which checks (tests, analyzer, build) the developer should run.'''}
 
 End your reply with exactly one fenced ```json block of this shape:
 {"verdict": "approve" | "changes_requested", "summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]${previousComments.isEmpty ? '' : ', "previous": [{"id": <earlier comment id>, "fixed": true | false, "note": "<if not fixed: what is still wrong, else null>"}]'}}

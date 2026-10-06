@@ -225,6 +225,7 @@ class AgentRunnerService {
     fetchAttachments: _fetchAttachments,
     fetchProject: (projectId) => _client.project.get(projectId),
     sandboxFor: _sandboxFor,
+    toolchainInstaller: _toolchainInstaller,
     workQueue: _workQueue,
   );
 

@@ -321,6 +321,12 @@ exit 0
       // The prompt spans several lines of args.txt.
       expect(args, anyElement(contains('1 image(s)')));
       expect(args, contains('- $imagePath'));
+      expect(
+        args[args.indexOf('--allowedTools') + 1],
+        startsWith('Read,Grep,Glob,Bash(git diff:*)'),
+        reason: 'on the host the reviewer only reads',
+      );
+      expect(args, anyElement(contains("can't run commands here")));
 
       // The image was on disk while the reviewer ran, and is gone now.
       expect(
@@ -391,6 +397,14 @@ exec "\$@"
       expect(podmanCall, contains('--userns=keep-id'));
       expect(podmanCall, contains('my/image:1 $claude'));
       expect(podmanCall, contains('rm --force --ignore roundtable-review-7'));
+      final args = File('${tempDir.path}/args.txt').readAsLinesSync();
+      expect(
+        args[args.indexOf('--allowedTools') + 1],
+        'Read,Grep,Glob,Bash',
+        reason: 'a containerized reviewer may run the project checks',
+      );
+      expect(args, contains('Edit,Write,NotebookEdit'));
+      expect(args, anyElement(contains("Verify, don't guess")));
     });
 
     test('waits while the reviewer is busy with its own task', () async {

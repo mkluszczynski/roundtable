@@ -341,7 +341,9 @@ into its own home directory.
    prompt. A failed install is shown on the timeline as an error, but the
    task still runs: the agent reports what it couldn't verify.
 
-Code reviews don't install tools: the reviewer only reads the diff.
+Code reviews install tools only for a docker-mode reviewer, which runs
+the project's checks in its container (§8). A reviewer on the host only
+reads the diff and can't run them.
 
 4. **Clean up.** Once a day (on the worktree janitor's timer) the runner
    deletes project configs unused for 30 days — each run rewrites its
@@ -391,6 +393,9 @@ Podman container that sees only what that task needs.
 4. **Code reviews.** A docker-mode reviewer (`ReviewDispatcher`) runs in
    the same kind of container (`roundtable-review-<id>`): the review
    worktree and the project's bare repo, the project's container home, and
-   the task's attached images read-only. No toolchains are installed — the
-   reviewer only reads — but without the container its `Read`/`Grep` could
-   reach any file the runner's user can.
+   the task's attached images read-only, plus the toolchains (§7). In the
+   disposable container the reviewer gets an unrestricted `Bash` (still no
+   `Edit`/`Write`) to run the project's analyzer, tests and build, and says
+   in its summary what it ran. On the host it keeps git's read-only
+   commands: an unrestricted `Bash` or even `Read` there could reach any
+   file the runner's user can.
