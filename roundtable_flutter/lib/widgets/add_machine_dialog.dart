@@ -139,7 +139,7 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
   }
 }
 
-class _RegisteredStep extends StatelessWidget {
+class _RegisteredStep extends StatefulWidget {
   const _RegisteredStep({
     required this.machineName,
     required this.token,
@@ -158,11 +158,27 @@ class _RegisteredStep extends StatelessWidget {
   final String claudeToken;
 
   @override
+  State<_RegisteredStep> createState() => _RegisteredStepState();
+}
+
+class _RegisteredStepState extends State<_RegisteredStep> {
+  /// Adds `--docker`: installs rootless Podman for docker-mode agents.
+  bool _docker = false;
+
+  @override
   Widget build(BuildContext context) {
+    final _RegisteredStep(
+      :machineName,
+      :token,
+      :serverUrl,
+      :scriptUrl,
+      :claudeToken,
+    ) = widget;
     final command =
         'curl -fsSL $scriptUrl/install-agent.sh | sudo bash -s -- '
         '--token $token --server $serverUrl --script-url $scriptUrl'
-        "${claudeToken.isEmpty ? '' : " --claude-token '$claudeToken'"}";
+        "${claudeToken.isEmpty ? '' : " --claude-token '$claudeToken'"}"
+        "${_docker ? ' --docker' : ''}";
     return AppModal(
       icon: Icons.check_circle_outline,
       title: 'Machine registered',
@@ -184,7 +200,20 @@ class _RegisteredStep extends StatelessWidget {
               'target machine to install the agent runner:',
               style: AppTypography.body,
             ),
-            const SizedBox(height: Spacing.lg),
+            const SizedBox(height: Spacing.md),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _docker,
+              activeThumbColor: AppColors.accent,
+              onChanged: (v) => setState(() => _docker = v),
+              title: Text('With docker mode', style: AppTypography.bodyStrong),
+              subtitle: Text(
+                'Installs rootless Podman, so agents set to docker run their '
+                'tasks in a container that sees only their worktree.',
+                style: AppTypography.caption,
+              ),
+            ),
+            const SizedBox(height: Spacing.md),
             CodeBlock(code: command),
           ],
         ),

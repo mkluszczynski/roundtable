@@ -163,5 +163,67 @@ void main() {
         expect(fetched, isNull);
       },
     );
+
+    test('when creating a docker-mode agent then the mode is saved', () async {
+      final machine = await createMachine();
+
+      final agent = await endpoints.agent.create(
+        sessionBuilder,
+        'Dex',
+        machine.id!,
+        executionMode: AgentExecutionMode.docker,
+      );
+
+      expect(agent.executionMode, AgentExecutionMode.docker);
+    });
+
+    test('when switching the execution mode of an idle agent then it is '
+        'saved', () async {
+      final machine = await createMachine();
+      final agent = await endpoints.agent.create(
+        sessionBuilder,
+        'Dex',
+        machine.id!,
+      );
+
+      final updated = await endpoints.agent.update(
+        sessionBuilder,
+        agent.copyWith(executionMode: AgentExecutionMode.docker),
+      );
+
+      expect(updated.executionMode, AgentExecutionMode.docker);
+    });
+
+    test('when switching the execution mode with an open task then it is '
+        'rejected', () async {
+      final machine = await createMachine();
+      final agent = await endpoints.agent.create(
+        sessionBuilder,
+        'Dex',
+        machine.id!,
+      );
+      final project = await Project.db.insertRow(
+        sessionBuilder.build(),
+        Project(name: 'p', repoUrl: 'https://github.com/a/b'),
+      );
+      await Task.db.insertRow(
+        sessionBuilder.build(),
+        Task(
+          projectId: project.id!,
+          agentId: agent.id,
+          prompt: 'x',
+          skipPlanning: true,
+          status: TaskStatus.running,
+        ),
+      );
+
+      await expectLater(
+        endpoints.agent.update(
+          sessionBuilder,
+          agent.copyWith(executionMode: AgentExecutionMode.docker),
+        ),
+        throwsA(isA<InvalidStateException>()),
+      );
+    });
   });
 }

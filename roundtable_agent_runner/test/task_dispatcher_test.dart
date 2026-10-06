@@ -64,6 +64,9 @@ void main() {
       List<TaskLogEntry>? logEntries,
       ToolchainInstaller? installer,
       List<ProjectTool> tools = const [],
+      Agent? agent,
+      ContainerSandbox Function(ContainerRequest request)? sandboxFor,
+      String? dockerImage,
     }) => TaskDispatcher(
       worktreeManager: WorktreeManager(
         workspaceRoot: '${tempDir.path}/workspace',
@@ -71,7 +74,7 @@ void main() {
       executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
       oauthToken: null,
       getCloneUrl: (projectId) async => fixtureRepo.path,
-      fetchAgent: (agentId) async => buildAgent(),
+      fetchAgent: (agentId) async => agent ?? buildAgent(),
       updateTask: (task) async => taskUpdates.add(task),
       updateAgent: (agent) async {},
       appendLog: (entry) async => logEntries?.add(entry),
@@ -87,7 +90,15 @@ void main() {
       log: messages?.add ?? (_) {},
       serverUrl: 'https://server.example',
       permissionPromptToolCommand: const ['echo'],
-      fetchProjectTools: (_) async => tools,
+      fetchProject: (_) async => Project(
+        name: 'p',
+        repoUrl: 'https://github.com/a/b',
+        tools: tools,
+        dockerImage: dockerImage,
+      ),
+      sandboxFor: sandboxFor,
+      environmentPrompt: ({container = false}) =>
+          container ? 'ENV(container)' : 'ENV(native)',
       toolchainInstaller: installer,
     );
 
@@ -130,6 +141,90 @@ echo '{"type":"result","subtype":"success","session_id":"s"}'
         final out = await argsFor(buildTask().copyWith(title: 'Named'));
         expect(out, isNot(contains('# Task title')));
       });
+    });
+
+    group('a docker-mode agent', () {
+      Agent dockerAgent() =>
+          buildAgent().copyWith(executionMode: AgentExecutionMode.docker);
+
+      test(
+        'runs claude through podman in its container, with the server '
+        'URL rewritten for the MCP tool and a container system prompt',
+        () async {
+          final podmanArgs = '${tempDir.path}/podman-args.txt';
+          final claudeArgs = '${tempDir.path}/claude-args.txt';
+          final claudeScript = writeFakeClaude('''
+echo "\$@" > $claudeArgs
+for a in "\$@"; do case "\$a" in *mcp-config.json) cat "\$a" >> $claudeArgs ;; esac; done
+echo "x" > x.txt
+echo '{"type":"result","subtype":"success","session_id":"s"}'
+''');
+          // A fake podman: records its arguments, then runs what follows the
+          // image (claude and its args) directly.
+          final podman = File('${tempDir.path}/podman')
+            ..writeAsStringSync('''#!/bin/sh
+echo "\$@" >> $podmanArgs
+[ "\$3" = "rm" ] && exit 0
+while [ "\$1" != "my/image:1" ]; do shift; done
+shift
+exec "\$@"
+''');
+          Process.runSync('chmod', ['+x', podman.path]);
+          ContainerRequest? request;
+          final taskUpdates = <Task>[];
+
+          await dispatcherFor(
+            claudeScript,
+            taskUpdates: taskUpdates,
+            agent: dockerAgent(),
+            dockerImage: 'my/image:1',
+            sandboxFor: (r) {
+              request = r;
+              return ContainerSandbox(
+                image: r.image!,
+                name: 'roundtable-task-${r.taskId}',
+                workingDirectory: r.worktreePath,
+                mounts: [(path: r.worktreePath, readOnly: false)],
+                home: '${tempDir.path}/chome',
+                claudePath: claudeScript,
+                podman: podman.path,
+              );
+            },
+          ).handle(buildTask());
+
+          expect(request!.projectId, 1);
+          expect(request!.readOnlyDirectories, hasLength(1));
+          final podmanCall = File(podmanArgs).readAsStringSync();
+          expect(podmanCall, contains('--userns=keep-id'));
+          expect(podmanCall, contains('my/image:1 $claudeScript'));
+          expect(
+            podmanCall,
+            contains('rm --force --ignore roundtable-task-1'),
+            reason: 'a leftover container is removed after the run',
+          );
+          final claudeCall = File(claudeArgs).readAsStringSync();
+          expect(claudeCall, contains('ENV(container)'));
+          expect(claudeCall, contains('https://server.example'));
+          expect(taskUpdates.last.status, TaskStatus.awaitingReview);
+        },
+      );
+
+      test(
+        'fails with an explanation when the machine has no runtime',
+        () async {
+          final claudeScript = writeFakeClaude('exit 0');
+          final taskUpdates = <Task>[];
+
+          await dispatcherFor(
+            claudeScript,
+            taskUpdates: taskUpdates,
+            agent: dockerAgent(),
+          ).handle(buildTask());
+
+          expect(taskUpdates.last.status, TaskStatus.failed);
+          expect(taskUpdates.last.failureReason, contains('container runtime'));
+        },
+      );
     });
 
     group('with project tools', () {

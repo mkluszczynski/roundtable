@@ -46,10 +46,16 @@ scaffold.
 Each assigned task starts its own `claude` process. All agents on a machine
 share one Claude Pro/Max token and its usage limits.
 
-### `docker` execution mode and the `cloning` status are not implemented
-`AgentExecutionMode.docker`, `Project.dockerImage` and `TaskStatus.cloning`
-exist in the schema but nothing uses them. The UI shows docker as "Coming
-soon".
+### The `cloning` status is not implemented
+`TaskStatus.cloning` exists in the schema but nothing uses it.
+
+### Docker mode: code reviews, limits and the network
+Docker mode (docs/FLOWS.md §8) isolates task runs only. Code reviews still
+run on the machine (the reviewer only reads), containers have no CPU/memory
+limits, and their network is open — the agent needs the Claude API and
+package registries. A dev runner started from source (`dart run`) can't
+mount its permission-prompt-tool into the container; use the compiled
+binaries.
 
 ### Cancel is offered while a task is in review
 `cancelTask` accepts `awaitingReview`. It's the way to abandon a task whose

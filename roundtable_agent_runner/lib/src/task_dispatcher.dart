@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'claude_code_executor.dart';
+import 'container_sandbox.dart';
 import 'environment_prompt.dart';
 import 'role_prompts.dart';
 import 'log_entries.dart';
@@ -39,19 +40,25 @@ class TaskDispatcher {
     required this.permissionPromptToolCommand,
     this.fetchAttachments = _noAttachments,
     this.environmentPrompt,
-    this.fetchProjectTools,
+    this.fetchProject,
     this.toolchainInstaller,
+    this.sandboxFor,
   });
 
-  /// The project's declared toolchains ([Project.tools]). With
-  /// [toolchainInstaller], they're installed before each run and put first
-  /// on `claude`'s `PATH` (docs/FLOWS.md §7). Either null: no toolchains.
-  final Future<List<ProjectTool>> Function(int projectId)? fetchProjectTools;
+  /// The task's project, for its toolchains ([Project.tools]) and docker
+  /// image. With [toolchainInstaller], the toolchains are installed before
+  /// each run and put first on `claude`'s `PATH` (docs/FLOWS.md §7).
+  final Future<Project?> Function(int projectId)? fetchProject;
   final ToolchainInstaller? toolchainInstaller;
+
+  /// Builds the container a docker-mode agent's run goes in (docs/FLOWS.md
+  /// §8). Null on a machine without a container runtime — a docker-mode
+  /// task then fails with an explanation.
+  final ContainerSandbox Function(ContainerRequest request)? sandboxFor;
 
   /// Describes this machine to the agent (`--append-system-prompt`) — see
   /// `buildEnvironmentPrompt`. Null when not yet known.
-  final String? Function()? environmentPrompt;
+  final String? Function({bool container})? environmentPrompt;
 
   static Future<List<TaskImage>> _noAttachments(int taskId) async => const [];
 
@@ -209,6 +216,7 @@ class TaskDispatcher {
     var cancelRequested = false;
     StreamSubscription<Task>? watchSub;
     Directory? mcpConfigDir;
+    ContainerSandbox? sandbox;
     log(
       'task ${task.id}: starting (${isResume ? 'resume' : (needsPlanning ? 'planning' : 'execution')})',
     );
@@ -320,7 +328,12 @@ class TaskDispatcher {
       mcpConfigDir = await Directory.systemTemp.createTemp(
         'roundtable-task-${task.id}-',
       );
-      final mcpConfigPath = await _writeMcpConfig(mcpConfigDir, task.id!);
+      final inContainer = agent.executionMode == AgentExecutionMode.docker;
+      final mcpConfigPath = await _writeMcpConfig(
+        mcpConfigDir,
+        task.id!,
+        container: inContainer,
+      );
 
       // A resumed session already saw the images in its first run.
       final attachmentDirs = <String>[];
@@ -337,9 +350,41 @@ class TaskDispatcher {
         }
       }
 
-      final toolchain = await _prepareToolchain(task.id!, projectId, append);
+      final project = await fetchProject?.call(projectId);
+      final toolchain = await _prepareToolchain(
+        task.id!,
+        projectId,
+        project?.tools ?? const [],
+        append,
+      );
+      if (inContainer) {
+        final build = sandboxFor;
+        if (build == null) {
+          throw StateError(
+            '${agent.name} runs in docker mode, but this machine has no '
+            'container runtime — install podman (install-agent.sh --docker) '
+            'or switch the agent to native',
+          );
+        }
+        sandbox = build((
+          projectId: projectId,
+          taskId: task.id!,
+          worktreePath: worktreePath,
+          readOnlyDirectories: [mcpConfigDir.path],
+          image: project?.dockerImage,
+        ));
+        append(
+          LogItem(
+            kind: LogKind.event,
+            content: 'Running in a container (${sandbox.image})',
+          ),
+        );
+      }
+      final executor = sandbox == null
+          ? executorFactory()
+          : executorFactory().inContainer(sandbox);
       final systemPrompt = [
-        ?environmentPrompt?.call(),
+        ?environmentPrompt?.call(container: inContainer),
         if (toolchain != null) projectToolchainPrompt(toolchain.tools),
         if (task.title == null) taskTitlePrompt(),
       ].join('\n\n');
@@ -347,7 +392,7 @@ class TaskDispatcher {
       final ClaudeCodeExecutionResult result;
       if (needsPlanning) {
         log('task ${task.id}: running claude (planning)');
-        result = await executorFactory().runPlanning(
+        result = await executor.runPlanning(
           prompt: prompt,
           workingDirectory: worktreePath,
           permissionPromptTool: permissionPromptTool,
@@ -364,7 +409,7 @@ class TaskDispatcher {
         );
       } else {
         log('task ${task.id}: running claude (execution)');
-        result = await executorFactory().run(
+        result = await executor.run(
           prompt: prompt,
           workingDirectory: worktreePath,
           oauthToken: oauthToken,
@@ -431,7 +476,11 @@ class TaskDispatcher {
 
       String? branchName;
       String? prUrl;
-      String? failureReason = result.success ? null : result.errorSummary;
+      String? failureReason = result.success
+          ? null
+          : sandbox != null
+          ? describeContainerFailure(result.errorSummary)
+          : result.errorSummary;
       var finishedWithoutCode = false;
       if (result.success) {
         final branch = 'task-${task.id}';
@@ -515,6 +564,7 @@ class TaskDispatcher {
       }
     } finally {
       await watchSub?.cancel();
+      await sandbox?.remove();
       try {
         await mcpConfigDir?.delete(recursive: true);
       } catch (e) {
@@ -523,26 +573,18 @@ class TaskDispatcher {
     }
   }
 
-  /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
-  /// (docs/FLOWS.md §4) for [taskId]'s planning-phase run. Kept outside the
-  /// worktree so it never ends up in the task's commit. The tool process
-  /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
-  /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a
-  /// static command/args/env per server, not per-call params.
   /// Installs the project's toolchains before a run, reporting a download
   /// on the task's timeline. A failure is logged there too, but doesn't
   /// fail the task: the agent works on and reports what it couldn't verify.
   Future<PreparedToolchain?> _prepareToolchain(
     int taskId,
     int projectId,
+    List<ProjectTool> tools,
     void Function(LogItem item) append,
   ) async {
     final installer = toolchainInstaller;
-    final fetch = fetchProjectTools;
-    if (installer == null || fetch == null) return null;
+    if (installer == null || tools.isEmpty) return null;
     try {
-      final tools = await fetch(projectId);
-      if (tools.isEmpty) return null;
       var installed = false;
       final prepared = await installer.prepare(
         projectId: projectId,
@@ -582,7 +624,18 @@ class TaskDispatcher {
     }
   }
 
-  Future<String> _writeMcpConfig(Directory dir, int taskId) async {
+  /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
+  /// (docs/FLOWS.md §4) for [taskId]'s planning-phase run. Kept outside the
+  /// worktree so it never ends up in the task's commit. The tool process
+  /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
+  /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a
+  /// static command/args/env per server, not per-call params.
+  /// In a container, [serverUrl] is rewritten to reach the host.
+  Future<String> _writeMcpConfig(
+    Directory dir,
+    int taskId, {
+    bool container = false,
+  }) async {
     final configFile = File('${dir.path}/mcp-config.json');
     await configFile.writeAsString(
       jsonEncode({
@@ -590,7 +643,12 @@ class TaskDispatcher {
           'roundtable-permission': {
             'command': permissionPromptToolCommand.first,
             'args': permissionPromptToolCommand.skip(1).toList(),
-            'env': {'SERVER_URL': serverUrl, 'ROUNDTABLE_TASK_ID': '$taskId'},
+            'env': {
+              'SERVER_URL': container
+                  ? containerServerUrl(serverUrl)
+                  : serverUrl,
+              'ROUNDTABLE_TASK_ID': '$taskId',
+            },
           },
         },
       }),

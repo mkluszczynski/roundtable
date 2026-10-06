@@ -11,7 +11,11 @@
 #   curl -fsSL <script-url>/install-agent.sh | sudo bash -s -- \
 #       --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> \
 #       [--name <MACHINE_NAME>] [--claude-token <CLAUDE_CODE_OAUTH_TOKEN>] \
-#       [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>]
+#       [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>] \
+#       [--docker]
+#
+# --docker installs rootless Podman, so agents set to docker mode run their
+# tasks in a container that sees only their worktree (docs/FLOWS.md §8).
 #
 # --server is the API server the agent connects to at runtime.
 # --script-url is where this script (and the agent-runner binary it fetches)
@@ -52,10 +56,11 @@ CLAUDE_PATH_OVERRIDE=""
 # Extra PATH directories for the agent (e.g. /opt/flutter/bin), so tasks
 # can run a project's analyzer/tests. Kept across re-installs via config.env.
 EXTRA_PATH=""
+DOCKER=0
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>]
+Usage: $0 --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>] [--docker]
 EOF
 }
 
@@ -89,6 +94,10 @@ while [[ $# -gt 0 ]]; do
       EXTRA_PATH="${2:-}"
       shift 2
       ;;
+    --docker)
+      DOCKER=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -110,6 +119,12 @@ fi
 if [[ "$EUID" -ne 0 ]]; then
   echo "install-agent: must be run as root (try: sudo bash ...)" >&2
   exit 1
+fi
+
+# A re-install without --docker keeps docker mode if it was on.
+if [[ "$DOCKER" -eq 0 && -f "$CONFIG_PATH" ]] &&
+  grep -q '^DOCKER=1$' "$CONFIG_PATH"; then
+  DOCKER=1
 fi
 
 if ! command -v systemctl >/dev/null 2>&1; then
@@ -166,6 +181,45 @@ fi
 echo "Creating workspace directory ${WORKSPACE_DIR}..."
 mkdir -p "$WORKSPACE_DIR"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "$DATA_DIR"
+
+if [[ "$DOCKER" -eq 1 ]]; then
+  # Rootless Podman, not Docker: adding the service account to the docker
+  # group would hand agents root on this machine. A rootless container can
+  # never do more than the account that starts it.
+  if ! command -v podman >/dev/null 2>&1; then
+    echo "Installing podman..."
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update -qq && apt-get install -y -qq podman uidmap >/dev/null
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y -q podman shadow-utils
+    else
+      echo "install-agent: warning: no apt-get or dnf — install podman" \
+        "yourself, then re-run with --docker." >&2
+    fi
+  fi
+  # Rootless containers map their users onto a range of the account's own
+  # subordinate ids. Give it 65536 past the highest range already taken.
+  for file in /etc/subuid /etc/subgid; do
+    touch "$file"
+    if ! grep -q "^${SERVICE_USER}:" "$file"; then
+      start=$(awk -F: '{ end = $2 + $3; if (end > max) max = end } END { print (max > 100000 ? max : 100000) }' "$file")
+      echo "${SERVICE_USER}:${start}:65536" >> "$file"
+    fi
+  done
+  if command -v podman >/dev/null 2>&1; then
+    # Pull the default image now, so the first docker task doesn't wait —
+    # and fail here, visibly, if rootless podman doesn't work.
+    if sudo -u "$SERVICE_USER" env HOME="$DATA_DIR" sh -c \
+      "cd '$DATA_DIR' && podman system migrate >/dev/null 2>&1; podman --cgroup-manager=cgroupfs --events-backend=file pull -q docker.io/library/buildpack-deps:bookworm-scm" \
+      >/dev/null; then
+      echo "Rootless podman ready for ${SERVICE_USER}"
+    else
+      echo "install-agent: warning: podman can't run containers as" \
+        "${SERVICE_USER} — docker-mode agents will fail. Check" \
+        "'sudo -u ${SERVICE_USER} podman info'." >&2
+    fi
+  fi
+fi
 
 # `claude` needs to be reachable by ${SERVICE_USER} at task-run time, not by
 # whoever happens to be running this install script. Reusing a claude
@@ -248,6 +302,9 @@ mkdir -p "$CONFIG_DIR"
   if [[ -n "$EXTRA_PATH" ]]; then
     echo "EXTRA_PATH=${EXTRA_PATH}"
   fi
+  if [[ "$DOCKER" -eq 1 ]]; then
+    echo "DOCKER=1"
+  fi
 } > "$CONFIG_PATH"
 chown root:root "$CONFIG_PATH"
 chmod 600 "$CONFIG_PATH"
@@ -282,7 +339,16 @@ $(
 )
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
-NoNewPrivileges=true
+$(
+  # Rootless podman maps the container's users through the setuid
+  # newuidmap/newgidmap, which NoNewPrivileges forbids. Docker mode trades
+  # it for the container's isolation; the account still has no sudo rights.
+  if [[ "$DOCKER" -eq 1 ]]; then
+    echo "NoNewPrivileges=false"
+  else
+    echo "NoNewPrivileges=true"
+  fi
+)
 Restart=on-failure
 RestartSec=5
 

@@ -15,6 +15,8 @@ import 'dart:typed_data' as _idt;
 import 'package:http/http.dart' as _i85jenna;
 import 'package:roundtable_client/src/protocol/agent.dart' as _ikth53tp;
 import 'package:roundtable_client/src/protocol/agent_effort.dart' as _izylr20v;
+import 'package:roundtable_client/src/protocol/agent_execution_mode.dart'
+    as _iplk739p;
 import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
     as _iw3o4s27;
 import 'package:roundtable_client/src/protocol/agent_status.dart' as _ijqfzoc4;
@@ -297,6 +299,7 @@ class EndpointAgent extends _isc.EndpointRef {
     int? roleId,
     String? defaultModel,
     _izylr20v.AgentEffort? defaultEffort,
+    _iplk739p.AgentExecutionMode? executionMode,
   }) => caller.callServerEndpoint<_ikth53tp.Agent>(
     'agent',
     'create',
@@ -306,6 +309,7 @@ class EndpointAgent extends _isc.EndpointRef {
       'roleId': roleId,
       'defaultModel': defaultModel,
       'defaultEffort': defaultEffort,
+      'executionMode': executionMode,
     },
   );
 
@@ -324,9 +328,11 @@ class EndpointAgent extends _isc.EndpointRef {
         {},
       );
 
-  /// Edits an agent's settings from the panel. The machine it lives on,
-  /// its execution mode and its status can't be changed here — status is
-  /// reported by the daemon through [setStatus].
+  /// Edits an agent's settings from the panel. The machine it lives on and
+  /// its status can't be changed here — status is reported by the daemon
+  /// through [setStatus]. The execution mode changes only while the agent
+  /// has no open task: a task's Claude Code session lives on the machine or
+  /// in the container, and can't be resumed from the other one.
   _ida.Future<_ikth53tp.Agent> update(_ikth53tp.Agent agent) =>
       caller.callServerEndpoint<_ikth53tp.Agent>(
         'agent',

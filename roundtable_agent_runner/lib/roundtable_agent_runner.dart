@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import 'src/claude_code_executor.dart';
+import 'src/container_sandbox.dart';
 import 'src/github_pull_request_opener.dart';
 import 'src/metrics_collector.dart';
 import 'src/review_dispatcher.dart';
@@ -16,6 +17,7 @@ import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
 
 export 'src/claude_code_executor.dart';
+export 'src/container_sandbox.dart';
 export 'src/github_pull_request_opener.dart';
 export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
@@ -230,24 +232,23 @@ class AgentRunnerService {
     serverUrl: _normalizeServerUrl(_config.serverUrl),
     permissionPromptToolCommand: _permissionPromptToolCommand(_config),
     fetchAttachments: _fetchAttachments,
-    environmentPrompt: _environmentPrompt,
-    fetchProjectTools: (projectId) async =>
-        (await _client.project.get(projectId))?.tools ?? const [],
+    environmentPrompt: ({container = false}) =>
+        _environmentPrompt(container: container),
+    fetchProject: (projectId) => _client.project.get(projectId),
     toolchainInstaller: _toolchainInstaller,
+    sandboxFor: _sandboxFor,
   );
 
   // Under the service account's own home (/var/lib/agent-runner), which
   // it owns — installs need no sudo and outlive every worktree.
-  late final _toolchainInstaller = ToolchainInstaller(
-    home: Platform.environment['HOME'] ?? Directory.systemTemp.path,
-  );
+  late final _toolchainInstaller = ToolchainInstaller(home: _home);
   DateTime? _lastToolchainPrune;
 
   /// This machine's name and detected tools, set during [run].
   String? _machineName;
   List<ToolInfo>? _toolchain;
 
-  String? _environmentPrompt({bool review = false}) {
+  String? _environmentPrompt({bool review = false, bool container = false}) {
     final toolchain = _toolchain;
     if (toolchain == null) return null;
     return buildEnvironmentPrompt(
@@ -255,7 +256,84 @@ class AgentRunnerService {
       user: Platform.environment['USER'] ?? 'roundtable-agent',
       tools: toolchain,
       review: review,
+      container: container,
     );
+  }
+
+  String get _home => Platform.environment['HOME'] ?? Directory.systemTemp.path;
+
+  /// The container of a docker-mode agent's run (docs/FLOWS.md §8): the
+  /// task's worktree and the project's bare repo (its git data) read-write,
+  /// the toolchains and pub cache read-write (Flutter writes into its own
+  /// SDK), `claude` and the permission-prompt-tool read-only, and a home
+  /// per project, so Claude Code's sessions survive for `--resume`.
+  ContainerSandbox _sandboxFor(ContainerRequest request) {
+    final podman = _toolchain?.any(
+      (t) => t.name == 'podman' && t.version != null,
+    );
+    if (podman != true) {
+      throw StateError(
+        'this agent runs in docker mode, but podman is not installed on this '
+        'machine — re-run install-agent.sh with --docker, or switch the agent '
+        'to native',
+      );
+    }
+    final home = _home;
+    final containerHome = Directory(
+      '$home/containers/project-${request.projectId}',
+    )..createSync(recursive: true);
+    _copyClaudeCredentials(home, containerHome.path);
+    final claude = _resolveExecutable(_config.claudeExecutable);
+    final workspace = Directory(_config.workspaceRoot).absolute.path;
+    final shared = ['$home/.local/share/mise', '$home/.pub-cache'];
+    for (final dir in shared) {
+      Directory(dir).createSync(recursive: true);
+    }
+    return ContainerSandbox(
+      image: request.image?.trim().isNotEmpty == true
+          ? request.image!.trim()
+          : defaultContainerImage,
+      name: 'roundtable-task-${request.taskId}',
+      workingDirectory: request.worktreePath,
+      home: containerHome.path,
+      claudePath: claude,
+      podman: _resolveExecutable('podman'),
+      mounts: [
+        (path: request.worktreePath, readOnly: false),
+        (path: '$workspace/${request.projectId}/repo.git', readOnly: false),
+        (path: containerHome.path, readOnly: false),
+        for (final dir in shared) (path: dir, readOnly: false),
+        (path: claude, readOnly: true),
+        if (_permissionPromptToolCommand(_config) case [final tool])
+          (path: tool, readOnly: true),
+        for (final dir in request.readOnlyDirectories)
+          (path: dir, readOnly: true),
+      ],
+    );
+  }
+
+  /// A machine logged in with `claude login` (no `CLAUDE_CODE_OAUTH_TOKEN`)
+  /// keeps its credentials in `~/.claude`; containers get a copy, never the
+  /// rest of that directory (other projects' sessions).
+  static void _copyClaudeCredentials(String home, String containerHome) {
+    final credentials = File('$home/.claude/.credentials.json');
+    if (!credentials.existsSync()) return;
+    Directory('$containerHome/.claude').createSync(recursive: true);
+    credentials.copySync('$containerHome/.claude/.credentials.json');
+  }
+
+  /// The absolute, symlink-free path of [executable] (a path or a name on
+  /// PATH), so it can be mounted into a container.
+  static String _resolveExecutable(String executable) {
+    if (!executable.contains('/')) {
+      for (final dir in (Platform.environment['PATH'] ?? '').split(':')) {
+        if (dir.isNotEmpty && File('$dir/$executable').existsSync()) {
+          executable = '$dir/$executable';
+          break;
+        }
+      }
+    }
+    return File(executable).resolveSymbolicLinksSync();
   }
 
   /// Detects the tools on PATH, for the agent's system prompt and the

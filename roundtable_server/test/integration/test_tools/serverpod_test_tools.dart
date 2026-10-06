@@ -16,6 +16,8 @@ import 'dart:io' as _idi;
 import 'dart:typed_data' as _idt;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
+import 'package:roundtable_server/src/generated/agent_execution_mode.dart'
+    as _i5zg6kl8;
 import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
@@ -618,6 +620,7 @@ class _AgentEndpoint {
     int? roleId,
     String? defaultModel,
     _i293npqp.AgentEffort? defaultEffort,
+    _i5zg6kl8.AgentExecutionMode? executionMode,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -636,6 +639,7 @@ class _AgentEndpoint {
             'roleId': roleId,
             'defaultModel': defaultModel,
             'defaultEffort': defaultEffort,
+            'executionMode': executionMode,
           }),
           serializationManager: _serializationManager,
         );

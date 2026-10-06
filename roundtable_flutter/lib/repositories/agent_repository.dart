@@ -15,15 +15,18 @@ class AgentRepository {
     int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
+    AgentExecutionMode? executionMode,
   }) => _client.agent.create(
     name,
     machineId,
     roleId: roleId,
     defaultModel: defaultModel,
     defaultEffort: defaultEffort,
+    executionMode: executionMode,
   );
 
-  /// Saves [agent]'s name, role, model and effort.
+  /// Saves [agent]'s name, role, model, effort and execution mode (the
+  /// last one only while it has no open task).
   Future<Agent> updateAgent(Agent agent) => _client.agent.update(agent);
 
   /// Throws `DeletionBlockedException` while the agent has unfinished tasks.

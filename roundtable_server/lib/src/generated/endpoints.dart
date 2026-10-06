@@ -13,6 +13,8 @@
 import 'dart:typed_data' as _idt;
 import 'package:roundtable_server/src/generated/agent.dart' as _iaucj7w0;
 import 'package:roundtable_server/src/generated/agent_effort.dart' as _i293npqp;
+import 'package:roundtable_server/src/generated/agent_execution_mode.dart'
+    as _i5zg6kl8;
 import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
@@ -357,6 +359,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<_i293npqp.AgentEffort?>(),
               nullable: true,
             ),
+            'executionMode': _is.ParameterDescription(
+              name: 'executionMode',
+              type: _is.getType<_i5zg6kl8.AgentExecutionMode?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -369,6 +376,7 @@ class Endpoints extends _is.EndpointDispatch {
                 roleId: params['roleId'],
                 defaultModel: params['defaultModel'],
                 defaultEffort: params['defaultEffort'],
+                executionMode: params['executionMode'],
               ),
         ),
         'get': _is.MethodConnector(

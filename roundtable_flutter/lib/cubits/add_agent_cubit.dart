@@ -39,6 +39,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
     required int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
+    AgentExecutionMode? executionMode,
   }) async {
     emit(const AddAgentSubmitting());
     try {
@@ -48,6 +49,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
         roleId: roleId,
         defaultModel: defaultModel,
         defaultEffort: defaultEffort,
+        executionMode: executionMode,
       );
       emit(AddAgentSuccess(agent));
     } catch (e) {
@@ -55,14 +57,15 @@ class AddAgentCubit extends Cubit<AddAgentState> {
     }
   }
 
-  /// Saves edits to [existing]. Its machine and execution mode stay as they
-  /// are.
+  /// Saves edits to [existing]. Its machine stays as it is; the server
+  /// refuses an execution mode change while the agent has open tasks.
   Future<void> update({
     required Agent existing,
     required String name,
     required int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
+    AgentExecutionMode? executionMode,
   }) async {
     emit(const AddAgentSubmitting());
     try {
@@ -73,6 +76,7 @@ class AddAgentCubit extends Cubit<AddAgentState> {
           role: null,
           defaultModel: defaultModel,
           defaultEffort: defaultEffort,
+          executionMode: executionMode ?? existing.executionMode,
         ),
       );
       emit(AddAgentSuccess(agent));

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'container_sandbox.dart';
+
 /// POSIX `EACCES` — the OS error code `ProcessException.errorCode` carries
 /// when a subprocess couldn't be launched due to a permissions problem
 /// (as opposed to `ENOENT`, "no such file or directory").
@@ -65,10 +67,23 @@ class ClaudeCodeExecutor {
   ClaudeCodeExecutor({
     this.executable = 'claude',
     this.pipeDrainTimeout = const Duration(seconds: 5),
+    this.sandbox,
   });
 
   /// Overridable in tests to point at a fake script instead of the real CLI.
   final String executable;
+
+  /// When set, `claude` runs inside this container (a docker-mode agent)
+  /// instead of directly on the machine.
+  final ContainerSandbox? sandbox;
+
+  /// This executor, running `claude` inside [sandbox].
+  ClaudeCodeExecutor inContainer(ContainerSandbox sandbox) =>
+      ClaudeCodeExecutor(
+        executable: executable,
+        pipeDrainTimeout: pipeDrainTimeout,
+        sandbox: sandbox,
+      );
 
   /// How long to keep reading stdout/stderr after the process has exited.
   final Duration pipeDrainTimeout;
@@ -259,12 +274,26 @@ class ClaudeCodeExecutor {
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
   }) async {
-    final process = await Process.start(
-      executable,
-      args,
-      workingDirectory: workingDirectory,
-      environment: {...?environment, 'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken},
-    );
+    final env = {...?environment, 'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken};
+    final sandbox = this.sandbox;
+    final Process process;
+    if (sandbox == null) {
+      process = await Process.start(
+        executable,
+        args,
+        workingDirectory: workingDirectory,
+        environment: env,
+      );
+    } else {
+      // The container sets its own HOME; everything else is passed through.
+      env.remove('HOME');
+      process = await Process.start(
+        sandbox.podman,
+        sandbox.runArgs(sandbox.claudePath, args, environment: env.keys),
+        workingDirectory: workingDirectory,
+        environment: env,
+      );
+    }
     // The prompt goes in via `-p`; an open stdin makes `claude` wait 3s and
     // print a warning to stderr, which used to become the failure reason.
     unawaited(process.stdin.close());

@@ -315,3 +315,42 @@ Code reviews don't install tools: the reviewer only reads the diff.
    `mise uninstall` on every installed version no remaining config resolves
    to: an older `latest`, a version a project moved off, the tools of a
    deleted project. `pub:` packages are small and stay.
+
+## 8. Docker mode
+
+A native agent runs `claude` as the runner's user, so it can read whatever
+that user can: every project's worktrees and the runner's own files. An
+agent set to `docker` (`Agent.executionMode`) runs each task in a rootless
+Podman container that sees only what that task needs.
+
+1. **Machine.** `install-agent.sh --docker` (the "With docker mode" switch
+   in the add-machine dialog) installs Podman, gives the service account a
+   range of subordinate uids/gids and pre-pulls the default image. Rootless
+   Podman, not Docker: the docker group is root-equivalent, while a rootless
+   container never gets more rights than the account that starts it. The
+   runner reports `podman` with its toolchain, and the add-agent dialog
+   offers docker mode only on a machine that has it.
+2. **Run.** `TaskDispatcher` installs the project's toolchains on the host
+   as in §7, then `ContainerSandbox` wraps `claude` in `podman run --rm
+   --userns=keep-id` (the container runs as the runner's user, so the
+   files it writes are the runner's to commit). Mounted at their host
+   paths, so paths, `PATH` and the MCP config work unchanged:
+   - the task's worktree and the project's bare repo (git data), read-write;
+   - the mise installs and the pub cache, read-write (Flutter writes into
+     its SDK);
+   - a home per project (`~/containers/project-<id>`), holding Claude Code's
+     sessions for `--resume` and, without `CLAUDE_CODE_OAUTH_TOKEN`, a copy
+     of the machine's `claude login` credentials;
+   - `claude` and the permission-prompt-tool, and the run's MCP config and
+     attached images, read-only.
+   Environment variables (the OAuth token, the toolchain `PATH`) are passed
+   by name, never on the command line. The permission-prompt-tool reaches a
+   server on the host's loopback through `host.containers.internal`. The
+   image is `Project.dockerImage`, else `buildpack-deps:bookworm-scm`
+   (Debian with git and curl) — a custom one needs only glibc. The agent's
+   system prompt says it's in a container and lists only git, curl and the
+   project toolchains.
+3. **Afterwards.** The runner commits and pushes from the host as for a
+   native agent, and removes the container if it outlived the run.
+   An agent's mode can only change while it has no open task: a task's
+   Claude Code session lives either on the machine or in the container.

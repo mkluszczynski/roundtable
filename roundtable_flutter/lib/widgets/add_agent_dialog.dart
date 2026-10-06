@@ -4,6 +4,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
 import '../repositories/agent_role_repository.dart';
+import '../repositories/machine_repository.dart';
 import '../cubits/add_agent_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../theme/colors.dart';
@@ -21,11 +22,12 @@ const _presetModels = [
   'claude-fable-5-1',
 ];
 
-/// Name, role, model, effort, and execution mode (`docker` disabled —
-/// schema-ready but not implemented). Opened from `machines_screen.dart`,
+/// Name, role, model, effort, and execution mode — `docker` runs the
+/// agent's tasks in a rootless Podman container (docs/FLOWS.md §8), offered
+/// once the machine reports podman. Opened from `machines_screen.dart`,
 /// scoped to [machineId]/[machineName] — the design brief shows this dialog
 /// as "on \<machine\>", not a machine picker. With [existingAgent] it edits
-/// that agent instead (execution mode is then fixed).
+/// that agent instead.
 class AddAgentDialog extends StatelessWidget {
   const AddAgentDialog({
     super.key,
@@ -76,9 +78,26 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
   /// panel's providers.
   List<AgentRoleDefinition>? _roles;
 
+  /// Whether the machine reported podman (null while loading) — docker
+  /// mode needs it.
+  bool? _hasPodman;
+
   @override
   void initState() {
     super.initState();
+    MachineRepository(client)
+        .getMachine(widget.machineId)
+        .then((machine) {
+          if (!mounted) return;
+          setState(
+            () => _hasPodman =
+                machine?.toolchain?.any((t) => t.startsWith('podman:')) ??
+                false,
+          );
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _hasPodman = false);
+        });
     AgentRoleRepository(client)
         .listRoles()
         .then((roles) {
@@ -145,6 +164,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                               roleId: _roleId,
                               defaultModel: _model,
                               defaultEffort: _effort,
+                              executionMode: _executionMode,
                             )
                           : context.read<AddAgentCubit>().submit(
                               name: _nameController.text.trim(),
@@ -152,6 +172,7 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                               roleId: _roleId,
                               defaultModel: _model,
                               defaultEffort: _effort,
+                              executionMode: _executionMode,
                             )
                     : null,
                 child: submitting
@@ -251,12 +272,22 @@ class _AddAgentDialogContentState extends State<_AddAgentDialogContent> {
                       selected: _executionMode,
                       onChanged: (mode) =>
                           setState(() => _executionMode = mode),
-                      disabledOptions: _editing
-                          ? AgentExecutionMode.values
-                                .where((m) => m != _executionMode)
-                                .toSet()
+                      disabledOptions: _hasPodman == true
+                          ? const <AgentExecutionMode>{}
                           : const {AgentExecutionMode.docker},
-                      disabledHint: _editing ? "Can't change" : 'Coming soon',
+                      disabledHint: _hasPodman == null
+                          ? 'Checking the machine…'
+                          : 'Needs podman on ${widget.machineName} — re-run '
+                                'the install script with --docker',
+                    ),
+                    const SizedBox(height: Spacing.xs),
+                    Text(
+                      _executionMode == AgentExecutionMode.docker
+                          ? 'Tasks run in a container that sees only their '
+                                "worktree and the project's toolchains."
+                          : 'Tasks run directly on the machine, as its '
+                                'runner user.',
+                      style: AppTypography.caption,
                     ),
                     if (state is AddAgentError) ...[
                       const SizedBox(height: Spacing.md),

@@ -12,6 +12,7 @@ class AgentEndpoint extends Endpoint {
     int? roleId,
     String? defaultModel,
     AgentEffort? defaultEffort,
+    AgentExecutionMode? executionMode,
   }) async {
     if (await Machine.db.findById(session, machineId) == null) {
       throw NotFoundException(message: 'Machine $machineId not found');
@@ -24,6 +25,7 @@ class AgentEndpoint extends Endpoint {
         roleId: roleId,
         defaultModel: defaultModel,
         defaultEffort: defaultEffort,
+        executionMode: executionMode ?? AgentExecutionMode.native,
       ),
     );
   }
@@ -44,15 +46,38 @@ class AgentEndpoint extends Endpoint {
     );
   }
 
-  /// Edits an agent's settings from the panel. The machine it lives on,
-  /// its execution mode and its status can't be changed here — status is
-  /// reported by the daemon through [setStatus].
+  /// Edits an agent's settings from the panel. The machine it lives on and
+  /// its status can't be changed here — status is reported by the daemon
+  /// through [setStatus]. The execution mode changes only while the agent
+  /// has no open task: a task's Claude Code session lives on the machine or
+  /// in the container, and can't be resumed from the other one.
   Future<Agent> update(Session session, Agent agent) async {
-    await _requireAgent(session, agent.id!);
+    final existing = await _requireAgent(session, agent.id!);
+    if (agent.executionMode != existing.executionMode) {
+      final open = await Task.db.count(
+        session,
+        where: (t) =>
+            t.agentId.equals(agent.id) &
+            t.status.inSet(nonTerminalTaskStatuses),
+      );
+      if (open > 0) {
+        throw InvalidStateException(
+          message:
+              "Can't switch ${existing.name} to ${agent.executionMode.name} "
+              'while it has open tasks — finish or cancel them first',
+        );
+      }
+    }
     return Agent.db.updateRow(
       session,
       agent,
-      columns: (t) => [t.name, t.roleId, t.defaultModel, t.defaultEffort],
+      columns: (t) => [
+        t.name,
+        t.roleId,
+        t.defaultModel,
+        t.defaultEffort,
+        t.executionMode,
+      ],
     );
   }
 

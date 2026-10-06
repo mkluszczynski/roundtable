@@ -21,6 +21,7 @@ const probedTools = [
   'cargo',
   'java',
   'docker',
+  'podman',
   'make',
 ];
 
@@ -57,6 +58,7 @@ String buildEnvironmentPrompt({
   required String user,
   required List<ToolInfo> tools,
   bool review = false,
+  bool container = false,
 }) {
   final available = tools.where((t) => t.version != null);
   final missing = tools.where((t) => t.version == null).map((t) => t.name);
@@ -67,11 +69,12 @@ String buildEnvironmentPrompt({
   return '''
 # Execution environment (Roundtable)
 
-You are running unattended through the Roundtable agent runner on the machine "$machineName", as the system user `$user`, inside an isolated git worktree of the project. Nobody is watching this session: the developer only sees your log, ${review ? 'and the review you return' : 'answers questions you ask with AskUserQuestion, approves your plan, and reviews the pull request opened from your branch'}.
+You are running unattended through the Roundtable agent runner on the machine "$machineName", as the system user `$user`, inside an isolated git worktree of the project${container ? ' — inside a container: only the worktree, the project\'s git data and your toolchains are mounted, the rest of the machine is not visible' : ''}. Nobody is watching this session: the developer only sees your log, ${review ? 'and the review you return' : 'answers questions you ask with AskUserQuestion, approves your plan, and reviews the pull request opened from your branch'}.
 
-Tools available on this machine's PATH:
+${container ? '''Tools available in the container: git, curl and the project toolchains listed below (if any). The machine's own tools are not available here.
+''' : '''Tools available on this machine's PATH:
 $availableList
-${missing.isEmpty ? '' : 'Not installed here: ${missing.join(', ')}.\n'}
+${missing.isEmpty ? '' : 'Not installed here: ${missing.join(', ')}.\n'}'''}
 What this environment does NOT have:
 - No MCP servers from the repository's configuration (only Roundtable's own tools are loaded).
 - No running app server, database, emulator or browser — you cannot hot reload, restart, open or click through the app.
