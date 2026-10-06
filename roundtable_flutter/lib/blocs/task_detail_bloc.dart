@@ -418,13 +418,10 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     with CloseableStreams<TaskDetailState> {
   TaskDetailBloc(
     this._repository, {
-    required ProjectRepository projectRepository,
-    required AgentRepository agentRepository,
-    required MachineRepository machineRepository,
-  }) : _projectRepository = projectRepository,
-       _agentRepository = agentRepository,
-       _machineRepository = machineRepository,
-       super(const TaskDetailInitial()) {
+    required this._projectRepository,
+    required this._agentRepository,
+    required this._machineRepository,
+  }) : super(const TaskDetailInitial()) {
     on<TaskDetailSubscribed>(_onSubscribed);
     on<AnswerSubmitted>(_onAnswerSubmitted);
     on<PlanApproved>(_onPlanApproved);

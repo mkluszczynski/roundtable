@@ -35,6 +35,11 @@ A docker-mode run (docs/FLOWS.md §8) can use all of the machine's CPU and
 RAM, so one heavy build slows every other task on it. Planned: per-agent (or
 per-machine) limits passed as `podman run --cpus/--memory`.
 
+### P3: No default model/effort per agent role
+Every agent picks its model and effort by hand. A role (e.g. reviewer)
+could carry defaults that new agents with that role start from, so a
+reviewer is always on the stronger model without setting it per agent.
+
 ## Accepted
 
 ### No user authentication, rate limiting or per-user data

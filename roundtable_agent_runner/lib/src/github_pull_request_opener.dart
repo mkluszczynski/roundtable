@@ -59,7 +59,7 @@ class GitHubPullRequestOpener {
         'title': title,
         'head': branchName,
         'base': defaultBranch,
-        if (body != null) 'body': body,
+        'body': ?body,
       }),
     );
     if (response.statusCode != 201) {
