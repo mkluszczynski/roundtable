@@ -308,7 +308,19 @@ The change was made for this task:
 $taskPrompt
 </task>
 ${_attachedImagesSection(imagePaths)}${_previousCommentsSection(previousComments)}
-Inspect it with `git diff $baseSha...HEAD` and read surrounding code as needed. Look for bugs, missed requirements, security problems, and clear maintainability issues. Skip pure style preferences.
+Before reviewing, read the repo's conventions if these files exist: AGENTS.md, CLAUDE.md, CONTRIBUTING.md (at the root and next to the changed code). Judge the change against them.
+
+Inspect it with `git diff $baseSha...HEAD` and read surrounding code as needed. Look for bugs, missed requirements, security problems, broken conventions, and clear maintainability issues. Skip pure style preferences.
+
+Scope: comment on code the change adds or modifies. Raise untouched code only when the change breaks it.
+
+Severity:
+- blocker: a bug, data loss, a security problem, or a requirement of the task that isn't met. The change must not be merged as is.
+- issue: a real problem worth fixing before merging (missing error handling or test, a broken convention, a maintainability trap).
+- nit: cosmetic or optional; never blocks merging.
+When unsure between two severities, pick the lower one.
+
+Each comment names the problem and how to fix it, concretely enough for another agent to act on without asking.
 
 End your reply with exactly one fenced ```json block of this shape:
 {"summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]${previousComments.isEmpty ? '' : ', "previous": [{"id": <earlier comment id>, "fixed": true | false, "note": "<if not fixed: what is still wrong, else null>"}]'}}

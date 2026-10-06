@@ -95,6 +95,9 @@ Final answer:
     expect(prompt, contains('Add a login page'));
     expect(prompt, contains('git diff abc123...HEAD'));
     expect(prompt, contains('```json'));
+    expect(prompt, contains('AGENTS.md'));
+    expect(prompt, contains('blocker: a bug'));
+    expect(prompt, contains('pick the lower one'));
     expect(prompt, isNot(contains('image(s)')));
   });
 
