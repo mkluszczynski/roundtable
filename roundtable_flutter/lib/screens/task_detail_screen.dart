@@ -13,6 +13,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../utils/checkout_command.dart';
 import '../utils/code_language.dart';
 import '../utils/follow_up_prompt.dart';
 import '../widgets/copy_icon_button.dart';
@@ -852,6 +853,11 @@ class _BranchRow extends StatelessWidget {
             ),
           ),
         ),
+        if (task.branchName != null)
+          CopyIconButton(
+            text: checkoutCommand(task.branchName!),
+            tooltip: 'Copy checkout commands',
+          ),
         if (task.prUrl != null)
           TextButton.icon(
             onPressed: () => launchUrl(
