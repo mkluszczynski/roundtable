@@ -126,10 +126,11 @@ class TaskEndpoint extends Endpoint {
   /// from the panel, failed by a future call, merged) is final: a late
   /// write from the daemon is ignored and the current row returned, rather
   /// than reviving it or throwing at a daemon that can't do anything about
-  /// it.
+  /// it. The same goes for a `draft` — nothing runs a draft, so a write to
+  /// one comes from a run that was cancelled back to the backlog.
   Future<Task> update(Session session, Task task) async {
     var previous = await _requireTask(session, task.id!);
-    if (!nonTerminalTaskStatuses.contains(previous.status)) {
+    if (!_isRunnerOwned(previous)) {
       session.log(
         'Ignoring update to task ${task.id}: already ${previous.status.name}',
         level: LogLevel.warning,
@@ -483,16 +484,18 @@ class TaskEndpoint extends Endpoint {
   }
 
   /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
-  /// "Cancelling mid-run"): marks it `cancelled` and notifies
-  /// [watchTask] subscribers — the daemon running the task reacts by
-  /// sending `SIGTERM` to the Claude Code subprocess and resetting the
-  /// worktree.
+  /// "Cancelling mid-run"): moves it back to the backlog as an agent-less
+  /// `draft`, reset like [retryTask] does (the branch and PR are kept, so a
+  /// later run pushes onto them), and notifies [watchTask] subscribers — the
+  /// daemon running the task reacts by sending `SIGTERM` to the Claude Code
+  /// subprocess and resetting the worktree. Assigning an agent again
+  /// ([reassignAgent]) restarts it.
   Future<Task> cancelTask(Session session, int taskId) async {
     var task = await Task.db.findById(session, taskId);
     if (task == null) {
       throw NotFoundException(message: 'Task $taskId not found');
     }
-    if (!nonTerminalTaskStatuses.contains(task.status)) {
+    if (!_isRunnerOwned(task)) {
       throw InvalidStateException(
         message: 'Task $taskId is not in a cancellable state (${task.status})',
       );
@@ -501,10 +504,27 @@ class TaskEndpoint extends Endpoint {
     task = await Task.db.updateRow(
       session,
       task.copyWith(
-        status: TaskStatus.cancelled,
-        finishedAt: DateTime.now().toUtc(),
+        status: TaskStatus.draft,
+        agentId: null,
+        currentPlan: null,
+        failureReason: null,
+        resultSummary: null,
+        claudeSessionId: null,
+        startedAt: null,
+        finishedAt: null,
+        pausedUntil: null,
+        pauseReason: null,
+        pausedPhase: null,
         lastProgressAt: DateTime.now().toUtc(),
       ),
+    );
+    // Runners older than the move to `draft` only stop a run when
+    // [watchTask] emits `cancelled`: signal that first (never stored — the
+    // row is already a draft, so whatever that runner writes afterwards is
+    // ignored by [update]), then the real row.
+    await session.messages.postMessage(
+      channelForTask(taskId),
+      task.copyWith(status: TaskStatus.cancelled),
     );
     await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
@@ -701,7 +721,7 @@ class TaskEndpoint extends Endpoint {
     String question,
     List<String> options,
   ) async {
-    var task = await _requireTask(session, taskId);
+    var task = await _requireRunnerOwnedTask(session, taskId);
     late TaskQuestion created;
     await session.db.transaction((transaction) async {
       created = await TaskQuestion.db.insertRow(
@@ -801,7 +821,7 @@ class TaskEndpoint extends Endpoint {
   /// Stores a ready plan (docs/FLOWS.md §4 `ExitPlanMode`) and flips
   /// `Task.status = planReady`, so the dev can approve it or give feedback.
   Future<Task> setPlanReady(Session session, int taskId, String plan) async {
-    var task = await _requireTask(session, taskId);
+    var task = await _requireRunnerOwnedTask(session, taskId);
     task = await Task.db.updateRow(
       session,
       task.copyWith(
@@ -950,6 +970,25 @@ class TaskEndpoint extends Endpoint {
   Future<List<Task>> findTasks(Session session, List<int> taskIds) async {
     if (taskIds.isEmpty) return [];
     return Task.db.find(session, where: (t) => t.id.inSet(taskIds.toSet()));
+  }
+
+  /// Whether the daemon may still change [task]: it's in progress, and not a
+  /// `draft` (cancelled back to the backlog, or never started).
+  static bool _isRunnerOwned(Task task) =>
+      task.status != TaskStatus.draft &&
+      nonTerminalTaskStatuses.contains(task.status);
+
+  /// [_requireTask] for the permission tool's writes ([createQuestion],
+  /// [setPlanReady]): a cancelled run's late question or plan must not pull
+  /// the task out of the backlog (or out of a terminal state).
+  Future<Task> _requireRunnerOwnedTask(Session session, int taskId) async {
+    var task = await _requireTask(session, taskId);
+    if (!_isRunnerOwned(task)) {
+      throw InvalidStateException(
+        message: 'Task $taskId is not running (${task.status.name})',
+      );
+    }
+    return task;
   }
 
   Future<Task> _requireTask(Session session, int taskId) async {

@@ -608,79 +608,195 @@ exit 0
       expect(agentUpdates.last.status, AgentStatus.idle);
     });
 
-    test('a task cancelled mid-run is SIGTERM-ed, has its worktree reset, and '
-        'is marked cancelled without opening a PR', () async {
+    TaskDispatcher buildDispatcher({
+      required String claudeScript,
+      required List<Task> taskUpdates,
+      required List<Agent> agentUpdates,
+      required Stream<Task> Function(int taskId) watchTask,
+      Future<Task?> Function(int taskId)? fetchTask,
+    }) => TaskDispatcher(
+      worktreeManager: WorktreeManager(
+        workspaceRoot: '${tempDir.path}/workspace',
+      ),
+      executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+      oauthToken: null,
+      getCloneUrl: (projectId) async => fixtureRepo.path,
+      fetchAgent: (agentId) async => buildAgent(),
+      updateTask: (task) async => taskUpdates.add(task),
+      updateAgent: (agent) async => agentUpdates.add(agent),
+      appendLog: (_) async {},
+      fetchLatestFeedback: (_) async => null,
+      openPullRequest:
+          ({
+            required cloneUrl,
+            required branchName,
+            required title,
+            body,
+          }) async => throw StateError('should not be called'),
+      watchTask: watchTask,
+      fetchTask: fetchTask,
+      log: (_) {},
+      serverUrl: 'https://server.example',
+      permissionPromptToolCommand: const ['echo'],
+    );
+
+    test('a task cancelled before claude starts never launches it', () async {
       final startedFile = File('${tempDir.path}/started');
-      final terminatedFile = File('${tempDir.path}/terminated');
-      final claudeScript = writeFakeClaude('''
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      final dispatcher = buildDispatcher(
+        claudeScript: writeFakeClaude('touch "${startedFile.path}"'),
+        taskUpdates: taskUpdates,
+        agentUpdates: agentUpdates,
+        // `watchTask` replays the current row first: already a draft.
+        watchTask: (_) =>
+            Stream.value(buildTask().copyWith(status: TaskStatus.draft)),
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(startedFile.existsSync(), isFalse);
+      expect(taskUpdates.map((t) => t.status), [TaskStatus.running]);
+      expect(agentUpdates.last.status, AgentStatus.idle);
+    });
+
+    test('a task handed in again mid-run waits for that run, then acts on '
+        'its current row', () async {
+      final runsFile = File('${tempDir.path}/runs');
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      final statusesWhenRefetched = <List<TaskStatus>>[];
+      final dispatcher = buildDispatcher(
+        claudeScript: writeFakeClaude('''
+echo run >> "${runsFile.path}"
+sleep 0.3
+exit 1
+'''),
+        taskUpdates: taskUpdates,
+        agentUpdates: agentUpdates,
+        watchTask: (_) => const Stream.empty(),
+        fetchTask: (_) async {
+          statusesWhenRefetched.add([for (final t in taskUpdates) t.status]);
+          // E.g. the first run left it failed.
+          return buildTask().copyWith(status: TaskStatus.failed);
+        },
+      );
+
+      await Future.wait([
+        dispatcher.handle(buildTask()),
+        dispatcher.handle(buildTask()),
+      ]);
+
+      expect(runsFile.readAsLinesSync(), ['run']);
+      expect(statusesWhenRefetched, [
+        [TaskStatus.running, TaskStatus.failed],
+      ]);
+      expect(dispatcher.isActive(1), isFalse);
+    });
+
+    test('a task reassigned while its previous run finished is skipped by '
+        'the waiting call', () async {
+      final runsFile = File('${tempDir.path}/runs');
+      final dispatcher = buildDispatcher(
+        claudeScript: writeFakeClaude('''
+echo run >> "${runsFile.path}"
+sleep 0.2
+exit 1
+'''),
+        taskUpdates: [],
+        agentUpdates: [],
+        watchTask: (_) => const Stream.empty(),
+        fetchTask: (_) async => buildTask().copyWith(agentId: 2),
+      );
+
+      await Future.wait([
+        dispatcher.handle(buildTask()),
+        dispatcher.handle(buildTask()),
+      ]);
+
+      expect(runsFile.readAsLinesSync(), ['run']);
+    });
+
+    // `draft`: the server moved the task back to the backlog; `cancelled`:
+    // an older server.
+    for (final cancelledStatus in [TaskStatus.draft, TaskStatus.cancelled]) {
+      test(
+        'a task cancelled mid-run (${cancelledStatus.name}) is SIGTERM-ed, '
+        'has its worktree reset, and reports no outcome nor opens a PR',
+        () async {
+          final startedFile = File('${tempDir.path}/started');
+          final terminatedFile = File('${tempDir.path}/terminated');
+          final claudeScript = writeFakeClaude('''
 trap 'touch "${terminatedFile.path}"; exit 143' TERM
 echo "partial change" > changed.txt
 touch "${startedFile.path}"
 while true; do sleep 0.05; done
 ''');
-      final taskUpdates = <Task>[];
-      final agentUpdates = <Agent>[];
-      final watchTaskController = StreamController<Task>();
+          final taskUpdates = <Task>[];
+          final agentUpdates = <Agent>[];
+          final watchTaskController = StreamController<Task>();
 
-      final dispatcher = TaskDispatcher(
-        worktreeManager: WorktreeManager(
-          workspaceRoot: '${tempDir.path}/workspace',
-        ),
-        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
-        oauthToken: null,
-        getCloneUrl: (projectId) async => fixtureRepo.path,
-        fetchAgent: (agentId) async => buildAgent(),
-        updateTask: (task) async => taskUpdates.add(task),
-        updateAgent: (agent) async => agentUpdates.add(agent),
-        appendLog: (_) async {},
-        fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
-        watchTask: (_) => watchTaskController.stream,
-        log: (_) {},
-        serverUrl: 'https://server.example',
-        permissionPromptToolCommand: const ['echo'],
+          final dispatcher = TaskDispatcher(
+            worktreeManager: WorktreeManager(
+              workspaceRoot: '${tempDir.path}/workspace',
+            ),
+            executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+            oauthToken: null,
+            getCloneUrl: (projectId) async => fixtureRepo.path,
+            fetchAgent: (agentId) async => buildAgent(),
+            updateTask: (task) async => taskUpdates.add(task),
+            updateAgent: (agent) async => agentUpdates.add(agent),
+            appendLog: (_) async {},
+            fetchLatestFeedback: (_) async => null,
+            openPullRequest:
+                ({
+                  required cloneUrl,
+                  required branchName,
+                  required title,
+                  body,
+                }) async => throw StateError('should not be called'),
+            watchTask: (_) => watchTaskController.stream,
+            log: (_) {},
+            serverUrl: 'https://server.example',
+            permissionPromptToolCommand: const ['echo'],
+          );
+
+          final handleFuture = dispatcher.handle(buildTask());
+
+          final deadline = DateTime.now().add(const Duration(seconds: 5));
+          while (!startedFile.existsSync()) {
+            if (DateTime.now().isAfter(deadline)) {
+              fail('fake claude script never started');
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+          }
+          watchTaskController.add(
+            buildTask().copyWith(status: cancelledStatus),
+          );
+
+          await handleFuture;
+          await watchTaskController.close();
+
+          expect(
+            terminatedFile.existsSync(),
+            isTrue,
+            reason: 'SIGTERM should have reached the subprocess',
+          );
+          expect(
+            File(
+              '${tempDir.path}/workspace/1/worktrees/1/changed.txt',
+            ).existsSync(),
+            isFalse,
+            reason: 'the worktree should have been reset',
+          );
+          // Only the run's start was reported — the server owns the outcome.
+          expect(taskUpdates.map((t) => t.status), [TaskStatus.running]);
+          expect(taskUpdates.last.branchName, isNull);
+          expect(taskUpdates.last.prUrl, isNull);
+          expect(agentUpdates.last.status, AgentStatus.idle);
+        },
       );
-
-      final handleFuture = dispatcher.handle(buildTask());
-
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (!startedFile.existsSync()) {
-        if (DateTime.now().isAfter(deadline)) {
-          fail('fake claude script never started');
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-      watchTaskController.add(
-        buildTask().copyWith(status: TaskStatus.cancelled),
-      );
-
-      await handleFuture;
-      await watchTaskController.close();
-
-      expect(
-        terminatedFile.existsSync(),
-        isTrue,
-        reason: 'SIGTERM should have reached the subprocess',
-      );
-      expect(
-        File(
-          '${tempDir.path}/workspace/1/worktrees/1/changed.txt',
-        ).existsSync(),
-        isFalse,
-        reason: 'the worktree should have been reset',
-      );
-      expect(taskUpdates.last.status, TaskStatus.cancelled);
-      expect(taskUpdates.last.finishedAt, isNotNull);
-      expect(taskUpdates.last.branchName, isNull);
-      expect(taskUpdates.last.prUrl, isNull);
-      expect(agentUpdates.last.status, AgentStatus.idle);
-    });
+    }
 
     test(
       'a fresh non-skipPlanning task runs the planning-phase invocation with '

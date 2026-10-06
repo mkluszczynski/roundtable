@@ -507,26 +507,120 @@ void main() {
       },
     );
 
-    test('when cancelling a queued task then it is marked cancelled', () async {
-      final machine = await createMachine();
+    test(
+      'when cancelling a queued task then it goes back to the backlog as an '
+      'agent-less draft',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+
+        final cancelled = await endpoints.task.cancelTask(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(cancelled.status, TaskStatus.draft);
+        expect(cancelled.agentId, isNull);
+        expect(cancelled.finishedAt, isNull);
+      },
+    );
+
+    test(
+      'when cancelling a task in review then its run state is reset but the '
+      'branch and PR are kept',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: true,
+        );
+        await Task.db.updateRow(
+          sessionBuilder.build(),
+          task.copyWith(
+            status: TaskStatus.awaitingReview,
+            claudeSessionId: 'sess-1',
+            resultSummary: 'Done.',
+            branchName: 'task-${task.id}',
+            prUrl: 'https://github.com/example/rt/pull/1',
+            startedAt: DateTime.now().toUtc(),
+            finishedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        final cancelled = await endpoints.task.cancelTask(
+          sessionBuilder,
+          task.id!,
+        );
+
+        expect(cancelled.status, TaskStatus.draft);
+        expect(cancelled.claudeSessionId, isNull);
+        expect(cancelled.resultSummary, isNull);
+        expect(cancelled.startedAt, isNull);
+        expect(cancelled.branchName, 'task-${task.id}');
+        expect(cancelled.prUrl, 'https://github.com/example/rt/pull/1');
+      },
+    );
+
+    test('when cancelling a draft then it throws', () async {
       final project = await createProject();
-      final agent = await createAgent(machine);
       final task = await endpoints.task.createTask(
         sessionBuilder,
         project.id!,
-        agent.id!,
+        null,
         'Do something',
-        skipPlanning: true,
+        skipPlanning: false,
       );
 
-      final cancelled = await endpoints.task.cancelTask(
-        sessionBuilder,
-        task.id!,
+      await expectLater(
+        endpoints.task.cancelTask(sessionBuilder, task.id!),
+        throwsException,
       );
-
-      expect(cancelled.status, TaskStatus.cancelled);
-      expect(cancelled.finishedAt, isNotNull);
     });
+
+    test(
+      'when a cancelled run asks a question or reports a plan then it is '
+      'rejected and the task stays a draft',
+      () async {
+        final machine = await createMachine();
+        final project = await createProject();
+        final agent = await createAgent(machine);
+        final task = await endpoints.task.createTask(
+          sessionBuilder,
+          project.id!,
+          agent.id!,
+          'Do something',
+          skipPlanning: false,
+        );
+        await endpoints.task.cancelTask(sessionBuilder, task.id!);
+
+        await expectLater(
+          endpoints.task.createQuestion(sessionBuilder, task.id!, 'Q?', []),
+          throwsException,
+        );
+        await expectLater(
+          endpoints.task.setPlanReady(sessionBuilder, task.id!, 'Plan'),
+          throwsException,
+        );
+        final current = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(current!.status, TaskStatus.draft);
+      },
+    );
 
     test(
       'when cancelling a task already in a terminal state then it throws',
@@ -619,9 +713,14 @@ void main() {
           'Do something',
           skipPlanning: true,
         );
-        final cancelled = await endpoints.task.cancelTask(
-          sessionBuilder,
-          task.id!,
+        // Cancelling now moves a task back to the backlog; `cancelled` is
+        // only found on older rows.
+        final cancelled = await Task.db.updateRow(
+          sessionBuilder.build(),
+          task.copyWith(
+            status: TaskStatus.cancelled,
+            finishedAt: DateTime.now().toUtc(),
+          ),
         );
 
         final retried = await endpoints.task.retryTask(
@@ -1559,7 +1658,8 @@ void main() {
     );
 
     test(
-      'when the watched task is cancelled then the cancellation is emitted on the stream',
+      'when the watched task is cancelled then a cancelled signal (for older '
+      'runners) and then its move back to draft are emitted on the stream',
       () async {
         final machine = await createMachine();
         final project = await createProject();
@@ -1573,14 +1673,25 @@ void main() {
         );
 
         final stream = endpoints.task.watchTask(sessionBuilder, task.id!);
-        final firstEvent = stream
-            .firstWhere((t) => t.status == TaskStatus.cancelled)
-            .then((t) => t.id);
+        // The replayed current row, then the two cancellation messages.
+        final events = stream.take(3).map((t) => t.status).toList();
         await flushEventQueue();
 
         await endpoints.task.cancelTask(sessionBuilder, task.id!);
 
-        await expectLater(firstEvent, completion(task.id));
+        await expectLater(
+          events,
+          completion([
+            TaskStatus.queued,
+            TaskStatus.cancelled,
+            TaskStatus.draft,
+          ]),
+        );
+        final stored = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(stored!.status, TaskStatus.draft);
       },
     );
 

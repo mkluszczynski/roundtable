@@ -238,6 +238,8 @@ class AgentRunnerService {
     environmentPrompt: ({container = false}) =>
         _environmentPrompt(container: container),
     fetchProject: (projectId) => _client.project.get(projectId),
+    fetchTask: (taskId) async =>
+        (await _client.task.findTasks([taskId])).firstOrNull,
     toolchainInstaller: _toolchainInstaller,
     sandboxFor: _sandboxFor,
   );
