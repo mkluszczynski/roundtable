@@ -30,6 +30,11 @@ inline `reviewError`. The other actions should work the same way.
 There are widget tests for the shared components, `errorMessage`, and the
 kanban grouping, but none for the screens or dialogs.
 
+### P3: Docker mode containers have no CPU/memory limits
+A docker-mode run (docs/FLOWS.md §8) can use all of the machine's CPU and
+RAM, so one heavy build slows every other task on it. Planned: per-agent (or
+per-machine) limits passed as `podman run --cpus/--memory`.
+
 ## Accepted
 
 ### No user authentication, rate limiting or per-user data
@@ -49,11 +54,11 @@ share one Claude Pro/Max token and its usage limits.
 ### The `cloning` status is not implemented
 `TaskStatus.cloning` exists in the schema but nothing uses it.
 
-### Docker mode: code reviews, limits and the network
+### Docker mode: code reviews run on the machine, the network is open
 Docker mode (docs/FLOWS.md §8) isolates task runs only. Code reviews still
-run on the machine (the reviewer only reads), containers have no CPU/memory
-limits, and their network is open — the agent needs the Claude API and
-package registries. A dev runner started from source (`dart run`) can't
+run on the machine (the reviewer only reads). The container's network stays
+open on purpose: the agent needs the Claude API and package registries, and
+does web research. A dev runner started from source (`dart run`) can't
 mount its permission-prompt-tool into the container; use the compiled
 binaries.
 
