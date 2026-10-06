@@ -47,7 +47,7 @@ class _FakeComment {
 /// Repos are real bare git repos under [root]: the runner clones and pushes
 /// through `git http-backend`, pull request diffs come from `git diff`, and
 /// a merge really squashes the branch onto the default one. Any token is
-/// accepted. No GitHub Actions run, so CI reports no checks.
+/// accepted. Every commit gets one green "CI" workflow run ([ciPasses]).
 class FakeGitHub {
   FakeGitHub._(this._server, this.root);
 
@@ -55,6 +55,11 @@ class FakeGitHub {
 
   /// Holds the bare repos, as `<owner>/<repo>`.
   final Directory root;
+
+  /// Whether every commit gets a green "CI" workflow run (like a repo with
+  /// passing GitHub Actions). Off, there are no runs at all, and the server
+  /// waits its grace period before treating the PR as having no CI.
+  bool ciPasses = true;
 
   final _pulls = <FakePullRequest>[];
   final _comments = <_FakeComment>[];
@@ -312,7 +317,36 @@ class FakeGitHub {
         request.response.write(content);
         return;
       case ['actions', 'runs']:
-        return _json(request, 200, {'total_count': 0, 'workflow_runs': []});
+        final sha = request.uri.queryParameters['head_sha'];
+        final runs = !ciPasses || sha == null
+            ? const []
+            : [
+                {
+                  'id': _runId(sha),
+                  'name': 'CI',
+                  'head_sha': sha,
+                  'status': 'completed',
+                  'conclusion': 'success',
+                  'run_attempt': 1,
+                },
+              ];
+        return _json(request, 200, {
+          'total_count': runs.length,
+          'workflow_runs': runs,
+        });
+      case ['actions', 'runs', final runId, 'jobs']:
+        return _json(request, 200, {
+          'total_count': 1,
+          'jobs': [
+            {
+              'id': int.parse(runId) + 1,
+              'name': 'test',
+              'status': 'completed',
+              'conclusion': 'success',
+              'steps': [],
+            },
+          ],
+        });
       default:
         return _json(request, 404, {'message': 'Not Found: $path'});
     }
@@ -487,6 +521,9 @@ class FakeGitHub {
       ..headers.contentType = ContentType.json
       ..write(jsonEncode(body));
   }
+
+  /// A stable workflow run id per commit.
+  int _runId(String sha) => int.parse(sha.substring(0, 7), radix: 16) * 2;
 
   Future<String?> _revParse(String owner, String repo, String ref) async {
     final result = await Process.run('git', [

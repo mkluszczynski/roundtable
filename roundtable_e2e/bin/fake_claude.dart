@@ -22,7 +22,7 @@ Future<void> main(List<String> args) async {
   final state = Directory(Platform.environment['FAKE_CLAUDE_STATE']!);
   await state.create(recursive: true);
   await File('${state.path}/invocations.jsonl').writeAsString(
-    '${jsonEncode({'args': args, 'cwd': Directory.current.path})}\n',
+    '${jsonEncode({'args': args, 'cwd': Directory.current.path, 'pid': pid, 'start': _now()})}\n',
     mode: FileMode.append,
   );
   final scenario = Scenario(
@@ -54,6 +54,7 @@ Future<void> main(List<String> args) async {
       'session_id': session,
       'result': result,
     });
+    await _logEnd(state);
     exit(0);
   } on _Denied catch (e) {
     _emit({
@@ -63,6 +64,7 @@ Future<void> main(List<String> args) async {
       'session_id': session,
       'result': e.message,
     });
+    await _logEnd(state);
     exit(1);
   }
 }
@@ -71,7 +73,8 @@ Future<void> main(List<String> args) async {
 /// - `plan` (String): the plan proposed in plan mode.
 /// - `title` (String?): set through `set_task_title` when offered.
 /// - `runs` (List): one per planning/execution/feedback run — `files`
-///   (path → content written in the worktree) and `result` (final message).
+///   (path → content written in the worktree), `result` (final message)
+///   and `sleepMs` (how long the run takes).
 /// - `reviews` (List): one per review run — `verdict`, `summary`,
 ///   `comments` (as the reviewer JSON) and `fixPrevious` (mark every earlier
 ///   comment listed in the prompt as fixed).
@@ -149,6 +152,8 @@ Future<String> _execute(Scenario scenario, Directory state) async {
     return 'Nothing left to change.';
   }
   final run = scenario.runs[index] as Map<String, dynamic>;
+  final sleep = run['sleepMs'] as int?;
+  if (sleep != null) await Future<void>.delayed(Duration(milliseconds: sleep));
   final files = (run['files'] as Map?)?.cast<String, String>() ?? const {};
   for (final MapEntry(key: path, value: content) in files.entries) {
     final file = File(path);
@@ -224,6 +229,14 @@ String? _option(List<String> args, String name) {
 }
 
 int _pid() => pid;
+
+int _now() => DateTime.now().millisecondsSinceEpoch;
+
+Future<void> _logEnd(Directory state) =>
+    File('${state.path}/ends.jsonl').writeAsString(
+      '${jsonEncode({'pid': pid, 'end': _now()})}\n',
+      mode: FileMode.append,
+    );
 
 /// A minimal MCP client over the server's stdio (JSON-RPC, one per line).
 class _Mcp {

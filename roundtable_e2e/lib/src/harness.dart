@@ -6,6 +6,9 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'fake_github.dart';
 
+/// One fake claude run, see [E2EHarness.claudeRuns].
+typedef ClaudeRun = ({List<String> args, String cwd, int start, int? end});
+
 /// Runs Roundtable end to end for one test (docs/DEVELOPMENT.md "E2E
 /// tests"): the real server (its own embedded Postgres, fresh every time)
 /// and the real agent runner as processes, a [FakeGitHub] with the repo
@@ -180,18 +183,42 @@ class E2EHarness {
     return current.status == status ? current : null;
   }, timeout: timeout);
 
-  /// Every fake claude invocation so far: its args and working directory.
-  List<({List<String> args, String cwd})> get claudeRuns {
-    final log = File('${_temp.path}/fake-claude/invocations.jsonl');
-    if (!log.existsSync()) return const [];
+  /// Every fake claude run so far (not its `--version` checks): args,
+  /// working directory, and when it started and ended (ms since epoch;
+  /// `end` is null while it's still running).
+  List<ClaudeRun> get claudeRuns {
+    final dir = '${_temp.path}/fake-claude';
+    List<Map<String, dynamic>> read(String name) {
+      final file = File('$dir/$name');
+      if (!file.existsSync()) return const [];
+      return [
+        for (final line in file.readAsLinesSync())
+          if (line.trim().isNotEmpty) jsonDecode(line) as Map<String, dynamic>,
+      ];
+    }
+
+    final ends = {for (final e in read('ends.jsonl')) e['pid']: e['end']};
     return [
-      for (final line in log.readAsLinesSync())
-        if (line.trim().isNotEmpty)
-          (
-            args: ((jsonDecode(line) as Map)['args'] as List).cast<String>(),
-            cwd: (jsonDecode(line) as Map)['cwd'] as String,
-          ),
+      for (final run in read('invocations.jsonl'))
+        (
+          args: (run['args'] as List).cast<String>(),
+          cwd: run['cwd'] as String,
+          start: run['start'] as int,
+          end: ends[run['pid']] as int?,
+        ),
     ];
+  }
+
+  /// Task [taskId]'s code reviews with their comments, oldest first.
+  Future<List<CodeReview>> reviews(int taskId) async {
+    final byId = <int, CodeReview>{};
+    final subscription = client.codeReview
+        .watchReviews(taskId)
+        .listen((r) => byId[r.id!] = r);
+    // The stream replays every review on subscribe.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await subscription.cancel();
+    return byId.values.toList()..sort((a, b) => a.id!.compareTo(b.id!));
   }
 
   Future<void> stop() async {

@@ -80,8 +80,8 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 - **Fake GitHub** (`lib/src/fake_github.dart`): a GitHub Enterprise-style
   host on localhost — real bare git repos served through `git
   http-backend` (clone/push), and the REST/GraphQL calls Roundtable makes
-  (PRs, files with real `git diff`, reviews and threads, squash merge, no
-  Actions runs). The server finds it through `ROUNDTABLE_GITHUB_URL`; the
+  (PRs, files with real `git diff`, reviews and threads, squash merge, one
+  green "CI" workflow run per commit). The server finds it through `ROUNDTABLE_GITHUB_URL`; the
   runner derives the API from the clone URL.
 - **Fake claude** (`bin/fake_claude.dart`): plays the agents from a
   scenario (plan, per-run file edits, review verdicts). In plan mode it
@@ -96,7 +96,12 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 
 `E2E_VERBOSE=1` echoes the server's and runner's output; `E2E_KEEP=1`
 keeps the temp dir (repos, worktrees, fake claude log) for a look after a
-failure. A run takes ~20 s per test.
+failure. A run takes ~20–40 s per test.
+
+Covered flows (`test/user_flows_test.dart`): plan → approve → execute →
+merge; auto review finds a blocker → auto fix → the re-review confirms the
+fix → auto merge; one task at a time per agent, and cancelling a waiting
+task.
 
 ## Conventions
 
