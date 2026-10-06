@@ -703,8 +703,11 @@ exit 1
         watchTask: (_) => const Stream.empty(),
         fetchTask: (_) async {
           statusesWhenRefetched.add([for (final t in taskUpdates) t.status]);
-          // E.g. the first run left it failed.
-          return buildTask().copyWith(status: TaskStatus.failed);
+          // Still queued when the first run re-reads it after cloning;
+          // e.g. that run then left it failed.
+          return taskUpdates.isEmpty
+              ? buildTask()
+              : buildTask().copyWith(status: TaskStatus.failed);
         },
       );
 
@@ -715,6 +718,7 @@ exit 1
 
       expect(runsFile.readAsLinesSync(), ['run']);
       expect(statusesWhenRefetched, [
+        <TaskStatus>[],
         [TaskStatus.running, TaskStatus.failed],
       ]);
       expect(dispatcher.isActive(1), isFalse);
@@ -723,6 +727,7 @@ exit 1
     test('a task reassigned while its previous run finished is skipped by '
         'the waiting call', () async {
       final runsFile = File('${tempDir.path}/runs');
+      var fetches = 0;
       final dispatcher = buildDispatcher(
         claudeScript: writeFakeClaude('''
 echo run >> "${runsFile.path}"
@@ -732,7 +737,10 @@ exit 1
         taskUpdates: [],
         agentUpdates: [],
         watchTask: (_) => const Stream.empty(),
-        fetchTask: (_) async => buildTask().copyWith(agentId: 2),
+        // The first run's re-read after cloning still sees it; it's
+        // reassigned by the time the waiting call looks.
+        fetchTask: (_) async =>
+            fetches++ == 0 ? buildTask() : buildTask().copyWith(agentId: 2),
       );
 
       await Future.wait([
@@ -741,6 +749,51 @@ exit 1
       ]);
 
       expect(runsFile.readAsLinesSync(), ['run']);
+    });
+
+    test('a prompt and skip planning edited while the worktree was prepared '
+        'are what the run uses', () async {
+      final argsFile = File('${tempDir.path}/claude_args');
+      final taskUpdates = <Task>[];
+      final dispatcher = buildDispatcher(
+        claudeScript: writeFakeClaude('''
+echo "\$@" > "${argsFile.path}"
+exit 1
+'''),
+        taskUpdates: taskUpdates,
+        agentUpdates: [],
+        watchTask: (_) => const Stream.empty(),
+        fetchTask: (_) async =>
+            buildTask().copyWith(prompt: 'Do something else'),
+      );
+
+      await dispatcher.handle(buildTask(skipPlanning: false));
+
+      final claudeArgs = argsFile.readAsStringSync();
+      expect(claudeArgs, contains('Do something else'));
+      expect(claudeArgs, isNot(contains('--permission-mode plan')));
+      expect(taskUpdates.first.status, TaskStatus.running);
+      expect(taskUpdates.first.prompt, 'Do something else');
+    });
+
+    test('a task moved back to the backlog while its worktree was prepared '
+        'never starts', () async {
+      final startedFile = File('${tempDir.path}/started');
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      final dispatcher = buildDispatcher(
+        claudeScript: writeFakeClaude('touch "${startedFile.path}"'),
+        taskUpdates: taskUpdates,
+        agentUpdates: agentUpdates,
+        watchTask: (_) => const Stream.empty(),
+        fetchTask: (_) async => buildTask().copyWith(status: TaskStatus.draft),
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(startedFile.existsSync(), isFalse);
+      expect(taskUpdates, isEmpty);
+      expect(agentUpdates, isEmpty);
     });
 
     // `draft`: the server moved the task back to the backlog; `cancelled`:

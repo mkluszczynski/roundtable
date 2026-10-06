@@ -252,11 +252,11 @@ class TaskDispatcher {
     final isResume = task.status == TaskStatus.awaitingReview;
     // Requeued after a usage-limit pause: continue the interrupted run's
     // session the same way (planning stays in plan mode).
-    final pausedPhase = task.status == TaskStatus.queued
+    var pausedPhase = task.status == TaskStatus.queued
         ? task.pausedPhase
         : null;
-    final isPauseResume = pausedPhase != null;
-    final needsPlanning = isPauseResume
+    var isPauseResume = pausedPhase != null;
+    var needsPlanning = isPauseResume
         ? pausedPhase == LogPhase.planning
         : !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
     String? resumePrompt;
@@ -329,6 +329,28 @@ class TaskDispatcher {
         taskId: '${task.id}',
       );
       log('task ${task.id}: worktree ready at $worktreePath');
+
+      if (!isResume && fetchTask != null) {
+        // The dev may edit the prompt and skip planning while the task is
+        // queued (`TaskEndpoint.updateTaskSettings`), and cloning takes a
+        // while: start from the current row, not the dispatch snapshot.
+        final current = await fetchTask!(task.id!);
+        if (current == null ||
+            current.status != TaskStatus.queued ||
+            current.agentId != agentId) {
+          log(
+            'task ${task.id}: deleted, reassigned or no longer queued '
+            'while preparing, skipping',
+          );
+          return;
+        }
+        task = current;
+        pausedPhase = task.pausedPhase;
+        isPauseResume = pausedPhase != null;
+        needsPlanning = isPauseResume
+            ? pausedPhase == LogPhase.planning
+            : !task.skipPlanning;
+      }
 
       agent = await fetchAgent(agentId);
       await updateAgent(agent.copyWith(status: AgentStatus.busy));

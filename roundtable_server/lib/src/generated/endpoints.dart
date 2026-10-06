@@ -2014,6 +2014,79 @@ class Endpoints extends _is.EndpointDispatch {
                     params['taskId'],
                   ),
         ),
+        'updateTaskSettings': _is.MethodConnector(
+          name: 'updateTaskSettings',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'prompt': _is.ParameterDescription(
+              name: 'prompt',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'skipPlanning': _is.ParameterDescription(
+              name: 'skipPlanning',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'autoReview': _is.ParameterDescription(
+              name: 'autoReview',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'reviewerAgentId': _is.ParameterDescription(
+              name: 'reviewerAgentId',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
+            'autoFixReview': _is.ParameterDescription(
+              name: 'autoFixReview',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'maxReviewFixRounds': _is.ParameterDescription(
+              name: 'maxReviewFixRounds',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
+            'autoMerge': _is.ParameterDescription(
+              name: 'autoMerge',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'autoFixFailingChecks': _is.ParameterDescription(
+              name: 'autoFixFailingChecks',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
+            'maxCheckFixAttempts': _is.ParameterDescription(
+              name: 'maxCheckFixAttempts',
+              type: _is.getType<int?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['task'] as _idmllfay.TaskEndpoint)
+                  .updateTaskSettings(
+                    session,
+                    params['taskId'],
+                    params['prompt'],
+                    skipPlanning: params['skipPlanning'],
+                    autoReview: params['autoReview'],
+                    reviewerAgentId: params['reviewerAgentId'],
+                    autoFixReview: params['autoFixReview'],
+                    maxReviewFixRounds: params['maxReviewFixRounds'],
+                    autoMerge: params['autoMerge'],
+                    autoFixFailingChecks: params['autoFixFailingChecks'],
+                    maxCheckFixAttempts: params['maxCheckFixAttempts'],
+                  ),
+        ),
         'suggestTitle': _is.MethodConnector(
           name: 'suggestTitle',
           params: {

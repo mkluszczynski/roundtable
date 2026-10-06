@@ -16,11 +16,9 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
 import '../utils/image_paste.dart';
-import '../utils/task_options.dart';
 import 'agent_picker.dart';
 import 'attachment_thumbnail.dart';
-import 'pill_selector.dart';
-import 'reviewer_select.dart';
+import 'task_options_form.dart';
 import 'app_modal.dart';
 
 class CreateTaskDialog extends StatelessWidget {
@@ -82,17 +80,10 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   )..selection = const TextSelection.collapsed(offset: 0);
   late int? _projectId = widget.initialProjectId;
   late int? _agentId = widget.initialAgentId;
-  bool _skipPlanning = false;
-  bool _autoReview = false;
-  int? _reviewerAgentId;
-  bool _autoFix = false;
-  int _maxFixRounds = 2;
-  bool _autoMerge = false;
-  bool _autoFixChecks = false;
-  int _maxCheckFixAttempts = 2;
+  TaskOptions _options = const TaskOptions();
 
-  /// The project's resolved defaults, once loaded — [_skipPlanning] follows
-  /// them until the dev changes it by hand.
+  /// The project's resolved defaults, once loaded — [_options] follow them
+  /// until the dev changes one by hand.
   TaskDefaults? _defaults;
   bool _optionsEdited = false;
   bool _advancedOpen = false;
@@ -129,16 +120,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
       if (!mounted || _projectId != projectId) return;
       setState(() {
         _defaults = defaults;
-        if (!_optionsEdited) {
-          _skipPlanning = defaults.skipPlanning;
-          _autoReview = defaults.autoReview;
-          _reviewerAgentId = defaults.reviewerAgentId;
-          _autoFix = defaults.autoFixReview;
-          _maxFixRounds = defaults.maxReviewFixRounds;
-          _autoMerge = defaults.autoMerge;
-          _autoFixChecks = defaults.autoFixFailingChecks;
-          _maxCheckFixAttempts = defaults.maxCheckFixAttempts;
-        }
+        if (!_optionsEdited) _options = TaskOptions.fromDefaults(defaults);
       });
     } catch (_) {
       // Keep the current values; the form still works without defaults.
@@ -159,17 +141,8 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
     super.dispose();
   }
 
-  String get _advancedSummary => _summaryFor(
-    skipPlanning: _skipPlanning,
-    autoReview: _autoReview,
-    reviewerAgentId: _reviewerAgentId,
-    autoFix: _autoFix,
-    maxFixRounds: _maxFixRounds,
-    autoMerge: _autoMerge,
-    autoFixChecks: _autoFixChecks,
-    maxCheckFixAttempts: _maxCheckFixAttempts,
-    defaults: _defaults,
-  );
+  String get _advancedSummary =>
+      taskOptionsSummary(_options, defaults: _defaults);
 
   bool get _uploading => _images.any((i) => i.uploading);
 
@@ -267,14 +240,14 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                           projectId: _projectId!,
                           agentId: _agentId,
                           prompt: _promptController.text.trim(),
-                          skipPlanning: _skipPlanning,
-                          autoReview: _autoReview,
-                          reviewerAgentId: _reviewerAgentId,
-                          autoFixReview: _autoFix,
-                          maxReviewFixRounds: _maxFixRounds,
-                          autoMerge: _autoMerge,
-                          autoFixFailingChecks: _autoFixChecks,
-                          maxCheckFixAttempts: _maxCheckFixAttempts,
+                          skipPlanning: _options.skipPlanning,
+                          autoReview: _options.autoReview,
+                          reviewerAgentId: _options.reviewerAgentId,
+                          autoFixReview: _options.autoFixReview,
+                          maxReviewFixRounds: _options.maxReviewFixRounds,
+                          autoMerge: _options.autoMerge,
+                          autoFixFailingChecks: _options.autoFixFailingChecks,
+                          maxCheckFixAttempts: _options.maxCheckFixAttempts,
                           attachmentIds: [
                             for (final i in _images)
                               if (i.id != null) i.id!,
@@ -389,146 +362,12 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                   onTap: () => setState(() => _advancedOpen = !_advancedOpen),
                 ),
                 if (_advancedOpen)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _skipPlanning,
-                    activeColor: AppColors.accent,
-                    title: Text(skipPlanningOption.title),
-                    subtitle: Text(skipPlanningOption.description),
-                    onChanged: (value) => setState(() {
+                  TaskOptionsForm(
+                    options: _options,
+                    onChanged: (options) => setState(() {
                       _optionsEdited = true;
-                      _skipPlanning = value ?? false;
+                      _options = options;
                     }),
-                  ),
-                if (_advancedOpen)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _autoReview,
-                    activeColor: AppColors.accent,
-                    title: Text(autoReviewOption.title),
-                    subtitle: Text(
-                      _autoReview && _reviewerAgentId == null
-                          ? 'Pick a reviewer below, or auto review is skipped'
-                          : autoReviewOption.description,
-                    ),
-                    onChanged: (value) => setState(() {
-                      _optionsEdited = true;
-                      _autoReview = value ?? false;
-                    }),
-                  ),
-                if (_advancedOpen)
-                  Padding(
-                    padding: const EdgeInsets.only(top: Spacing.sm),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                reviewerOption.title,
-                                style: AppTypography.body,
-                              ),
-                              Text(
-                                reviewerOption.description,
-                                style: AppTypography.caption,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: Spacing.md),
-                        ReviewerSelect(
-                          selected: _reviewerAgentId,
-                          onChanged: (id) => setState(() {
-                            _optionsEdited = true;
-                            _reviewerAgentId = id;
-                          }),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (_advancedOpen)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _autoFix,
-                    activeColor: AppColors.accent,
-                    title: Text(autoFixOption.title),
-                    subtitle: Text(autoFixOption.description),
-                    onChanged: (value) => setState(() {
-                      _optionsEdited = true;
-                      _autoFix = value ?? false;
-                    }),
-                  ),
-                if (_advancedOpen && _autoFix)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          maxFixRoundsOption.title,
-                          style: AppTypography.body,
-                        ),
-                      ),
-                      PillSelector<int>(
-                        options: fixRoundChoices,
-                        labelBuilder: (n) => '$n',
-                        selected: _maxFixRounds,
-                        onChanged: (n) => setState(() {
-                          _optionsEdited = true;
-                          _maxFixRounds = n;
-                        }),
-                      ),
-                    ],
-                  ),
-                if (_advancedOpen)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _autoMerge,
-                    activeColor: AppColors.accent,
-                    title: Text(autoMergeOption.title),
-                    subtitle: Text(
-                      _autoMerge && !_autoReview
-                          ? autoMergeWithoutReviewHint
-                          : autoMergeOption.description,
-                      style: _autoMerge && !_autoReview
-                          ? const TextStyle(color: AppColors.warning)
-                          : null,
-                    ),
-                    onChanged: (value) => setState(() {
-                      _optionsEdited = true;
-                      _autoMerge = value ?? false;
-                    }),
-                  ),
-                if (_advancedOpen)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _autoFixChecks,
-                    activeColor: AppColors.accent,
-                    title: Text(autoFixChecksOption.title),
-                    subtitle: Text(autoFixChecksOption.description),
-                    onChanged: (value) => setState(() {
-                      _optionsEdited = true;
-                      _autoFixChecks = value ?? false;
-                    }),
-                  ),
-                if (_advancedOpen && _autoFixChecks)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          maxCheckFixAttemptsOption.title,
-                          style: AppTypography.body,
-                        ),
-                      ),
-                      PillSelector<int>(
-                        options: fixRoundChoices,
-                        labelBuilder: (n) => '$n',
-                        selected: _maxCheckFixAttempts,
-                        onChanged: (n) => setState(() {
-                          _optionsEdited = true;
-                          _maxCheckFixAttempts = n;
-                        }),
-                      ),
-                    ],
                   ),
                 BlocBuilder<CreateTaskCubit, CreateTaskState>(
                   builder: (context, state) {
@@ -551,41 +390,6 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
       ),
     );
   }
-}
-
-/// Collapsed by default, so the summary has to say what's on — and whether
-/// it differs from the project's defaults.
-String _summaryFor({
-  required bool skipPlanning,
-  required bool autoReview,
-  required int? reviewerAgentId,
-  required bool autoFix,
-  required int maxFixRounds,
-  required bool autoMerge,
-  required bool autoFixChecks,
-  required int maxCheckFixAttempts,
-  TaskDefaults? defaults,
-}) {
-  final on = [
-    skipPlanning ? skipPlanningOption.title : 'Plan first',
-    if (autoReview) autoReviewOption.title,
-    if (autoFix) 'Auto fix ×$maxFixRounds',
-    if (autoMerge) autoMergeOption.title,
-    if (autoFixChecks) 'Auto fix CI ×$maxCheckFixAttempts',
-  ];
-  final text = on.join(' · ');
-  final custom =
-      defaults != null &&
-      (defaults.skipPlanning != skipPlanning ||
-          defaults.autoReview != autoReview ||
-          defaults.reviewerAgentId != reviewerAgentId ||
-          defaults.autoFixReview != autoFix ||
-          (autoFix && defaults.maxReviewFixRounds != maxFixRounds) ||
-          defaults.autoMerge != autoMerge ||
-          defaults.autoFixFailingChecks != autoFixChecks ||
-          (autoFixChecks &&
-              defaults.maxCheckFixAttempts != maxCheckFixAttempts));
-  return custom ? '$text — changed from project defaults' : text;
 }
 
 class _AdvancedHeader extends StatelessWidget {

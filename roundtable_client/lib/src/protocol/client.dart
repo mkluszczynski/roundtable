@@ -1320,6 +1320,41 @@ class EndpointTask extends _isc.EndpointRef {
         {'taskId': taskId},
       );
 
+  /// Edits [taskId]'s prompt and advanced options from the panel. Every
+  /// value is sent; a null [reviewerAgentId] clears the reviewer. The
+  /// automation options are read fresh each time they apply, so they can
+  /// change any time before the task is `done`; the prompt and
+  /// [skipPlanning] only while no run is under way (see
+  /// [_promptEditableStatuses]). Turning auto review on applies from the
+  /// next version the agent finishes.
+  _ida.Future<_iw53rmon.Task> updateTaskSettings(
+    int taskId,
+    String prompt, {
+    bool? skipPlanning,
+    bool? autoReview,
+    int? reviewerAgentId,
+    bool? autoFixReview,
+    int? maxReviewFixRounds,
+    bool? autoMerge,
+    bool? autoFixFailingChecks,
+    int? maxCheckFixAttempts,
+  }) => caller.callServerEndpoint<_iw53rmon.Task>(
+    'task',
+    'updateTaskSettings',
+    {
+      'taskId': taskId,
+      'prompt': prompt,
+      'skipPlanning': skipPlanning,
+      'autoReview': autoReview,
+      'reviewerAgentId': reviewerAgentId,
+      'autoFixReview': autoFixReview,
+      'maxReviewFixRounds': maxReviewFixRounds,
+      'autoMerge': autoMerge,
+      'autoFixFailingChecks': autoFixFailingChecks,
+      'maxCheckFixAttempts': maxCheckFixAttempts,
+    },
+  );
+
   /// Sets [taskId]'s title from the agent's `set_task_title` tool
   /// (docs/FLOWS.md §4) — only while the task has none, so it never
   /// replaces a title the dev chose or one from an earlier run. A blank
