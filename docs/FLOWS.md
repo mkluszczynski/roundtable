@@ -251,8 +251,12 @@ awaitingReview, or when the task has no agent).
    `createReviewWorktree` (a detached checkout of the task branch, so it works
    on any machine) → `runReview`, a read-only Claude run (restricted
    `--allowedTools`/`--disallowedTools`) using `buildReviewPrompt`
-   (`git diff <mergeBase>...HEAD`, reply ending in one ```json block with
-   `summary` + `comments[]{path,line,severity,body}`).
+   (`git diff <mergeBase>...HEAD`, the repo's AGENTS.md/CLAUDE.md/
+   CONTRIBUTING.md conventions, severity definitions; reply ending in one
+   ```json block with `verdict` (`approve` / `changes_requested`),
+   `summary` and `comments[]{path,line,severity,body}`). The verdict is
+   stored as `CodeReview.verdict`, shown on the panel's verdict card, and
+   auto merge waits while the latest review requests changes.
 3. `completeReview` stores the `ReviewComment`s and mirrors them to the PR as
    a single GitHub review. Comments on lines outside the diff are folded into
    the review body. Mirroring is best effort. `failReview` is used when no

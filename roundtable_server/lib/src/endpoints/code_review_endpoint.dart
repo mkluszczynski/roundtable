@@ -122,12 +122,15 @@ class CodeReviewEndpoint extends Endpoint {
   /// carried over into this review as a new open comment and the old one
   /// becomes `superseded` — so the latest review lists everything still
   /// open. Dismissed comments and ids from other tasks are ignored.
+  ///
+  /// [verdict] is the reviewer's decision — auto merge needs `approve`.
   Future<CodeReview> completeReview(
     Session session,
     int reviewId,
     String summary,
     List<ReviewCommentDraft> drafts, {
     List<ReviewCommentCheck>? checks,
+    CodeReviewVerdict? verdict,
   }) async {
     var review = await _requireReview(session, reviewId);
     final notFixed = await _applyChecks(session, review, checks ?? const []);
@@ -186,6 +189,7 @@ class CodeReviewEndpoint extends Endpoint {
       review.copyWith(
         status: CodeReviewStatus.completed,
         summary: summary,
+        verdict: verdict,
         githubReviewId: githubReviewId,
         finishedAt: DateTime.now().toUtc(),
       ),

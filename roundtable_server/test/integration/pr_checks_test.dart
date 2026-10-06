@@ -542,6 +542,30 @@ void main() {
         expect(merged(), isTrue);
       });
 
+      test('when the reviewer requested changes then it waits', () async {
+        final task = await withAutoMerge(await seed(), autoReview: true);
+        final session = sessionBuilder.build();
+        final review = await CodeReview.db.insertRow(
+          session,
+          CodeReview(
+            taskId: task.id!,
+            status: CodeReviewStatus.completed,
+            summary: 'Not ready.',
+            verdict: CodeReviewVerdict.changesRequested,
+          ),
+        );
+
+        await poll();
+        expect(merged(), isFalse);
+
+        await CodeReview.db.updateRow(
+          session,
+          review.copyWith(verdict: CodeReviewVerdict.approve),
+        );
+        await poll();
+        expect(merged(), isTrue);
+      });
+
       test('when CI fails then it waits for a fix', () async {
         conclusion = 'failure';
         final task = await withAutoMerge(await seed());

@@ -9,6 +9,8 @@ fields:
   status: CodeReviewStatus, default=queued
   ### The reviewer's overall verdict, in its own words.
   summary: String?
+  ### The reviewer's decision; null for reviews from before verdicts existed.
+  verdict: CodeReviewVerdict?
   failureReason: String?
   ### Id of the mirrored GitHub PR review, when mirroring succeeded.
   githubReviewId: int?

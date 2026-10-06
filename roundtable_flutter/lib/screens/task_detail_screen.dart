@@ -1935,7 +1935,15 @@ class _VerdictCard extends StatelessWidget {
     final (color, label, pulsing) = switch (review.status) {
       CodeReviewStatus.queued => (AppColors.text2, 'Queued', false),
       CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
-      CodeReviewStatus.completed => (AppColors.accentSoft, 'Completed', false),
+      CodeReviewStatus.completed => switch (review.verdict) {
+        CodeReviewVerdict.approve => (AppColors.live, 'Approved', false),
+        CodeReviewVerdict.changesRequested => (
+          AppColors.warning,
+          'Changes requested',
+          false,
+        ),
+        null => (AppColors.accentSoft, 'Completed', false),
+      },
       CodeReviewStatus.failed => (AppColors.red, 'Failed', false),
     };
     final failed = review.status == CodeReviewStatus.failed;

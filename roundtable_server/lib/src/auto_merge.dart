@@ -40,6 +40,10 @@ Future<String?> autoMergeWaitingFor(Session session, Task task) async {
         latestFeedback.createdAt.isAfter(latestReview.createdAt)) {
       return 'the latest version is not reviewed';
     }
+    // Reviews from before verdicts existed (null) go by their comments.
+    if (latestReview.verdict == CodeReviewVerdict.changesRequested) {
+      return 'the reviewer requested changes';
+    }
     final reviewIds = (await CodeReview.db.find(
       session,
       where: (r) => r.taskId.equals(taskId),

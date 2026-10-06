@@ -345,8 +345,10 @@ void main() {
           review.id!,
           'LGTM',
           [],
+          verdict: CodeReviewVerdict.approve,
         );
         expect(completed.status, CodeReviewStatus.completed);
+        expect(completed.verdict, CodeReviewVerdict.approve);
         expect(completed.summary, 'LGTM');
         reviewer = await Agent.db.findById(
           sessionBuilder.build(),

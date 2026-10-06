@@ -76,12 +76,7 @@ class ReviewDispatcher {
 
   /// Bound to `client.codeReview.startReview`; returns the task under review.
   final Future<Task> Function(int reviewId) startReview;
-  final Future<void> Function(
-    int reviewId,
-    String summary,
-    List<ReviewCommentDraft> comments,
-    List<ReviewCommentCheck> checks,
-  )
+  final Future<void> Function(int reviewId, ReviewFindings findings)
   completeReview;
   final Future<void> Function(int reviewId, String reason) failReview;
 
@@ -254,12 +249,7 @@ class ReviewDispatcher {
         );
         return;
       }
-      await completeReview(
-        reviewId,
-        findings.summary,
-        findings.comments,
-        findings.checks,
-      );
+      await completeReview(reviewId, findings);
       log(
         'review $reviewId: done with ${findings.comments.length} comment(s), '
         '${findings.checks.length} earlier one(s) checked',
@@ -323,8 +313,8 @@ When unsure between two severities, pick the lower one.
 Each comment names the problem and how to fix it, concretely enough for another agent to act on without asking.
 
 End your reply with exactly one fenced ```json block of this shape:
-{"summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]${previousComments.isEmpty ? '' : ', "previous": [{"id": <earlier comment id>, "fixed": true | false, "note": "<if not fixed: what is still wrong, else null>"}]'}}
-Use an empty comments list if the change is good.''';
+{"verdict": "approve" | "changes_requested", "summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]${previousComments.isEmpty ? '' : ', "previous": [{"id": <earlier comment id>, "fixed": true | false, "note": "<if not fixed: what is still wrong, else null>"}]'}}
+Use "changes_requested" exactly when a blocker or issue remains (new or earlier and not fixed), else "approve". Use an empty comments list if the change is good.''';
 
 /// Earlier reviews' comments with their state: the reviewer checks each one
 /// that wasn't dismissed and reports it under `previous`, never repeating
@@ -363,12 +353,16 @@ String _attachedImagesSection(List<String> imagePaths) {
 
 /// Parses the reviewer's final reply: the last fenced ```json block (or the
 /// whole text, if it's bare JSON). Returns `null` if no valid block is found.
-({
+/// What the reviewer's final reply ([parseReviewOutput]) holds. [verdict]
+/// is null when the reviewer didn't give a valid one.
+typedef ReviewFindings = ({
   String summary,
   List<ReviewCommentDraft> comments,
   List<ReviewCommentCheck> checks,
-})?
-parseReviewOutput(String text) {
+  CodeReviewVerdict? verdict,
+});
+
+ReviewFindings? parseReviewOutput(String text) {
   final blocks = RegExp(
     r'```json\s*\n([\s\S]*?)\n\s*```',
   ).allMatches(text).toList();
@@ -421,5 +415,11 @@ parseReviewOutput(String text) {
       );
     }
   }
-  return (summary: summary, comments: drafts, checks: checks);
+  final verdict = switch (decoded['verdict']) {
+    'approve' => CodeReviewVerdict.approve,
+    'changes_requested' ||
+    'changesRequested' => CodeReviewVerdict.changesRequested,
+    _ => null,
+  };
+  return (summary: summary, comments: drafts, checks: checks, verdict: verdict);
 }

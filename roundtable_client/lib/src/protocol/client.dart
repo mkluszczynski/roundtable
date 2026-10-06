@@ -21,6 +21,8 @@ import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
     as _iw3o4s27;
 import 'package:roundtable_client/src/protocol/agent_status.dart' as _ijqfzoc4;
 import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
+import 'package:roundtable_client/src/protocol/code_review_verdict.dart'
+    as _ijtwbvlr;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
@@ -468,11 +470,14 @@ class EndpointCodeReview extends _isc.EndpointRef {
   /// carried over into this review as a new open comment and the old one
   /// becomes `superseded` — so the latest review lists everything still
   /// open. Dismissed comments and ids from other tasks are ignored.
+  ///
+  /// [verdict] is the reviewer's decision — auto merge needs `approve`.
   _ida.Future<_i38oxrkr.CodeReview> completeReview(
     int reviewId,
     String summary,
     List<_ithbrqha.ReviewCommentDraft> drafts, {
     List<_iabe8ujm.ReviewCommentCheck>? checks,
+    _ijtwbvlr.CodeReviewVerdict? verdict,
   }) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
     'codeReview',
     'completeReview',
@@ -481,6 +486,7 @@ class EndpointCodeReview extends _isc.EndpointRef {
       'summary': summary,
       'drafts': drafts,
       'checks': checks,
+      'verdict': verdict,
     },
   );
 

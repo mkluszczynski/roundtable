@@ -18,6 +18,8 @@ import 'package:roundtable_server/src/generated/agent_execution_mode.dart'
 import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
+import 'package:roundtable_server/src/generated/code_review_verdict.dart'
+    as _i0brbj9a;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
@@ -638,6 +640,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<List<_iqs7w1y3.ReviewCommentCheck>?>(),
               nullable: true,
             ),
+            'verdict': _is.ParameterDescription(
+              name: 'verdict',
+              type: _is.getType<_i0brbj9a.CodeReviewVerdict?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -651,6 +658,7 @@ class Endpoints extends _is.EndpointDispatch {
                         params['summary'],
                         params['drafts'],
                         checks: params['checks'],
+                        verdict: params['verdict'],
                       ),
         ),
         'failReview': _is.MethodConnector(

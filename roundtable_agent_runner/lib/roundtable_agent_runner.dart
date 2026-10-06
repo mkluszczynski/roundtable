@@ -207,8 +207,13 @@ class AgentRunnerService {
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: _fetchAgent,
     startReview: (reviewId) => _client.codeReview.startReview(reviewId),
-    completeReview: (reviewId, summary, comments, checks) => _client.codeReview
-        .completeReview(reviewId, summary, comments, checks: checks),
+    completeReview: (reviewId, findings) => _client.codeReview.completeReview(
+      reviewId,
+      findings.summary,
+      findings.comments,
+      checks: findings.checks,
+      verdict: findings.verdict,
+    ),
     fetchPreviousComments: (reviewId) =>
         _client.codeReview.previousComments(reviewId),
     failReview: (reviewId, reason) =>

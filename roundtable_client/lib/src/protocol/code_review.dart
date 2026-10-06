@@ -14,6 +14,7 @@ import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'agent.dart' as _ijo8h3v4;
 import 'code_review_status.dart' as _i4rgwvgz;
+import 'code_review_verdict.dart' as _ijks0ur1;
 import 'review_comment.dart' as _itpwl327;
 import 'task.dart' as _iwn6t6fs;
 
@@ -28,6 +29,7 @@ abstract class CodeReview
     this.reviewerAgent,
     _i4rgwvgz.CodeReviewStatus? status,
     this.summary,
+    this.verdict,
     this.failureReason,
     this.githubReviewId,
     DateTime? createdAt,
@@ -44,6 +46,7 @@ abstract class CodeReview
     _ijo8h3v4.Agent? reviewerAgent,
     _i4rgwvgz.CodeReviewStatus? status,
     String? summary,
+    _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
     int? githubReviewId,
     DateTime? createdAt,
@@ -72,6 +75,11 @@ abstract class CodeReview
               (jsonSerialization['status'] as String),
             ),
       summary: jsonSerialization['summary'] as String?,
+      verdict: jsonSerialization['verdict'] == null
+          ? null
+          : _ijks0ur1.CodeReviewVerdict.fromJson(
+              (jsonSerialization['verdict'] as String),
+            ),
       failureReason: jsonSerialization['failureReason'] as String?,
       githubReviewId: jsonSerialization['githubReviewId'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
@@ -110,6 +118,9 @@ abstract class CodeReview
   /// The reviewer's overall verdict, in its own words.
   String? summary;
 
+  /// The reviewer's decision; null for reviews from before verdicts existed.
+  _ijks0ur1.CodeReviewVerdict? verdict;
+
   String? failureReason;
 
   /// Id of the mirrored GitHub PR review, when mirroring succeeded.
@@ -132,6 +143,7 @@ abstract class CodeReview
     _ijo8h3v4.Agent? reviewerAgent,
     _i4rgwvgz.CodeReviewStatus? status,
     String? summary,
+    _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
     int? githubReviewId,
     DateTime? createdAt,
@@ -149,6 +161,7 @@ abstract class CodeReview
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'status': status.toJson(),
       if (summary != null) 'summary': summary,
+      if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
@@ -170,6 +183,7 @@ abstract class CodeReview
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'status': status.toJson(),
       if (summary != null) 'summary': summary,
+      if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
@@ -196,6 +210,7 @@ class _CodeReviewImpl extends CodeReview {
     _ijo8h3v4.Agent? reviewerAgent,
     _i4rgwvgz.CodeReviewStatus? status,
     String? summary,
+    _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
     int? githubReviewId,
     DateTime? createdAt,
@@ -209,6 +224,7 @@ class _CodeReviewImpl extends CodeReview {
          reviewerAgent: reviewerAgent,
          status: status,
          summary: summary,
+         verdict: verdict,
          failureReason: failureReason,
          githubReviewId: githubReviewId,
          createdAt: createdAt,
@@ -228,6 +244,7 @@ class _CodeReviewImpl extends CodeReview {
     Object? reviewerAgent = _Undefined,
     _i4rgwvgz.CodeReviewStatus? status,
     Object? summary = _Undefined,
+    Object? verdict = _Undefined,
     Object? failureReason = _Undefined,
     Object? githubReviewId = _Undefined,
     DateTime? createdAt,
@@ -246,6 +263,7 @@ class _CodeReviewImpl extends CodeReview {
           : this.reviewerAgent?.copyWith(),
       status: status ?? this.status,
       summary: summary is String? ? summary : this.summary,
+      verdict: verdict is _ijks0ur1.CodeReviewVerdict? ? verdict : this.verdict,
       failureReason: failureReason is String?
           ? failureReason
           : this.failureReason,

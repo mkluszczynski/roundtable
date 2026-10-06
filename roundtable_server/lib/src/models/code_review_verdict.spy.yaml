@@ -1,0 +1,7 @@
+### The reviewer's overall decision on a change.
+enum: CodeReviewVerdict
+values:
+  ### good to merge as is (nits at most)
+  - approve
+  ### at least one blocker or issue must be fixed first
+  - changesRequested

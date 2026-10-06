@@ -40,6 +40,7 @@ import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
 import 'code_review.dart' as _icksttbv;
 import 'code_review_status.dart' as _i4rgwvgz;
+import 'code_review_verdict.dart' as _ijks0ur1;
 import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'diff_file.dart' as _iji3k3fl;
@@ -83,6 +84,7 @@ export 'agent_role_definition.dart';
 export 'agent_status.dart';
 export 'code_review.dart';
 export 'code_review_status.dart';
+export 'code_review_verdict.dart';
 export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'diff_file.dart';
@@ -326,6 +328,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           columnType: _isp.ColumnType.text,
           isNullable: true,
           dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'verdict',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:CodeReviewVerdict?',
         ),
         _isp.ColumnDefinition(
           name: 'failureReason',
@@ -1724,6 +1732,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i4rgwvgz.CodeReviewStatus) {
       return _i4rgwvgz.CodeReviewStatus.fromJson(data) as T;
     }
+    if (t == _ijks0ur1.CodeReviewVerdict) {
+      return _ijks0ur1.CodeReviewVerdict.fromJson(data) as T;
+    }
     if (t == _iwa1mea8.DeletionBlockReason) {
       return _iwa1mea8.DeletionBlockReason.fromJson(data) as T;
     }
@@ -1856,6 +1867,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i4rgwvgz.CodeReviewStatus?>()) {
       return (data != null ? _i4rgwvgz.CodeReviewStatus.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_ijks0ur1.CodeReviewVerdict?>()) {
+      return (data != null ? _ijks0ur1.CodeReviewVerdict.fromJson(data) : null)
           as T;
     }
     if (t == _is.getType<_iwa1mea8.DeletionBlockReason?>()) {
@@ -2244,6 +2259,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i69bozh7.AgentStatus => 'AgentStatus',
       _icksttbv.CodeReview => 'CodeReview',
       _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
+      _ijks0ur1.CodeReviewVerdict => 'CodeReviewVerdict',
       _iwa1mea8.DeletionBlockReason => 'DeletionBlockReason',
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _iji3k3fl.DiffFile => 'DiffFile',
@@ -2308,6 +2324,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'CodeReview';
       case _i4rgwvgz.CodeReviewStatus():
         return 'CodeReviewStatus';
+      case _ijks0ur1.CodeReviewVerdict():
+        return 'CodeReviewVerdict';
       case _iwa1mea8.DeletionBlockReason():
         return 'DeletionBlockReason';
       case _i8k4gzq0.DeletionBlockedException():
@@ -2426,6 +2444,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'CodeReviewStatus') {
       return deserialize<_i4rgwvgz.CodeReviewStatus>(data['data']);
+    }
+    if (dataClassName == 'CodeReviewVerdict') {
+      return deserialize<_ijks0ur1.CodeReviewVerdict>(data['data']);
     }
     if (dataClassName == 'DeletionBlockReason') {
       return deserialize<_iwa1mea8.DeletionBlockReason>(data['data']);

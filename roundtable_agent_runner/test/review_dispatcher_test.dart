@@ -38,6 +38,27 @@ Final answer:
       expect(result.comments[1].severity, ReviewCommentSeverity.nit);
     });
 
+    test('parses the verdict', () {
+      expect(
+        parseReviewOutput(
+          '{"verdict": "approve", "summary": "s", "comments": []}',
+        )!.verdict,
+        CodeReviewVerdict.approve,
+      );
+      expect(
+        parseReviewOutput(
+          '{"verdict": "changes_requested", "summary": "s", "comments": []}',
+        )!.verdict,
+        CodeReviewVerdict.changesRequested,
+      );
+      expect(
+        parseReviewOutput(
+          '{"verdict": "maybe", "summary": "s", "comments": []}',
+        )!.verdict,
+        isNull,
+      );
+    });
+
     test('accepts bare JSON', () {
       final result = parseReviewOutput('{"summary": "LGTM", "comments": []}');
       expect(result!.summary, 'LGTM');
@@ -246,7 +267,7 @@ exit 0
             branchName: 'task-1',
           );
         },
-        completeReview: (_, summary, _, _) async => completed.add(summary),
+        completeReview: (_, findings) async => completed.add(findings.summary),
         failReview: (_, reason) async => failed.add(reason),
         appendLog: (entry) async => events?.add(entry.content),
         log: (_) {},

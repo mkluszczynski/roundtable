@@ -22,6 +22,8 @@ import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
 import 'package:roundtable_server/src/generated/code_review.dart' as _i42ca4ig;
+import 'package:roundtable_server/src/generated/code_review_verdict.dart'
+    as _i0brbj9a;
 import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
 import 'package:roundtable_server/src/generated/greetings/greeting.dart'
@@ -1097,6 +1099,7 @@ class _CodeReviewEndpoint {
     String summary,
     List<_i245mzjz.ReviewCommentDraft> drafts, {
     List<_iqs7w1y3.ReviewCommentCheck>? checks,
+    _i0brbj9a.CodeReviewVerdict? verdict,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -1114,6 +1117,7 @@ class _CodeReviewEndpoint {
             'summary': summary,
             'drafts': drafts,
             'checks': checks,
+            'verdict': verdict,
           }),
           serializationManager: _serializationManager,
         );
