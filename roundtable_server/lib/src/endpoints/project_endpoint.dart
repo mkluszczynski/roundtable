@@ -1,5 +1,6 @@
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
+import '../github_host.dart';
 import '../github_repo_client.dart';
 import '../project_tools.dart';
 import 'package:serverpod/serverpod.dart';
@@ -173,7 +174,8 @@ class ProjectEndpoint extends Endpoint {
     }
 
     var uri = Uri.tryParse(project.repoUrl);
-    if (uri == null || uri.scheme != 'https') {
+    // Plain http only for a configured GitHub host (the E2E fake).
+    if (uri == null || !(uri.scheme == 'https' || gitHubHost.isWebUri(uri))) {
       return project.repoUrl;
     }
 

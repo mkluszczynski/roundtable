@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'generated/protocol.dart';
+import 'github_host.dart';
 
 /// Fetches a task's changed files and file contents from the GitHub REST API
 /// on the panel's behalf (docs/FLOWS.md §4) — `repoAccessToken` never reaches
@@ -37,7 +38,7 @@ class GitHubRepoClient {
     await _waitForPrToCatchUp(owner, repo, number, token);
 
     final response = await _http.get(
-      Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number/files', {
+      gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number/files', {
         'per_page': '100',
       }),
       headers: _headers(token),
@@ -66,7 +67,7 @@ class GitHubRepoClient {
   }
 
   /// Fetches the raw content of the file at [contentsUrl], authenticating
-  /// with [token]. [contentsUrl] must point at `api.github.com` under
+  /// with [token]. [contentsUrl] must point at the GitHub API under
   /// `/repos/$owner/$repo/...` — it's a call parameter supplied by the panel,
   /// so this guard is required to make sure [token] is never sent to a
   /// client-influenced host.
@@ -79,13 +80,12 @@ class GitHubRepoClient {
     final uri = Uri.tryParse(contentsUrl);
     final expectedPathPrefix = '/repos/$owner/$repo/';
     if (uri == null ||
-        uri.scheme != 'https' ||
-        uri.host != 'api.github.com' ||
-        !uri.path.startsWith(expectedPathPrefix)) {
+        !gitHubHost.isApiUri(uri) ||
+        !gitHubHost.apiPath(uri).startsWith(expectedPathPrefix)) {
       throw ArgumentError.value(
         contentsUrl,
         'contentsUrl',
-        'must be an https://api.github.com$expectedPathPrefix... URL',
+        'must be a ${gitHubHost.api}$expectedPathPrefix... URL',
       );
     }
 
@@ -138,7 +138,7 @@ class GitHubRepoClient {
     }
 
     final response = await _http.post(
-      Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number/reviews'),
+      gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number/reviews'),
       headers: _headers(token),
       body: jsonEncode({
         'event': 'COMMENT',
@@ -166,8 +166,7 @@ class GitHubRepoClient {
     // The create response doesn't carry the comments; they come back in the
     // order they were sent.
     final commentsResponse = await _http.get(
-      Uri.https(
-        'api.github.com',
+      gitHubHost.apiUri(
         '/repos/$owner/$repo/pulls/$number/reviews/$reviewId/comments',
         {'per_page': '100'},
       ),
@@ -240,8 +239,7 @@ class GitHubRepoClient {
     }
 
     final reply = await _http.post(
-      Uri.https(
-        'api.github.com',
+      gitHubHost.apiUri(
         '/repos/$owner/$repo/pulls/$number/comments/$githubCommentId/replies',
       ),
       headers: _headers(token),
@@ -269,7 +267,7 @@ class GitHubRepoClient {
   }) async {
     final (:owner, :repo, :number) = parsePrUrl(prUrl);
     final response = await _http.put(
-      Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number/merge'),
+      gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number/merge'),
       headers: _headers(token),
       body: jsonEncode({
         'merge_method': 'squash',
@@ -303,7 +301,7 @@ class GitHubRepoClient {
     String? baseRef;
     for (var i = 0; i < attempts; i++) {
       final response = await _http.get(
-        Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+        gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number'),
         headers: _headers(token),
       );
       if (response.statusCode != 200) {
@@ -334,7 +332,7 @@ class GitHubRepoClient {
   }) async {
     final (:owner, :repo, :number) = parsePrUrl(prUrl);
     final response = await _conditionalGet(
-      Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+      gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number'),
       token,
     );
     if (response.statusCode != 200) {
@@ -359,12 +357,11 @@ class GitHubRepoClient {
     required String token,
   }) async {
     final runs = await _listAllPages(
-      (page) =>
-          Uri.https('api.github.com', '/repos/$owner/$repo/actions/runs', {
-            'head_sha': headSha,
-            'per_page': '100',
-            'page': '$page',
-          }),
+      (page) => gitHubHost.apiUri('/repos/$owner/$repo/actions/runs', {
+        'head_sha': headSha,
+        'per_page': '100',
+        'page': '$page',
+      }),
       token,
       itemsKey: 'workflow_runs',
       errorMessage: 'Failed to list workflow runs for $owner/$repo@$headSha',
@@ -391,8 +388,7 @@ class GitHubRepoClient {
     required String token,
   }) async {
     final jobs = await _listAllPages(
-      (page) => Uri.https(
-        'api.github.com',
+      (page) => gitHubHost.apiUri(
         '/repos/$owner/$repo/actions/runs/$runId/jobs',
         {'filter': 'latest', 'per_page': '100', 'page': '$page'},
       ),
@@ -491,8 +487,7 @@ class GitHubRepoClient {
     final request =
         http.Request(
             'GET',
-            Uri.https(
-              'api.github.com',
+            gitHubHost.apiUri(
               '/repos/$owner/$repo/actions/jobs/$jobId/logs',
             ),
           )
@@ -545,7 +540,7 @@ class GitHubRepoClient {
     Map<String, dynamic> variables,
   ) async {
     final response = await _http.post(
-      Uri.https('api.github.com', '/graphql'),
+      gitHubHost.graphql,
       headers: _headers(token),
       body: jsonEncode({'query': query, 'variables': variables}),
     );
@@ -574,7 +569,7 @@ class GitHubRepoClient {
   }) async {
     for (var i = 0; i < attempts; i++) {
       final prResponse = await _http.get(
-        Uri.https('api.github.com', '/repos/$owner/$repo/pulls/$number'),
+        gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number'),
         headers: _headers(token),
       );
       if (prResponse.statusCode != 200) return;
@@ -585,7 +580,7 @@ class GitHubRepoClient {
       final prSha = head['sha'] as String;
 
       final refResponse = await _http.get(
-        Uri.https('api.github.com', '/repos/$owner/$repo/git/ref/heads/$ref'),
+        gitHubHost.apiUri('/repos/$owner/$repo/git/ref/heads/$ref'),
         headers: _headers(token),
       );
       if (refResponse.statusCode != 200) return;
@@ -608,8 +603,7 @@ class GitHubRepoClient {
     String? token,
   }) async {
     final response = await _http.get(
-      Uri.https(
-        'api.github.com',
+      gitHubHost.apiUri(
         '/repos/$owner/$repo/git/trees/HEAD',
         {'recursive': '1'},
       ),
@@ -640,7 +634,7 @@ class GitHubRepoClient {
     String? token,
   }) async {
     final response = await _http.get(
-      Uri.https('api.github.com', '/repos/$owner/$repo/contents/$path'),
+      gitHubHost.apiUri('/repos/$owner/$repo/contents/$path'),
       headers: {..._headers(token), 'Accept': 'application/vnd.github.raw'},
     );
     if (response.statusCode == 404) return null;
@@ -663,22 +657,19 @@ class GitHubRepoClient {
   /// its `owner`, `repo` and `number` parts.
   ({String owner, String repo, String number}) parsePrUrl(String prUrl) {
     final uri = Uri.tryParse(prUrl);
-    if (uri == null || uri.scheme != 'https' || uri.host != 'github.com') {
+    final segments = uri == null ? null : gitHubHost.webSegments(uri);
+    if (segments == null) {
       throw ArgumentError.value(
         prUrl,
         'prUrl',
-        'must be an https://github.com/... URL',
+        'must be a ${gitHubHost.web}/... URL',
       );
     }
-
-    final segments = uri.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList();
     if (segments.length < 4 || segments[2] != 'pull') {
       throw ArgumentError.value(
         prUrl,
         'prUrl',
-        'must be an https://github.com/{owner}/{repo}/pull/{number} URL',
+        'must be a ${gitHubHost.web}/{owner}/{repo}/pull/{number} URL',
       );
     }
 
@@ -690,9 +681,8 @@ class GitHubRepoClient {
 /// `.git`) into its `owner` and `repo`; null when it isn't a GitHub repo.
 ({String owner, String repo})? parseGitHubRepoUrl(String repoUrl) {
   final uri = Uri.tryParse(repoUrl.trim());
-  if (uri == null || uri.host != 'github.com') return null;
-  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-  if (segments.length < 2) return null;
+  final segments = uri == null ? null : gitHubHost.webSegments(uri);
+  if (segments == null || segments.length < 2) return null;
   final repo = segments[1].endsWith('.git')
       ? segments[1].substring(0, segments[1].length - 4)
       : segments[1];

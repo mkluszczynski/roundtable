@@ -44,16 +44,17 @@ class GitHubPullRequestOpener {
     required String title,
     String? body,
   }) async {
-    final (:owner, :repo, :token) = _parseCloneUrl(cloneUrl);
+    final (:owner, :repo, :token, :api) = _parseCloneUrl(cloneUrl);
 
     final defaultBranch = await _getDefaultBranch(
+      api: api,
       owner: owner,
       repo: repo,
       token: token,
     );
 
     final response = await _http.post(
-      Uri.https('api.github.com', '/repos/$owner/$repo/pulls'),
+      api.replace(path: '${api.path}/repos/$owner/$repo/pulls'),
       headers: _headers(token),
       body: jsonEncode({
         'title': title,
@@ -75,12 +76,13 @@ class GitHubPullRequestOpener {
   }
 
   Future<String> _getDefaultBranch({
+    required Uri api,
     required String owner,
     required String repo,
     required String token,
   }) async {
     final response = await _http.get(
-      Uri.https('api.github.com', '/repos/$owner/$repo'),
+      api.replace(path: '${api.path}/repos/$owner/$repo'),
       headers: _headers(token),
     );
     if (response.statusCode != 200) {
@@ -101,9 +103,13 @@ class GitHubPullRequestOpener {
     'User-Agent': 'roundtable-agent-runner',
   };
 
-  ({String owner, String repo, String token}) _parseCloneUrl(String cloneUrl) {
+  ({String owner, String repo, String token, Uri api}) _parseCloneUrl(
+    String cloneUrl,
+  ) {
     final uri = Uri.tryParse(cloneUrl);
-    if (uri == null || uri.scheme != 'https' || uri.host != 'github.com') {
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'https' && uri.scheme != 'http')) {
       throw ArgumentError.value(
         cloneUrl,
         'cloneUrl',
@@ -136,7 +142,7 @@ class GitHubPullRequestOpener {
       repo = repo.substring(0, repo.length - '.git'.length);
     }
 
-    return (owner: owner, repo: repo, token: token);
+    return (owner: owner, repo: repo, token: token, api: _apiFor(uri));
   }
 }
 
@@ -163,3 +169,15 @@ class _TimeoutClient extends http.BaseClient {
   @override
   void close() => _inner.close();
 }
+
+/// The REST API for the repo at [cloneUrl]: api.github.com for github.com,
+/// `<origin>/api/v3` for a GitHub Enterprise-style host (the server's
+/// `ROUNDTABLE_GITHUB_URL`, e.g. the E2E tests' fake GitHub).
+Uri _apiFor(Uri cloneUrl) => cloneUrl.host == 'github.com'
+    ? Uri.https('api.github.com')
+    : Uri(
+        scheme: cloneUrl.scheme,
+        host: cloneUrl.host,
+        port: cloneUrl.port,
+        path: '/api/v3',
+      );

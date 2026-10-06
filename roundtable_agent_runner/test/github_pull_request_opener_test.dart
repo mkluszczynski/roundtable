@@ -50,6 +50,34 @@ void main() {
       });
     });
 
+    test('uses <host>/api/v3 for a GitHub Enterprise-style host', () async {
+      final urls = <Uri>[];
+      final opener = GitHubPullRequestOpener(
+        httpClient: MockClient((request) async {
+          urls.add(request.url);
+          return request.method == 'GET'
+              ? http.Response(jsonEncode({'default_branch': 'main'}), 200)
+              : http.Response(
+                  jsonEncode({
+                    'html_url': 'http://localhost:9300/acme/widgets/pull/1',
+                  }),
+                  201,
+                );
+        }),
+      );
+
+      await opener.open(
+        cloneUrl: 'http://x-access-token:t@localhost:9300/acme/widgets.git',
+        branchName: 'task-1',
+        title: 'T',
+      );
+
+      expect(urls.map((u) => u.toString()), [
+        'http://localhost:9300/api/v3/repos/acme/widgets',
+        'http://localhost:9300/api/v3/repos/acme/widgets/pulls',
+      ]);
+    });
+
     test('throws GitHubApiException on a non-2xx PR creation response', () {
       final opener = GitHubPullRequestOpener(
         httpClient: MockClient((request) async {
@@ -102,14 +130,14 @@ void main() {
       );
     });
 
-    test('rejects a non-GitHub clone URL', () {
+    test('rejects a clone URL that is not http(s)', () {
       final opener = GitHubPullRequestOpener(
         httpClient: MockClient((request) async => http.Response('', 500)),
       );
 
       expect(
         () => opener.open(
-          cloneUrl: 'https://x-access-token:t@gitlab.com/acme/widgets.git',
+          cloneUrl: 'git@github.com:acme/widgets.git',
           branchName: 'task-42',
           title: 'Do the thing',
         ),
