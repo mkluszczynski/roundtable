@@ -9,4 +9,5 @@ workspace:
   - roundtable_server
   - roundtable_flutter
   - roundtable_agent_runner
+  - roundtable_e2e
 

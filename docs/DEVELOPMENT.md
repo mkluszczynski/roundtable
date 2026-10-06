@@ -21,6 +21,7 @@ roundtable/
 ├── roundtable_flutter/       panel; lib/{screens,widgets,blocs,cubits,repositories,theme,utils}
 │   └── test/widgets/         widget tests for shared components
 ├── roundtable_agent_runner/  daemon; bin/ (2 entrypoints), lib/src/, test/
+├── roundtable_e2e/           E2E tests: fake GitHub, fake claude, harness
 ├── scripts/                  install-agent.sh / uninstall-agent.sh (+ README)
 ├── docs/                     you are here
 └── docker-compose.yml        server + Postgres for a packaged run
@@ -71,6 +72,17 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 | `roundtable_server` | `dart test` (embedded Postgres via `config/test.yaml`, no Docker) | all endpoints, both future calls, merge conflicts (`test/integration/`) |
 | `roundtable_agent_runner` | `dart test` | dispatcher, review dispatcher, executor (fake `claude`), permission tool, worktrees (real git), PR opener, stream formatter, runner update |
 | `roundtable_flutter` | `flutter test` | shared widgets (`test/widgets/`), utils, kanban grouping |
+| `roundtable_e2e` | `dart test` | E2E: the real server and runner against a fake GitHub (see below) |
+
+### E2E tests
+
+`roundtable_e2e/` runs whole user flows offline, with no tokens:
+- **Fake GitHub** (`lib/src/fake_github.dart`): a GitHub Enterprise-style
+  host on localhost — real bare git repos served through `git
+  http-backend` (clone/push), and the REST/GraphQL calls Roundtable makes
+  (PRs, files with real `git diff`, reviews and threads, squash merge, no
+  Actions runs). The server finds it through `ROUNDTABLE_GITHUB_URL`; the
+  runner derives the API from the clone URL.
 
 ## Conventions
 
