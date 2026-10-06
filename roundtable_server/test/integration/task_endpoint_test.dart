@@ -1658,7 +1658,8 @@ void main() {
     );
 
     test(
-      'when the watched task is cancelled then its move back to draft is emitted on the stream',
+      'when the watched task is cancelled then a cancelled signal (for older '
+      'runners) and then its move back to draft are emitted on the stream',
       () async {
         final machine = await createMachine();
         final project = await createProject();
@@ -1672,14 +1673,25 @@ void main() {
         );
 
         final stream = endpoints.task.watchTask(sessionBuilder, task.id!);
-        final firstEvent = stream
-            .firstWhere((t) => t.status == TaskStatus.draft)
-            .then((t) => t.id);
+        // The replayed current row, then the two cancellation messages.
+        final events = stream.take(3).map((t) => t.status).toList();
         await flushEventQueue();
 
         await endpoints.task.cancelTask(sessionBuilder, task.id!);
 
-        await expectLater(firstEvent, completion(task.id));
+        await expectLater(
+          events,
+          completion([
+            TaskStatus.queued,
+            TaskStatus.cancelled,
+            TaskStatus.draft,
+          ]),
+        );
+        final stored = await Task.db.findById(
+          sessionBuilder.build(),
+          task.id!,
+        );
+        expect(stored!.status, TaskStatus.draft);
       },
     );
 

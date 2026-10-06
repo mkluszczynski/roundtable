@@ -104,7 +104,10 @@ stateDiagram-v2
 backlog as an agent-less `draft`, reset like a retry (plan, session, result
 and timestamps cleared; branch and PR kept, so a later run pushes onto
 them). Assigning an agent (`reassignAgent`) starts it again. `cancelled` is
-no longer set; it only remains on older rows (still retryable). A task can
+no longer stored; it only remains on older rows (still retryable). For
+runners that predate this, `cancelTask` still posts a transient `cancelled`
+on `task-<id>` (after storing the draft, before posting it) so they stop the
+run; their later writes hit the draft and are ignored. A task can
 also go to `failed` in three cases:
 - its machine goes offline
 - it stalls for 15 min (agent-driven states only)

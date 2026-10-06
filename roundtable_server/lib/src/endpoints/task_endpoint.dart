@@ -518,6 +518,14 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
+    // Runners older than the move to `draft` only stop a run when
+    // [watchTask] emits `cancelled`: signal that first (never stored — the
+    // row is already a draft, so whatever that runner writes afterwards is
+    // ignored by [update]), then the real row.
+    await session.messages.postMessage(
+      channelForTask(taskId),
+      task.copyWith(status: TaskStatus.cancelled),
+    );
     await session.messages.postMessage(channelForTask(taskId), task);
     await session.messages.postMessage(channelForAllTasks(), task);
 
