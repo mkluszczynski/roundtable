@@ -245,8 +245,8 @@ awaitingReview, or when the task has no agent).
 
 1. On a task in `awaitingReview`, **Request review**
    (`widgets/request_review_dialog.dart`) → `CodeReviewEndpoint.requestReview(taskId, agentId)`.
-   The reviewer must be `idle`, and only one active review is allowed per
-   task. The review is posted to `machine-<id>-reviews`.
+   Only one active review is allowed per task. The review is posted to
+   `machine-<id>-reviews`; a busy reviewer takes it once it's free (6).
 2. `ReviewDispatcher` → `startReview` (review `running`, reviewer `busy`) →
    `createReviewWorktree` (a detached checkout of the task branch, so it works
    on any machine) → `runReview`, a read-only Claude run (restricted
@@ -262,6 +262,27 @@ awaitingReview, or when the task has no agent).
    GitHub thread). `sendCommentsToFix(commentIds, note)` marks them
    `sentToFix` and queues a review-phase feedback run. When that run reaches
    `awaitingReview` again, `TaskEndpoint.update` marks them `resolved`.
+5. **Re-reviews check earlier comments.** `ReviewDispatcher` fetches
+   `previousComments(reviewId)` (earlier reviews of the task, minus
+   `superseded`) and `buildReviewPrompt` lists them with their state. The
+   reviewer reports each non-dismissed one under `previous` (`fixed`, plus a
+   `note` if not) and never repeats them among new comments, nor raises
+   dismissed ones again. `completeReview(…, checks:)` resolves the fixed
+   ones (and their GitHub threads); one that's not fixed becomes
+   `superseded` and is carried into the new review as an open comment
+   (`carriedOverFromId`, the note as its body, "Not fixed yet" in the
+   panel) — so the latest review always lists everything still open, and
+   auto fix and auto merge see it.
+6. **One piece of work per agent.** The runner's `AgentWorkQueue`, shared
+   by `TaskDispatcher` and `ReviewDispatcher`, runs one task run or review
+   per agent at a time, first come first served. Work for a busy agent
+   waits — a review stays `queued` — and the task's timeline says "Waiting
+   — the agent is busy with task #N" (or "Review waiting — …"). A waiting
+   task is re-read before it starts, so a cancel or reassignment in the
+   meantime wins. For parallel work, add a second agent. As a safety net,
+   `settledAgentStatus` keeps an agent `busy` (or `waitingForResponse`)
+   if it reports `idle` while it still has a working task or a running
+   review.
 
 ## 6. Machine metrics
 

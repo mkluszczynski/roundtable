@@ -6,7 +6,8 @@ import '../blocs/task_detail_bloc.dart';
 import 'agent_picker.dart';
 import 'app_modal.dart';
 
-/// Picks an idle agent to review a task's PR. Shown via `showDialog` with a
+/// Picks an agent to review a task's PR — a busy one takes it once it's
+/// free (the runner runs one task or review per agent at a time). Shown via `showDialog` with a
 /// `BlocProvider.value` wrapping the caller's `TaskDetailBloc`, like
 /// `ReassignAgentDialog`.
 class RequestReviewDialog extends StatefulWidget {
@@ -57,15 +58,10 @@ class _RequestReviewDialogState extends State<RequestReviewDialog> {
       child: AgentPicker(
         selected: _agentId,
         onChanged: (id) => setState(() => _agentId = id),
-        // A review runs right away, so only a free agent on a live machine
-        // can take it.
-        unavailableReason: (agent, machine) {
-          if (machine?.status == MachineStatus.offline) {
-            return 'Machine offline';
-          }
-          if (agent.status != AgentStatus.idle) return 'Busy with another task';
-          return null;
-        },
+        // A busy agent queues the review; only an offline machine can't
+        // take it.
+        unavailableReason: (agent, machine) =>
+            machine?.status == MachineStatus.offline ? 'Machine offline' : null,
       ),
     );
   }

@@ -39,6 +39,8 @@ import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/project_tool.dart' as _i1odv8ju;
 import 'package:roundtable_server/src/generated/review_comment.dart'
     as _ibdwjaau;
+import 'package:roundtable_server/src/generated/review_comment_check.dart'
+    as _iqs7w1y3;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
 import 'package:roundtable_server/src/generated/review_comment_state.dart'
@@ -1058,12 +1060,44 @@ class _CodeReviewEndpoint {
     });
   }
 
+  _ida.Future<List<_ibdwjaau.ReviewComment>> previousComments(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'previousComments',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'previousComments',
+          parameters: _ist.testObjectToJson({'reviewId': reviewId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<List<_ibdwjaau.ReviewComment>>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
   _ida.Future<_i42ca4ig.CodeReview> completeReview(
     _ist.TestSessionBuilder sessionBuilder,
     int reviewId,
     String summary,
-    List<_i245mzjz.ReviewCommentDraft> drafts,
-  ) async {
+    List<_i245mzjz.ReviewCommentDraft> drafts, {
+    List<_iqs7w1y3.ReviewCommentCheck>? checks,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1079,6 +1113,7 @@ class _CodeReviewEndpoint {
             'reviewId': reviewId,
             'summary': summary,
             'drafts': drafts,
+            'checks': checks,
           }),
           serializationManager: _serializationManager,
         );

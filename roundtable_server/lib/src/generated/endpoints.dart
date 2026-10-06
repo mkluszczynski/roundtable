@@ -23,6 +23,8 @@ import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/project_tool.dart' as _i1odv8ju;
+import 'package:roundtable_server/src/generated/review_comment_check.dart'
+    as _iqs7w1y3;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
 import 'package:roundtable_server/src/generated/review_comment_state.dart'
@@ -593,6 +595,26 @@ class Endpoints extends _is.EndpointDispatch {
                         params['reviewId'],
                       ),
         ),
+        'previousComments': _is.MethodConnector(
+          name: 'previousComments',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .previousComments(
+                        session,
+                        params['reviewId'],
+                      ),
+        ),
         'completeReview': _is.MethodConnector(
           name: 'completeReview',
           params: {
@@ -611,6 +633,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<List<_i245mzjz.ReviewCommentDraft>>(),
               nullable: false,
             ),
+            'checks': _is.ParameterDescription(
+              name: 'checks',
+              type: _is.getType<List<_iqs7w1y3.ReviewCommentCheck>?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -623,6 +650,7 @@ class Endpoints extends _is.EndpointDispatch {
                         params['reviewId'],
                         params['summary'],
                         params['drafts'],
+                        checks: params['checks'],
                       ),
         ),
         'failReview': _is.MethodConnector(

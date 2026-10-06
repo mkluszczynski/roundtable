@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:roundtable_agent_runner/roundtable_agent_runner.dart';
@@ -56,6 +57,27 @@ Final answer:
       expect(result.comments.single.line, isNull);
     });
 
+    test('parses the checks of earlier comments', () {
+      final result = parseReviewOutput('''```json
+{"summary": "s", "comments": [], "previous": [
+  {"id": 4, "fixed": true, "note": null},
+  {"id": 5, "fixed": false, "note": "Still crashes on null"},
+  {"id": "x", "fixed": true},
+  {"id": 6}
+]}
+```''');
+      expect(result!.checks, hasLength(2));
+      expect(result.checks[0].commentId, 4);
+      expect(result.checks[0].fixed, isTrue);
+      expect(result.checks[0].note, isNull);
+      expect(result.checks[1].fixed, isFalse);
+      expect(result.checks[1].note, 'Still crashes on null');
+      expect(
+        parseReviewOutput('{"summary": "s", "comments": []}')!.checks,
+        isEmpty,
+      );
+    });
+
     test('returns null without valid JSON', () {
       expect(parseReviewOutput('No JSON here.'), isNull);
       expect(parseReviewOutput('```json\n{not json}\n```'), isNull);
@@ -74,6 +96,46 @@ Final answer:
     expect(prompt, contains('git diff abc123...HEAD'));
     expect(prompt, contains('```json'));
     expect(prompt, isNot(contains('image(s)')));
+  });
+
+  test('buildReviewPrompt lists earlier comments to check', () {
+    final prompt = buildReviewPrompt(
+      rolePrompt: 'You are Ana.',
+      taskPrompt: 'Add a login page',
+      baseSha: 'abc123',
+      previousComments: [
+        ReviewComment(
+          id: 4,
+          reviewId: 1,
+          path: 'lib/a.dart',
+          line: 3,
+          body: 'Crash on null',
+          severity: ReviewCommentSeverity.blocker,
+          state: ReviewCommentState.resolved,
+        ),
+        ReviewComment(
+          id: 5,
+          reviewId: 1,
+          path: 'README.md',
+          body: 'Typo',
+          severity: ReviewCommentSeverity.nit,
+          state: ReviewCommentState.dismissed,
+        ),
+      ],
+    );
+    expect(prompt, contains('reviewed before'));
+    expect(
+      prompt,
+      contains(
+        '- id 4 · lib/a.dart:3 · blocker · the agent was asked to fix it',
+      ),
+    );
+    expect(prompt, contains('- id 5 · README.md · nit · dismissed'));
+    expect(prompt, contains('"previous"'));
+    expect(
+      buildReviewPrompt(rolePrompt: 'r', taskPrompt: 't', baseSha: 'b'),
+      isNot(contains('"previous"')),
+    );
   });
 
   test('buildReviewPrompt lists the task\'s attached images', () {
@@ -145,6 +207,9 @@ exit 0
       AgentExecutionMode executionMode = AgentExecutionMode.native,
       ContainerSandbox Function(ContainerRequest request)? sandboxFor,
       List<bool>? containerPrompts,
+      AgentWorkQueue? workQueue,
+      List<int>? started,
+      List<String>? events,
     }) {
       final script = writeFakeClaude();
       return ReviewDispatcher(
@@ -165,18 +230,22 @@ exit 0
           status: AgentStatus.idle,
           executionMode: executionMode,
         ),
-        startReview: (_) async => Task(
-          id: 1,
-          projectId: 1,
-          agentId: 1,
-          prompt: 'Match the mockup',
-          skipPlanning: true,
-          status: TaskStatus.awaitingReview,
-          branchName: 'task-1',
-        ),
-        completeReview: (_, summary, _) async => completed.add(summary),
+        workQueue: workQueue,
+        startReview: (reviewId) async {
+          started?.add(reviewId);
+          return Task(
+            id: 1,
+            projectId: 1,
+            agentId: 1,
+            prompt: 'Match the mockup',
+            skipPlanning: true,
+            status: TaskStatus.awaitingReview,
+            branchName: 'task-1',
+          );
+        },
+        completeReview: (_, summary, _, _) async => completed.add(summary),
         failReview: (_, reason) async => failed.add(reason),
-        appendLog: (_) async {},
+        appendLog: (entry) async => events?.add(entry.content),
         log: (_) {},
         fetchProject: (id) async => Project(
           id: id,
@@ -298,6 +367,41 @@ exec "\$@"
       expect(podmanCall, contains('--userns=keep-id'));
       expect(podmanCall, contains('my/image:1 $claude'));
       expect(podmanCall, contains('rm --force --ignore roundtable-review-7'));
+    });
+
+    test('waits while the reviewer is busy with its own task', () async {
+      final queue = AgentWorkQueue();
+      final release = Completer<void>();
+      final busy = queue.run(2, 'task #9', () => release.future);
+      final started = <int>[];
+      final events = <String>[];
+      final completed = <String>[];
+      final handled =
+          buildDispatcher(
+            fetchedFor: [],
+            completed: completed,
+            failed: [],
+            workQueue: queue,
+            started: started,
+            events: events,
+          ).handle(
+            CodeReview(
+              id: 7,
+              taskId: 1,
+              reviewerAgentId: 2,
+              status: CodeReviewStatus.queued,
+            ),
+          );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(started, isEmpty, reason: 'the review stays queued');
+      expect(events, ['Review waiting — the reviewer is busy with task #9']);
+
+      release.complete();
+      await busy;
+      await handled;
+      expect(started, [7]);
+      expect(completed, ['Looks good.']);
     });
 
     test('fails a docker-mode review on a machine without podman', () async {

@@ -1,5 +1,6 @@
 import 'package:serverpod/serverpod.dart';
 
+import '../agent_status.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
 import '../task_review_support.dart';
@@ -28,10 +29,6 @@ class CodeReviewEndpoint extends Endpoint {
     if (agent == null) {
       throw NotFoundException(message: 'Agent $agentId not found');
     }
-    if (agent.status != AgentStatus.idle) {
-      throw InvalidStateException(message: '${agent.name} is busy');
-    }
-
     return queueCodeReview(session, task, agent);
   }
 
@@ -91,17 +88,61 @@ class CodeReviewEndpoint extends Endpoint {
     return task;
   }
 
+  /// The comments of [reviewId]'s earlier reviews of the same task, oldest
+  /// first, for the reviewer to check (`buildReviewPrompt`). Superseded ones
+  /// are left out — their carried-over copy stands in for them.
+  Future<List<ReviewComment>> previousComments(
+    Session session,
+    int reviewId,
+  ) async {
+    var review = await _requireReview(session, reviewId);
+    var earlierIds = (await CodeReview.db.find(
+      session,
+      where: (r) =>
+          r.taskId.equals(review.taskId) &
+          r.id.notEquals(reviewId) &
+          (r.createdAt < review.createdAt),
+    )).map((r) => r.id!).toSet();
+    if (earlierIds.isEmpty) return const [];
+    return ReviewComment.db.find(
+      session,
+      where: (c) =>
+          c.reviewId.inSet(earlierIds) &
+          c.state.notEquals(ReviewCommentState.superseded),
+      orderBy: (c) => c.id,
+    );
+  }
+
   /// Stores the reviewer's findings and mirrors them to the PR as a GitHub
   /// review. Mirroring is best effort: on failure the comments still live in
   /// Roundtable, just without `githubCommentId`.
+  ///
+  /// [checks] are the reviewer's verdicts on earlier comments
+  /// ([previousComments]): a fixed one is resolved, one that isn't is
+  /// carried over into this review as a new open comment and the old one
+  /// becomes `superseded` — so the latest review lists everything still
+  /// open. Dismissed comments and ids from other tasks are ignored.
   Future<CodeReview> completeReview(
     Session session,
     int reviewId,
     String summary,
-    List<ReviewCommentDraft> drafts,
-  ) async {
+    List<ReviewCommentDraft> drafts, {
+    List<ReviewCommentCheck>? checks,
+  }) async {
     var review = await _requireReview(session, reviewId);
+    final notFixed = await _applyChecks(session, review, checks ?? const []);
     var comments = await ReviewComment.db.insert(session, [
+      for (final old in notFixed)
+        ReviewComment(
+          reviewId: reviewId,
+          path: old.comment.path,
+          line: old.comment.line,
+          body: old.note?.trim().isNotEmpty == true
+              ? old.note!.trim()
+              : old.comment.body,
+          severity: old.comment.severity,
+          carriedOverFromId: old.comment.id,
+        ),
       for (var draft in drafts)
         ReviewComment(
           reviewId: reviewId,
@@ -257,6 +298,56 @@ class CodeReviewEndpoint extends Endpoint {
     return sendCommentsToAgent(session, task, comments, note);
   }
 
+  /// Applies [checks] to [review]'s earlier comments: resolves the fixed
+  /// ones (and their GitHub threads), supersedes the rest. Returns the
+  /// not-fixed ones with the reviewer's note, to carry over.
+  Future<List<_NotFixed>> _applyChecks(
+    Session session,
+    CodeReview review,
+    List<ReviewCommentCheck> checks,
+  ) async {
+    if (checks.isEmpty) return const [];
+    final previous = {
+      for (final c in await previousComments(session, review.id!))
+        if (c.state != ReviewCommentState.dismissed) c.id!: c,
+    };
+    final fixed = <ReviewComment>[];
+    final notFixed = <_NotFixed>[];
+    for (final check in checks) {
+      final comment = previous.remove(check.commentId);
+      if (comment == null) continue;
+      if (check.fixed) {
+        if (comment.state != ReviewCommentState.resolved) fixed.add(comment);
+      } else {
+        notFixed.add((comment: comment, note: check.note));
+      }
+    }
+    final updated = [
+      for (final c in fixed) c.copyWith(state: ReviewCommentState.resolved),
+      for (final n in notFixed)
+        n.comment.copyWith(state: ReviewCommentState.superseded),
+    ];
+    if (updated.isEmpty) return notFixed;
+    await ReviewComment.db.update(session, updated, columns: (c) => [c.state]);
+    final task = await Task.db.findById(session, review.taskId);
+    if (task != null && fixed.isNotEmpty) {
+      await resolveGitHubThreads(session, task, fixed);
+    }
+    for (final id in updated.map((c) => c.reviewId).toSet()) {
+      await postReviewChanged(session, id);
+    }
+    if (task != null) {
+      await logTaskEvent(
+        session,
+        task.id!,
+        'Review checked ${fixed.length + notFixed.length} earlier '
+        '${fixed.length + notFixed.length == 1 ? 'comment' : 'comments'}: '
+        '${fixed.length} fixed, ${notFixed.length} not fixed yet',
+      );
+    }
+    return notFixed;
+  }
+
   Future<CodeReview> _requireReview(Session session, int reviewId) async {
     var review = await CodeReview.db.findById(session, reviewId);
     if (review == null) {
@@ -276,8 +367,13 @@ class CodeReviewEndpoint extends Endpoint {
     if (agent == null) return;
     await Agent.db.updateRow(
       session,
-      agent.copyWith(status: status),
+      agent.copyWith(
+        status: await settledAgentStatus(session, agentId, status),
+      ),
       columns: (a) => [a.status],
     );
   }
 }
+
+/// An earlier comment a review found not fixed, with the reviewer's note.
+typedef _NotFixed = ({ReviewComment comment, String? note});

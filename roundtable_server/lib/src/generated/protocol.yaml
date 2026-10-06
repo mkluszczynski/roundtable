@@ -25,6 +25,7 @@ codeReview:
   - requestReview:
   - watchAssignedReviews:
   - startReview:
+  - previousComments:
   - completeReview:
   - failReview:
   - watchReviews:

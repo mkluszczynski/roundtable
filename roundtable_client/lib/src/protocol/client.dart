@@ -37,6 +37,8 @@ import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/project_tool.dart' as _itcevbxn;
 import 'package:roundtable_client/src/protocol/review_comment.dart'
     as _ij6tkwdt;
+import 'package:roundtable_client/src/protocol/review_comment_check.dart'
+    as _iabe8ujm;
 import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
     as _ithbrqha;
 import 'package:roundtable_client/src/protocol/review_comment_state.dart'
@@ -447,20 +449,38 @@ class EndpointCodeReview extends _isc.EndpointRef {
         {'reviewId': reviewId},
       );
 
+  /// The comments of [reviewId]'s earlier reviews of the same task, oldest
+  /// first, for the reviewer to check (`buildReviewPrompt`). Superseded ones
+  /// are left out — their carried-over copy stands in for them.
+  _ida.Future<List<_ij6tkwdt.ReviewComment>> previousComments(int reviewId) =>
+      caller.callServerEndpoint<List<_ij6tkwdt.ReviewComment>>(
+        'codeReview',
+        'previousComments',
+        {'reviewId': reviewId},
+      );
+
   /// Stores the reviewer's findings and mirrors them to the PR as a GitHub
   /// review. Mirroring is best effort: on failure the comments still live in
   /// Roundtable, just without `githubCommentId`.
+  ///
+  /// [checks] are the reviewer's verdicts on earlier comments
+  /// ([previousComments]): a fixed one is resolved, one that isn't is
+  /// carried over into this review as a new open comment and the old one
+  /// becomes `superseded` — so the latest review lists everything still
+  /// open. Dismissed comments and ids from other tasks are ignored.
   _ida.Future<_i38oxrkr.CodeReview> completeReview(
     int reviewId,
     String summary,
-    List<_ithbrqha.ReviewCommentDraft> drafts,
-  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    List<_ithbrqha.ReviewCommentDraft> drafts, {
+    List<_iabe8ujm.ReviewCommentCheck>? checks,
+  }) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
     'codeReview',
     'completeReview',
     {
       'reviewId': reviewId,
       'summary': summary,
       'drafts': drafts,
+      'checks': checks,
     },
   );
 
@@ -1040,7 +1060,8 @@ class EndpointTask extends _isc.EndpointRef {
   /// from the panel, failed by a future call, merged) is final: a late
   /// write from the daemon is ignored and the current row returned, rather
   /// than reviving it or throwing at a daemon that can't do anything about
-  /// it.
+  /// it. The same goes for a `draft` — nothing runs a draft, so a write to
+  /// one comes from a run that was cancelled back to the backlog.
   _ida.Future<_iw53rmon.Task> update(_iw53rmon.Task task) =>
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',
@@ -1195,10 +1216,12 @@ class EndpointTask extends _isc.EndpointRef {
   );
 
   /// Cancels a task that hasn't reached a terminal state yet (docs/FLOWS.md §4
-  /// "Cancelling mid-run"): marks it `cancelled` and notifies
-  /// [watchTask] subscribers — the daemon running the task reacts by
-  /// sending `SIGTERM` to the Claude Code subprocess and resetting the
-  /// worktree.
+  /// "Cancelling mid-run"): moves it back to the backlog as an agent-less
+  /// `draft`, reset like [retryTask] does (the branch and PR are kept, so a
+  /// later run pushes onto them), and notifies [watchTask] subscribers — the
+  /// daemon running the task reacts by sending `SIGTERM` to the Claude Code
+  /// subprocess and resetting the worktree. Assigning an agent again
+  /// ([reassignAgent]) restarts it.
   _ida.Future<_iw53rmon.Task> cancelTask(int taskId) =>
       caller.callServerEndpoint<_iw53rmon.Task>(
         'task',

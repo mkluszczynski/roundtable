@@ -18,6 +18,10 @@ import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/project.dart' as _i76mncv2;
 import 'package:roundtable_client/src/protocol/project_tool.dart' as _itcevbxn;
+import 'package:roundtable_client/src/protocol/review_comment.dart'
+    as _ij6tkwdt;
+import 'package:roundtable_client/src/protocol/review_comment_check.dart'
+    as _iabe8ujm;
 import 'package:roundtable_client/src/protocol/review_comment_draft.dart'
     as _ithbrqha;
 import 'package:roundtable_client/src/protocol/task.dart' as _iw53rmon;
@@ -57,6 +61,7 @@ import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
 import 'project_tool.dart' as _icptw1qc;
 import 'review_comment.dart' as _itpwl327;
+import 'review_comment_check.dart' as _ikj4c45z;
 import 'review_comment_draft.dart' as _i6wlz106;
 import 'review_comment_severity.dart' as _iml08ymk;
 import 'review_comment_state.dart' as _igczzv9q;
@@ -99,6 +104,7 @@ export 'pr_merge_status.dart';
 export 'project.dart';
 export 'project_tool.dart';
 export 'review_comment.dart';
+export 'review_comment_check.dart';
 export 'review_comment_draft.dart';
 export 'review_comment_severity.dart';
 export 'review_comment_state.dart';
@@ -234,6 +240,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _itpwl327.ReviewComment) {
       return _itpwl327.ReviewComment.fromJson(data) as T;
+    }
+    if (t == _ikj4c45z.ReviewCommentCheck) {
+      return _ikj4c45z.ReviewCommentCheck.fromJson(data) as T;
     }
     if (t == _i6wlz106.ReviewCommentDraft) {
       return _i6wlz106.ReviewCommentDraft.fromJson(data) as T;
@@ -385,6 +394,10 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _isc.getType<_itpwl327.ReviewComment?>()) {
       return (data != null ? _itpwl327.ReviewComment.fromJson(data) : null)
+          as T;
+    }
+    if (t == _isc.getType<_ikj4c45z.ReviewCommentCheck?>()) {
+      return (data != null ? _ikj4c45z.ReviewCommentCheck.fromJson(data) : null)
           as T;
     }
     if (t == _isc.getType<_i6wlz106.ReviewCommentDraft?>()) {
@@ -581,10 +594,30 @@ class Protocol extends _isc.SerializationManager {
               .toList()
           as T;
     }
+    if (t == List<_ij6tkwdt.ReviewComment>) {
+      return (data as List)
+              .map((e) => deserialize<_ij6tkwdt.ReviewComment>(e))
+              .toList()
+          as T;
+    }
     if (t == List<_ithbrqha.ReviewCommentDraft>) {
       return (data as List)
               .map((e) => deserialize<_ithbrqha.ReviewCommentDraft>(e))
               .toList()
+          as T;
+    }
+    if (t == List<_iabe8ujm.ReviewCommentCheck>) {
+      return (data as List)
+              .map((e) => deserialize<_iabe8ujm.ReviewCommentCheck>(e))
+              .toList()
+          as T;
+    }
+    if (t == _isc.getType<List<_iabe8ujm.ReviewCommentCheck>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_iabe8ujm.ReviewCommentCheck>(e))
+                    .toList()
+              : null)
           as T;
     }
     if (t == List<int>) {
@@ -681,6 +714,7 @@ class Protocol extends _isc.SerializationManager {
       _ifiazq2p.Project => 'Project',
       _icptw1qc.ProjectTool => 'ProjectTool',
       _itpwl327.ReviewComment => 'ReviewComment',
+      _ikj4c45z.ReviewCommentCheck => 'ReviewCommentCheck',
       _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
       _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
       _igczzv9q.ReviewCommentState => 'ReviewCommentState',
@@ -766,6 +800,8 @@ class Protocol extends _isc.SerializationManager {
         return 'ProjectTool';
       case _itpwl327.ReviewComment():
         return 'ReviewComment';
+      case _ikj4c45z.ReviewCommentCheck():
+        return 'ReviewCommentCheck';
       case _i6wlz106.ReviewCommentDraft():
         return 'ReviewCommentDraft';
       case _iml08ymk.ReviewCommentSeverity():
@@ -900,6 +936,9 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'ReviewComment') {
       return deserialize<_itpwl327.ReviewComment>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentCheck') {
+      return deserialize<_ikj4c45z.ReviewCommentCheck>(data['data']);
     }
     if (dataClassName == 'ReviewCommentDraft') {
       return deserialize<_i6wlz106.ReviewCommentDraft>(data['data']);

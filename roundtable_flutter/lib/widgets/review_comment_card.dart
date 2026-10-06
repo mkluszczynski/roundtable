@@ -45,6 +45,7 @@ class ReviewCommentCard extends StatelessWidget {
     ReviewCommentState.dismissed => 'Dismissed',
     ReviewCommentState.sentToFix => 'Sent to agent',
     ReviewCommentState.resolved => 'Resolved',
+    ReviewCommentState.superseded => 'Carried over',
   };
 
   @override
@@ -92,6 +93,20 @@ class ReviewCommentCard extends StatelessWidget {
                   Row(
                     children: [
                       StatusPill(color: severity, label: comment.severity.name),
+                      if (comment.carriedOverFromId != null) ...[
+                        const SizedBox(width: Spacing.sm),
+                        Tooltip(
+                          message:
+                              'An earlier review raised this and the fix '
+                              "didn't solve it",
+                          child: Text(
+                            'Not fixed yet',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
                       if (showLocation) ...[
                         const SizedBox(width: Spacing.sm),
                         Flexible(
@@ -133,7 +148,8 @@ class ReviewCommentCard extends StatelessWidget {
                   const SizedBox(height: Spacing.sm),
                   PlanContent(markdown: comment.body),
                   if (onStateChanged != null &&
-                      comment.state != ReviewCommentState.sentToFix)
+                      comment.state != ReviewCommentState.sentToFix &&
+                      comment.state != ReviewCommentState.superseded)
                     Align(
                       alignment: Alignment.centerRight,
                       child: Wrap(

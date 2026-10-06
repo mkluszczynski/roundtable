@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
 
+import 'agent_work_queue.dart';
 import 'claude_code_executor.dart';
 import 'container_sandbox.dart';
 import 'role_prompts.dart';
@@ -29,11 +30,24 @@ class ReviewDispatcher {
     required this.log,
     this.environmentPrompt,
     this.fetchAttachments = _noAttachments,
+    this.fetchPreviousComments = _noPreviousComments,
     this.fetchProject,
     this.sandboxFor,
-  });
+    AgentWorkQueue? workQueue,
+  }) : workQueue = workQueue ?? AgentWorkQueue();
+
+  /// One piece of work at a time per agent, shared with `TaskDispatcher`: a
+  /// review by a busy agent stays `queued` here until it's free.
+  final AgentWorkQueue workQueue;
 
   static Future<List<TaskImage>> _noAttachments(int taskId) async => const [];
+  static Future<List<ReviewComment>> _noPreviousComments(int reviewId) async =>
+      const [];
+
+  /// The comments of earlier reviews of the same task, for the reviewer to
+  /// check — bound to `client.codeReview.previousComments` in production.
+  final Future<List<ReviewComment>> Function(int reviewId)
+  fetchPreviousComments;
 
   /// The images attached to the task's prompt — part of the requirements the
   /// reviewer checks the change against. Bound to `client.taskAttachment` in
@@ -66,6 +80,7 @@ class ReviewDispatcher {
     int reviewId,
     String summary,
     List<ReviewCommentDraft> comments,
+    List<ReviewCommentCheck> checks,
   )
   completeReview;
   final Future<void> Function(int reviewId, String reason) failReview;
@@ -82,7 +97,27 @@ class ReviewDispatcher {
       log('review $reviewId: not queued (status=${review.status}), skipping');
       return;
     }
+    await workQueue.run(
+      agentId,
+      'the review of task #${review.taskId}',
+      () => _handle(review, reviewId, agentId),
+      onWaiting: (busyWith) {
+        log('review $reviewId: reviewer $agentId is busy with $busyWith');
+        appendLog(
+          TaskLogEntry(
+            taskId: review.taskId,
+            content: 'Review waiting — the reviewer is busy with $busyWith',
+            source: LogSource.system,
+            kind: LogKind.event,
+          ),
+        ).catchError(
+          (Object e) => log('review $reviewId: appendLog failed: $e'),
+        );
+      },
+    );
+  }
 
+  Future<void> _handle(CodeReview review, int reviewId, int agentId) async {
     final Task task;
     try {
       task = await startReview(reviewId);
@@ -178,6 +213,8 @@ class ReviewDispatcher {
         );
       }
 
+      final previous = await fetchPreviousComments(reviewId);
+
       final formatter = StreamJsonFormatter();
       final executor = sandbox == null
           ? executorFactory()
@@ -188,6 +225,7 @@ class ReviewDispatcher {
           taskPrompt: task.prompt,
           baseSha: worktree.baseSha,
           imagePaths: imagePaths,
+          previousComments: previous,
         ),
         workingDirectory: worktree.path,
         oauthToken: oauthToken,
@@ -216,8 +254,16 @@ class ReviewDispatcher {
         );
         return;
       }
-      await completeReview(reviewId, findings.summary, findings.comments);
-      log('review $reviewId: done with ${findings.comments.length} comment(s)');
+      await completeReview(
+        reviewId,
+        findings.summary,
+        findings.comments,
+        findings.checks,
+      );
+      log(
+        'review $reviewId: done with ${findings.comments.length} comment(s), '
+        '${findings.checks.length} earlier one(s) checked',
+      );
     } catch (e) {
       log('review $reviewId: failed: $e');
       await failReview(
@@ -245,12 +291,14 @@ class ReviewDispatcher {
 
 /// The instructions given to the reviewer agent. The working tree is the
 /// task's branch; [baseSha] is where it forked off the default branch.
-/// [imagePaths] are the images attached to the task's prompt.
+/// [imagePaths] are the images attached to the task's prompt;
+/// [previousComments] are earlier reviews' comments, to check and not repeat.
 String buildReviewPrompt({
   required String rolePrompt,
   required String taskPrompt,
   required String baseSha,
   List<String> imagePaths = const [],
+  List<ReviewComment> previousComments = const [],
 }) =>
     '''
 $rolePrompt You are reviewing another agent's change. Do not modify any files.
@@ -259,12 +307,39 @@ The change was made for this task:
 <task>
 $taskPrompt
 </task>
-${_attachedImagesSection(imagePaths)}
+${_attachedImagesSection(imagePaths)}${_previousCommentsSection(previousComments)}
 Inspect it with `git diff $baseSha...HEAD` and read surrounding code as needed. Look for bugs, missed requirements, security problems, and clear maintainability issues. Skip pure style preferences.
 
 End your reply with exactly one fenced ```json block of this shape:
-{"summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]}
+{"summary": "<one paragraph verdict>", "comments": [{"path": "<repo-relative path>", "line": <line number in the new file, or null>, "severity": "blocker" | "issue" | "nit", "body": "<what is wrong and how to fix it>"}]${previousComments.isEmpty ? '' : ', "previous": [{"id": <earlier comment id>, "fixed": true | false, "note": "<if not fixed: what is still wrong, else null>"}]'}}
 Use an empty comments list if the change is good.''';
+
+/// Earlier reviews' comments with their state: the reviewer checks each one
+/// that wasn't dismissed and reports it under `previous`, never repeating
+/// it among the new comments.
+String _previousCommentsSection(List<ReviewComment> comments) {
+  if (comments.isEmpty) return '';
+  String state(ReviewComment c) => switch (c.state) {
+    ReviewCommentState.open => 'still open',
+    ReviewCommentState.sentToFix ||
+    ReviewCommentState.resolved => 'the agent was asked to fix it',
+    ReviewCommentState.dismissed => 'dismissed by the developer',
+    ReviewCommentState.superseded => 'superseded',
+  };
+  final list = comments
+      .map((c) {
+        final location = c.line == null ? c.path : '${c.path}:${c.line}';
+        return '- id ${c.id} · $location · ${c.severity.name} · ${state(c)}\n'
+            '  ${c.body.replaceAll('\n', '\n  ')}';
+      })
+      .join('\n');
+  return '''
+This change was reviewed before. Earlier comments:
+$list
+
+For every earlier comment that wasn't dismissed, check the current code and report it under "previous": fixed or not, with a note on what is still wrong. Don't repeat earlier comments among the new ones, and don't raise again what the developer dismissed. New comments are only for problems not listed above.
+''';
+}
 
 String _attachedImagesSection(List<String> imagePaths) {
   if (imagePaths.isEmpty) return '';
@@ -276,9 +351,12 @@ String _attachedImagesSection(List<String> imagePaths) {
 
 /// Parses the reviewer's final reply: the last fenced ```json block (or the
 /// whole text, if it's bare JSON). Returns `null` if no valid block is found.
-({String summary, List<ReviewCommentDraft> comments})? parseReviewOutput(
-  String text,
-) {
+({
+  String summary,
+  List<ReviewCommentDraft> comments,
+  List<ReviewCommentCheck> checks,
+})?
+parseReviewOutput(String text) {
   final blocks = RegExp(
     r'```json\s*\n([\s\S]*?)\n\s*```',
   ).allMatches(text).toList();
@@ -314,5 +392,22 @@ String _attachedImagesSection(List<String> imagePaths) {
       ),
     );
   }
-  return (summary: summary, comments: drafts);
+  final checks = <ReviewCommentCheck>[];
+  if (decoded['previous'] case final List previous) {
+    for (final p in previous) {
+      if (p is! Map<String, dynamic>) continue;
+      final id = p['id'];
+      final fixed = p['fixed'];
+      if (id is! int || fixed is! bool) continue;
+      final note = p['note'];
+      checks.add(
+        ReviewCommentCheck(
+          commentId: id,
+          fixed: fixed,
+          note: note is String && note.trim().isNotEmpty ? note : null,
+        ),
+      );
+    }
+  }
+  return (summary: summary, comments: drafts, checks: checks);
 }

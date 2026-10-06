@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
 
+import 'src/agent_work_queue.dart';
 import 'src/claude_code_executor.dart';
 import 'src/container_sandbox.dart';
 import 'src/github_pull_request_opener.dart';
@@ -16,6 +17,7 @@ import 'src/toolchain_installer.dart';
 import 'src/worktree_janitor.dart';
 import 'src/worktree_manager.dart';
 
+export 'src/agent_work_queue.dart';
 export 'src/claude_code_executor.dart';
 export 'src/container_sandbox.dart';
 export 'src/github_pull_request_opener.dart';
@@ -205,8 +207,10 @@ class AgentRunnerService {
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: _fetchAgent,
     startReview: (reviewId) => _client.codeReview.startReview(reviewId),
-    completeReview: (reviewId, summary, comments) =>
-        _client.codeReview.completeReview(reviewId, summary, comments),
+    completeReview: (reviewId, summary, comments, checks) => _client.codeReview
+        .completeReview(reviewId, summary, comments, checks: checks),
+    fetchPreviousComments: (reviewId) =>
+        _client.codeReview.previousComments(reviewId),
     failReview: (reviewId, reason) =>
         _client.codeReview.failReview(reviewId, reason),
     appendLog: (entry) => _client.task.appendLogEntry(entry),
@@ -216,7 +220,11 @@ class AgentRunnerService {
     fetchAttachments: _fetchAttachments,
     fetchProject: (projectId) => _client.project.get(projectId),
     sandboxFor: _sandboxFor,
+    workQueue: _workQueue,
   );
+
+  /// Shared by both dispatchers: one task run or review at a time per agent.
+  final _workQueue = AgentWorkQueue();
 
   late final TaskDispatcher _dispatcher = TaskDispatcher(
     worktreeManager: _worktreeManager,
@@ -242,6 +250,7 @@ class AgentRunnerService {
         (await _client.task.findTasks([taskId])).firstOrNull,
     toolchainInstaller: _toolchainInstaller,
     sandboxFor: _sandboxFor,
+    workQueue: _workQueue,
   );
 
   // Under the service account's own home (/var/lib/agent-runner), which

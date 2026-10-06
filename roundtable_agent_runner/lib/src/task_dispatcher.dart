@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:roundtable_client/roundtable_client.dart';
 
+import 'agent_work_queue.dart';
 import 'claude_code_executor.dart';
 import 'container_sandbox.dart';
 import 'environment_prompt.dart';
@@ -44,7 +45,12 @@ class TaskDispatcher {
     this.fetchTask,
     this.toolchainInstaller,
     this.sandboxFor,
-  });
+    AgentWorkQueue? workQueue,
+  }) : workQueue = workQueue ?? AgentWorkQueue();
+
+  /// One piece of work at a time per agent, shared with `ReviewDispatcher`:
+  /// a task for a busy agent waits here.
+  final AgentWorkQueue workQueue;
 
   /// The task's project, for its toolchains ([Project.tools]) and docker
   /// image. With [toolchainInstaller], the toolchains are installed before
@@ -176,7 +182,32 @@ class TaskDispatcher {
         }
         task = current;
       }
-      await _handle(task);
+      final agentId = task.agentId;
+      if (agentId == null) {
+        await _handle(task);
+      } else {
+        var waited = false;
+        await workQueue.run(
+          agentId,
+          'task #$id',
+          () async {
+            if (waited) {
+              final current = await (fetchTask?.call(id) ?? Future.value(task));
+              if (current == null || current.agentId != agentId) {
+                log('task $id: deleted or reassigned while waiting, skipping');
+                return;
+              }
+              task = current;
+            }
+            await _handle(task);
+          },
+          onWaiting: (busyWith) {
+            waited = true;
+            log('task $id: agent $agentId is busy with $busyWith, waiting');
+            _logWaiting(id, busyWith);
+          },
+        );
+      }
     } finally {
       done.complete();
       if (identical(_lastRun[id], done.future)) _lastRun.remove(id);
@@ -187,6 +218,18 @@ class TaskDispatcher {
         _inFlight[id] = remaining;
       }
     }
+  }
+
+  /// Notes on [taskId]'s timeline that its agent is busy — best effort.
+  void _logWaiting(int taskId, String busyWith) {
+    appendLog(
+      TaskLogEntry(
+        taskId: taskId,
+        content: 'Waiting — the agent is busy with $busyWith',
+        source: LogSource.system,
+        kind: LogKind.event,
+      ),
+    ).catchError((Object e) => log('task $taskId: appendLog failed: $e'));
   }
 
   Future<void> _handle(Task task) async {

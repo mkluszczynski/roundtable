@@ -1,0 +1,8 @@
+### The reviewer's verdict on a comment from an earlier review of the same task.
+### Not a database table — only the daemon → server upload format.
+class: ReviewCommentCheck
+fields:
+  commentId: int
+  fixed: bool
+  ### Why it's not fixed yet, in the reviewer's words; becomes the carried-over comment's body.
+  note: String?

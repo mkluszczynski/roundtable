@@ -1,4 +1,5 @@
 import 'non_terminal_task_statuses.dart';
+import '../agent_status.dart';
 import '../generated/protocol.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -91,7 +92,9 @@ class AgentEndpoint extends Endpoint {
     var agent = await _requireAgent(session, agentId);
     return Agent.db.updateRow(
       session,
-      agent.copyWith(status: status),
+      agent.copyWith(
+        status: await settledAgentStatus(session, agentId, status),
+      ),
       columns: (t) => [t.status],
     );
   }

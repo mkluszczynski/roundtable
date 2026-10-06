@@ -356,6 +356,205 @@ void main() {
       },
     );
 
+    group('when a later review checks earlier comments', () {
+      test('then fixed ones are resolved and the rest carried over', () async {
+        final seeded = await seed();
+        final first = await completedReview(seeded.task, seeded.reviewer);
+        final session = sessionBuilder.build();
+        var earlier = await ReviewComment.db.find(
+          session,
+          where: (c) => c.reviewId.equals(first.id!),
+          orderBy: (c) => c.id,
+        );
+        final blocker = earlier[0];
+        final issue = earlier[1];
+
+        final second = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          seeded.task.id!,
+          seeded.reviewer.id!,
+        );
+        await endpoints.codeReview.startReview(sessionBuilder, second.id!);
+        final previous = await endpoints.codeReview.previousComments(
+          sessionBuilder,
+          second.id!,
+        );
+        expect(previous.map((c) => c.id), [blocker.id, issue.id]);
+
+        await endpoints.codeReview.completeReview(
+          sessionBuilder,
+          second.id!,
+          'One left.',
+          [
+            ReviewCommentDraft(
+              path: 'lib/c.dart',
+              body: 'New problem',
+              severity: ReviewCommentSeverity.nit,
+            ),
+          ],
+          checks: [
+            ReviewCommentCheck(commentId: blocker.id!, fixed: true),
+            ReviewCommentCheck(
+              commentId: issue.id!,
+              fixed: false,
+              note: 'Still no test for b',
+            ),
+            ReviewCommentCheck(commentId: 999999, fixed: true),
+          ],
+        );
+
+        earlier = await ReviewComment.db.find(
+          session,
+          where: (c) => c.reviewId.equals(first.id!),
+          orderBy: (c) => c.id,
+        );
+        expect(earlier.map((c) => c.state), [
+          ReviewCommentState.resolved,
+          ReviewCommentState.superseded,
+        ]);
+        final latest = await ReviewComment.db.find(
+          session,
+          where: (c) => c.reviewId.equals(second.id!),
+          orderBy: (c) => c.id,
+        );
+        expect(latest, hasLength(2));
+        expect(latest[0].carriedOverFromId, issue.id);
+        expect(latest[0].body, 'Still no test for b');
+        expect(latest[0].severity, ReviewCommentSeverity.issue);
+        expect(latest[0].state, ReviewCommentState.open);
+        expect(latest[1].body, 'New problem');
+
+        final third = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          seeded.task.id!,
+          seeded.reviewer.id!,
+        );
+        final next = await endpoints.codeReview.previousComments(
+          sessionBuilder,
+          third.id!,
+        );
+        expect(
+          next.map((c) => c.id),
+          isNot(contains(issue.id)),
+          reason: 'a superseded comment is represented by its copy',
+        );
+      });
+
+      test('then a dismissed comment is never reopened', () async {
+        final seeded = await seed();
+        final first = await completedReview(seeded.task, seeded.reviewer);
+        final session = sessionBuilder.build();
+        final dismissed = (await ReviewComment.db.find(
+          session,
+          where: (c) => c.reviewId.equals(first.id!),
+          orderBy: (c) => c.id,
+        )).first;
+        await endpoints.codeReview.setCommentState(
+          sessionBuilder,
+          dismissed.id!,
+          ReviewCommentState.dismissed,
+        );
+
+        final second = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          seeded.task.id!,
+          seeded.reviewer.id!,
+        );
+        await endpoints.codeReview.startReview(sessionBuilder, second.id!);
+        await endpoints.codeReview.completeReview(
+          sessionBuilder,
+          second.id!,
+          'LGTM',
+          [],
+          checks: [ReviewCommentCheck(commentId: dismissed.id!, fixed: false)],
+        );
+
+        final after = await ReviewComment.db.findById(session, dismissed.id!);
+        expect(after!.state, ReviewCommentState.dismissed);
+        expect(
+          await ReviewComment.db.count(
+            session,
+            where: (c) => c.reviewId.equals(second.id!),
+          ),
+          0,
+        );
+      });
+    });
+
+    group('when the reviewer also works on its own task', () {
+      Future<(Agent reviewer, CodeReview review)> reviewWhile(
+        TaskStatus ownTaskStatus,
+      ) async {
+        final seeded = await seed();
+        final session = sessionBuilder.build();
+        final review = await endpoints.codeReview.requestReview(
+          sessionBuilder,
+          seeded.task.id!,
+          seeded.reviewer.id!,
+        );
+        await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+        await Task.db.insertRow(
+          session,
+          Task(
+            projectId: seeded.task.projectId,
+            agentId: seeded.reviewer.id!,
+            prompt: 'Own work',
+            status: ownTaskStatus,
+          ),
+        );
+        return (seeded.reviewer, review);
+      }
+
+      Future<AgentStatus> statusOf(Agent agent) async =>
+          (await Agent.db.findById(sessionBuilder.build(), agent.id!))!.status;
+
+      test('then finishing the review keeps it busy', () async {
+        final (reviewer, review) = await reviewWhile(TaskStatus.running);
+        await endpoints.codeReview.completeReview(
+          sessionBuilder,
+          review.id!,
+          'LGTM',
+          [],
+        );
+        expect(await statusOf(reviewer), AgentStatus.busy);
+      });
+
+      test('then a failed review keeps it waiting for an answer', () async {
+        final (reviewer, review) = await reviewWhile(
+          TaskStatus.waitingForAnswer,
+        );
+        await endpoints.codeReview.failReview(
+          sessionBuilder,
+          review.id!,
+          'no JSON',
+        );
+        expect(await statusOf(reviewer), AgentStatus.waitingForResponse);
+      });
+
+      test(
+        'then its task finishing keeps it busy until the review ends',
+        () async {
+          final (reviewer, review) = await reviewWhile(
+            TaskStatus.awaitingReview,
+          );
+          await endpoints.agent.setStatus(
+            sessionBuilder,
+            reviewer.id!,
+            AgentStatus.idle,
+          );
+          expect(await statusOf(reviewer), AgentStatus.busy);
+
+          await endpoints.codeReview.completeReview(
+            sessionBuilder,
+            review.id!,
+            'LGTM',
+            [],
+          );
+          expect(await statusOf(reviewer), AgentStatus.idle);
+        },
+      );
+    });
+
     test(
       'when the project has no token then comments are kept locally only',
       () async {

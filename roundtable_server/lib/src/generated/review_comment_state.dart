@@ -23,7 +23,10 @@ enum ReviewCommentState implements _is.SerializableModel {
   sentToFix,
 
   /// fixed by the agent's follow-up run, or resolved by hand
-  resolved;
+  resolved,
+
+  /// a later review found it still not fixed and carried it over as a new comment
+  superseded;
 
   static ReviewCommentState fromJson(String name) {
     switch (name) {
@@ -35,6 +38,8 @@ enum ReviewCommentState implements _is.SerializableModel {
         return ReviewCommentState.sentToFix;
       case 'resolved':
         return ReviewCommentState.resolved;
+      case 'superseded':
+        return ReviewCommentState.superseded;
       default:
         throw ArgumentError(
           'Value "$name" cannot be converted to "ReviewCommentState"',

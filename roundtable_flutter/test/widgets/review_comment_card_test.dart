@@ -6,6 +6,7 @@ import 'package:roundtable_flutter/widgets/review_comment_card.dart';
 ReviewComment _comment({
   ReviewCommentState state = ReviewCommentState.open,
   int? line = 12,
+  int? carriedOverFromId,
 }) => ReviewComment(
   id: 1,
   reviewId: 1,
@@ -14,6 +15,7 @@ ReviewComment _comment({
   body: 'Null check is missing',
   severity: ReviewCommentSeverity.blocker,
   state: state,
+  carriedOverFromId: carriedOverFromId,
 );
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
@@ -26,6 +28,31 @@ void main() {
     expect(find.text('main.dart:12'), findsOneWidget);
     expect(find.byTooltip('lib/main.dart:12'), findsOneWidget);
     expect(find.text('Null check is missing'), findsOneWidget);
+  });
+
+  testWidgets('marks a comment carried over from an earlier review', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(ReviewCommentCard(comment: _comment(carriedOverFromId: 7))),
+    );
+    expect(find.text('Not fixed yet'), findsOneWidget);
+
+    await tester.pumpWidget(_wrap(ReviewCommentCard(comment: _comment())));
+    expect(find.text('Not fixed yet'), findsNothing);
+  });
+
+  testWidgets('a superseded comment has no actions', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        ReviewCommentCard(
+          comment: _comment(state: ReviewCommentState.superseded),
+          onStateChanged: (_) {},
+        ),
+      ),
+    );
+    expect(find.text('Carried over'), findsOneWidget);
+    expect(find.byType(TextButton), findsNothing);
   });
 
   testWidgets('hides the location when inline', (tester) async {

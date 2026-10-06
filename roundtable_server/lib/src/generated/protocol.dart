@@ -18,6 +18,10 @@ import 'package:roundtable_server/src/generated/diff_file.dart' as _i16fkh06;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
 import 'package:roundtable_server/src/generated/project.dart' as _ii35q81x;
 import 'package:roundtable_server/src/generated/project_tool.dart' as _i1odv8ju;
+import 'package:roundtable_server/src/generated/review_comment.dart'
+    as _ibdwjaau;
+import 'package:roundtable_server/src/generated/review_comment_check.dart'
+    as _iqs7w1y3;
 import 'package:roundtable_server/src/generated/review_comment_draft.dart'
     as _i245mzjz;
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
@@ -58,6 +62,7 @@ import 'pr_merge_status.dart' as _ixuoipsp;
 import 'project.dart' as _ifiazq2p;
 import 'project_tool.dart' as _icptw1qc;
 import 'review_comment.dart' as _itpwl327;
+import 'review_comment_check.dart' as _ikj4c45z;
 import 'review_comment_draft.dart' as _i6wlz106;
 import 'review_comment_severity.dart' as _iml08ymk;
 import 'review_comment_state.dart' as _igczzv9q;
@@ -100,6 +105,7 @@ export 'pr_merge_status.dart';
 export 'project.dart';
 export 'project_tool.dart';
 export 'review_comment.dart';
+export 'review_comment_check.dart';
 export 'review_comment_draft.dart';
 export 'review_comment_severity.dart';
 export 'review_comment_state.dart';
@@ -863,6 +869,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           isNullable: false,
           dartType: 'protocol:ReviewCommentState',
           columnDefault: '\'open\'',
+        ),
+        _isp.ColumnDefinition(
+          name: 'carriedOverFromId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
         ),
         _isp.ColumnDefinition(
           name: 'githubCommentId',
@@ -1778,6 +1790,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _itpwl327.ReviewComment) {
       return _itpwl327.ReviewComment.fromJson(data) as T;
     }
+    if (t == _ikj4c45z.ReviewCommentCheck) {
+      return _ikj4c45z.ReviewCommentCheck.fromJson(data) as T;
+    }
     if (t == _i6wlz106.ReviewCommentDraft) {
       return _i6wlz106.ReviewCommentDraft.fromJson(data) as T;
     }
@@ -1928,6 +1943,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_itpwl327.ReviewComment?>()) {
       return (data != null ? _itpwl327.ReviewComment.fromJson(data) : null)
+          as T;
+    }
+    if (t == _is.getType<_ikj4c45z.ReviewCommentCheck?>()) {
+      return (data != null ? _ikj4c45z.ReviewCommentCheck.fromJson(data) : null)
           as T;
     }
     if (t == _is.getType<_i6wlz106.ReviewCommentDraft?>()) {
@@ -2124,10 +2143,30 @@ class Protocol extends _is.DatabaseSerializationManager {
               .toList()
           as T;
     }
+    if (t == List<_ibdwjaau.ReviewComment>) {
+      return (data as List)
+              .map((e) => deserialize<_ibdwjaau.ReviewComment>(e))
+              .toList()
+          as T;
+    }
     if (t == List<_i245mzjz.ReviewCommentDraft>) {
       return (data as List)
               .map((e) => deserialize<_i245mzjz.ReviewCommentDraft>(e))
               .toList()
+          as T;
+    }
+    if (t == List<_iqs7w1y3.ReviewCommentCheck>) {
+      return (data as List)
+              .map((e) => deserialize<_iqs7w1y3.ReviewCommentCheck>(e))
+              .toList()
+          as T;
+    }
+    if (t == _is.getType<List<_iqs7w1y3.ReviewCommentCheck>?>()) {
+      return (data != null
+              ? (data as List)
+                    .map((e) => deserialize<_iqs7w1y3.ReviewCommentCheck>(e))
+                    .toList()
+              : null)
           as T;
     }
     if (t == List<int>) {
@@ -2227,6 +2266,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _ifiazq2p.Project => 'Project',
       _icptw1qc.ProjectTool => 'ProjectTool',
       _itpwl327.ReviewComment => 'ReviewComment',
+      _ikj4c45z.ReviewCommentCheck => 'ReviewCommentCheck',
       _i6wlz106.ReviewCommentDraft => 'ReviewCommentDraft',
       _iml08ymk.ReviewCommentSeverity => 'ReviewCommentSeverity',
       _igczzv9q.ReviewCommentState => 'ReviewCommentState',
@@ -2312,6 +2352,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'ProjectTool';
       case _itpwl327.ReviewComment():
         return 'ReviewComment';
+      case _ikj4c45z.ReviewCommentCheck():
+        return 'ReviewCommentCheck';
       case _i6wlz106.ReviewCommentDraft():
         return 'ReviewCommentDraft';
       case _iml08ymk.ReviewCommentSeverity():
@@ -2450,6 +2492,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'ReviewComment') {
       return deserialize<_itpwl327.ReviewComment>(data['data']);
+    }
+    if (dataClassName == 'ReviewCommentCheck') {
+      return deserialize<_ikj4c45z.ReviewCommentCheck>(data['data']);
     }
     if (dataClassName == 'ReviewCommentDraft') {
       return deserialize<_i6wlz106.ReviewCommentDraft>(data['data']);

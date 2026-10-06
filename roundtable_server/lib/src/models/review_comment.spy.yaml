@@ -11,6 +11,8 @@ fields:
   body: String
   severity: ReviewCommentSeverity, default=issue
   state: ReviewCommentState, default=open
+  ### The earlier comment this one carries over, when a later review found it not fixed yet.
+  carriedOverFromId: int?
   ### Id of the mirrored GitHub review comment, when it could be placed on the diff.
   githubCommentId: int?
   createdAt: DateTime, default=now

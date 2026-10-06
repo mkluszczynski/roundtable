@@ -8,3 +8,5 @@ values:
   - sentToFix
   ### fixed by the agent's follow-up run, or resolved by hand
   - resolved
+  ### a later review found it still not fixed and carried it over as a new comment
+  - superseded

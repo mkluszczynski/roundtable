@@ -28,6 +28,7 @@ abstract class ReviewComment
     required this.body,
     _iml08ymk.ReviewCommentSeverity? severity,
     _igczzv9q.ReviewCommentState? state,
+    this.carriedOverFromId,
     this.githubCommentId,
     DateTime? createdAt,
   }) : severity = severity ?? _iml08ymk.ReviewCommentSeverity.issue,
@@ -43,6 +44,7 @@ abstract class ReviewComment
     required String body,
     _iml08ymk.ReviewCommentSeverity? severity,
     _igczzv9q.ReviewCommentState? state,
+    int? carriedOverFromId,
     int? githubCommentId,
     DateTime? createdAt,
   }) = _ReviewCommentImpl;
@@ -69,6 +71,7 @@ abstract class ReviewComment
           : _igczzv9q.ReviewCommentState.fromJson(
               (jsonSerialization['state'] as String),
             ),
+      carriedOverFromId: jsonSerialization['carriedOverFromId'] as int?,
       githubCommentId: jsonSerialization['githubCommentId'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -98,6 +101,9 @@ abstract class ReviewComment
 
   _igczzv9q.ReviewCommentState state;
 
+  /// The earlier comment this one carries over, when a later review found it not fixed yet.
+  int? carriedOverFromId;
+
   /// Id of the mirrored GitHub review comment, when it could be placed on the diff.
   int? githubCommentId;
 
@@ -115,6 +121,7 @@ abstract class ReviewComment
     String? body,
     _iml08ymk.ReviewCommentSeverity? severity,
     _igczzv9q.ReviewCommentState? state,
+    int? carriedOverFromId,
     int? githubCommentId,
     DateTime? createdAt,
   });
@@ -130,6 +137,7 @@ abstract class ReviewComment
       'body': body,
       'severity': severity.toJson(),
       'state': state.toJson(),
+      if (carriedOverFromId != null) 'carriedOverFromId': carriedOverFromId,
       if (githubCommentId != null) 'githubCommentId': githubCommentId,
       'createdAt': createdAt.toJson(),
     };
@@ -147,6 +155,7 @@ abstract class ReviewComment
       'body': body,
       'severity': severity.toJson(),
       'state': state.toJson(),
+      if (carriedOverFromId != null) 'carriedOverFromId': carriedOverFromId,
       if (githubCommentId != null) 'githubCommentId': githubCommentId,
       'createdAt': createdAt.toJson(),
     };
@@ -170,6 +179,7 @@ class _ReviewCommentImpl extends ReviewComment {
     required String body,
     _iml08ymk.ReviewCommentSeverity? severity,
     _igczzv9q.ReviewCommentState? state,
+    int? carriedOverFromId,
     int? githubCommentId,
     DateTime? createdAt,
   }) : super._(
@@ -181,6 +191,7 @@ class _ReviewCommentImpl extends ReviewComment {
          body: body,
          severity: severity,
          state: state,
+         carriedOverFromId: carriedOverFromId,
          githubCommentId: githubCommentId,
          createdAt: createdAt,
        );
@@ -198,6 +209,7 @@ class _ReviewCommentImpl extends ReviewComment {
     String? body,
     _iml08ymk.ReviewCommentSeverity? severity,
     _igczzv9q.ReviewCommentState? state,
+    Object? carriedOverFromId = _Undefined,
     Object? githubCommentId = _Undefined,
     DateTime? createdAt,
   }) {
@@ -212,6 +224,9 @@ class _ReviewCommentImpl extends ReviewComment {
       body: body ?? this.body,
       severity: severity ?? this.severity,
       state: state ?? this.state,
+      carriedOverFromId: carriedOverFromId is int?
+          ? carriedOverFromId
+          : this.carriedOverFromId,
       githubCommentId: githubCommentId is int?
           ? githubCommentId
           : this.githubCommentId,
