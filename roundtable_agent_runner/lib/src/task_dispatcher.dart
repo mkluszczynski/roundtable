@@ -41,6 +41,7 @@ class TaskDispatcher {
     this.fetchAttachments = _noAttachments,
     this.environmentPrompt,
     this.fetchProject,
+    this.fetchTask,
     this.toolchainInstaller,
     this.sandboxFor,
   });
@@ -49,6 +50,13 @@ class TaskDispatcher {
   /// image. With [toolchainInstaller], the toolchains are installed before
   /// each run and put first on `claude`'s `PATH` (docs/FLOWS.md §7).
   final Future<Project?> Function(int projectId)? fetchProject;
+
+  /// The task's current row, or null once it's deleted. Bound to
+  /// `client.task.findTasks` in production. Used by [handle] when a task is
+  /// handed in again while an earlier [handle] of it is still in flight: by
+  /// the time that one finishes, the snapshot it was handed is stale. Without
+  /// it, the snapshot is used as is.
+  final Future<Task?> Function(int taskId)? fetchTask;
   final ToolchainInstaller? toolchainInstaller;
 
   /// Builds the container a docker-mode agent's run goes in (docs/FLOWS.md
@@ -132,16 +140,46 @@ class TaskDispatcher {
   /// replayed task can be handed in again while its first run is going.
   final Map<int, int> _inFlight = {};
 
+  /// Per task id, completes when the latest [handle] call for it is done —
+  /// so a task's runs never overlap (see [handle]).
+  final Map<int, Future<void>> _lastRun = {};
+
   /// Whether a [handle] call for [taskId] is in flight, i.e. its worktree
   /// may be in use — see `WorktreeJanitor`.
   bool isActive(int taskId) => _inFlight.containsKey(taskId);
 
+  ///
+  /// Calls for the same task run one after another, never concurrently: a
+  /// task cancelled back to the backlog and assigned again may be handed in
+  /// while its cancelled run is still tearing down, which would otherwise
+  /// reset the worktree under the new run and let the old run's writes land
+  /// on the new one. A call that had to wait acts on the task's current row
+  /// ([fetchTask]) — skipped if it's gone or was assigned to another agent
+  /// since (that agent's machine is handed it on its own).
   Future<void> handle(Task task) async {
     final id = task.id!;
     _inFlight[id] = (_inFlight[id] ?? 0) + 1;
+    final previous = _lastRun[id];
+    final done = Completer<void>();
+    _lastRun[id] = done.future;
     try {
+      if (previous != null) {
+        await previous;
+        final current = await (fetchTask?.call(id) ?? Future.value(task));
+        if (current == null) {
+          log('task $id: deleted while its previous run finished, skipping');
+          return;
+        }
+        if (current.agentId != task.agentId) {
+          log('task $id: reassigned while its previous run finished, skipping');
+          return;
+        }
+        task = current;
+      }
       await _handle(task);
     } finally {
+      done.complete();
+      if (identical(_lastRun[id], done.future)) _lastRun.remove(id);
       final remaining = _inFlight[id]! - 1;
       if (remaining == 0) {
         _inFlight.remove(id);
@@ -391,6 +429,29 @@ class TaskDispatcher {
         if (task.title == null) taskTitlePrompt(),
       ].join('\n\n');
 
+      // Cancelled before claude started (e.g. while still queued/cloning):
+      // the replayed `draft` row set the flag, with no process to kill yet.
+      Future<void> stopCancelled() async {
+        // The server already moved the task back to the backlog; there's no
+        // status left to report.
+        log('task ${task.id}: cancelled, resetting worktree');
+        await worktreeManager.resetWorktree(
+          projectId: '$projectId',
+          taskId: '${task.id}',
+        );
+        await updateAgent(agent!.copyWith(status: AgentStatus.idle));
+      }
+
+      if (cancelRequested) {
+        await stopCancelled();
+        return;
+      }
+      void onProcessStarted(Process process) {
+        liveProcess = process;
+        // A cancel that arrived between the check above and the spawn.
+        if (cancelRequested) process.kill(ProcessSignal.sigterm);
+      }
+
       final ClaudeCodeExecutionResult result;
       if (needsPlanning) {
         log('task ${task.id}: running claude (planning)');
@@ -407,7 +468,7 @@ class TaskDispatcher {
           environment: toolchain?.environment,
           resumeSessionId: canResumeSession ? resumeSessionId : null,
           onLine: onLine,
-          onProcessStarted: (p) => liveProcess = p,
+          onProcessStarted: onProcessStarted,
         );
       } else {
         log('task ${task.id}: running claude (execution)');
@@ -424,19 +485,12 @@ class TaskDispatcher {
           appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
           environment: toolchain?.environment,
           onLine: onLine,
-          onProcessStarted: (p) => liveProcess = p,
+          onProcessStarted: onProcessStarted,
         );
       }
 
       if (cancelRequested) {
-        // The server already moved the task back to the backlog; there's no
-        // status left to report.
-        log('task ${task.id}: cancelled, resetting worktree');
-        await worktreeManager.resetWorktree(
-          projectId: '$projectId',
-          taskId: '${task.id}',
-        );
-        await updateAgent(agent.copyWith(status: AgentStatus.idle));
+        await stopCancelled();
         return;
       }
 
