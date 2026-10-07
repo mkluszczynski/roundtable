@@ -216,6 +216,9 @@ CREATE TABLE "task" (
     "checkError" text,
     "checkFixAttempts" bigint NOT NULL DEFAULT 0,
     "checkFixSentForSha" text,
+    "prAdditions" bigint,
+    "prDeletions" bigint,
+    "openReviewComments" bigint NOT NULL DEFAULT 0,
     "createdAt" timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "startedAt" timestamp without time zone,
     "finishedAt" timestamp without time zone,
@@ -1194,9 +1197,9 @@ ALTER TABLE ONLY "serverpod_auth_core_session"
 -- MIGRATION VERSION FOR roundtable
 --
 INSERT INTO "serverpod_migrations" ("module", "version", "timestamp")
-    VALUES ('roundtable', '20261007174344838-machine-os-version', now())
+    VALUES ('roundtable', '20261007180522891-machine-os-version', now())
     ON CONFLICT ("module")
-    DO UPDATE SET "version" = '20261007174344838-machine-os-version', "timestamp" = now();
+    DO UPDATE SET "version" = '20261007180522891-machine-os-version', "timestamp" = now();
 
 --
 -- MIGRATION VERSION FOR serverpod

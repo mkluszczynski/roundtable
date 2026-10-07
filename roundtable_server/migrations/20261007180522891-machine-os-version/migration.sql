@@ -9,9 +9,9 @@ ALTER TABLE "machine" ADD COLUMN "osVersion" text;
 -- MIGRATION VERSION FOR roundtable
 --
 INSERT INTO "serverpod_migrations" ("module", "version", "timestamp")
-    VALUES ('roundtable', '20261007174344838-machine-os-version', now())
+    VALUES ('roundtable', '20261007180522891-machine-os-version', now())
     ON CONFLICT ("module")
-    DO UPDATE SET "version" = '20261007174344838-machine-os-version', "timestamp" = now();
+    DO UPDATE SET "version" = '20261007180522891-machine-os-version', "timestamp" = now();
 
 --
 -- MIGRATION VERSION FOR serverpod

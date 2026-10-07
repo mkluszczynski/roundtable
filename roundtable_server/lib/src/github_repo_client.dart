@@ -324,9 +324,9 @@ class GitHubRepoClient {
     return (hasConflicts: null, baseRef: baseRef!);
   }
 
-  /// Reads the head commit and state (`open`/`closed`) of the pull request
-  /// at [prUrl].
-  Future<({String sha, bool open})> getPrHead({
+  /// Reads the head commit, state (`open`/`closed`) and added/deleted line
+  /// totals of the pull request at [prUrl].
+  Future<({String sha, bool open, int? additions, int? deletions})> getPrHead({
     required String prUrl,
     required String token,
   }) async {
@@ -345,6 +345,8 @@ class GitHubRepoClient {
     return (
       sha: (pr['head'] as Map<String, dynamic>)['sha'] as String,
       open: pr['state'] == 'open',
+      additions: pr['additions'] as int?,
+      deletions: pr['deletions'] as int?,
     );
   }
 

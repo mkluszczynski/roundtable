@@ -382,14 +382,6 @@
         },
         {
           "__className__": "serverpod.ColumnDefinition",
-          "name": "osVersion",
-          "fieldName": "osVersion",
-          "columnType": 0,
-          "isNullable": true,
-          "dartType": "String?"
-        },
-        {
-          "__className__": "serverpod.ColumnDefinition",
           "name": "tokenHash",
           "fieldName": "tokenHash",
           "columnType": 0,
@@ -1288,6 +1280,31 @@
           "columnType": 0,
           "isNullable": true,
           "dartType": "String?"
+        },
+        {
+          "__className__": "serverpod.ColumnDefinition",
+          "name": "prAdditions",
+          "fieldName": "prAdditions",
+          "columnType": 6,
+          "isNullable": true,
+          "dartType": "int?"
+        },
+        {
+          "__className__": "serverpod.ColumnDefinition",
+          "name": "prDeletions",
+          "fieldName": "prDeletions",
+          "columnType": 6,
+          "isNullable": true,
+          "dartType": "int?"
+        },
+        {
+          "__className__": "serverpod.ColumnDefinition",
+          "name": "openReviewComments",
+          "fieldName": "openReviewComments",
+          "columnType": 6,
+          "isNullable": false,
+          "columnDefault": "0",
+          "dartType": "int"
         },
         {
           "__className__": "serverpod.ColumnDefinition",

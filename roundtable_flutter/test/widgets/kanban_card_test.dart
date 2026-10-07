@@ -107,4 +107,28 @@ void main() {
     await pump(inReview.copyWith(status: TaskStatus.done));
     expect(find.text('CI failed'), findsNothing);
   });
+
+  testWidgets('shows the PR line changes and unresolved review comments', (
+    tester,
+  ) async {
+    Future<void> pump(Task t) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KanbanCard(task: t, onTap: () {}),
+        ),
+      ),
+    );
+
+    await pump(task());
+    expect(find.textContaining('+', findRichText: true), findsNothing);
+    expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
+
+    await pump(
+      task().copyWith(prAdditions: 12, prDeletions: 3, openReviewComments: 2),
+    );
+    expect(find.text('+12 -3', findRichText: true), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.byTooltip('2 unresolved review comments'), findsOneWidget);
+  });
 }

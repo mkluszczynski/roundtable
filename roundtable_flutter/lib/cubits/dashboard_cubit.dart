@@ -14,16 +14,15 @@ enum KanbanColumn { backlog, inProgress, review, done }
 KanbanColumn kanbanColumnFor(TaskStatus status) => switch (status) {
   TaskStatus.draft ||
   TaskStatus.queued ||
-  TaskStatus.cloning => KanbanColumn.backlog,
+  TaskStatus.cloning ||
+  TaskStatus.failed => KanbanColumn.backlog,
   TaskStatus.planning ||
   TaskStatus.waitingForAnswer ||
   TaskStatus.planReady ||
   TaskStatus.running ||
   TaskStatus.paused => KanbanColumn.inProgress,
   TaskStatus.awaitingReview => KanbanColumn.review,
-  TaskStatus.done ||
-  TaskStatus.failed ||
-  TaskStatus.cancelled => KanbanColumn.done,
+  TaskStatus.done || TaskStatus.cancelled => KanbanColumn.done,
 };
 
 /// Statuses where the task is blocked on the dev — highlighted on cards and

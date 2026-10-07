@@ -59,6 +59,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.checkError,
     int? checkFixAttempts,
     this.checkFixSentForSha,
+    this.prAdditions,
+    this.prDeletions,
+    int? openReviewComments,
     DateTime? createdAt,
     this.startedAt,
     this.finishedAt,
@@ -78,6 +81,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
+       openReviewComments = openReviewComments ?? 0,
        createdAt = createdAt ?? DateTime.now(),
        lastProgressAt = lastProgressAt ?? DateTime.now();
 
@@ -115,6 +119,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? checkError,
     int? checkFixAttempts,
     String? checkFixSentForSha,
+    int? prAdditions,
+    int? prDeletions,
+    int? openReviewComments,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -204,6 +211,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       checkError: jsonSerialization['checkError'] as String?,
       checkFixAttempts: jsonSerialization['checkFixAttempts'] as int?,
       checkFixSentForSha: jsonSerialization['checkFixSentForSha'] as String?,
+      prAdditions: jsonSerialization['prAdditions'] as int?,
+      prDeletions: jsonSerialization['prDeletions'] as int?,
+      openReviewComments: jsonSerialization['openReviewComments'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -361,6 +371,17 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   /// the same failure is never auto-sent twice.
   String? checkFixSentForSha;
 
+  /// Lines added/removed by the PR at [prHeadSha], as GitHub counts them —
+  /// kept on the task so the kanban needs no diff fetch. Null until the
+  /// first checks sync.
+  int? prAdditions;
+
+  int? prDeletions;
+
+  /// Review comments still `open` or `sentToFix`, across all the task's
+  /// reviews. Kept up to date by `postReviewChanged`.
+  int openReviewComments;
+
   DateTime createdAt;
 
   DateTime? startedAt;
@@ -419,6 +440,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     String? checkError,
     int? checkFixAttempts,
     String? checkFixSentForSha,
+    int? prAdditions,
+    int? prDeletions,
+    int? openReviewComments,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -465,6 +489,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (checkError != null) 'checkError': checkError,
       'checkFixAttempts': checkFixAttempts,
       if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
+      if (prAdditions != null) 'prAdditions': prAdditions,
+      if (prDeletions != null) 'prDeletions': prDeletions,
+      'openReviewComments': openReviewComments,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -517,6 +544,9 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (checkError != null) 'checkError': checkError,
       'checkFixAttempts': checkFixAttempts,
       if (checkFixSentForSha != null) 'checkFixSentForSha': checkFixSentForSha,
+      if (prAdditions != null) 'prAdditions': prAdditions,
+      if (prDeletions != null) 'prDeletions': prDeletions,
+      'openReviewComments': openReviewComments,
       'createdAt': createdAt.toJson(),
       if (startedAt != null) 'startedAt': startedAt?.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -617,6 +647,9 @@ class _TaskImpl extends Task {
     String? checkError,
     int? checkFixAttempts,
     String? checkFixSentForSha,
+    int? prAdditions,
+    int? prDeletions,
+    int? openReviewComments,
     DateTime? createdAt,
     DateTime? startedAt,
     DateTime? finishedAt,
@@ -659,6 +692,9 @@ class _TaskImpl extends Task {
          checkError: checkError,
          checkFixAttempts: checkFixAttempts,
          checkFixSentForSha: checkFixSentForSha,
+         prAdditions: prAdditions,
+         prDeletions: prDeletions,
+         openReviewComments: openReviewComments,
          createdAt: createdAt,
          startedAt: startedAt,
          finishedAt: finishedAt,
@@ -707,6 +743,9 @@ class _TaskImpl extends Task {
     Object? checkError = _Undefined,
     int? checkFixAttempts,
     Object? checkFixSentForSha = _Undefined,
+    Object? prAdditions = _Undefined,
+    Object? prDeletions = _Undefined,
+    int? openReviewComments,
     DateTime? createdAt,
     Object? startedAt = _Undefined,
     Object? finishedAt = _Undefined,
@@ -768,6 +807,9 @@ class _TaskImpl extends Task {
       checkFixSentForSha: checkFixSentForSha is String?
           ? checkFixSentForSha
           : this.checkFixSentForSha,
+      prAdditions: prAdditions is int? ? prAdditions : this.prAdditions,
+      prDeletions: prDeletions is int? ? prDeletions : this.prDeletions,
+      openReviewComments: openReviewComments ?? this.openReviewComments,
       createdAt: createdAt ?? this.createdAt,
       startedAt: startedAt is DateTime? ? startedAt : this.startedAt,
       finishedAt: finishedAt is DateTime? ? finishedAt : this.finishedAt,
@@ -949,6 +991,21 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
         value,
       );
 
+  _is.ColumnValue<int, int> prAdditions(int? value) => _is.ColumnValue(
+    table.prAdditions,
+    value,
+  );
+
+  _is.ColumnValue<int, int> prDeletions(int? value) => _is.ColumnValue(
+    table.prDeletions,
+    value,
+  );
+
+  _is.ColumnValue<int, int> openReviewComments(int value) => _is.ColumnValue(
+    table.openReviewComments,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -1107,6 +1164,19 @@ class TaskTable extends _is.Table<int?> {
       'checkFixSentForSha',
       this,
     );
+    prAdditions = _is.ColumnInt(
+      'prAdditions',
+      this,
+    );
+    prDeletions = _is.ColumnInt(
+      'prDeletions',
+      this,
+    );
+    openReviewComments = _is.ColumnInt(
+      'openReviewComments',
+      this,
+      hasDefault: true,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -1241,6 +1311,17 @@ class TaskTable extends _is.Table<int?> {
   /// The head commit whose failing checks were last sent to the agent, so
   /// the same failure is never auto-sent twice.
   late final _is.ColumnString checkFixSentForSha;
+
+  /// Lines added/removed by the PR at [prHeadSha], as GitHub counts them —
+  /// kept on the task so the kanban needs no diff fetch. Null until the
+  /// first checks sync.
+  late final _is.ColumnInt prAdditions;
+
+  late final _is.ColumnInt prDeletions;
+
+  /// Review comments still `open` or `sentToFix`, across all the task's
+  /// reviews. Kept up to date by `postReviewChanged`.
+  late final _is.ColumnInt openReviewComments;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -1467,6 +1548,9 @@ class TaskTable extends _is.Table<int?> {
     checkError,
     checkFixAttempts,
     checkFixSentForSha,
+    prAdditions,
+    prDeletions,
+    openReviewComments,
     createdAt,
     startedAt,
     finishedAt,
