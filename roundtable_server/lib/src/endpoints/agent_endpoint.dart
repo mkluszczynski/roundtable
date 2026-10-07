@@ -54,12 +54,17 @@ class AgentEndpoint extends Endpoint {
   /// the panel's agent statuses stay live. Deletions aren't streamed: the
   /// panel refetches [list] after deleting.
   Stream<Agent> watchAgents(Session session) async* {
+    // Subscribed before the replay query: a change posted while it runs
+    // would otherwise be lost, leaving the replayed (older) row in the
+    // panel. `createStream` registers its listener right away and buffers
+    // until the loop below listens; a duplicate row is harmless, the panel
+    // merges by id.
+    var updates = session.messages.createStream<Agent>(allAgentsChannel);
     var agents = await list(session);
     for (var agent in agents) {
       yield agent;
     }
 
-    var updates = session.messages.createStream<Agent>(allAgentsChannel);
     await for (var agent in updates) {
       yield agent;
     }

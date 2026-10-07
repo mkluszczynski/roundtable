@@ -261,5 +261,34 @@ void main() {
         expect(emitted.last.role?.name, 'backend');
       },
     );
+
+    test(
+      'when a status changes right after subscribing to watchAgents '
+      'then the change is delivered',
+      () async {
+        final machine = await createMachine();
+        final agent = await endpoints.agent.create(
+          sessionBuilder,
+          'Ana',
+          machine.id!,
+        );
+
+        final stream = endpoints.agent.watchAgents(sessionBuilder);
+        // No flushEventQueue: setStatus races the replay query. Whichever
+        // row the replay reads, the posted change must follow it — before,
+        // a post landing between the query and the channel subscription
+        // was lost and only the replayed row arrived.
+        final events = stream.take(2).toList();
+        await endpoints.agent.setStatus(
+          sessionBuilder,
+          agent.id!,
+          AgentStatus.busy,
+        );
+
+        final emitted = await events.timeout(const Duration(seconds: 10));
+        expect(emitted.last.id, agent.id);
+        expect(emitted.last.status, AgentStatus.busy);
+      },
+    );
   });
 }
