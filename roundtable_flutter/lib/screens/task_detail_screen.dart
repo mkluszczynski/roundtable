@@ -1000,7 +1000,8 @@ class _BranchRow extends StatelessWidget {
       children: [
         const Icon(Icons.call_split, size: 14, color: AppColors.text1),
         const SizedBox(width: Spacing.xs),
-        Expanded(
+        // Flexible, not Expanded: the actions sit right after the name.
+        Flexible(
           child: Tooltip(
             message: task.branchName ?? '',
             child: Text(
