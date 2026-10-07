@@ -294,6 +294,9 @@ busy with other work (§5).
    GitHub thread). `sendCommentsToFix(commentIds, note)` marks them
    `sentToFix` and queues a review-phase feedback run. When that run reaches
    `awaitingReview` again, `TaskEndpoint.update` marks them `resolved`.
+   The task detail's AI review tab stays available (read-only) during that
+   run — including one started by auto fix — so the dev can read what the
+   reviewer found while the agent fixes it.
 5. **Re-reviews check earlier comments.** `ReviewDispatcher` fetches
    `previousComments(reviewId)` (earlier reviews of the task, minus
    `superseded`) and `buildReviewPrompt` lists them with their state. The
