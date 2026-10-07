@@ -72,6 +72,8 @@ Future<void> main(List<String> args) async {
 /// What the fake agent does, in order:
 /// - `plan` (String): the plan proposed in plan mode.
 /// - `title` (String?): set through `set_task_title` when offered.
+/// - `question` (Map?): asked in plan mode before the plan, see
+///   [Scenario.question].
 /// - `runs` (List): one per planning/execution/feedback run — `files`
 ///   (path → content written in the worktree), `result` (final message)
 ///   and `sleepMs` (how long the run takes).
@@ -85,6 +87,11 @@ class Scenario {
 
   String get plan => json['plan'] as String? ?? '1. Make the change.';
   String? get title => json['title'] as String?;
+
+  /// Asked through `AskUserQuestion` before planning: `question` and
+  /// `options` (labels); the answer is appended to the plan.
+  Map<String, dynamic>? get question =>
+      json['question'] as Map<String, dynamic>?;
   List<dynamic> get runs => json['runs'] as List? ?? const [];
   List<dynamic> get reviews => json['reviews'] as List? ?? const [];
 }
@@ -122,6 +129,36 @@ Future<String> _planThenExecute(
       });
     }
     var plan = scenario.plan;
+    final question = scenario.question;
+    if (question != null) {
+      _say('Asking the developer.');
+      final asked = await mcp.call('tools/call', {
+        'name': 'approval_prompt',
+        'arguments': {
+          'tool_name': 'AskUserQuestion',
+          'input': {
+            'questions': [
+              {
+                'question': question['question'],
+                'header': 'Question',
+                'multiSelect': false,
+                'options': [
+                  for (final o in question['options'] as List) {'label': o},
+                ],
+              },
+            ],
+          },
+        },
+      });
+      final decision =
+          jsonDecode(
+                ((asked['content'] as List).first as Map)['text'] as String,
+              )
+              as Map<String, dynamic>;
+      final answers =
+          ((decision['updatedInput'] as Map?)?['answers'] as Map?) ?? const {};
+      plan = '$plan\n\nThe developer chose: ${answers[question['question']]}';
+    }
     for (var attempt = 0; attempt < 5; attempt++) {
       _say('Proposing the plan.');
       final response = await mcp.call('tools/call', {

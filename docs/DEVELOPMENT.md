@@ -103,6 +103,10 @@ Covered flows (`test/user_flows_test.dart`): plan → approve → execute →
 merge; auto review finds a blocker → auto fix → the re-review confirms the
 fix → auto merge; one task at a time per agent, and cancelling a waiting
 task.
+`test/conversation_flows_test.dart`: a rejected plan comes back revised
+with the feedback; feedback on a PR resumes the session and updates the
+same PR; a question from the agent waits for the answer, which shapes the
+plan.
 
 The panel is clicked through the same stack by
 `roundtable_flutter/integration_test/panel_flow_test.dart` (new task →
