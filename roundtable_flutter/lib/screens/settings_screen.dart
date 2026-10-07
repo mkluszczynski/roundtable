@@ -182,11 +182,13 @@ class _TaskDefaultsCard extends StatelessWidget {
             s.autoFixReview,
             (v) => onChanged(s.copyWith(autoFixReview: v)),
           ),
-          _count(
-            maxFixRoundsOption,
-            s.maxReviewFixRounds,
-            (n) => onChanged(s.copyWith(maxReviewFixRounds: n)),
-          ),
+          // Fix rounds only cap auto fix.
+          if (s.autoFixReview)
+            _count(
+              maxFixRoundsOption,
+              s.maxReviewFixRounds,
+              (n) => onChanged(s.copyWith(maxReviewFixRounds: n)),
+            ),
           _section('MERGE & CI'),
           SettingRow(
             title: autoMergeOption.title,

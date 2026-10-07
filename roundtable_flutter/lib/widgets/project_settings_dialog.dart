@@ -203,13 +203,15 @@ class _ProjectSettingsDialogState extends State<ProjectSettingsDialog> {
                       workspaceValue: workspace.autoFixReview,
                       onChanged: (v) => _save(p.copyWith(autoFixReview: v)),
                     ),
-                    _count(
-                      maxFixRoundsOption,
-                      value: p.maxReviewFixRounds,
-                      workspaceValue: workspace.maxReviewFixRounds,
-                      onChanged: (n) =>
-                          _save(p.copyWith(maxReviewFixRounds: n)),
-                    ),
+                    // Fix rounds only cap auto fix (own or inherited).
+                    if (p.autoFixReview ?? workspace.autoFixReview)
+                      _count(
+                        maxFixRoundsOption,
+                        value: p.maxReviewFixRounds,
+                        workspaceValue: workspace.maxReviewFixRounds,
+                        onChanged: (n) =>
+                            _save(p.copyWith(maxReviewFixRounds: n)),
+                      ),
                     _section('MERGE & CI'),
                     _bool(
                       autoMergeOption,
