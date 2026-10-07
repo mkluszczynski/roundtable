@@ -192,8 +192,8 @@ Design choices worth keeping:
   `utils/closeable_streams.dart` (`CloseableStreams.untilClosed`), so
   closing a Bloc/Cubit cancels its server subscriptions.
 - Kanban columns (`cubits/dashboard_cubit.dart`): **Backlog** (draft, queued,
-  cloning) · **In progress** (planning, waitingForAnswer, planReady, running)
-  · **Review** (awaitingReview) · **Done** (done, failed, and legacy
+  cloning, failed) · **In progress** (planning, waitingForAnswer, planReady,
+  running) · **Review** (awaitingReview) · **Done** (done and legacy
   cancelled). Cancelling a task moves it back to **Backlog** as a draft.
 - `utils/`: `task_status_label.dart` (human-readable status labels),
   `error_message.dart` (shows a typed server exception's `message`),
