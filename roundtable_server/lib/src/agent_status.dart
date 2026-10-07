@@ -2,6 +2,23 @@ import 'package:serverpod/serverpod.dart';
 
 import 'generated/protocol.dart';
 
+/// Channel every agent change is posted to, streamed to the panel by
+/// `AgentEndpoint.watchAgents` so agent statuses stay live.
+const allAgentsChannel = 'all-agents';
+
+/// Broadcasts agent [agentId]'s current row (with its role, like
+/// `AgentEndpoint.list`) to `AgentEndpoint.watchAgents` subscribers. Call
+/// after every write to an agent row.
+Future<void> postAgentChanged(Session session, int agentId) async {
+  var agent = await Agent.db.findById(
+    session,
+    agentId,
+    include: Agent.include(role: AgentRoleDefinition.include()),
+  );
+  if (agent == null) return;
+  await session.messages.postMessage(allAgentsChannel, agent);
+}
+
 /// Task statuses in which the agent's `claude` process is running.
 const _workingTaskStatuses = {
   TaskStatus.cloning,

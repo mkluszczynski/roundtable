@@ -472,6 +472,20 @@ class Endpoints extends _is.EndpointDispatch {
                 params['id'],
               ),
         ),
+        'watchAgents': _is.MethodStreamConnector(
+          name: 'watchAgents',
+          params: {},
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['agent'] as _ik1xrao3.AgentEndpoint).watchAgents(
+                session,
+              ),
+        ),
       },
     );
     connectors['agentRole'] = _is.EndpointConnector(

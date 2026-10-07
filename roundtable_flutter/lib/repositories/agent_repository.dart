@@ -9,6 +9,10 @@ class AgentRepository {
 
   Future<Agent?> getAgent(int id) => _client.agent.get(id);
 
+  /// Every agent on subscribe, then each agent as it changes (created,
+  /// edited, or its status reported by a daemon). Deletions aren't streamed.
+  Stream<Agent> watchAgents() => _client.agent.watchAgents();
+
   Future<Agent> createAgent({
     required String name,
     required int machineId,

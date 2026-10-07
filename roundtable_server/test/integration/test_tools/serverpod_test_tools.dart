@@ -721,6 +721,37 @@ class _AgentEndpoint {
     });
   }
 
+  _ida.Stream<_iaucj7w0.Agent> watchAgents(
+    _ist.TestSessionBuilder sessionBuilder,
+  ) {
+    var _localTestStreamManager = _ist.TestStreamManager<_iaucj7w0.Agent>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'agent',
+              method: 'watchAgents',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'agent',
+              methodName: 'watchAgents',
+              arguments: {},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
   _ida.Future<_iaucj7w0.Agent> update(
     _ist.TestSessionBuilder sessionBuilder,
     _iaucj7w0.Agent agent,
