@@ -632,17 +632,27 @@ class EndpointMachine extends _isc.EndpointRef {
   /// A pending request is cleared once the daemon reports a version other
   /// than the one it was requested from, i.e. after the update restarted it.
   ///
+  /// The update restarts the daemon, which kills its `claude` runs, so it
+  /// waits for the machine's agents to finish their current work. A daemon
+  /// passing [drainsForUpdate] holds back new work and hands the update off
+  /// once it's idle itself, so it's told about a pending request right away.
+  /// For older daemons, which update as soon as they're told, the request is
+  /// reported only while none of the machine's agents has an agent-driven
+  /// task or a running code review.
+  ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
   _ida.Future<bool> checkIn(
     String token,
-    String? runnerVersion,
-  ) => caller.callServerEndpoint<bool>(
+    String? runnerVersion, {
+    bool? drainsForUpdate,
+  }) => caller.callServerEndpoint<bool>(
     'machine',
     'checkIn',
     {
       'token': token,
       'runnerVersion': runnerVersion,
+      'drainsForUpdate': drainsForUpdate,
     },
   );
 

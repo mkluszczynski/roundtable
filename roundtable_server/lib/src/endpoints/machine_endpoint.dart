@@ -113,13 +113,24 @@ class MachineEndpoint extends Endpoint {
   /// A pending request is cleared once the daemon reports a version other
   /// than the one it was requested from, i.e. after the update restarted it.
   ///
+  /// The update restarts the daemon, which kills its `claude` runs, so it
+  /// waits for the machine's agents to finish their current work. A daemon
+  /// passing [drainsForUpdate] holds back new work and hands the update off
+  /// once it's idle itself, so it's told about a pending request right away.
+  /// For older daemons, which update as soon as they're told, the request is
+  /// reported only while none of the machine's agents has an agent-driven
+  /// task or a running code review.
+  ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
   Future<bool> checkIn(
     Session session,
     String token,
-    String? runnerVersion,
-  ) async {
+    String? runnerVersion, {
+    // Nullable rather than defaulted: the generated test tools would make a
+    // defaulted named parameter required.
+    bool? drainsForUpdate,
+  }) async {
     final machine = await _findByToken(session, token);
     final updated = machine.runnerVersion != runnerVersion;
     final updateRequestedAt = updated ? null : machine.updateRequestedAt;
@@ -132,7 +143,33 @@ class MachineEndpoint extends Endpoint {
         updateRequestedAt: updateRequestedAt,
       ),
     );
-    return updateRequestedAt != null;
+    if (updateRequestedAt == null) return false;
+    if (drainsForUpdate ?? false) return true;
+    return !await _hasActiveWork(session, machine.id!);
+  }
+
+  /// Whether any of machine [machineId]'s agents has a `claude` run going:
+  /// an agent-driven task or a running code review, which a daemon restart
+  /// would fail (see [reportStartup]).
+  Future<bool> _hasActiveWork(Session session, int machineId) async {
+    final agentIds = (await Agent.db.find(
+      session,
+      where: (t) => t.machineId.equals(machineId),
+    )).map((agent) => agent.id!).toSet();
+    if (agentIds.isEmpty) return false;
+    final tasks = await Task.db.count(
+      session,
+      where: (t) =>
+          t.agentId.inSet(agentIds) & t.status.inSet(agentDrivenTaskStatuses),
+    );
+    if (tasks > 0) return true;
+    final reviews = await CodeReview.db.count(
+      session,
+      where: (t) =>
+          t.reviewerAgentId.inSet(agentIds) &
+          t.status.equals(CodeReviewStatus.running),
+    );
+    return reviews > 0;
   }
 
   /// Called by the daemon when a run hits the Claude usage limit: the

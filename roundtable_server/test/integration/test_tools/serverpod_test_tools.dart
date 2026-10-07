@@ -1507,8 +1507,9 @@ class _MachineEndpoint {
   _ida.Future<bool> checkIn(
     _ist.TestSessionBuilder sessionBuilder,
     String token,
-    String? runnerVersion,
-  ) async {
+    String? runnerVersion, {
+    bool? drainsForUpdate,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1523,6 +1524,7 @@ class _MachineEndpoint {
           parameters: _ist.testObjectToJson({
             'token': token,
             'runnerVersion': runnerVersion,
+            'drainsForUpdate': drainsForUpdate,
           }),
           serializationManager: _serializationManager,
         );

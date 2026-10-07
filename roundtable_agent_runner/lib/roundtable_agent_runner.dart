@@ -645,9 +645,10 @@ class AgentRunnerService {
       final updateRequested = await _client.machine.checkIn(
         _config.registrationToken,
         _runnerVersion,
+        drainsForUpdate: true,
       );
       _log('heartbeat ok');
-      if (updateRequested) _handOffUpdate();
+      _handleUpdateRequest(updateRequested);
     } on InvalidTokenException catch (e) {
       _log(
         'FATAL: registration token rejected by server (${e.message}) — '
@@ -660,10 +661,19 @@ class AgentRunnerService {
     await _checkClaudeExecutable();
   }
 
-  /// Triggers the root-side updater once per process — it restarts this
-  /// service, so the next process reports the new version and the server
-  /// clears the request.
-  void _handOffUpdate() {
+  /// The update restarts this service, which would kill the `claude` runs in
+  /// progress (the server then fails their tasks), so a requested update
+  /// waits for them: new work is held back ([AgentWorkQueue.drain]) and the
+  /// update is handed off once no agent is busy. Held work is let go if the
+  /// request is withdrawn or can't be handed off.
+  void _handleUpdateRequest(bool updateRequested) {
+    if (!updateRequested) {
+      if (_workQueue.isDraining && !_updateHandedOff) {
+        _log('update no longer requested, resuming work');
+        _workQueue.resume();
+      }
+      return;
+    }
     if (_updateHandedOff) return;
     final flagPath = _config.updateFlagPath;
     if (flagPath == null) {
@@ -671,12 +681,32 @@ class AgentRunnerService {
         'update requested, but this install has no updater — re-run '
         'scripts/install-agent.sh once to enable in-panel updates',
       );
-    } else if (requestRunnerUpdate(flagPath)) {
-      _log('update requested, handed off to agent-runner-update');
-    } else {
-      _log('update requested, but could not write $flagPath');
+      // Logged once per process, as before; nothing to wait for.
+      _updateHandedOff = true;
       return;
     }
+    _workQueue.drain();
+    if (!_workQueue.isIdle) {
+      _log(
+        'update requested, waiting for ${_workQueue.currentWorks.join(', ')} '
+        'to finish',
+      );
+      return;
+    }
+    _handOffUpdate(flagPath);
+  }
+
+  /// Triggers the root-side updater once per process — it restarts this
+  /// service, so the next process reports the new version and the server
+  /// clears the request. Held work is let go if the flag can't be written,
+  /// and the hand-off is retried on the next check-in.
+  void _handOffUpdate(String flagPath) {
+    if (!requestRunnerUpdate(flagPath)) {
+      _log('update requested, but could not write $flagPath');
+      _workQueue.resume();
+      return;
+    }
+    _log('update requested, handed off to agent-runner-update');
     _updateHandedOff = true;
   }
 
