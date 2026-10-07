@@ -62,4 +62,42 @@ void main() {
       contains('`mcp__roundtable-permission__set_task_title`'),
     );
   });
+
+  group('parseOsRelease', () {
+    test('reads NAME and VERSION_ID', () {
+      expect(
+        parseOsRelease('''
+PRETTY_NAME="Ubuntu 24.04.1 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+ID=ubuntu
+'''),
+        'Ubuntu 24.04',
+      );
+      expect(
+        parseOsRelease(
+          'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\n'
+          'NAME="Debian GNU/Linux"\nVERSION_ID="12"\n',
+        ),
+        'Debian GNU/Linux 12',
+      );
+    });
+
+    test('falls back to PRETTY_NAME, then NAME, without a VERSION_ID', () {
+      expect(
+        parseOsRelease('NAME="Arch"\nPRETTY_NAME="Arch Linux"\nID=arch\n'),
+        'Arch Linux',
+      );
+      expect(parseOsRelease("NAME='Gentoo'\n"), 'Gentoo');
+    });
+
+    test('is null without any name', () {
+      expect(parseOsRelease(''), isNull);
+      expect(parseOsRelease('# NAME=x\nID=x\n'), isNull);
+    });
+  });
+
+  test('detectOsVersion returns a non-empty description', () async {
+    expect(await detectOsVersion(), isNotEmpty);
+  });
 }

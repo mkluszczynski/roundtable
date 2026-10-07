@@ -12,10 +12,8 @@ class MachineRepository {
   /// Registers a new machine, returning it along with the one-time raw
   /// registration token — only ever available here, never persisted or
   /// re-fetchable (docs/FLOWS.md §1–3).
-  Future<MachineRegistration> registerMachine(
-    String name, {
-    String? hostInfo,
-  }) => _client.machine.register(name, hostInfo: hostInfo);
+  Future<MachineRegistration> registerMachine(String name) =>
+      _client.machine.register(name);
 
   Future<void> deleteMachine(int id) => _client.machine.delete(id);
 

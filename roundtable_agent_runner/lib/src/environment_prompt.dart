@@ -50,6 +50,61 @@ Future<ToolInfo> _probe(String tool, Duration timeout) async {
   }
 }
 
+/// The OS this daemon runs on, e.g. "Ubuntu 24.04" or "macOS 15.1" — shown
+/// on the machine's card in the panel. Falls back to Dart's raw
+/// [Platform.operatingSystemVersion] when nothing better can be read.
+///
+/// Awaited before the daemon takes work, so a probe that hangs is cut off
+/// after [timeout] instead of blocking startup.
+Future<String> detectOsVersion({
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  Future<String> swVers(String flag) async =>
+      '${(await Process.run('sw_vers', [flag]).timeout(timeout)).stdout}'
+          .trim();
+
+  try {
+    if (Platform.isLinux) {
+      final osRelease = File('/etc/os-release');
+      if (await osRelease.exists()) {
+        final parsed = parseOsRelease(await osRelease.readAsString());
+        if (parsed != null) return parsed;
+      }
+    } else if (Platform.isMacOS) {
+      final name = await swVers('-productName');
+      final version = await swVers('-productVersion');
+      if (name.isNotEmpty) return '$name $version'.trim();
+    }
+  } on TimeoutException {
+    // Fall through to the generic description.
+  } on Exception {
+    // Fall through to the generic description.
+  }
+  return '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
+}
+
+/// Reads `NAME` + `VERSION_ID` ("Ubuntu 24.04") from the contents of an
+/// `/etc/os-release` file, falling back to `PRETTY_NAME`, then `NAME`.
+/// Null when none of them is set.
+String? parseOsRelease(String contents) {
+  final fields = <String, String>{};
+  for (final line in contents.split('\n')) {
+    final eq = line.indexOf('=');
+    if (eq <= 0 || line.trimLeft().startsWith('#')) continue;
+    var value = line.substring(eq + 1).trim();
+    if (value.length >= 2 &&
+        (value.startsWith('"') && value.endsWith('"') ||
+            value.startsWith("'") && value.endsWith("'"))) {
+      value = value.substring(1, value.length - 1);
+    }
+    if (value.isNotEmpty) fields[line.substring(0, eq).trim()] = value;
+  }
+  final name = fields['NAME'];
+  final versionId = fields['VERSION_ID'];
+  if (name != null && versionId != null) return '$name $versionId';
+  return fields['PRETTY_NAME'] ?? name;
+}
+
 /// Appended to Claude Code's system prompt (`--append-system-prompt`) on
 /// every run, so the agent plans for the machine it's actually on instead
 /// of a developer's interactive setup.

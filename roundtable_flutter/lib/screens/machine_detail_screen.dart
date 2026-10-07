@@ -13,6 +13,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
+import '../utils/machine_os_description.dart';
 import '../utils/relative_time.dart';
 import '../widgets/usage_limit_note.dart';
 import '../widgets/add_agent_dialog.dart';
@@ -316,6 +317,7 @@ class _MachineRail extends StatelessWidget {
     };
     final online = machine.status == MachineStatus.online;
     final lastSeen = machine.lastSeenAt;
+    final osDescription = machine.osDescription;
     final updateStatus = _updateStatus(machineState);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -339,8 +341,8 @@ class _MachineRail extends StatelessWidget {
                             : 'Offline — last seen ${relativeTime(lastSeen)}',
                         style: AppTypography.bodyStrong,
                       ),
-                      if (machine.hostInfo != null)
-                        Text(machine.hostInfo!, style: AppTypography.code),
+                      if (osDescription != null)
+                        Text(osDescription, style: AppTypography.code),
                       Text(
                         'Registered '
                         '${relativeTime(machine.createdAt, words: true)}',

@@ -43,13 +43,10 @@ class AddMachineCubit extends Cubit<AddMachineState> {
 
   final MachineRepository _repository;
 
-  Future<void> submit(String name, {String? hostInfo}) async {
+  Future<void> submit(String name) async {
     emit(const AddMachineSubmitting());
     try {
-      final registration = await _repository.registerMachine(
-        name,
-        hostInfo: hostInfo,
-      );
+      final registration = await _repository.registerMachine(name);
       emit(
         AddMachineRegistered(
           registration.machine,

@@ -49,6 +49,7 @@ machine:
   - reportMetric:
   - reportClaudeStatus:
   - reportToolchain:
+  - reportOsVersion:
   - watchLatestMetric:
   - delete:
 project:

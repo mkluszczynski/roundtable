@@ -709,5 +709,43 @@ void main() {
         );
       },
     );
+
+    test(
+      'when reporting the OS version with a valid token then it is persisted '
+      'on the machine',
+      () async {
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+
+        await endpoints.machine.reportOsVersion(
+          sessionBuilder,
+          registration.token,
+          'Ubuntu 24.04',
+        );
+
+        final fetched = await endpoints.machine.get(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+        expect(fetched!.osVersion, 'Ubuntu 24.04');
+      },
+    );
+
+    test(
+      'when reporting the OS version with an unknown token then it throws '
+      'InvalidTokenException',
+      () async {
+        await expectLater(
+          endpoints.machine.reportOsVersion(
+            sessionBuilder,
+            'not-a-real-token',
+            'Ubuntu 24.04',
+          ),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
   });
 }

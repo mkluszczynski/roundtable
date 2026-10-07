@@ -25,6 +25,7 @@ abstract class Machine
     this.id,
     required this.name,
     this.hostInfo,
+    this.osVersion,
     this.tokenHash,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
@@ -44,6 +45,7 @@ abstract class Machine
     int? id,
     required String name,
     String? hostInfo,
+    String? osVersion,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -63,6 +65,7 @@ abstract class Machine
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
       hostInfo: jsonSerialization['hostInfo'] as String?,
+      osVersion: jsonSerialization['osVersion'] as String?,
       tokenHash: jsonSerialization['tokenHash'] as String?,
       status: jsonSerialization['status'] == null
           ? null
@@ -121,8 +124,13 @@ abstract class Machine
   /// The machine's display name.
   String name;
 
-  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  /// Legacy free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"),
+  /// display only. The panel shows [osVersion] instead once the daemon reports it.
   String? hostInfo;
+
+  /// OS name + version detected by the daemon at startup (e.g. "Ubuntu 24.04").
+  /// Null for daemons that predate OS detection.
+  String? osVersion;
 
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   String? tokenHash;
@@ -180,6 +188,7 @@ abstract class Machine
     int? id,
     String? name,
     String? hostInfo,
+    String? osVersion,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -200,6 +209,7 @@ abstract class Machine
       if (id != null) 'id': id,
       'name': name,
       if (hostInfo != null) 'hostInfo': hostInfo,
+      if (osVersion != null) 'osVersion': osVersion,
       if (tokenHash != null) 'tokenHash': tokenHash,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
@@ -227,6 +237,7 @@ abstract class Machine
       if (id != null) 'id': id,
       'name': name,
       if (hostInfo != null) 'hostInfo': hostInfo,
+      if (osVersion != null) 'osVersion': osVersion,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
@@ -287,6 +298,7 @@ class _MachineImpl extends Machine {
     int? id,
     required String name,
     String? hostInfo,
+    String? osVersion,
     String? tokenHash,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
@@ -303,6 +315,7 @@ class _MachineImpl extends Machine {
          id: id,
          name: name,
          hostInfo: hostInfo,
+         osVersion: osVersion,
          tokenHash: tokenHash,
          status: status,
          lastSeenAt: lastSeenAt,
@@ -325,6 +338,7 @@ class _MachineImpl extends Machine {
     Object? id = _Undefined,
     String? name,
     Object? hostInfo = _Undefined,
+    Object? osVersion = _Undefined,
     Object? tokenHash = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
@@ -342,6 +356,7 @@ class _MachineImpl extends Machine {
       id: id is int? ? id : this.id,
       name: name ?? this.name,
       hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
+      osVersion: osVersion is String? ? osVersion : this.osVersion,
       tokenHash: tokenHash is String? ? tokenHash : this.tokenHash,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
@@ -384,6 +399,11 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
 
   _is.ColumnValue<String, String> hostInfo(String? value) => _is.ColumnValue(
     table.hostInfo,
+    value,
+  );
+
+  _is.ColumnValue<String, String> osVersion(String? value) => _is.ColumnValue(
+    table.osVersion,
     value,
   );
 
@@ -459,6 +479,10 @@ class MachineTable extends _is.Table<int?> {
       'hostInfo',
       this,
     );
+    osVersion = _is.ColumnString(
+      'osVersion',
+      this,
+    );
     tokenHash = _is.ColumnString(
       'tokenHash',
       this,
@@ -509,8 +533,13 @@ class MachineTable extends _is.Table<int?> {
   /// The machine's display name.
   late final _is.ColumnString name;
 
-  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  /// Legacy free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"),
+  /// display only. The panel shows [osVersion] instead once the daemon reports it.
   late final _is.ColumnString hostInfo;
+
+  /// OS name + version detected by the daemon at startup (e.g. "Ubuntu 24.04").
+  /// Null for daemons that predate OS detection.
+  late final _is.ColumnString osVersion;
 
   /// Hash of the machine's registration token. The raw token is shown to the dev only once.
   late final _is.ColumnString tokenHash;
@@ -631,6 +660,7 @@ class MachineTable extends _is.Table<int?> {
     id,
     name,
     hostInfo,
+    osVersion,
     tokenHash,
     status,
     lastSeenAt,

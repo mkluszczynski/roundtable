@@ -24,6 +24,7 @@ abstract class Machine
     this.id,
     required this.name,
     this.hostInfo,
+    this.osVersion,
     _i6yugb3s.MachineStatus? status,
     this.lastSeenAt,
     this.claudeExecutableOk,
@@ -42,6 +43,7 @@ abstract class Machine
     int? id,
     required String name,
     String? hostInfo,
+    String? osVersion,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
@@ -60,6 +62,7 @@ abstract class Machine
       id: jsonSerialization['id'] as int?,
       name: jsonSerialization['name'] as String,
       hostInfo: jsonSerialization['hostInfo'] as String?,
+      osVersion: jsonSerialization['osVersion'] as String?,
       status: jsonSerialization['status'] == null
           ? null
           : _i6yugb3s.MachineStatus.fromJson(
@@ -117,8 +120,13 @@ abstract class Machine
   /// The machine's display name.
   String name;
 
-  /// Free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"), display only.
+  /// Legacy free-text host/OS description entered by the dev (e.g. "Hetzner · Ubuntu 22.04"),
+  /// display only. The panel shows [osVersion] instead once the daemon reports it.
   String? hostInfo;
+
+  /// OS name + version detected by the daemon at startup (e.g. "Ubuntu 24.04").
+  /// Null for daemons that predate OS detection.
+  String? osVersion;
 
   _i6yugb3s.MachineStatus status;
 
@@ -170,6 +178,7 @@ abstract class Machine
     int? id,
     String? name,
     String? hostInfo,
+    String? osVersion,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
@@ -189,6 +198,7 @@ abstract class Machine
       if (id != null) 'id': id,
       'name': name,
       if (hostInfo != null) 'hostInfo': hostInfo,
+      if (osVersion != null) 'osVersion': osVersion,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
@@ -215,6 +225,7 @@ abstract class Machine
       if (id != null) 'id': id,
       'name': name,
       if (hostInfo != null) 'hostInfo': hostInfo,
+      if (osVersion != null) 'osVersion': osVersion,
       'status': status.toJson(),
       if (lastSeenAt != null) 'lastSeenAt': lastSeenAt?.toJson(),
       if (claudeExecutableOk != null) 'claudeExecutableOk': claudeExecutableOk,
@@ -247,6 +258,7 @@ class _MachineImpl extends Machine {
     int? id,
     required String name,
     String? hostInfo,
+    String? osVersion,
     _i6yugb3s.MachineStatus? status,
     DateTime? lastSeenAt,
     bool? claudeExecutableOk,
@@ -262,6 +274,7 @@ class _MachineImpl extends Machine {
          id: id,
          name: name,
          hostInfo: hostInfo,
+         osVersion: osVersion,
          status: status,
          lastSeenAt: lastSeenAt,
          claudeExecutableOk: claudeExecutableOk,
@@ -283,6 +296,7 @@ class _MachineImpl extends Machine {
     Object? id = _Undefined,
     String? name,
     Object? hostInfo = _Undefined,
+    Object? osVersion = _Undefined,
     _i6yugb3s.MachineStatus? status,
     Object? lastSeenAt = _Undefined,
     Object? claudeExecutableOk = _Undefined,
@@ -299,6 +313,7 @@ class _MachineImpl extends Machine {
       id: id is int? ? id : this.id,
       name: name ?? this.name,
       hostInfo: hostInfo is String? ? hostInfo : this.hostInfo,
+      osVersion: osVersion is String? ? osVersion : this.osVersion,
       status: status ?? this.status,
       lastSeenAt: lastSeenAt is DateTime? ? lastSeenAt : this.lastSeenAt,
       claudeExecutableOk: claudeExecutableOk is bool?

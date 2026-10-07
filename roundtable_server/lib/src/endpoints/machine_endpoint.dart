@@ -387,6 +387,24 @@ class MachineEndpoint extends Endpoint {
     );
   }
 
+  /// Called by the daemon at startup with the OS it runs on (see
+  /// [Machine.osVersion]).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> reportOsVersion(
+    Session session,
+    String token,
+    String osVersion,
+  ) async {
+    final machine = await _findByToken(session, token);
+    await Machine.db.updateRow(
+      session,
+      machine.copyWith(osVersion: osVersion),
+      columns: (t) => [t.osVersion],
+    );
+  }
+
   /// Streams the latest [MachineMetric] for [machineId] (docs/FLOWS.md §6
   /// snapshot) — replays the current latest row on subscribe, then yields
   /// each new one as [reportMetric] stores it.
