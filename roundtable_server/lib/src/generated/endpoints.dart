@@ -669,6 +669,16 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int>(),
               nullable: false,
             ),
+            'until': _is.ParameterDescription(
+              name: 'until',
+              type: _is.getType<DateTime?>(),
+              nullable: true,
+            ),
+            'reason': _is.ParameterDescription(
+              name: 'reason',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -679,6 +689,40 @@ class Endpoints extends _is.EndpointDispatch {
                       .requeueReview(
                         session,
                         params['reviewId'],
+                        until: params['until'],
+                        reason: params['reason'],
+                      ),
+        ),
+        'pauseQueuedReview': _is.MethodConnector(
+          name: 'pauseQueuedReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'until': _is.ParameterDescription(
+              name: 'until',
+              type: _is.getType<DateTime>(),
+              nullable: false,
+            ),
+            'reason': _is.ParameterDescription(
+              name: 'reason',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .pauseQueuedReview(
+                        session,
+                        params['reviewId'],
+                        params['until'],
+                        params['reason'],
                       ),
         ),
         'failReview': _is.MethodConnector(

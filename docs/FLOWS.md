@@ -281,8 +281,14 @@ it again then and the same session resumes). It also closes the runner's
 Until then, work that hasn't started waits instead of hitting the limit
 again: a task stays as it is with "Waiting for the Claude usage limit to
 reset at HH:MM" on its timeline and is re-read before it starts; a review
-stays `queued`. A review cut short by the limit goes back to `queued`
-(`requeueReview`) and runs again after the reset. `StalledTaskFutureCall`
+stays `queued`, paused (`pauseQueuedReview`). A review cut short by the
+limit goes back to `queued`, paused (`requeueReview(until, reason)`), and
+runs again after the reset. A paused review sets `CodeReview.pausedUntil`/
+`pauseReason`, which `refreshReviewPause` (from `postReviewChanged`)
+mirrors onto its task: it stays `awaitingReview` in the Review column,
+with `pausedUntil`, `pauseReason` and `pausedPhase` `review` — "Review
+paused — resumes at HH:MM" on the card, "Paused" on the verdict. Starting
+or failing the review clears both. `StalledTaskFutureCall`
 leaves a queued task alone while its machine is limited or its agent is
 busy with other work (§5).
 

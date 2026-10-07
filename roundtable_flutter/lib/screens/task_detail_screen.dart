@@ -751,8 +751,9 @@ class _ReviewerName extends StatefulWidget {
 }
 
 class _ReviewerNameState extends State<_ReviewerName> {
-  late final Future<Agent?> _agent = AgentRepository(client)
-      .getAgent(widget.agentId);
+  late final Future<Agent?> _agent = AgentRepository(
+    client,
+  ).getAgent(widget.agentId);
 
   @override
   Widget build(BuildContext context) {
@@ -929,8 +930,9 @@ class _RailNav extends StatelessWidget {
                       when state.task.checkState != PrCheckState.none =>
                     StatusDot(
                       color: checkStateAppearance(state.task.checkState).color,
-                      pulsing: checkStateAppearance(state.task.checkState)
-                          .pulsing,
+                      pulsing: checkStateAppearance(
+                        state.task.checkState,
+                      ).pulsing,
                     ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
@@ -2053,7 +2055,15 @@ class _VerdictCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pausedUntil = review.status == CodeReviewStatus.queued
+        ? review.pausedUntil
+        : null;
     final (color, label, pulsing) = switch (review.status) {
+      CodeReviewStatus.queued when pausedUntil != null => (
+        AppColors.warning,
+        'Paused',
+        false,
+      ),
       CodeReviewStatus.queued => (AppColors.text2, 'Queued', false),
       CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
       CodeReviewStatus.completed => switch (review.verdict) {
@@ -2085,6 +2095,14 @@ class _VerdictCard extends StatelessWidget {
               ),
             ],
           ),
+          if (pausedUntil != null) ...[
+            const SizedBox(height: Spacing.md),
+            Text(
+              'Usage limit — the review resumes at '
+              '${resumeTimeLabel(pausedUntil)}',
+              style: AppTypography.body.copyWith(color: AppColors.warning),
+            ),
+          ],
           if (detail != null) ...[
             const SizedBox(height: Spacing.md),
             failed
@@ -2117,9 +2135,9 @@ class _ReviewerLogState extends State<_ReviewerLog> {
 
   @override
   Widget build(BuildContext context) {
-    final reviewRuns = buildLogTimeline(widget.logs)
-        .where((r) => r.isReview)
-        .toList();
+    final reviewRuns = buildLogTimeline(
+      widget.logs,
+    ).where((r) => r.isReview).toList();
     // Structured runs carry their review; older logs only allow "the
     // latest review run" for the latest review.
     final run =

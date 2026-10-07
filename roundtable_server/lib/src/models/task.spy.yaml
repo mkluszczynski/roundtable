@@ -49,6 +49,8 @@ fields:
   ### question or found nothing to change.
   resultSummary: String?
   ### Set while `paused`: when the usage limit resets and the task resumes.
+  ### Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  ### whose code review waits for the limit (`refreshReviewPause`).
   pausedUntil: DateTime?
   ### The limit message shown while paused, e.g. "You've hit your session
   ### limit · resets 12:40am".

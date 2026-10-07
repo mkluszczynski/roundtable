@@ -131,4 +131,25 @@ void main() {
     expect(find.text('2'), findsOneWidget);
     expect(find.byTooltip('2 unresolved review comments'), findsOneWidget);
   });
+
+  testWidgets('a review waiting for the usage limit shows when it resumes', (
+    tester,
+  ) async {
+    final until = DateTime(2030, 1, 1, 15, 5);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KanbanCard(
+            task: task().copyWith(
+              pausedUntil: until,
+              pausedPhase: LogPhase.review,
+            ),
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Review paused — resumes at 15:05'), findsOneWidget);
+  });
 }

@@ -328,6 +328,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   String? resultSummary;
 
   /// Set while `paused`: when the usage limit resets and the task resumes.
+  /// Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  /// whose code review waits for the limit (`refreshReviewPause`).
   DateTime? pausedUntil;
 
   /// The limit message shown while paused, e.g. "You've hit your session
@@ -1269,6 +1271,8 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnString resultSummary;
 
   /// Set while `paused`: when the usage limit resets and the task resumes.
+  /// Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  /// whose code review waits for the limit (`refreshReviewPause`).
   late final _is.ColumnDateTime pausedUntil;
 
   /// The limit message shown while paused, e.g. "You've hit your session

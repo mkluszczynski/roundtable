@@ -328,6 +328,8 @@ abstract class Task
   String? resultSummary;
 
   /// Set while `paused`: when the usage limit resets and the task resumes.
+  /// Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  /// whose code review waits for the limit (`refreshReviewPause`).
   DateTime? pausedUntil;
 
   /// The limit message shown while paused, e.g. "You've hit your session

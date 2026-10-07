@@ -28,6 +28,7 @@ codeReview:
   - previousComments:
   - completeReview:
   - requeueReview:
+  - pauseQueuedReview:
   - failReview:
   - watchReviews:
   - setCommentState:

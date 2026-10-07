@@ -493,12 +493,36 @@ class EndpointCodeReview extends _isc.EndpointRef {
   /// Called by the daemon when a running review was cut short by the Claude
   /// usage limit: it goes back to `queued`, and the daemon runs it again
   /// once the limit resets.
-  _ida.Future<_i38oxrkr.CodeReview> requeueReview(int reviewId) =>
-      caller.callServerEndpoint<_i38oxrkr.CodeReview>(
-        'codeReview',
-        'requeueReview',
-        {'reviewId': reviewId},
-      );
+  _ida.Future<_i38oxrkr.CodeReview> requeueReview(
+    int reviewId, {
+    DateTime? until,
+    String? reason,
+  }) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'requeueReview',
+    {
+      'reviewId': reviewId,
+      'until': until,
+      'reason': reason,
+    },
+  );
+
+  /// Called by the daemon when queued review [reviewId] has to wait for
+  /// the machine's Claude usage limit to reset at [until] before it starts.
+  /// Shows the pause on the review and its task (`refreshReviewPause`).
+  _ida.Future<_i38oxrkr.CodeReview> pauseQueuedReview(
+    int reviewId,
+    DateTime until,
+    String? reason,
+  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'pauseQueuedReview',
+    {
+      'reviewId': reviewId,
+      'until': until,
+      'reason': reason,
+    },
+  );
 
   /// Called by the daemon when the review run couldn't produce findings.
   _ida.Future<_i38oxrkr.CodeReview> failReview(

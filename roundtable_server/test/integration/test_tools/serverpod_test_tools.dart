@@ -1136,8 +1136,10 @@ class _CodeReviewEndpoint {
 
   _ida.Future<_i42ca4ig.CodeReview> requeueReview(
     _ist.TestSessionBuilder sessionBuilder,
-    int reviewId,
-  ) async {
+    int reviewId, {
+    DateTime? until,
+    String? reason,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1149,7 +1151,48 @@ class _CodeReviewEndpoint {
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'codeReview',
           methodName: 'requeueReview',
-          parameters: _ist.testObjectToJson({'reviewId': reviewId}),
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'until': until,
+            'reason': reason,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i42ca4ig.CodeReview> pauseQueuedReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+    DateTime until,
+    String? reason,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'pauseQueuedReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'pauseQueuedReview',
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'until': until,
+            'reason': reason,
+          }),
           serializationManager: _serializationManager,
         );
         var _localReturnValue =

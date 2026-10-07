@@ -508,6 +508,73 @@ void main() {
       await endpoints.codeReview.startReview(sessionBuilder, review.id!);
     });
 
+    test('when a review waits for the usage limit then its task shows the '
+        'pause until the review starts again', () async {
+      final seeded = await seed();
+      final review = await endpoints.codeReview.requestReview(
+        sessionBuilder,
+        seeded.task.id!,
+        seeded.reviewer.id!,
+      );
+      await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+      final until = DateTime.utc(2030, 1, 1, 15);
+
+      final requeued = await endpoints.codeReview.requeueReview(
+        sessionBuilder,
+        review.id!,
+        until: until,
+        reason: "You've hit your session limit · resets 3pm",
+      );
+
+      expect(requeued.pausedUntil, until);
+      var task = await Task.db.findById(
+        sessionBuilder.build(),
+        seeded.task.id!,
+      );
+      expect(task!.status, TaskStatus.awaitingReview);
+      expect(task.pausedUntil, until);
+      expect(task.pauseReason, contains('session limit'));
+      expect(task.pausedPhase, LogPhase.review);
+
+      await endpoints.codeReview.startReview(sessionBuilder, review.id!);
+      final started = (await Task.db.findById(
+        sessionBuilder.build(),
+        seeded.task.id!,
+      ))!;
+      expect(started.pausedUntil, isNull);
+      expect(started.pausedPhase, isNull);
+      expect(started.status, TaskStatus.awaitingReview);
+    });
+
+    test('when a queued review has to wait for the usage limit then its task '
+        'shows the pause until the review fails', () async {
+      final seeded = await seed();
+      final review = await endpoints.codeReview.requestReview(
+        sessionBuilder,
+        seeded.task.id!,
+        seeded.reviewer.id!,
+      );
+      final until = DateTime.utc(2030, 1, 1, 15);
+
+      await endpoints.codeReview.pauseQueuedReview(
+        sessionBuilder,
+        review.id!,
+        until,
+        null,
+      );
+      var task = await Task.db.findById(
+        sessionBuilder.build(),
+        seeded.task.id!,
+      );
+      expect(task!.pausedUntil, until);
+      expect(task.pausedPhase, LogPhase.review);
+
+      await endpoints.codeReview.failReview(sessionBuilder, review.id!, 'gone');
+      task = await Task.db.findById(sessionBuilder.build(), seeded.task.id!);
+      expect(task!.pausedUntil, isNull);
+      expect(task.pausedPhase, isNull);
+    });
+
     group('when the reviewer also works on its own task', () {
       Future<(Agent reviewer, CodeReview review)> reviewWhile(
         TaskStatus ownTaskStatus,

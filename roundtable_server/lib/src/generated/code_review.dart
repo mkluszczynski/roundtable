@@ -32,6 +32,8 @@ abstract class CodeReview
     this.summary,
     this.verdict,
     this.failureReason,
+    this.pausedUntil,
+    this.pauseReason,
     this.githubReviewId,
     DateTime? createdAt,
     this.finishedAt,
@@ -49,6 +51,8 @@ abstract class CodeReview
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -82,6 +86,12 @@ abstract class CodeReview
               (jsonSerialization['verdict'] as String),
             ),
       failureReason: jsonSerialization['failureReason'] as String?,
+      pausedUntil: jsonSerialization['pausedUntil'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['pausedUntil'],
+            ),
+      pauseReason: jsonSerialization['pauseReason'] as String?,
       githubReviewId: jsonSerialization['githubReviewId'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -124,6 +134,12 @@ abstract class CodeReview
 
   String? failureReason;
 
+  /// Set while a `queued` review waits for the reviewer machine's Claude
+  /// usage limit to reset (cut short by it, or not started yet).
+  DateTime? pausedUntil;
+
+  String? pauseReason;
+
   /// Id of the mirrored GitHub PR review, when mirroring succeeded.
   int? githubReviewId;
 
@@ -149,6 +165,8 @@ abstract class CodeReview
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -167,6 +185,8 @@ abstract class CodeReview
       if (summary != null) 'summary': summary,
       if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -189,6 +209,8 @@ abstract class CodeReview
       if (summary != null) 'summary': summary,
       if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -246,6 +268,8 @@ class _CodeReviewImpl extends CodeReview {
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -260,6 +284,8 @@ class _CodeReviewImpl extends CodeReview {
          summary: summary,
          verdict: verdict,
          failureReason: failureReason,
+         pausedUntil: pausedUntil,
+         pauseReason: pauseReason,
          githubReviewId: githubReviewId,
          createdAt: createdAt,
          finishedAt: finishedAt,
@@ -280,6 +306,8 @@ class _CodeReviewImpl extends CodeReview {
     Object? summary = _Undefined,
     Object? verdict = _Undefined,
     Object? failureReason = _Undefined,
+    Object? pausedUntil = _Undefined,
+    Object? pauseReason = _Undefined,
     Object? githubReviewId = _Undefined,
     DateTime? createdAt,
     Object? finishedAt = _Undefined,
@@ -301,6 +329,8 @@ class _CodeReviewImpl extends CodeReview {
       failureReason: failureReason is String?
           ? failureReason
           : this.failureReason,
+      pausedUntil: pausedUntil is DateTime? ? pausedUntil : this.pausedUntil,
+      pauseReason: pauseReason is String? ? pauseReason : this.pauseReason,
       githubReviewId: githubReviewId is int?
           ? githubReviewId
           : this.githubReviewId,
@@ -348,6 +378,17 @@ class CodeReviewUpdateTable extends _is.UpdateTable<CodeReviewTable> {
         table.failureReason,
         value,
       );
+
+  _is.ColumnValue<DateTime, DateTime> pausedUntil(DateTime? value) =>
+      _is.ColumnValue(
+        table.pausedUntil,
+        value,
+      );
+
+  _is.ColumnValue<String, String> pauseReason(String? value) => _is.ColumnValue(
+    table.pauseReason,
+    value,
+  );
 
   _is.ColumnValue<int, int> githubReviewId(int? value) => _is.ColumnValue(
     table.githubReviewId,
@@ -397,6 +438,14 @@ class CodeReviewTable extends _is.Table<int?> {
       'failureReason',
       this,
     );
+    pausedUntil = _is.ColumnDateTime(
+      'pausedUntil',
+      this,
+    );
+    pauseReason = _is.ColumnString(
+      'pauseReason',
+      this,
+    );
     githubReviewId = _is.ColumnInt(
       'githubReviewId',
       this,
@@ -433,6 +482,12 @@ class CodeReviewTable extends _is.Table<int?> {
   late final _is.ColumnEnum<_ijks0ur1.CodeReviewVerdict> verdict;
 
   late final _is.ColumnString failureReason;
+
+  /// Set while a `queued` review waits for the reviewer machine's Claude
+  /// usage limit to reset (cut short by it, or not started yet).
+  late final _is.ColumnDateTime pausedUntil;
+
+  late final _is.ColumnString pauseReason;
 
   /// Id of the mirrored GitHub PR review, when mirroring succeeded.
   late final _is.ColumnInt githubReviewId;
@@ -512,6 +567,8 @@ class CodeReviewTable extends _is.Table<int?> {
     summary,
     verdict,
     failureReason,
+    pausedUntil,
+    pauseReason,
     githubReviewId,
     createdAt,
     finishedAt,

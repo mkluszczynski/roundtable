@@ -217,7 +217,62 @@ Future<CodeReview> postReviewChanged(Session session, int reviewId) async {
     review,
   );
   await refreshOpenReviewComments(session, review.taskId);
+  await refreshReviewPause(session, review.taskId);
   return review;
+}
+
+/// Mirrors a `queued` code review waiting for the Claude usage limit onto
+/// its `awaitingReview` task (`pausedUntil`, `pauseReason`, `pausedPhase`
+/// `review`), so the kanban shows the pause like a paused run's — and
+/// clears it once no review of the task waits anymore. The task keeps its
+/// status: the review, not the agent's run, resumes.
+Future<void> refreshReviewPause(Session session, int taskId) async {
+  final task = await Task.db.findById(session, taskId);
+  if (task == null || task.status == TaskStatus.paused) return;
+  final waiting = task.status == TaskStatus.awaitingReview
+      ? await CodeReview.db.findFirstRow(
+          session,
+          where: (r) =>
+              r.taskId.equals(taskId) &
+              r.status.equals(CodeReviewStatus.queued) &
+              r.pausedUntil.notEquals(null),
+          orderBy: (r) => r.pausedUntil.desc(),
+        )
+      : null;
+  final Task next;
+  if (waiting != null) {
+    next = task.copyWith(
+      pausedUntil: waiting.pausedUntil,
+      pauseReason: waiting.pauseReason,
+      pausedPhase: LogPhase.review,
+    );
+  } else if (task.pausedPhase == LogPhase.review) {
+    next = task.copyWith(
+      pausedUntil: null,
+      pauseReason: null,
+      pausedPhase: null,
+    );
+  } else {
+    return;
+  }
+  if (next.pausedUntil == task.pausedUntil &&
+      next.pauseReason == task.pauseReason &&
+      next.pausedPhase == task.pausedPhase) {
+    return;
+  }
+  final updated = await Task.db.updateRow(
+    session,
+    next,
+    columns: (t) => [t.pausedUntil, t.pauseReason, t.pausedPhase],
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForTask(taskId),
+    updated,
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForAllTasks(),
+    updated,
+  );
 }
 
 /// Review comment states that still wait for a fix or a decision.

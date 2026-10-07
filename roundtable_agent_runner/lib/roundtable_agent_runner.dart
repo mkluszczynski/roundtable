@@ -229,7 +229,10 @@ class AgentRunnerService {
     toolchainInstaller: _toolchainInstaller,
     workQueue: _workQueue,
     usageLimit: _usageLimit,
-    requeueReview: (reviewId) => _client.codeReview.requeueReview(reviewId),
+    requeueReview: (reviewId, until, reason) => _client.codeReview
+        .requeueReview(reviewId, until: until, reason: reason),
+    pauseQueuedReview: (reviewId, until) =>
+        _client.codeReview.pauseQueuedReview(reviewId, until, null),
   );
 
   /// Shared by both dispatchers: one task run or review at a time per agent.

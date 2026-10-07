@@ -41,6 +41,7 @@ class ReviewDispatcher {
     AgentWorkQueue? workQueue,
     UsageLimitGate? usageLimit,
     this.requeueReview,
+    this.pauseQueuedReview,
   }) : workQueue = workQueue ?? AgentWorkQueue(),
        usageLimit = usageLimit ?? UsageLimitGate();
 
@@ -49,9 +50,15 @@ class ReviewDispatcher {
   final UsageLimitGate usageLimit;
 
   /// Bound to `client.codeReview.requeueReview`: puts a review cut short
-  /// by the usage limit back to `queued`, to run again after the reset.
-  /// Without it, such a review fails.
-  final Future<void> Function(int reviewId)? requeueReview;
+  /// by the usage limit back to `queued`, paused [until] the reset (the
+  /// panel shows [reason]), to run again then. Without it, such a review
+  /// fails.
+  final Future<void> Function(int reviewId, DateTime until, String reason)?
+  requeueReview;
+
+  /// Bound to `client.codeReview.pauseQueuedReview`: shows that a queued
+  /// review waits for the usage limit to reset at [until] before starting.
+  final Future<void> Function(int reviewId, DateTime until)? pauseQueuedReview;
 
   /// One piece of work at a time per agent, shared with `TaskDispatcher`: a
   /// review by a busy agent stays `queued` here until it's free.
@@ -116,6 +123,12 @@ class ReviewDispatcher {
     await usageLimit.wait(
       onWaiting: (until) {
         log('review $reviewId: usage limit, waiting until $until');
+        pauseQueuedReview
+            ?.call(reviewId, until)
+            .catchError(
+              (Object e) =>
+                  log('review $reviewId: pauseQueuedReview failed: $e'),
+            );
         _logEvent(
           review.taskId,
           reviewId,
@@ -307,7 +320,7 @@ class ReviewDispatcher {
                 'at ${localClock(until)}',
           ),
         );
-        await requeue(reviewId);
+        await requeue(reviewId, until, result.errorSummary!);
         return true;
       }
       if (!result.success) {
