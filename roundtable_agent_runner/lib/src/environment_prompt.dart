@@ -53,7 +53,16 @@ Future<ToolInfo> _probe(String tool, Duration timeout) async {
 /// The OS this daemon runs on, e.g. "Ubuntu 24.04" or "macOS 15.1" — shown
 /// on the machine's card in the panel. Falls back to Dart's raw
 /// [Platform.operatingSystemVersion] when nothing better can be read.
-Future<String> detectOsVersion() async {
+///
+/// Awaited before the daemon takes work, so a probe that hangs is cut off
+/// after [timeout] instead of blocking startup.
+Future<String> detectOsVersion({
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  Future<String> swVers(String flag) async =>
+      '${(await Process.run('sw_vers', [flag]).timeout(timeout)).stdout}'
+          .trim();
+
   try {
     if (Platform.isLinux) {
       final osRelease = File('/etc/os-release');
@@ -62,13 +71,12 @@ Future<String> detectOsVersion() async {
         if (parsed != null) return parsed;
       }
     } else if (Platform.isMacOS) {
-      final name = '${(await Process.run('sw_vers', ['-productName'])).stdout}'
-          .trim();
-      final version =
-          '${(await Process.run('sw_vers', ['-productVersion'])).stdout}'
-              .trim();
+      final name = await swVers('-productName');
+      final version = await swVers('-productVersion');
       if (name.isNotEmpty) return '$name $version'.trim();
     }
+  } on TimeoutException {
+    // Fall through to the generic description.
   } on Exception {
     // Fall through to the generic description.
   }

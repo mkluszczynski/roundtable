@@ -8,6 +8,7 @@ import '../cubits/machine_list_cubit.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../utils/machine_os_description.dart';
 import '../utils/relative_time.dart';
 import '../widgets/usage_limit_note.dart';
 import '../widgets/add_agent_dialog.dart';
@@ -311,8 +312,7 @@ class _MachineCard extends StatelessWidget {
     final updateStatus = _updateStatus(context);
     final dashboard = context.watch<DashboardCubit>().state;
     final lastSeen = machine.lastSeenAt;
-    // Detected by the daemon; the legacy hand-typed label for older runners.
-    final osDescription = machine.osVersion ?? machine.hostInfo;
+    final osDescription = machine.osDescription;
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.xl),
       child: AppCard(

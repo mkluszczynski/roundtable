@@ -13,6 +13,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/error_message.dart';
+import '../utils/machine_os_description.dart';
 import '../utils/relative_time.dart';
 import '../widgets/usage_limit_note.dart';
 import '../widgets/add_agent_dialog.dart';
@@ -316,8 +317,7 @@ class _MachineRail extends StatelessWidget {
     };
     final online = machine.status == MachineStatus.online;
     final lastSeen = machine.lastSeenAt;
-    // Detected by the daemon; the legacy hand-typed label for older runners.
-    final osDescription = machine.osVersion ?? machine.hostInfo;
+    final osDescription = machine.osDescription;
     final updateStatus = _updateStatus(machineState);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
