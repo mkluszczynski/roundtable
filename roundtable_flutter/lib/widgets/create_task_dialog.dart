@@ -110,7 +110,11 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   }
 
   void _selectProject(int projectId) {
-    setState(() => _projectId = projectId);
+    setState(() {
+      _projectId = projectId;
+      // Not the previous project's: the summary would compare against them.
+      _defaults = null;
+    });
     _loadDefaults(projectId);
   }
 

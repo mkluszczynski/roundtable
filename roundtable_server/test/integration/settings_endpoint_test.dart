@@ -85,6 +85,31 @@ void main() {
       });
     });
 
+    test('when a workspace default changes then unfinished tasks of a '
+        'project inheriting it follow', () async {
+      final project = await endpoints.project.create(
+        sessionBuilder,
+        'Roundtable',
+        'https://github.com/example/roundtable',
+      );
+      final task = await endpoints.task.createTask(
+        sessionBuilder,
+        project.id!,
+        null,
+        'Fix it',
+        skipPlanning: false,
+      );
+      final workspace = await endpoints.settings.getWorkspace(sessionBuilder);
+
+      await endpoints.settings.updateWorkspace(
+        sessionBuilder,
+        workspace.copyWith(autoMerge: true),
+      );
+
+      final current = await Task.db.findById(sessionBuilder.build(), task.id!);
+      expect(current!.autoMerge, isTrue);
+    });
+
     test('when nothing is set then task defaults are off', () async {
       final project = await endpoints.project.create(
         sessionBuilder,
