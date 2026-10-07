@@ -22,6 +22,7 @@ void main() {
     late String headSha;
     late String? conclusion;
     late bool noWorkflows;
+    late bool prClosed;
     late bool actionsForbidden;
     late bool mergeRefused;
 
@@ -30,6 +31,7 @@ void main() {
       headSha = 'abc1234def';
       conclusion = 'success';
       noWorkflows = false;
+      prClosed = false;
       actionsForbidden = false;
       mergeRefused = false;
       resetChecksPollSchedule();
@@ -56,6 +58,7 @@ void main() {
                 headSha: headSha,
                 conclusion: conclusion,
                 noWorkflows: noWorkflows,
+                prClosed: prClosed,
               ) ??
               http.Response('{}', 404);
         }),
@@ -137,6 +140,8 @@ void main() {
       final stored = await reload(task);
       expect(stored.prHeadSha, 'abc1234def');
       expect(stored.checkState, PrCheckState.failure);
+      expect(stored.prAdditions, 42);
+      expect(stored.prDeletions, 7);
       final checks = await endpoints.task.getChecks(sessionBuilder, task.id!);
       expect(checks.state, PrCheckState.failure);
       expect(checks.runs, hasLength(1));
@@ -303,6 +308,22 @@ void main() {
       final merge = githubRequests.where((r) => r.method == 'PUT').single;
       expect(jsonDecode(merge.body)['sha'], 'abc1234def');
     });
+
+    test(
+      'when the PR is closed then only its line totals are stored',
+      () async {
+        final task = await seed();
+        prClosed = true;
+
+        await syncChecks(sessionBuilder.build(), task);
+
+        final stored = await reload(task);
+        expect(stored.prAdditions, 42);
+        expect(stored.prDeletions, 7);
+        expect(stored.prHeadSha, isNull);
+        expect(stored.checkState, PrCheckState.none);
+      },
+    );
 
     test('when the checks settled then the next poll skips them', () async {
       await seed();

@@ -44,19 +44,10 @@ Future<String?> autoMergeWaitingFor(Session session, Task task) async {
     if (latestReview.verdict == CodeReviewVerdict.changesRequested) {
       return 'the reviewer requested changes';
     }
-    final reviewIds = (await CodeReview.db.find(
+    final unresolved = await countUnresolvedComments(
       session,
-      where: (r) => r.taskId.equals(taskId),
-    )).map((r) => r.id!).toSet();
-    final unresolved = await ReviewComment.db.count(
-      session,
-      where: (c) =>
-          c.reviewId.inSet(reviewIds) &
-          c.severity.inSet(autoFixSeverities) &
-          c.state.inSet({
-            ReviewCommentState.open,
-            ReviewCommentState.sentToFix,
-          }),
+      taskId,
+      severities: autoFixSeverities,
     );
     if (unresolved > 0) return 'review blockers or issues are open';
   }

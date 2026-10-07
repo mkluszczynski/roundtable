@@ -216,7 +216,62 @@ Future<CodeReview> postReviewChanged(Session session, int reviewId) async {
     channelForTaskReviews(review.taskId),
     review,
   );
+  await refreshOpenReviewComments(session, review.taskId);
   return review;
+}
+
+/// Review comment states that still wait for a fix or a decision.
+const unresolvedCommentStates = {
+  ReviewCommentState.open,
+  ReviewCommentState.sentToFix,
+};
+
+/// Counts [taskId]'s unresolved review comments across all its reviews —
+/// only those of [severities], when given.
+Future<int> countUnresolvedComments(
+  Session session,
+  int taskId, {
+  Set<ReviewCommentSeverity>? severities,
+}) async {
+  final reviewIds = (await CodeReview.db.find(
+    session,
+    where: (r) => r.taskId.equals(taskId),
+  )).map((r) => r.id!).toSet();
+  if (reviewIds.isEmpty) return 0;
+  return ReviewComment.db.count(
+    session,
+    where: (c) {
+      var where =
+          c.reviewId.inSet(reviewIds) & c.state.inSet(unresolvedCommentStates);
+      if (severities != null) where = where & c.severity.inSet(severities);
+      return where;
+    },
+  );
+}
+
+/// Recounts [taskId]'s unresolved review comments into
+/// `Task.openReviewComments` for the kanban, and notifies the panel when the
+/// count changed.
+Future<void> refreshOpenReviewComments(Session session, int taskId) async {
+  final task = await Task.db.findById(session, taskId);
+  if (task == null) return;
+  final open = await countUnresolvedComments(session, taskId);
+  if (open == task.openReviewComments) return;
+  // Only this column: the daemon and the panel write the task's other
+  // fields concurrently.
+  final updated = await Task.db.updateRow(
+    session,
+    task.copyWith(openReviewComments: open),
+    columns: (t) => [t.openReviewComments],
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForTask(taskId),
+    updated,
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForAllTasks(),
+    updated,
+  );
 }
 
 /// Adds a system event to [taskId]'s timeline, inside its latest run (an
