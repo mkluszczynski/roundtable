@@ -21,16 +21,16 @@ void main() {
 
   test('groups every task into its column, newest first', () {
     final columns = state.columnsFor();
-    expect(columns[KanbanColumn.backlog]!.map((t) => t.id), [5, 1]);
+    expect(columns[KanbanColumn.backlog]!.map((t) => t.id), [5, 4, 1]);
     expect(columns[KanbanColumn.inProgress]!.map((t) => t.id), [2]);
     expect(columns[KanbanColumn.review]!.map((t) => t.id), [3]);
-    expect(columns[KanbanColumn.done]!.map((t) => t.id), [4]);
+    expect(columns[KanbanColumn.done], isEmpty);
   });
 
   test('filters to one project', () {
     final columns = state.columnsFor(projectId: 2);
-    expect(columns[KanbanColumn.backlog], isEmpty);
+    expect(columns[KanbanColumn.backlog]!.map((t) => t.id), [4]);
     expect(columns[KanbanColumn.review]!.map((t) => t.id), [3]);
-    expect(columns[KanbanColumn.done]!.map((t) => t.id), [4]);
+    expect(columns[KanbanColumn.done], isEmpty);
   });
 }
