@@ -137,6 +137,8 @@ void main() {
       final stored = await reload(task);
       expect(stored.prHeadSha, 'abc1234def');
       expect(stored.checkState, PrCheckState.failure);
+      expect(stored.prAdditions, 42);
+      expect(stored.prDeletions, 7);
       final checks = await endpoints.task.getChecks(sessionBuilder, task.id!);
       expect(checks.state, PrCheckState.failure);
       expect(checks.runs, hasLength(1));

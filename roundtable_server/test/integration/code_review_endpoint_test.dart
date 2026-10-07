@@ -719,6 +719,31 @@ void main() {
       expect(updated.state, ReviewCommentState.open);
     });
 
+    test('the task counts its unresolved comments for the kanban', () async {
+      final seeded = await seed();
+      Future<int> openCount() async => (await Task.db.findById(
+        sessionBuilder.build(),
+        seeded.task.id!,
+      ))!.openReviewComments;
+
+      final review = await completedReview(seeded.task, seeded.reviewer);
+      expect(await openCount(), 2);
+
+      await endpoints.codeReview.setCommentState(
+        sessionBuilder,
+        review.comments!.first.id!,
+        ReviewCommentState.resolved,
+      );
+      expect(await openCount(), 1);
+
+      await endpoints.codeReview.setCommentState(
+        sessionBuilder,
+        review.comments!.last.id!,
+        ReviewCommentState.dismissed,
+      );
+      expect(await openCount(), 0);
+    });
+
     test('when accepting then the PR is merged and the task is done', () async {
       final seeded = await seed(token: 'secret');
       githubHandler = (request) =>

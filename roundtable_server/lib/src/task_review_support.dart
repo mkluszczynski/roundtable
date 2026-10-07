@@ -216,7 +216,47 @@ Future<CodeReview> postReviewChanged(Session session, int reviewId) async {
     channelForTaskReviews(review.taskId),
     review,
   );
+  await refreshOpenReviewComments(session, review.taskId);
   return review;
+}
+
+/// Recounts [taskId]'s unresolved review comments (`open` or `sentToFix`)
+/// into `Task.openReviewComments` for the kanban, and notifies the panel
+/// when the count changed.
+Future<void> refreshOpenReviewComments(Session session, int taskId) async {
+  final task = await Task.db.findById(session, taskId);
+  if (task == null) return;
+  final reviewIds = (await CodeReview.db.find(
+    session,
+    where: (r) => r.taskId.equals(taskId),
+  )).map((r) => r.id!).toSet();
+  final open = reviewIds.isEmpty
+      ? 0
+      : await ReviewComment.db.count(
+          session,
+          where: (c) =>
+              c.reviewId.inSet(reviewIds) &
+              c.state.inSet({
+                ReviewCommentState.open,
+                ReviewCommentState.sentToFix,
+              }),
+        );
+  if (open == task.openReviewComments) return;
+  // Only this column: the daemon and the panel write the task's other
+  // fields concurrently.
+  final updated = await Task.db.updateRow(
+    session,
+    task.copyWith(openReviewComments: open),
+    columns: (t) => [t.openReviewComments],
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForTask(taskId),
+    updated,
+  );
+  await session.messages.postMessage(
+    TaskEndpoint.channelForAllTasks(),
+    updated,
+  );
 }
 
 /// Adds a system event to [taskId]'s timeline, inside its latest run (an

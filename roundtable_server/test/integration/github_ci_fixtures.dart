@@ -22,6 +22,8 @@ http.Response? fakeCiResponse(
         'base': {'ref': 'main'},
         'mergeable': true,
         'mergeable_state': 'clean',
+        'additions': 42,
+        'deletions': 7,
       }),
       200,
     );

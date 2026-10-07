@@ -80,6 +80,14 @@ fields:
   ### The head commit whose failing checks were last sent to the agent, so
   ### the same failure is never auto-sent twice.
   checkFixSentForSha: String?
+  ### Lines added/removed by the PR at [prHeadSha], as GitHub counts them —
+  ### kept on the task so the kanban needs no diff fetch. Null until the
+  ### first checks sync.
+  prAdditions: int?
+  prDeletions: int?
+  ### Review comments still `open` or `sentToFix`, across all the task's
+  ### reviews. Kept up to date by `postReviewChanged`.
+  openReviewComments: int, default=0
   createdAt: DateTime, default=now
   startedAt: DateTime?
   finishedAt: DateTime?

@@ -152,6 +152,11 @@ class _KanbanCardState extends State<KanbanCard> {
                               ],
                             ),
                           ],
+                          if (task.prAdditions != null ||
+                              task.openReviewComments > 0) ...[
+                            const SizedBox(height: Spacing.sm),
+                            _ChangesRow(task: task),
+                          ],
                           const SizedBox(height: Spacing.md),
                           _AssigneeRow(
                             agentName: widget.agentName,
@@ -260,6 +265,69 @@ class _ChecksBadge extends StatelessWidget {
           checkStateLabel(state),
           style: AppTypography.caption.copyWith(color: appearance.color),
         ),
+      ],
+    );
+  }
+}
+
+/// The PR's added/removed lines (as on the diff tab) and the review
+/// comments still waiting to be resolved.
+class _ChangesRow extends StatelessWidget {
+  const _ChangesRow({required this.task});
+
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    final additions = task.prAdditions;
+    final comments = task.openReviewComments;
+    return Row(
+      children: [
+        if (additions != null)
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                style: AppTypography.code,
+                children: [
+                  TextSpan(
+                    text: '+$additions ',
+                    style: const TextStyle(color: AppColors.live),
+                  ),
+                  TextSpan(
+                    text: '-${task.prDeletions ?? 0}',
+                    style: const TextStyle(color: AppColors.red),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (additions != null && comments > 0)
+          const SizedBox(width: Spacing.md),
+        if (comments > 0)
+          Tooltip(
+            message:
+                '$comments unresolved review '
+                'comment${comments == 1 ? '' : 's'}',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.chat_bubble_outline,
+                  size: 12,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: Spacing.xs),
+                Text(
+                  '$comments',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

@@ -254,7 +254,9 @@ Future<Task> syncChecks(
       newCommit ||
       state != previousState ||
       checkError != task.checkError ||
-      fixAttempts != task.checkFixAttempts;
+      fixAttempts != task.checkFixAttempts ||
+      head.additions != task.prAdditions ||
+      head.deletions != task.prDeletions;
   if (taskChanged) {
     // Only these columns: the daemon and the panel write the task's other
     // fields concurrently.
@@ -266,6 +268,8 @@ Future<Task> syncChecks(
         checkState: state,
         checkError: checkError,
         checkFixAttempts: fixAttempts,
+        prAdditions: head.additions,
+        prDeletions: head.deletions,
       ),
       columns: (t) => [
         t.prHeadSha,
@@ -273,6 +277,8 @@ Future<Task> syncChecks(
         t.checkState,
         t.checkError,
         t.checkFixAttempts,
+        t.prAdditions,
+        t.prDeletions,
       ],
     );
     await session.messages.postMessage(
