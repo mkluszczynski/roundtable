@@ -91,15 +91,14 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
     };
   }
 
+  /// Keeps the last loaded names through the shared cubit's transient
+  /// states (e.g. `MachineDeletionBlockedOnline`) until its refetch lands.
   Map<int, String> _watchMachineNames(BuildContext context) {
-    final shared = context.watch<MachineListCubit?>();
-    if (shared == null) return _machineNames;
-    return switch (shared.state) {
-      MachineListLoaded(:final machines) => {
-        for (final m in machines) m.id!: m.name,
-      },
-      _ => const {},
-    };
+    final state = context.watch<MachineListCubit?>()?.state;
+    if (state is MachineListLoaded) {
+      _machineNames = {for (final m in state.machines) m.id!: m.name};
+    }
+    return _machineNames;
   }
 
   Agent? _agent(List<Agent>? agents, int? id) =>
