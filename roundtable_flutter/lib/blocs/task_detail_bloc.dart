@@ -256,6 +256,7 @@ class TaskDetailLoaded extends TaskDetailState {
     this.submitting = false,
     this.logs = const [],
     this.logsSubscribed = false,
+    this.feedback = const [],
     this.files,
     this.filesRequested = false,
     this.filesError,
@@ -291,6 +292,10 @@ class TaskDetailLoaded extends TaskDetailState {
   /// Live-execution sub-state (`planning`/`running`): the task's log tail.
   final List<TaskLogEntry> logs;
   final bool logsSubscribed;
+
+  /// Feedback sent to the agent, oldest first: the timeline names each
+  /// feedback run after the kind it started from.
+  final List<TaskFeedback> feedback;
 
   /// Diff-review sub-state (`awaitingReview`/`done`): the PR's changed files.
   final List<DiffFile>? files;
@@ -351,6 +356,7 @@ class TaskDetailLoaded extends TaskDetailState {
     bool? submitting,
     List<TaskLogEntry>? logs,
     bool? logsSubscribed,
+    List<TaskFeedback>? feedback,
     List<DiffFile>? files,
     bool? filesRequested,
     String? filesError,
@@ -385,6 +391,7 @@ class TaskDetailLoaded extends TaskDetailState {
       submitting: submitting ?? this.submitting,
       logs: logs ?? this.logs,
       logsSubscribed: logsSubscribed ?? this.logsSubscribed,
+      feedback: feedback ?? this.feedback,
       files: files ?? this.files,
       filesRequested: filesRequested ?? this.filesRequested,
       filesError: clearFilesError ? null : (filesError ?? this.filesError),
@@ -730,6 +737,8 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
       emit(current.copyWith(logsSubscribed: true));
     }
     final logs = <TaskLogEntry>[];
+    var feedbackRuns = 0;
+    var feedbackFetched = -1;
     await for (final entry in untilClosed(
       _repository.watchLogs(event.taskId),
     )) {
@@ -737,6 +746,23 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
       final latest = state;
       if (latest is TaskDetailLoaded) {
         emit(latest.copyWith(logs: List.of(logs)));
+      }
+      if (entry.kind == LogKind.runStarted &&
+          entry.phase == LogPhase.feedback) {
+        feedbackRuns++;
+      }
+      // A feedback run whose feedback we haven't seen yet: refetch them.
+      if (feedbackRuns > feedbackFetched) {
+        feedbackFetched = feedbackRuns;
+        try {
+          final feedback = await _repository.listFeedback(event.taskId);
+          final current = state;
+          if (current is TaskDetailLoaded) {
+            emit(current.copyWith(feedback: feedback));
+          }
+        } catch (_) {
+          // Best effort: the timeline falls back to "Feedback".
+        }
       }
     }
   }

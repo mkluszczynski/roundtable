@@ -235,12 +235,15 @@ exit 0
       List<int>? started,
       List<String>? events,
       UsageLimitGate? usageLimit,
-      Future<void> Function(int reviewId)? requeueReview,
+      Future<void> Function(int reviewId, DateTime until, String reason)?
+      requeueReview,
+      Future<void> Function(int reviewId, DateTime until)? pauseQueuedReview,
     }) {
       final script = writeFakeClaude();
       return ReviewDispatcher(
         usageLimit: usageLimit,
         requeueReview: requeueReview,
+        pauseQueuedReview: pauseQueuedReview,
         worktreeManager: WorktreeManager(
           workspaceRoot: '${tempDir.path}/workspace',
         ),
@@ -477,19 +480,21 @@ exec "\$@"
       final started = <int>[];
       final completed = <String>[];
       final failed = <String>[];
-      final requeued = <int>[];
+      final requeued = <(int, String)>[];
+      final paused = <int>[];
       final dispatcher = buildDispatcher(
         fetchedFor: [],
         completed: completed,
         failed: failed,
         usageLimit: gate,
         started: started,
-        requeueReview: (id) async {
-          requeued.add(id);
+        requeueReview: (id, until, reason) async {
+          requeued.add((id, reason));
           // The limit resets and the next run succeeds.
           clock = DateTime.now().add(const Duration(days: 2));
           writeFakeClaude();
         },
+        pauseQueuedReview: (id, until) async => paused.add(id),
       );
       File('${tempDir.path}/fake_claude.sh').writeAsStringSync(
         '#!/bin/sh\n'
@@ -507,9 +512,39 @@ exit 1
         ),
       );
 
-      expect(requeued, [7]);
+      expect(requeued.single.$1, 7);
+      expect(requeued.single.$2, contains('session limit'));
+      expect(paused, isEmpty, reason: 'the gate had reset before the rerun');
       expect(failed, isEmpty);
       expect(started, [7, 7]);
+      expect(completed, ['Looks good.']);
+    });
+
+    test('a review queued while the usage limit is active is shown as '
+        'paused until the reset, then runs', () async {
+      final gate = UsageLimitGate();
+      final until = DateTime.now().add(const Duration(milliseconds: 200));
+      gate.hit(until);
+      final paused = <(int, DateTime)>[];
+      final completed = <String>[];
+      final dispatcher = buildDispatcher(
+        fetchedFor: [],
+        completed: completed,
+        failed: [],
+        usageLimit: gate,
+        pauseQueuedReview: (id, at) async => paused.add((id, at)),
+      );
+
+      await dispatcher.handle(
+        CodeReview(
+          id: 9,
+          taskId: 1,
+          reviewerAgentId: 2,
+          status: CodeReviewStatus.queued,
+        ),
+      );
+
+      expect(paused, [(9, until)]);
       expect(completed, ['Looks good.']);
     });
 

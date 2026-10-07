@@ -19,7 +19,9 @@ import '../utils/follow_up_prompt.dart';
 import '../widgets/copy_icon_button.dart';
 import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
+import '../utils/open_task.dart';
 import '../utils/task_status_label.dart';
+import '../utils/task_timeline.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -45,6 +47,7 @@ import '../widgets/task_attachments_view.dart';
 import '../widgets/task_options_form.dart';
 import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
+import '../widgets/task_timeline_view.dart';
 import '../utils/relative_time.dart';
 
 /// Mirrors the server's `cancelTask` guard (`nonTerminalTaskStatuses` minus
@@ -319,12 +322,50 @@ class TaskDetailScreen extends StatelessWidget {
         agentRepository: AgentRepository(client),
         machineRepository: MachineRepository(client),
       )..add(TaskDetailSubscribed(initialTaskId)),
-      child: const Scaffold(
-        backgroundColor: AppColors.bg0,
-        body: _TaskDetailView(),
+      child: _OpenTaskReporter(
+        taskId: initialTaskId,
+        child: const Scaffold(
+          backgroundColor: AppColors.bg0,
+          body: _TaskDetailView(),
+        ),
       ),
     );
   }
+}
+
+/// Marks [taskId] as the open task ([openTaskId]) while this screen lives.
+class _OpenTaskReporter extends StatefulWidget {
+  const _OpenTaskReporter({required this.taskId, required this.child});
+
+  final int taskId;
+  final Widget child;
+
+  @override
+  State<_OpenTaskReporter> createState() => _OpenTaskReporterState();
+}
+
+class _OpenTaskReporterState extends State<_OpenTaskReporter> {
+  @override
+  void initState() {
+    super.initState();
+    // After the frame: the rail listening to it may be building now.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) openTaskId.value = widget.taskId;
+    });
+  }
+
+  @override
+  void dispose() {
+    // Not now: the tree is locked while it's torn down.
+    final id = widget.taskId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (openTaskId.value == id) openTaskId.value = null;
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// What the main area shows — picked from the rail's navigation.
@@ -359,16 +400,20 @@ _TaskSection _defaultSectionFor(Task task) {
 /// Plan stays reachable as a read-only tab once there is one, so the dev can
 /// switch back to it after leaving `planReady` — except right on
 /// `planReady` itself, where Overview already shows it with approve/feedback.
-Set<_TaskSection> _availableSectionsFor(Task task) {
+/// AI review stays reachable once the task has a PR or a review, so the dev
+/// can read the comments an (auto) fix run is working on.
+Set<_TaskSection> _availableSectionsFor(TaskDetailLoaded state) {
+  final task = state.task;
   final s = task.status;
   return {
     if (!_isLive(s) && !_hasPullRequestViews(task)) _TaskSection.overview,
     if (task.currentPlan != null && s != TaskStatus.planReady)
       _TaskSection.plan,
-    if (_hasPullRequestViews(task)) ...{
-      _TaskSection.changes,
+    if (_hasPullRequestViews(task)) _TaskSection.changes,
+    if (_hasPullRequestViews(task) ||
+        task.prUrl != null ||
+        state.reviews.isNotEmpty)
       _TaskSection.review,
-    },
     // Also while a fix run is going, so the dev sees what it's fixing.
     if (task.prUrl != null) _TaskSection.checks,
     _TaskSection.logs,
@@ -388,6 +433,10 @@ extension _TaskDetailLoadedX on TaskDetailLoaded {
 
   int get openCommentCount =>
       reviewComments.where((c) => c.state == ReviewCommentState.open).length;
+
+  int get sentToFixCommentCount => reviewComments
+      .where((c) => c.state == ReviewCommentState.sentToFix)
+      .length;
 
   bool get hasConflicts => mergeStatus?.hasConflicts ?? false;
 
@@ -458,7 +507,7 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
   Widget _buildLoaded(TaskDetailLoaded state) {
     final picked = _section;
     final section =
-        picked != null && _availableSectionsFor(state.task).contains(picked)
+        picked != null && _availableSectionsFor(state).contains(picked)
         ? picked
         : _defaultSectionFor(state.task);
     return Column(
@@ -676,15 +725,17 @@ class _InfoRail extends StatelessWidget {
                 _SettingsSection(task: task),
                 RailSection(
                   label: 'Timeline',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TimelineRow('Created', task.createdAt),
-                      if (task.startedAt != null)
-                        _TimelineRow('Started running', task.startedAt),
-                      if (task.finishedAt != null)
-                        _TimelineRow('Finished', task.finishedAt),
-                    ],
+                  child: TaskTimelineView(
+                    steps: buildTaskTimeline(
+                      task: task,
+                      logs: state.logs,
+                      reviews: state.reviews,
+                      feedback: state.feedback,
+                    ),
+                    onOpen: (link) => onSectionSelected(switch (link) {
+                      TimelineLink.log => _TaskSection.logs,
+                      TimelineLink.review => _TaskSection.review,
+                    }),
                   ),
                 ),
               ],
@@ -712,11 +763,7 @@ class _SettingsSection extends StatelessWidget {
           ? null
           : IconButton(
               tooltip: 'Edit settings',
-              icon: const Icon(
-                Icons.tune,
-                size: 16,
-                color: AppColors.text1,
-              ),
+              icon: const Icon(Icons.tune, size: 16, color: AppColors.text1),
               onPressed: () => _openEditTaskDialog(context, task),
               visualDensity: VisualDensity.compact,
             ),
@@ -858,9 +905,10 @@ class _RailNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available = _availableSectionsFor(state.task);
+    final available = _availableSectionsFor(state);
     final files = state.files;
     final openComments = state.openCommentCount;
+    final sentToFixComments = state.sentToFixCommentCount;
     return RailSection(
       label: 'View',
       child: Column(
@@ -913,6 +961,10 @@ class _RailNav extends StatelessWidget {
                     const StatusDot(color: AppColors.live, pulsing: true),
                   _TaskSection.review when openComments > 0 => CountBadge(
                     openComments,
+                  ),
+                  _TaskSection.review when sentToFixComments > 0 => CountBadge(
+                    sentToFixComments,
+                    color: AppColors.text2,
                   ),
                   _TaskSection.checks
                       when state.task.checkState == PrCheckState.failure =>
@@ -1141,30 +1193,6 @@ List<Widget> _acceptButtons(
       label: const Text('Merge anyway'),
     ),
   ];
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow(this.label, this.at);
-
-  final String label;
-  final DateTime? at;
-
-  @override
-  Widget build(BuildContext context) {
-    final timestamp = at;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: AppTypography.caption)),
-          Text(
-            timestamp == null ? '—' : relativeTime(timestamp),
-            style: AppTypography.caption,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _SectionContent extends StatelessWidget {
@@ -1878,6 +1906,15 @@ class _ReviewView extends StatelessWidget {
                 ),
             ],
           ),
+          if (_isLive(state.task.status) &&
+              state.sentToFixCommentCount > 0) ...[
+            const SizedBox(height: Spacing.xs),
+            Text(
+              'The agent is fixing the comments sent to it — read-only until '
+              "it's back in review.",
+              style: AppTypography.caption,
+            ),
+          ],
           const SizedBox(height: Spacing.lg),
           Expanded(
             child: ListView(
@@ -2037,7 +2074,15 @@ class _VerdictCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pausedUntil = review.status == CodeReviewStatus.queued
+        ? review.pausedUntil
+        : null;
     final (color, label, pulsing) = switch (review.status) {
+      CodeReviewStatus.queued when pausedUntil != null => (
+        AppColors.warning,
+        'Paused',
+        false,
+      ),
       CodeReviewStatus.queued => (AppColors.text2, 'Queued', false),
       CodeReviewStatus.running => (AppColors.live, 'Reviewing…', true),
       CodeReviewStatus.completed => switch (review.verdict) {
@@ -2069,6 +2114,14 @@ class _VerdictCard extends StatelessWidget {
               ),
             ],
           ),
+          if (pausedUntil != null) ...[
+            const SizedBox(height: Spacing.md),
+            Text(
+              'Usage limit — the review resumes at '
+              '${resumeTimeLabel(pausedUntil)}',
+              style: AppTypography.body.copyWith(color: AppColors.warning),
+            ),
+          ],
           if (detail != null) ...[
             const SizedBox(height: Spacing.md),
             failed

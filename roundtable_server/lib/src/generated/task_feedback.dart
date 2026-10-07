@@ -14,6 +14,7 @@
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'task.dart' as _iwn6t6fs;
+import 'task_feedback_kind.dart' as _izdpr1k1;
 import 'task_feedback_phase.dart' as _iitmdld3;
 
 /// A message from the dev to the agent within the same session — the phase field distinguishes plan
@@ -26,6 +27,7 @@ abstract class TaskFeedback
     this.task,
     required this.message,
     required this.phase,
+    this.kind,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -35,6 +37,7 @@ abstract class TaskFeedback
     _iwn6t6fs.Task? task,
     required String message,
     required _iitmdld3.TaskFeedbackPhase phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   }) = _TaskFeedbackImpl;
 
@@ -51,6 +54,11 @@ abstract class TaskFeedback
       phase: _iitmdld3.TaskFeedbackPhase.fromJson(
         (jsonSerialization['phase'] as String),
       ),
+      kind: jsonSerialization['kind'] == null
+          ? null
+          : _izdpr1k1.TaskFeedbackKind.fromJson(
+              (jsonSerialization['kind'] as String),
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _is.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -73,6 +81,9 @@ abstract class TaskFeedback
 
   _iitmdld3.TaskFeedbackPhase phase;
 
+  /// Null for plan feedback and rows from before kinds existed (the dev's).
+  _izdpr1k1.TaskFeedbackKind? kind;
+
   DateTime createdAt;
 
   @override
@@ -87,6 +98,7 @@ abstract class TaskFeedback
     _iwn6t6fs.Task? task,
     String? message,
     _iitmdld3.TaskFeedbackPhase? phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   });
   @override
@@ -98,6 +110,7 @@ abstract class TaskFeedback
       if (task != null) 'task': task?.toJson(),
       'message': message,
       'phase': phase.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
       'createdAt': createdAt.toJson(),
     };
   }
@@ -111,6 +124,7 @@ abstract class TaskFeedback
       if (task != null) 'task': task?.toJsonForProtocol(),
       'message': message,
       'phase': phase.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
       'createdAt': createdAt.toJson(),
     };
   }
@@ -152,6 +166,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
     _iwn6t6fs.Task? task,
     required String message,
     required _iitmdld3.TaskFeedbackPhase phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   }) : super._(
          id: id,
@@ -159,6 +174,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
          task: task,
          message: message,
          phase: phase,
+         kind: kind,
          createdAt: createdAt,
        );
 
@@ -172,6 +188,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
     Object? task = _Undefined,
     String? message,
     _iitmdld3.TaskFeedbackPhase? phase,
+    Object? kind = _Undefined,
     DateTime? createdAt,
   }) {
     return TaskFeedback(
@@ -180,6 +197,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
       task: task is _iwn6t6fs.Task? ? task : this.task?.copyWith(),
       message: message ?? this.message,
       phase: phase ?? this.phase,
+      kind: kind is _izdpr1k1.TaskFeedbackKind? ? kind : this.kind,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -201,6 +219,13 @@ class TaskFeedbackUpdateTable extends _is.UpdateTable<TaskFeedbackTable> {
   _is.ColumnValue<_iitmdld3.TaskFeedbackPhase, _iitmdld3.TaskFeedbackPhase>
   phase(_iitmdld3.TaskFeedbackPhase value) => _is.ColumnValue(
     table.phase,
+    value,
+  );
+
+  _is.ColumnValue<_izdpr1k1.TaskFeedbackKind, _izdpr1k1.TaskFeedbackKind> kind(
+    _izdpr1k1.TaskFeedbackKind? value,
+  ) => _is.ColumnValue(
+    table.kind,
     value,
   );
 
@@ -227,6 +252,11 @@ class TaskFeedbackTable extends _is.Table<int?> {
       this,
       _is.EnumSerialization.byName,
     );
+    kind = _is.ColumnEnum(
+      'kind',
+      this,
+      _is.EnumSerialization.byName,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -244,6 +274,9 @@ class TaskFeedbackTable extends _is.Table<int?> {
   late final _is.ColumnString message;
 
   late final _is.ColumnEnum<_iitmdld3.TaskFeedbackPhase> phase;
+
+  /// Null for plan feedback and rows from before kinds existed (the dev's).
+  late final _is.ColumnEnum<_izdpr1k1.TaskFeedbackKind> kind;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -266,6 +299,7 @@ class TaskFeedbackTable extends _is.Table<int?> {
     taskId,
     message,
     phase,
+    kind,
     createdAt,
   ];
 

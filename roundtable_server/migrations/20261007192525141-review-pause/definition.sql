@@ -72,6 +72,8 @@ CREATE TABLE "code_review" (
     "summary" text,
     "verdict" text,
     "failureReason" text,
+    "pausedUntil" timestamp without time zone,
+    "pauseReason" text,
     "githubReviewId" bigint,
     "createdAt" timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "finishedAt" timestamp without time zone
@@ -200,7 +202,6 @@ CREATE TABLE "task" (
     "autoMerge" boolean NOT NULL DEFAULT false,
     "autoFixFailingChecks" boolean NOT NULL DEFAULT false,
     "maxCheckFixAttempts" bigint NOT NULL DEFAULT 2,
-    "followsDefaults" boolean NOT NULL DEFAULT false,
     "status" text NOT NULL DEFAULT 'queued'::text,
     "currentPlan" text,
     "failureReason" text,
@@ -1198,9 +1199,9 @@ ALTER TABLE ONLY "serverpod_auth_core_session"
 -- MIGRATION VERSION FOR roundtable
 --
 INSERT INTO "serverpod_migrations" ("module", "version", "timestamp")
-    VALUES ('roundtable', '20261007184932209-task-follows-defaults', now())
+    VALUES ('roundtable', '20261007192525141-review-pause', now())
     ON CONFLICT ("module")
-    DO UPDATE SET "version" = '20261007184932209-task-follows-defaults', "timestamp" = now();
+    DO UPDATE SET "version" = '20261007192525141-review-pause', "timestamp" = now();
 
 --
 -- MIGRATION VERSION FOR serverpod

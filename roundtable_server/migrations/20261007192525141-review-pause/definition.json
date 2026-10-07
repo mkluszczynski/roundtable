@@ -271,6 +271,22 @@
         },
         {
           "__className__": "serverpod.ColumnDefinition",
+          "name": "pausedUntil",
+          "fieldName": "pausedUntil",
+          "columnType": 4,
+          "isNullable": true,
+          "dartType": "DateTime?"
+        },
+        {
+          "__className__": "serverpod.ColumnDefinition",
+          "name": "pauseReason",
+          "fieldName": "pauseReason",
+          "columnType": 0,
+          "isNullable": true,
+          "dartType": "String?"
+        },
+        {
+          "__className__": "serverpod.ColumnDefinition",
           "name": "githubReviewId",
           "fieldName": "githubReviewId",
           "columnType": 6,
@@ -1157,15 +1173,6 @@
           "isNullable": false,
           "columnDefault": "2",
           "dartType": "int"
-        },
-        {
-          "__className__": "serverpod.ColumnDefinition",
-          "name": "followsDefaults",
-          "fieldName": "followsDefaults",
-          "columnType": 1,
-          "isNullable": false,
-          "columnDefault": "false",
-          "dartType": "bool"
         },
         {
           "__className__": "serverpod.ColumnDefinition",
@@ -5224,7 +5231,7 @@
     {
       "__className__": "serverpod.DatabaseMigrationVersionModel",
       "module": "roundtable",
-      "version": "20261007184932209-task-follows-defaults"
+      "version": "20261007192525141-review-pause"
     },
     {
       "__className__": "serverpod.DatabaseMigrationVersion",

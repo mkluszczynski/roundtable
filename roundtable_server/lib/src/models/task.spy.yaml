@@ -27,6 +27,10 @@ fields:
   ### agent without waiting for the dev — up to [maxReviewFixRounds] times.
   autoFixReview: bool, default=false
   maxReviewFixRounds: int, default=2
+  ### The advanced options (`taskOptionNames`) the dev set for this task
+  ### itself. The others follow the project/workspace defaults: changing
+  ### those updates the unfinished tasks (`propagateTaskDefaults`).
+  overriddenOptions: List<String>?
   ### Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   reviewFixRounds: int, default=0
   ### Squash-merge the PR without the dev once it's ready: CI green (or no
@@ -38,10 +42,6 @@ fields:
   ### once per commit, at most [maxCheckFixAttempts] times until they pass.
   autoFixFailingChecks: bool, default=false
   maxCheckFixAttempts: int, default=2
-  ### The advanced options above were left at the project's defaults: they
-  ### keep following the project/workspace settings when those change,
-  ### until the dev edits one of them on the task (or it's `done`).
-  followsDefaults: bool, default=false
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?
@@ -53,6 +53,8 @@ fields:
   ### question or found nothing to change.
   resultSummary: String?
   ### Set while `paused`: when the usage limit resets and the task resumes.
+  ### Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  ### whose code review waits for the limit (`refreshReviewPause`).
   pausedUntil: DateTime?
   ### The limit message shown while paused, e.g. "You've hit your session
   ### limit · resets 12:40am".

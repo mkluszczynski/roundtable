@@ -90,13 +90,17 @@ class AgentEndpoint extends Endpoint {
     AgentStatus status,
   ) async {
     var agent = await _requireAgent(session, agentId);
-    return Agent.db.updateRow(
-      session,
-      agent.copyWith(
-        status: await settledAgentStatus(session, agentId, status),
-      ),
-      columns: (t) => [t.status],
-    );
+    return saveAgentStatus(session, agent, status);
+  }
+
+  /// Streams every agent whose status changes, for the panel's agent list
+  /// (the "Agents busy" count, the machine screens). Only `status` is
+  /// meant to be read from it: the agents come without their role.
+  Stream<Agent> watchAgentStatuses(Session session) async* {
+    var updates = session.messages.createStream<Agent>(agentStatusChannel);
+    await for (var agent in updates) {
+      yield agent;
+    }
   }
 
   Future<Agent> _requireAgent(

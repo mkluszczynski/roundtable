@@ -7,6 +7,9 @@ class AgentRepository {
 
   Future<List<Agent>> listAgents() => _client.agent.list();
 
+  /// Every agent whose status changes; read only its `status`.
+  Stream<Agent> watchAgentStatuses() => _client.agent.watchAgentStatuses();
+
   Future<Agent?> getAgent(int id) => _client.agent.get(id);
 
   Future<Agent> createAgent({

@@ -13,6 +13,7 @@
 import 'package:roundtable_client/src/protocol/protocol.dart' as _i35hmugi;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'task.dart' as _iwn6t6fs;
+import 'task_feedback_kind.dart' as _izdpr1k1;
 import 'task_feedback_phase.dart' as _iitmdld3;
 
 /// A message from the dev to the agent within the same session — the phase field distinguishes plan
@@ -25,6 +26,7 @@ abstract class TaskFeedback
     this.task,
     required this.message,
     required this.phase,
+    this.kind,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -34,6 +36,7 @@ abstract class TaskFeedback
     _iwn6t6fs.Task? task,
     required String message,
     required _iitmdld3.TaskFeedbackPhase phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   }) = _TaskFeedbackImpl;
 
@@ -50,6 +53,11 @@ abstract class TaskFeedback
       phase: _iitmdld3.TaskFeedbackPhase.fromJson(
         (jsonSerialization['phase'] as String),
       ),
+      kind: jsonSerialization['kind'] == null
+          ? null
+          : _izdpr1k1.TaskFeedbackKind.fromJson(
+              (jsonSerialization['kind'] as String),
+            ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _isc.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
@@ -70,6 +78,9 @@ abstract class TaskFeedback
 
   _iitmdld3.TaskFeedbackPhase phase;
 
+  /// Null for plan feedback and rows from before kinds existed (the dev's).
+  _izdpr1k1.TaskFeedbackKind? kind;
+
   DateTime createdAt;
 
   /// Returns a shallow copy of this [TaskFeedback]
@@ -81,6 +92,7 @@ abstract class TaskFeedback
     _iwn6t6fs.Task? task,
     String? message,
     _iitmdld3.TaskFeedbackPhase? phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   });
   @override
@@ -92,6 +104,7 @@ abstract class TaskFeedback
       if (task != null) 'task': task?.toJson(),
       'message': message,
       'phase': phase.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
       'createdAt': createdAt.toJson(),
     };
   }
@@ -105,6 +118,7 @@ abstract class TaskFeedback
       if (task != null) 'task': task?.toJsonForProtocol(),
       'message': message,
       'phase': phase.toJson(),
+      if (kind != null) 'kind': kind?.toJson(),
       'createdAt': createdAt.toJson(),
     };
   }
@@ -124,6 +138,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
     _iwn6t6fs.Task? task,
     required String message,
     required _iitmdld3.TaskFeedbackPhase phase,
+    _izdpr1k1.TaskFeedbackKind? kind,
     DateTime? createdAt,
   }) : super._(
          id: id,
@@ -131,6 +146,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
          task: task,
          message: message,
          phase: phase,
+         kind: kind,
          createdAt: createdAt,
        );
 
@@ -144,6 +160,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
     Object? task = _Undefined,
     String? message,
     _iitmdld3.TaskFeedbackPhase? phase,
+    Object? kind = _Undefined,
     DateTime? createdAt,
   }) {
     return TaskFeedback(
@@ -152,6 +169,7 @@ class _TaskFeedbackImpl extends TaskFeedback {
       task: task is _iwn6t6fs.Task? ? task : this.task?.copyWith(),
       message: message ?? this.message,
       phase: phase ?? this.phase,
+      kind: kind is _izdpr1k1.TaskFeedbackKind? ? kind : this.kind,
       createdAt: createdAt ?? this.createdAt,
     );
   }

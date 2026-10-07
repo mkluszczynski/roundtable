@@ -35,6 +35,40 @@ void main() {
       },
     );
 
+    test('when an agent status changes then the panel is told', () async {
+      final machine = await createMachine();
+      final agent = await endpoints.agent.create(
+        sessionBuilder,
+        'Ana',
+        machine.id!,
+      );
+      final events = endpoints.agent
+          .watchAgentStatuses(sessionBuilder)
+          .take(2)
+          .map((a) => (a.id, a.status))
+          .toList();
+      await flushEventQueue();
+
+      await endpoints.agent.setStatus(
+        sessionBuilder,
+        agent.id!,
+        AgentStatus.busy,
+      );
+      await endpoints.agent.setStatus(
+        sessionBuilder,
+        agent.id!,
+        AgentStatus.idle,
+      );
+
+      await expectLater(
+        events,
+        completion([
+          (agent.id, AgentStatus.busy),
+          (agent.id, AgentStatus.idle),
+        ]),
+      );
+    });
+
     test('when getting an agent by id then it is returned', () async {
       final machine = await createMachine();
       final created = await endpoints.agent.create(

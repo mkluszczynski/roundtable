@@ -18,7 +18,6 @@ class TaskRepository {
     bool autoFixFailingChecks = false,
     int? maxCheckFixAttempts,
     List<int> attachmentIds = const [],
-    bool followDefaults = false,
   }) => _client.task.createTask(
     projectId,
     agentId,
@@ -32,7 +31,6 @@ class TaskRepository {
     autoFixFailingChecks: autoFixFailingChecks,
     maxCheckFixAttempts: maxCheckFixAttempts,
     attachmentIds: attachmentIds,
-    followDefaults: followDefaults,
   );
 
   Future<List<DiffFile>> getChangedFiles(int taskId) =>
@@ -76,6 +74,10 @@ class TaskRepository {
 
   /// Streams every task as it's created/changed, for the dashboard kanban.
   /// Each event is a single task — merge it into your task list by id.
+  /// Every feedback sent on [taskId], oldest first.
+  Future<List<TaskFeedback>> listFeedback(int taskId) =>
+      _client.task.listFeedback(taskId);
+
   Stream<Task> watchAllTasks() => _client.task.watchAllTasks();
 
   Stream<TaskLogEntry> watchLogs(int taskId) => _client.task.watchLogs(taskId);

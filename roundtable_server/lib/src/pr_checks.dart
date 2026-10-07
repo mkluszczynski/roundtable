@@ -534,6 +534,7 @@ Future<TaskFeedback> sendFailingChecksToFix(
     session,
     task,
     checkFixPrompt(headSha: headSha!, failures: failures, note: note),
+    kind: TaskFeedbackKind.checks,
     transactionSettings: const TransactionSettings(
       isolationLevel: IsolationLevel.serializable,
     ),

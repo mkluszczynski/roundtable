@@ -41,16 +41,33 @@ both binaries.
 
 `checkIn` reports the installed version. The Machines screen compares it with
 `latestRunnerVersion` and shows **Update** (`widgets/runner_update_banner.dart`).
-If an agent on that machine is mid-task, it asks for confirmation first,
-because the restart kills the run.
+
+The update restarts the daemon, and a restart fails every agent-driven task
+and running review (`reportStartup`). So the update waits for the machine's
+agents to finish their current work. While an agent is busy, the banner reads
+"Update scheduled".
 
 ```
 Update click → requestRunnerUpdate (sets updateRequestedAt)
-→ next checkIn (≤20 s) returns true
-→ daemon writes /var/lib/agent-runner/update-requested
+→ next checkIn(drainsForUpdate: true) (≤20 s) returns true
+→ daemon holds back new task runs/reviews (AgentWorkQueue.drain),
+  the held ones log "Waiting — … busy with an agent runner update"
+→ first checkIn with no work in progress: daemon writes
+  /var/lib/agent-runner/update-requested
 → agent-runner-update.path fires as root → re-download binaries → restart service
 → new version reported → server clears updateRequestedAt
+→ held work is still `queued` and is replayed by watchAssigned* at subscribe
 ```
+
+Daemons from before this change don't pass `drainsForUpdate`. For them, the
+server reports the request only while none of the machine's agents has an
+agent-driven task or a `running` review. They don't hold back new work, so on
+a machine that never goes idle their update can be delayed.
+
+Work in progress includes a task in `planReady`/`waitingForAnswer` (its
+`claude` process is waiting for the dev) and work waiting inside the agent
+queue for the Claude usage limit to reset. Both delay the update until they
+finish.
 
 Machines installed before this mechanism existed have to re-run the install
 script once.
@@ -242,8 +259,7 @@ branch protection.
    away. A fix run that pushed nothing gets its real state back from the
    unchanged commit.
 5. Auto-fix (`Task.autoFixFailingChecks`, defaulted from the project or
-   workspace when the task is created, and kept in sync with them while
-   `Task.followsDefaults`): once all jobs finished and
+   workspace when the task is created): once all jobs finished and
    some failed, the failure is sent like `fixFailingChecks` — once per
    commit (`checkFixSentForSha`) and at most `maxCheckFixAttempts` times
    until the checks pass (`checkFixAttempts` resets on `success`). Both
@@ -265,8 +281,14 @@ it again then and the same session resumes). It also closes the runner's
 Until then, work that hasn't started waits instead of hitting the limit
 again: a task stays as it is with "Waiting for the Claude usage limit to
 reset at HH:MM" on its timeline and is re-read before it starts; a review
-stays `queued`. A review cut short by the limit goes back to `queued`
-(`requeueReview`) and runs again after the reset. `StalledTaskFutureCall`
+stays `queued`, paused (`pauseQueuedReview`). A review cut short by the
+limit goes back to `queued`, paused (`requeueReview(until, reason)`), and
+runs again after the reset. A paused review sets `CodeReview.pausedUntil`/
+`pauseReason`, which `refreshReviewPause` (from `postReviewChanged`)
+mirrors onto its task: it stays `awaitingReview` in the Review column,
+with `pausedUntil`, `pauseReason` and `pausedPhase` `review` — "Review
+paused — resumes at HH:MM" on the card, "Paused" on the verdict. Starting
+or failing the review clears both. `StalledTaskFutureCall`
 leaves a queued task alone while its machine is limited or its agent is
 busy with other work (§5).
 
@@ -295,6 +317,9 @@ busy with other work (§5).
    GitHub thread). `sendCommentsToFix(commentIds, note)` marks them
    `sentToFix` and queues a review-phase feedback run. When that run reaches
    `awaitingReview` again, `TaskEndpoint.update` marks them `resolved`.
+   The task detail's AI review tab stays available (read-only) during that
+   run — including one started by auto fix — so the dev can read what the
+   reviewer found while the agent fixes it.
 5. **Re-reviews check earlier comments.** `ReviewDispatcher` fetches
    `previousComments(reviewId)` (earlier reviews of the task, minus
    `superseded`) and `buildReviewPrompt` lists them with their state. The

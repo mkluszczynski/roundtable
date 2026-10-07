@@ -80,8 +80,12 @@ class CodeReviewEndpoint extends Endpoint {
 
     await CodeReview.db.updateRow(
       session,
-      review.copyWith(status: CodeReviewStatus.running),
-      columns: (r) => [r.status],
+      review.copyWith(
+        status: CodeReviewStatus.running,
+        pausedUntil: null,
+        pauseReason: null,
+      ),
+      columns: (r) => [r.status, r.pausedUntil, r.pauseReason],
     );
     await _setReviewerStatus(session, review, AgentStatus.busy);
     await postReviewChanged(session, reviewId);
@@ -203,15 +207,43 @@ class CodeReviewEndpoint extends Endpoint {
   /// Called by the daemon when a running review was cut short by the Claude
   /// usage limit: it goes back to `queued`, and the daemon runs it again
   /// once the limit resets.
-  Future<CodeReview> requeueReview(Session session, int reviewId) async {
+  Future<CodeReview> requeueReview(
+    Session session,
+    int reviewId, {
+    DateTime? until,
+    String? reason,
+  }) async {
     var review = await _requireReview(session, reviewId);
     if (review.status != CodeReviewStatus.running) return review;
     await CodeReview.db.updateRow(
       session,
-      review.copyWith(status: CodeReviewStatus.queued),
-      columns: (r) => [r.status],
+      review.copyWith(
+        status: CodeReviewStatus.queued,
+        pausedUntil: until?.toUtc(),
+        pauseReason: reason,
+      ),
+      columns: (r) => [r.status, r.pausedUntil, r.pauseReason],
     );
     await _setReviewerStatus(session, review, AgentStatus.idle);
+    return postReviewChanged(session, reviewId);
+  }
+
+  /// Called by the daemon when queued review [reviewId] has to wait for
+  /// the machine's Claude usage limit to reset at [until] before it starts.
+  /// Shows the pause on the review and its task (`refreshReviewPause`).
+  Future<CodeReview> pauseQueuedReview(
+    Session session,
+    int reviewId,
+    DateTime until,
+    String? reason,
+  ) async {
+    var review = await _requireReview(session, reviewId);
+    if (review.status != CodeReviewStatus.queued) return review;
+    await CodeReview.db.updateRow(
+      session,
+      review.copyWith(pausedUntil: until.toUtc(), pauseReason: reason),
+      columns: (r) => [r.pausedUntil, r.pauseReason],
+    );
     return postReviewChanged(session, reviewId);
   }
 
@@ -384,13 +416,7 @@ class CodeReviewEndpoint extends Endpoint {
     if (agentId == null) return;
     var agent = await Agent.db.findById(session, agentId);
     if (agent == null) return;
-    await Agent.db.updateRow(
-      session,
-      agent.copyWith(
-        status: await settledAgentStatus(session, agentId, status),
-      ),
-      columns: (a) => [a.status],
-    );
+    await saveAgentStatus(session, agent, status);
   }
 }
 

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/closeable_streams.dart';
 import '../utils/error_message.dart';
 import '../repositories/agent_repository.dart';
 
@@ -28,7 +31,8 @@ class AgentListError extends AgentListState {
   final String message;
 }
 
-class AgentListCubit extends Cubit<AgentListState> {
+class AgentListCubit extends Cubit<AgentListState>
+    with CloseableStreams<AgentListState> {
   AgentListCubit(this._repository) : super(const AgentListInitial());
 
   final AgentRepository _repository;
@@ -42,6 +46,30 @@ class AgentListCubit extends Cubit<AgentListState> {
       emit(AgentListLoaded(agents));
     } catch (e) {
       emit(AgentListError(errorMessage(e)));
+    }
+  }
+
+  /// Keeps the loaded agents' statuses live (the dashboard's "Agents busy",
+  /// the machine screens) — [fetchAgents] alone is a snapshot. Only the
+  /// panel-wide cubit (`PanelShell`) calls this.
+  Future<void> watchStatuses() async {
+    try {
+      await for (final changed in untilClosed(
+        _repository.watchAgentStatuses(),
+      )) {
+        final current = state;
+        if (current is! AgentListLoaded) continue;
+        emit(
+          AgentListLoaded([
+            for (final agent in current.agents)
+              agent.id == changed.id
+                  ? agent.copyWith(status: changed.status)
+                  : agent,
+          ]),
+        );
+      }
+    } catch (_) {
+      // A dropped stream leaves the last statuses; the next fetch fixes it.
     }
   }
 

@@ -31,6 +31,8 @@ abstract class CodeReview
     this.summary,
     this.verdict,
     this.failureReason,
+    this.pausedUntil,
+    this.pauseReason,
     this.githubReviewId,
     DateTime? createdAt,
     this.finishedAt,
@@ -48,6 +50,8 @@ abstract class CodeReview
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -81,6 +85,12 @@ abstract class CodeReview
               (jsonSerialization['verdict'] as String),
             ),
       failureReason: jsonSerialization['failureReason'] as String?,
+      pausedUntil: jsonSerialization['pausedUntil'] == null
+          ? null
+          : _isc.DateTimeJsonExtension.fromJson(
+              jsonSerialization['pausedUntil'],
+            ),
+      pauseReason: jsonSerialization['pauseReason'] as String?,
       githubReviewId: jsonSerialization['githubReviewId'] as int?,
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -123,6 +133,12 @@ abstract class CodeReview
 
   String? failureReason;
 
+  /// Set while a `queued` review waits for the reviewer machine's Claude
+  /// usage limit to reset (cut short by it, or not started yet).
+  DateTime? pausedUntil;
+
+  String? pauseReason;
+
   /// Id of the mirrored GitHub PR review, when mirroring succeeded.
   int? githubReviewId;
 
@@ -145,6 +161,8 @@ abstract class CodeReview
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -163,6 +181,8 @@ abstract class CodeReview
       if (summary != null) 'summary': summary,
       if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -185,6 +205,8 @@ abstract class CodeReview
       if (summary != null) 'summary': summary,
       if (verdict != null) 'verdict': verdict?.toJson(),
       if (failureReason != null) 'failureReason': failureReason,
+      if (pausedUntil != null) 'pausedUntil': pausedUntil?.toJson(),
+      if (pauseReason != null) 'pauseReason': pauseReason,
       if (githubReviewId != null) 'githubReviewId': githubReviewId,
       'createdAt': createdAt.toJson(),
       if (finishedAt != null) 'finishedAt': finishedAt?.toJson(),
@@ -212,6 +234,8 @@ class _CodeReviewImpl extends CodeReview {
     String? summary,
     _ijks0ur1.CodeReviewVerdict? verdict,
     String? failureReason,
+    DateTime? pausedUntil,
+    String? pauseReason,
     int? githubReviewId,
     DateTime? createdAt,
     DateTime? finishedAt,
@@ -226,6 +250,8 @@ class _CodeReviewImpl extends CodeReview {
          summary: summary,
          verdict: verdict,
          failureReason: failureReason,
+         pausedUntil: pausedUntil,
+         pauseReason: pauseReason,
          githubReviewId: githubReviewId,
          createdAt: createdAt,
          finishedAt: finishedAt,
@@ -246,6 +272,8 @@ class _CodeReviewImpl extends CodeReview {
     Object? summary = _Undefined,
     Object? verdict = _Undefined,
     Object? failureReason = _Undefined,
+    Object? pausedUntil = _Undefined,
+    Object? pauseReason = _Undefined,
     Object? githubReviewId = _Undefined,
     DateTime? createdAt,
     Object? finishedAt = _Undefined,
@@ -267,6 +295,8 @@ class _CodeReviewImpl extends CodeReview {
       failureReason: failureReason is String?
           ? failureReason
           : this.failureReason,
+      pausedUntil: pausedUntil is DateTime? ? pausedUntil : this.pausedUntil,
+      pauseReason: pauseReason is String? ? pauseReason : this.pauseReason,
       githubReviewId: githubReviewId is int?
           ? githubReviewId
           : this.githubReviewId,

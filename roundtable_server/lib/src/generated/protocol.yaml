@@ -15,6 +15,7 @@ agent:
   - list:
   - update:
   - setStatus:
+  - watchAgentStatuses:
   - delete:
 agentRole:
   - list:
@@ -28,6 +29,7 @@ codeReview:
   - previousComments:
   - completeReview:
   - requeueReview:
+  - pauseQueuedReview:
   - failReview:
   - watchReviews:
   - setCommentState:
@@ -90,6 +92,7 @@ task:
   - retryTask:
   - reassignAgent:
   - submitFeedback:
+  - listFeedback:
   - latestFeedback:
   - updateTaskSettings:
   - suggestTitle:

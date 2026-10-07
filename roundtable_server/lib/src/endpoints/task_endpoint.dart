@@ -1,7 +1,8 @@
 import 'non_terminal_task_statuses.dart';
-import 'settings_endpoint.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
+import '../task_option_inheritance.dart';
+import 'settings_endpoint.dart';
 import '../github_repo_client.dart';
 import '../pr_checks.dart';
 import '../task_lifecycle.dart';
@@ -36,10 +37,6 @@ class TaskEndpoint extends Endpoint {
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
-  ///
-  /// With [followDefaults] the dev left the advanced options untouched: the
-  /// task takes the project's current defaults (the option arguments are
-  /// ignored) and keeps following them, see `Task.followsDefaults`.
   Future<Task> createTask(
     Session session,
     int projectId,
@@ -56,21 +53,10 @@ class TaskEndpoint extends Endpoint {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
-    bool? followDefaults,
   }) async {
-    if (await Project.db.findById(session, projectId) == null) {
+    final project = await Project.db.findById(session, projectId);
+    if (project == null) {
       throw NotFoundException(message: 'Project $projectId not found');
-    }
-    if (followDefaults ?? false) {
-      final d = await resolveTaskDefaults(session, projectId);
-      skipPlanning = d.skipPlanning;
-      autoReview = d.autoReview;
-      reviewerAgentId = d.reviewerAgentId;
-      autoFixReview = d.autoFixReview;
-      maxReviewFixRounds = d.maxReviewFixRounds;
-      autoMerge = d.autoMerge;
-      autoFixFailingChecks = d.autoFixFailingChecks;
-      maxCheckFixAttempts = d.maxCheckFixAttempts;
     }
     if (reviewerAgentId != null &&
         await Agent.db.findById(session, reviewerAgentId) == null) {
@@ -84,22 +70,28 @@ class TaskEndpoint extends Endpoint {
       }
     }
 
+    var draft = Task(
+      projectId: projectId,
+      agentId: agentId,
+      prompt: prompt,
+      skipPlanning: skipPlanning,
+      autoReview: autoReview ?? false,
+      reviewerAgentId: reviewerAgentId,
+      autoFixReview: autoFixReview ?? false,
+      maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
+      autoMerge: autoMerge ?? false,
+      autoFixFailingChecks: autoFixFailingChecks ?? false,
+      maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
+      status: agent == null ? TaskStatus.draft : TaskStatus.queued,
+    );
+    // What the dev left at the defaults keeps following them.
     var task = await Task.db.insertRow(
       session,
-      Task(
-        projectId: projectId,
-        agentId: agentId,
-        prompt: prompt,
-        skipPlanning: skipPlanning,
-        autoReview: autoReview ?? false,
-        reviewerAgentId: reviewerAgentId,
-        autoFixReview: autoFixReview ?? false,
-        maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
-        autoMerge: autoMerge ?? false,
-        autoFixFailingChecks: autoFixFailingChecks ?? false,
-        maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
-        followsDefaults: followDefaults ?? false,
-        status: agent == null ? TaskStatus.draft : TaskStatus.queued,
+      draft.copyWith(
+        overriddenOptions: optionsDifferingFrom(
+          draft,
+          resolveTaskDefaults(project, await workspaceSettings(session)),
+        ),
       ),
     );
     // Linked before the machine is notified, so the runner sees them.
@@ -343,6 +335,7 @@ class TaskEndpoint extends Endpoint {
       session,
       task,
       conflictResolutionPrompt(base),
+      kind: TaskFeedbackKind.conflicts,
     );
   }
 
@@ -462,7 +455,12 @@ class TaskEndpoint extends Endpoint {
     );
     await session.messages.postMessage(channelForTask(taskId), reopened);
     await session.messages.postMessage(channelForAllTasks(), reopened);
-    return queueReviewFeedback(session, reopened, message.trim());
+    return queueReviewFeedback(
+      session,
+      reopened,
+      message.trim(),
+      kind: TaskFeedbackKind.dev,
+    );
   }
 
   /// Resumes a task paused by a usage limit right away instead of waiting
@@ -667,6 +665,7 @@ class TaskEndpoint extends Endpoint {
       session,
       await _requireTask(session, taskId),
       message,
+      kind: TaskFeedbackKind.dev,
     );
   }
 
@@ -675,6 +674,15 @@ class TaskEndpoint extends Endpoint {
   /// a review-phase feedback that woke it via [submitFeedback], and to tell
   /// a stale replay (e.g. after a daemon restart) apart from a real pending
   /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  /// Every feedback sent on [taskId], oldest first — the panel's timeline
+  /// names each feedback run after the one it started from.
+  Future<List<TaskFeedback>> listFeedback(Session session, int taskId) =>
+      TaskFeedback.db.find(
+        session,
+        where: (t) => t.taskId.equals(taskId),
+        orderBy: (t) => t.createdAt,
+      );
+
   Future<TaskFeedback?> latestFeedback(Session session, int taskId) async {
     var results = await TaskFeedback.db.find(
       session,
@@ -689,7 +697,7 @@ class TaskEndpoint extends Endpoint {
   /// in — both only matter when a run starts, so only before the first run
   /// or before a retry (which starts a fresh session). Not while queued to
   /// resume a paused run (`pausedPhase`), which keeps its session.
-  static const promptEditableStatuses = {
+  static const _promptEditableStatuses = {
     TaskStatus.draft,
     TaskStatus.queued,
     TaskStatus.failed,
@@ -701,7 +709,7 @@ class TaskEndpoint extends Endpoint {
   /// automation options are read fresh each time they apply, so they can
   /// change any time before the task is `done`; the prompt and
   /// [skipPlanning] only while no run is under way (see
-  /// [promptEditableStatuses]). Turning auto review on applies from the
+  /// [_promptEditableStatuses]). Turning auto review on applies from the
   /// next version the agent finishes.
   Future<Task> updateTaskSettings(
     Session session,
@@ -729,7 +737,7 @@ class TaskEndpoint extends Endpoint {
     final newSkipPlanning = skipPlanning ?? task.skipPlanning;
     final promptChanged =
         trimmed != task.prompt || newSkipPlanning != task.skipPlanning;
-    if (promptChanged && !promptEditableStatuses.contains(task.status)) {
+    if (promptChanged && !_promptEditableStatuses.contains(task.status)) {
       throw InvalidStateException(
         message:
             'The prompt of task $taskId can\'t change while '
@@ -750,7 +758,7 @@ class TaskEndpoint extends Endpoint {
       throw NotFoundException(message: 'Agent $reviewerAgentId not found');
     }
 
-    var next = task.copyWith(
+    final edited = task.copyWith(
       prompt: trimmed,
       skipPlanning: newSkipPlanning,
       autoReview: autoReview ?? task.autoReview,
@@ -765,25 +773,12 @@ class TaskEndpoint extends Endpoint {
       maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
           .clamp(1, 10),
     );
-    // An option the dev changed by hand stops the task following the
-    // project's defaults; editing only the prompt doesn't.
-    if (next.skipPlanning != task.skipPlanning ||
-        next.autoReview != task.autoReview ||
-        next.reviewerAgentId != task.reviewerAgentId ||
-        next.autoFixReview != task.autoFixReview ||
-        next.maxReviewFixRounds != task.maxReviewFixRounds ||
-        next.autoMerge != task.autoMerge ||
-        next.autoFixFailingChecks != task.autoFixFailingChecks ||
-        next.maxCheckFixAttempts != task.maxCheckFixAttempts) {
-      next = next.copyWith(followsDefaults: false);
-    }
-
     // Only these columns, so a concurrent daemon `update` isn't reverted.
     final updated = await Task.db.updateRow(
       session,
-      next,
+      edited.copyWith(overriddenOptions: overridesAfterEdit(task, edited)),
       columns: (t) => [
-        t.followsDefaults,
+        t.overriddenOptions,
         t.prompt,
         t.skipPlanning,
         t.autoReview,

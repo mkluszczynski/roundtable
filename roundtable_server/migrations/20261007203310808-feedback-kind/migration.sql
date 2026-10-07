@@ -3,15 +3,15 @@ BEGIN;
 --
 -- ACTION ALTER TABLE
 --
-ALTER TABLE "task" ADD COLUMN "followsDefaults" boolean NOT NULL DEFAULT false;
+ALTER TABLE "task_feedback" ADD COLUMN "kind" text;
 
 --
 -- MIGRATION VERSION FOR roundtable
 --
 INSERT INTO "serverpod_migrations" ("module", "version", "timestamp")
-    VALUES ('roundtable', '20261007184932209-task-follows-defaults', now())
+    VALUES ('roundtable', '20261007203310808-feedback-kind', now())
     ON CONFLICT ("module")
-    DO UPDATE SET "version" = '20261007184932209-task-follows-defaults', "timestamp" = now();
+    DO UPDATE SET "version" = '20261007203310808-feedback-kind', "timestamp" = now();
 
 --
 -- MIGRATION VERSION FOR serverpod

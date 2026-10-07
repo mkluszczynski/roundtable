@@ -12,6 +12,10 @@ fields:
   ### The reviewer's decision; null for reviews from before verdicts existed.
   verdict: CodeReviewVerdict?
   failureReason: String?
+  ### Set while a `queued` review waits for the reviewer machine's Claude
+  ### usage limit to reset (cut short by it, or not started yet).
+  pausedUntil: DateTime?
+  pauseReason: String?
   ### Id of the mirrored GitHub PR review, when mirroring succeeded.
   githubReviewId: int?
   createdAt: DateTime, default=now

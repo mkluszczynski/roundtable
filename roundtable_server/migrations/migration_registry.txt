@@ -35,4 +35,6 @@
 20261006224959094-machine-usage-limit
 20261007175141237-kanban-change-stats
 20261007180522891-machine-os-version
-20261007184932209-task-follows-defaults
+20261007192525141-review-pause
+20261007200416937-task-overridden-options
+20261007203310808-feedback-kind

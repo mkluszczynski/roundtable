@@ -56,4 +56,41 @@ void main() {
     );
     expect(waited, isFalse);
   });
+
+  test('drain holds back new work until resume, while running work '
+      'finishes', () async {
+    final queue = AgentWorkQueue();
+    final events = <String>[];
+    final release = Completer<void>();
+    final waitingFor = <String>[];
+
+    final running = queue.run(1, 'task #1', () async {
+      events.add('start 1');
+      await release.future;
+      events.add('end 1');
+    });
+    queue.drain();
+    expect(queue.isDraining, isTrue);
+    expect(queue.isIdle, isFalse);
+    expect(queue.currentWorks, ['task #1']);
+
+    final held = queue.run(
+      2,
+      'task #2',
+      () async => events.add('start 2'),
+      onWaiting: waitingFor.add,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(waitingFor, [AgentWorkQueue.drainLabel]);
+
+    release.complete();
+    await running;
+    expect(queue.isIdle, isTrue);
+    expect(events, ['start 1', 'end 1']);
+
+    queue.resume();
+    await held;
+    expect(queue.isDraining, isFalse);
+    expect(events, ['start 1', 'end 1', 'start 2']);
+  });
 }

@@ -39,11 +39,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    this.overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
-    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -79,7 +79,6 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
        autoMerge = autoMerge ?? false,
        autoFixFailingChecks = autoFixFailingChecks ?? false,
        maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
-       followsDefaults = followsDefaults ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -101,11 +100,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
-    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -168,6 +167,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      overriddenOptions: jsonSerialization['overriddenOptions'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<List<String>>(
+              jsonSerialization['overriddenOptions'],
+            ),
       reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
@@ -178,11 +182,6 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
               jsonSerialization['autoFixFailingChecks'],
             ),
       maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
-      followsDefaults: jsonSerialization['followsDefaults'] == null
-          ? null
-          : _is.BoolJsonExtension.fromJson(
-              jsonSerialization['followsDefaults'],
-            ),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -306,6 +305,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   int maxReviewFixRounds;
 
+  /// The advanced options (`taskOptionNames`) the dev set for this task
+  /// itself. The others follow the project/workspace defaults: changing
+  /// those updates the unfinished tasks (`propagateTaskDefaults`).
+  List<String>? overriddenOptions;
+
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   int reviewFixRounds;
 
@@ -320,11 +324,6 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   bool autoFixFailingChecks;
 
   int maxCheckFixAttempts;
-
-  /// The advanced options above were left at the project's defaults: they
-  /// keep following the project/workspace settings when those change,
-  /// until the dev edits one of them on the task (or it's `done`).
-  bool followsDefaults;
 
   _ic097rko.TaskStatus status;
 
@@ -341,6 +340,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
   String? resultSummary;
 
   /// Set while `paused`: when the usage limit resets and the task resumes.
+  /// Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  /// whose code review waits for the limit (`refreshReviewPause`).
   DateTime? pausedUntil;
 
   /// The limit message shown while paused, e.g. "You've hit your session
@@ -433,11 +434,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
-    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -483,11 +484,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
-      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -539,11 +541,12 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
-      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -643,11 +646,11 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
-    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -689,11 +692,11 @@ class _TaskImpl extends Task {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         overriddenOptions: overriddenOptions,
          reviewFixRounds: reviewFixRounds,
          autoMerge: autoMerge,
          autoFixFailingChecks: autoFixFailingChecks,
          maxCheckFixAttempts: maxCheckFixAttempts,
-         followsDefaults: followsDefaults,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -741,11 +744,11 @@ class _TaskImpl extends Task {
     Object? reviewerAgent = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    Object? overriddenOptions = _Undefined,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
-    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -794,11 +797,13 @@ class _TaskImpl extends Task {
           : this.reviewerAgent?.copyWith(),
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      overriddenOptions: overriddenOptions is List<String>?
+          ? overriddenOptions
+          : this.overriddenOptions?.map((e0) => e0).toList(),
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
       maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
-      followsDefaults: followsDefaults ?? this.followsDefaults,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -898,6 +903,13 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
     value,
   );
 
+  _is.ColumnValue<List<String>, List<String>> overriddenOptions(
+    List<String>? value,
+  ) => _is.ColumnValue(
+    table.overriddenOptions,
+    value,
+  );
+
   _is.ColumnValue<int, int> reviewFixRounds(int value) => _is.ColumnValue(
     table.reviewFixRounds,
     value,
@@ -916,11 +928,6 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
     table.maxCheckFixAttempts,
-    value,
-  );
-
-  _is.ColumnValue<bool, bool> followsDefaults(bool value) => _is.ColumnValue(
-    table.followsDefaults,
     value,
   );
 
@@ -1099,6 +1106,10 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    overriddenOptions = _is.ColumnSerializable<List<String>>(
+      'overriddenOptions',
+      this,
+    );
     reviewFixRounds = _is.ColumnInt(
       'reviewFixRounds',
       this,
@@ -1116,11 +1127,6 @@ class TaskTable extends _is.Table<int?> {
     );
     maxCheckFixAttempts = _is.ColumnInt(
       'maxCheckFixAttempts',
-      this,
-      hasDefault: true,
-    );
-    followsDefaults = _is.ColumnBool(
-      'followsDefaults',
       this,
       hasDefault: true,
     );
@@ -1269,6 +1275,11 @@ class TaskTable extends _is.Table<int?> {
 
   late final _is.ColumnInt maxReviewFixRounds;
 
+  /// The advanced options (`taskOptionNames`) the dev set for this task
+  /// itself. The others follow the project/workspace defaults: changing
+  /// those updates the unfinished tasks (`propagateTaskDefaults`).
+  late final _is.ColumnSerializable<List<String>> overriddenOptions;
+
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   late final _is.ColumnInt reviewFixRounds;
 
@@ -1283,11 +1294,6 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnBool autoFixFailingChecks;
 
   late final _is.ColumnInt maxCheckFixAttempts;
-
-  /// The advanced options above were left at the project's defaults: they
-  /// keep following the project/workspace settings when those change,
-  /// until the dev edits one of them on the task (or it's `done`).
-  late final _is.ColumnBool followsDefaults;
 
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
@@ -1304,6 +1310,8 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnString resultSummary;
 
   /// Set while `paused`: when the usage limit resets and the task resumes.
+  /// Also set, with [pausedPhase] `review`, on an `awaitingReview` task
+  /// whose code review waits for the limit (`refreshReviewPause`).
   late final _is.ColumnDateTime pausedUntil;
 
   /// The limit message shown while paused, e.g. "You've hit your session
@@ -1563,11 +1571,11 @@ class TaskTable extends _is.Table<int?> {
     reviewerAgentId,
     autoFixReview,
     maxReviewFixRounds,
+    overriddenOptions,
     reviewFixRounds,
     autoMerge,
     autoFixFailingChecks,
     maxCheckFixAttempts,
-    followsDefaults,
     status,
     currentPlan,
     failureReason,

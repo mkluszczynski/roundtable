@@ -358,6 +358,20 @@ class EndpointAgent extends _isc.EndpointRef {
     },
   );
 
+  /// Streams every agent whose status changes, for the panel's agent list
+  /// (the "Agents busy" count, the machine screens). Only `status` is
+  /// meant to be read from it: the agents come without their role.
+  _ida.Stream<_ikth53tp.Agent> watchAgentStatuses() =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_ikth53tp.Agent>,
+        _ikth53tp.Agent
+      >(
+        'agent',
+        'watchAgentStatuses',
+        {},
+        {},
+      );
+
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'agent',
     'delete',
@@ -493,12 +507,36 @@ class EndpointCodeReview extends _isc.EndpointRef {
   /// Called by the daemon when a running review was cut short by the Claude
   /// usage limit: it goes back to `queued`, and the daemon runs it again
   /// once the limit resets.
-  _ida.Future<_i38oxrkr.CodeReview> requeueReview(int reviewId) =>
-      caller.callServerEndpoint<_i38oxrkr.CodeReview>(
-        'codeReview',
-        'requeueReview',
-        {'reviewId': reviewId},
-      );
+  _ida.Future<_i38oxrkr.CodeReview> requeueReview(
+    int reviewId, {
+    DateTime? until,
+    String? reason,
+  }) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'requeueReview',
+    {
+      'reviewId': reviewId,
+      'until': until,
+      'reason': reason,
+    },
+  );
+
+  /// Called by the daemon when queued review [reviewId] has to wait for
+  /// the machine's Claude usage limit to reset at [until] before it starts.
+  /// Shows the pause on the review and its task (`refreshReviewPause`).
+  _ida.Future<_i38oxrkr.CodeReview> pauseQueuedReview(
+    int reviewId,
+    DateTime until,
+    String? reason,
+  ) => caller.callServerEndpoint<_i38oxrkr.CodeReview>(
+    'codeReview',
+    'pauseQueuedReview',
+    {
+      'reviewId': reviewId,
+      'until': until,
+      'reason': reason,
+    },
+  );
 
   /// Called by the daemon when the review run couldn't produce findings.
   _ida.Future<_i38oxrkr.CodeReview> failReview(
@@ -632,17 +670,27 @@ class EndpointMachine extends _isc.EndpointRef {
   /// A pending request is cleared once the daemon reports a version other
   /// than the one it was requested from, i.e. after the update restarted it.
   ///
+  /// The update restarts the daemon, which kills its `claude` runs, so it
+  /// waits for the machine's agents to finish their current work. A daemon
+  /// passing [drainsForUpdate] holds back new work and hands the update off
+  /// once it's idle itself, so it's told about a pending request right away.
+  /// For older daemons, which update as soon as they're told, the request is
+  /// reported only while none of the machine's agents has an agent-driven
+  /// task or a running code review.
+  ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
   _ida.Future<bool> checkIn(
     String token,
-    String? runnerVersion,
-  ) => caller.callServerEndpoint<bool>(
+    String? runnerVersion, {
+    bool? drainsForUpdate,
+  }) => caller.callServerEndpoint<bool>(
     'machine',
     'checkIn',
     {
       'token': token,
       'runnerVersion': runnerVersion,
+      'drainsForUpdate': drainsForUpdate,
     },
   );
 
@@ -958,9 +1006,9 @@ class EndpointProject extends _isc.EndpointRef {
 ///
 /// Defaults cascade workspace → project → task: a project's nullable
 /// override wins over the workspace value, and the result pre-fills the
-/// new-task form. The task stores its own copy; one created with the
-/// defaults untouched (`Task.followsDefaults`) gets it rewritten whenever
-/// the settings change, until the dev edits its options or it's `done`.
+/// new-task form. The task stores its own copy; changing the defaults
+/// updates the unfinished tasks' options the dev didn't set themselves
+/// (`propagateTaskDefaults`).
 /// {@category Endpoint}
 class EndpointSettings extends _isc.EndpointRef {
   EndpointSettings(_isc.EndpointCaller caller) : super(caller);
@@ -1064,10 +1112,6 @@ class EndpointTask extends _isc.EndpointRef {
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
-  ///
-  /// With [followDefaults] the dev left the advanced options untouched: the
-  /// task takes the project's current defaults (the option arguments are
-  /// ignored) and keeps following them, see `Task.followsDefaults`.
   _ida.Future<_iw53rmon.Task> createTask(
     int projectId,
     int? agentId,
@@ -1081,7 +1125,6 @@ class EndpointTask extends _isc.EndpointRef {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
-    bool? followDefaults,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
     'createTask',
@@ -1098,7 +1141,6 @@ class EndpointTask extends _isc.EndpointRef {
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       'attachmentIds': attachmentIds,
-      'followDefaults': followDefaults,
     },
   );
 
@@ -1337,6 +1379,15 @@ class EndpointTask extends _isc.EndpointRef {
   /// a review-phase feedback that woke it via [submitFeedback], and to tell
   /// a stale replay (e.g. after a daemon restart) apart from a real pending
   /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  /// Every feedback sent on [taskId], oldest first — the panel's timeline
+  /// names each feedback run after the one it started from.
+  _ida.Future<List<_ifl2c5cu.TaskFeedback>> listFeedback(int taskId) =>
+      caller.callServerEndpoint<List<_ifl2c5cu.TaskFeedback>>(
+        'task',
+        'listFeedback',
+        {'taskId': taskId},
+      );
+
   _ida.Future<_ifl2c5cu.TaskFeedback?> latestFeedback(int taskId) =>
       caller.callServerEndpoint<_ifl2c5cu.TaskFeedback?>(
         'task',
@@ -1349,7 +1400,7 @@ class EndpointTask extends _isc.EndpointRef {
   /// automation options are read fresh each time they apply, so they can
   /// change any time before the task is `done`; the prompt and
   /// [skipPlanning] only while no run is under way (see
-  /// [promptEditableStatuses]). Turning auto review on applies from the
+  /// [_promptEditableStatuses]). Turning auto review on applies from the
   /// next version the agent finishes.
   _ida.Future<_iw53rmon.Task> updateTaskSettings(
     int taskId,

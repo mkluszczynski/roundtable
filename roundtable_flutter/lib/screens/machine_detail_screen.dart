@@ -227,47 +227,17 @@ class _MachineRail extends StatelessWidget {
 
   final Machine machine;
 
-  RunnerUpdateStatus _updateStatus(MachineListState state) =>
-      runnerUpdateStatus(
-        installedVersion: machine.runnerVersion,
-        latestVersion: state is MachineListLoaded
-            ? state.latestRunnerVersion
-            : null,
-        updateRequestedAt: machine.updateRequestedAt,
-      );
-
-  Future<void> _update(BuildContext context, List<Agent> agents) async {
-    final cubit = context.read<MachineListCubit>();
-    if (agents.any((a) => a.status != AgentStatus.idle)) {
-      final confirmed = await showAppModal<bool>(
-        context,
-        icon: Icons.system_update_alt,
-        title: 'Update agent runner?',
-        subtitle: machine.name,
-        child: Text(
-          'An agent on this machine is working on a task. Updating restarts '
-          'the agent runner, which interrupts that task.',
-          style: AppTypography.body,
-        ),
-        actions: [
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-          ),
-          Builder(
-            builder: (context) => FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Update anyway'),
-            ),
-          ),
-        ],
-      );
-      if (confirmed != true) return;
-    }
-    await cubit.requestRunnerUpdate(machine.id!);
-  }
+  RunnerUpdateStatus _updateStatus(
+    MachineListState state,
+    List<Agent> agents,
+  ) => runnerUpdateStatus(
+    installedVersion: machine.runnerVersion,
+    latestVersion: state is MachineListLoaded
+        ? state.latestRunnerVersion
+        : null,
+    updateRequestedAt: machine.updateRequestedAt,
+    busy: agents.any((a) => a.status != AgentStatus.idle),
+  );
 
   Future<void> _remove(BuildContext context, int agentCount) async {
     final cubit = context.read<MachineListCubit>();
@@ -318,7 +288,7 @@ class _MachineRail extends StatelessWidget {
     final online = machine.status == MachineStatus.online;
     final lastSeen = machine.lastSeenAt;
     final osDescription = machine.osDescription;
-    final updateStatus = _updateStatus(machineState);
+    final updateStatus = _updateStatus(machineState, agents);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -366,7 +336,9 @@ class _MachineRail extends StatelessWidget {
                       ? const _CheckLine(ok: true, text: 'Up to date')
                       : RunnerUpdateBanner(
                           status: updateStatus,
-                          onUpdate: () => _update(context, agents),
+                          onUpdate: () => context
+                              .read<MachineListCubit>()
+                              .requestRunnerUpdate(machine.id!),
                         ),
                 ),
                 RailSection(

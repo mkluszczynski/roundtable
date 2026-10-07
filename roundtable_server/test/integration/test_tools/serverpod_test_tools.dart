@@ -787,6 +787,37 @@ class _AgentEndpoint {
     });
   }
 
+  _ida.Stream<_iaucj7w0.Agent> watchAgentStatuses(
+    _ist.TestSessionBuilder sessionBuilder,
+  ) {
+    var _localTestStreamManager = _ist.TestStreamManager<_iaucj7w0.Agent>();
+    _ist.callStreamFunctionAndHandleExceptions(
+      () async {
+        var _localUniqueSession =
+            (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+              endpoint: 'agent',
+              method: 'watchAgentStatuses',
+            );
+        var _localCallContext = await _endpointDispatch
+            .getMethodStreamCallContext(
+              createSessionCallback: (_) => _localUniqueSession,
+              endpointPath: 'agent',
+              methodName: 'watchAgentStatuses',
+              arguments: {},
+              requestedInputStreams: [],
+              serializationManager: _serializationManager,
+            );
+        await _localTestStreamManager.callStreamMethod(
+          _localCallContext,
+          _localUniqueSession,
+          {},
+        );
+      },
+      _localTestStreamManager.outputStreamController,
+    );
+    return _localTestStreamManager.outputStreamController.stream;
+  }
+
   _ida.Future<void> delete(
     _ist.TestSessionBuilder sessionBuilder,
     int id,
@@ -1136,8 +1167,10 @@ class _CodeReviewEndpoint {
 
   _ida.Future<_i42ca4ig.CodeReview> requeueReview(
     _ist.TestSessionBuilder sessionBuilder,
-    int reviewId,
-  ) async {
+    int reviewId, {
+    DateTime? until,
+    String? reason,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1149,7 +1182,48 @@ class _CodeReviewEndpoint {
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'codeReview',
           methodName: 'requeueReview',
-          parameters: _ist.testObjectToJson({'reviewId': reviewId}),
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'until': until,
+            'reason': reason,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_i42ca4ig.CodeReview>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_i42ca4ig.CodeReview> pauseQueuedReview(
+    _ist.TestSessionBuilder sessionBuilder,
+    int reviewId,
+    DateTime until,
+    String? reason,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'codeReview',
+            method: 'pauseQueuedReview',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'codeReview',
+          methodName: 'pauseQueuedReview',
+          parameters: _ist.testObjectToJson({
+            'reviewId': reviewId,
+            'until': until,
+            'reason': reason,
+          }),
           serializationManager: _serializationManager,
         );
         var _localReturnValue =
@@ -1507,8 +1581,9 @@ class _MachineEndpoint {
   _ida.Future<bool> checkIn(
     _ist.TestSessionBuilder sessionBuilder,
     String token,
-    String? runnerVersion,
-  ) async {
+    String? runnerVersion, {
+    bool? drainsForUpdate,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1523,6 +1598,7 @@ class _MachineEndpoint {
           parameters: _ist.testObjectToJson({
             'token': token,
             'runnerVersion': runnerVersion,
+            'drainsForUpdate': drainsForUpdate,
           }),
           serializationManager: _serializationManager,
         );
@@ -2549,7 +2625,6 @@ class _TaskEndpoint {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
-    bool? followDefaults,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -2575,7 +2650,6 @@ class _TaskEndpoint {
             'autoFixFailingChecks': autoFixFailingChecks,
             'maxCheckFixAttempts': maxCheckFixAttempts,
             'attachmentIds': attachmentIds,
-            'followDefaults': followDefaults,
           }),
           serializationManager: _serializationManager,
         );
@@ -3110,6 +3184,37 @@ class _TaskEndpoint {
                   _localCallContext.arguments,
                 )
                 as _ida.Future<_il2mubb9.TaskFeedback>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<List<_il2mubb9.TaskFeedback>> listFeedback(
+    _ist.TestSessionBuilder sessionBuilder,
+    int taskId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'task',
+            method: 'listFeedback',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'task',
+          methodName: 'listFeedback',
+          parameters: _ist.testObjectToJson({'taskId': taskId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<List<_il2mubb9.TaskFeedback>>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

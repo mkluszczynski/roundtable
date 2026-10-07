@@ -472,6 +472,19 @@ class Endpoints extends _is.EndpointDispatch {
                 params['id'],
               ),
         ),
+        'watchAgentStatuses': _is.MethodStreamConnector(
+          name: 'watchAgentStatuses',
+          params: {},
+          streamParams: {},
+          returnType: _is.MethodStreamReturnType.streamType,
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+                Map<String, Stream> streamParams,
+              ) => (endpoints['agent'] as _ik1xrao3.AgentEndpoint)
+                  .watchAgentStatuses(session),
+        ),
       },
     );
     connectors['agentRole'] = _is.EndpointConnector(
@@ -669,6 +682,16 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<int>(),
               nullable: false,
             ),
+            'until': _is.ParameterDescription(
+              name: 'until',
+              type: _is.getType<DateTime?>(),
+              nullable: true,
+            ),
+            'reason': _is.ParameterDescription(
+              name: 'reason',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -679,6 +702,40 @@ class Endpoints extends _is.EndpointDispatch {
                       .requeueReview(
                         session,
                         params['reviewId'],
+                        until: params['until'],
+                        reason: params['reason'],
+                      ),
+        ),
+        'pauseQueuedReview': _is.MethodConnector(
+          name: 'pauseQueuedReview',
+          params: {
+            'reviewId': _is.ParameterDescription(
+              name: 'reviewId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'until': _is.ParameterDescription(
+              name: 'until',
+              type: _is.getType<DateTime>(),
+              nullable: false,
+            ),
+            'reason': _is.ParameterDescription(
+              name: 'reason',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['codeReview'] as _ia5tunx2.CodeReviewEndpoint)
+                      .pauseQueuedReview(
+                        session,
+                        params['reviewId'],
+                        params['until'],
+                        params['reason'],
                       ),
         ),
         'failReview': _is.MethodConnector(
@@ -930,6 +987,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String?>(),
               nullable: true,
             ),
+            'drainsForUpdate': _is.ParameterDescription(
+              name: 'drainsForUpdate',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -940,6 +1002,7 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['token'],
                     params['runnerVersion'],
+                    drainsForUpdate: params['drainsForUpdate'],
                   ),
         ),
         'reportUsageLimit': _is.MethodConnector(
@@ -1666,11 +1729,6 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<List<int>?>(),
               nullable: true,
             ),
-            'followDefaults': _is.ParameterDescription(
-              name: 'followDefaults',
-              type: _is.getType<bool?>(),
-              nullable: true,
-            ),
           },
           call:
               (
@@ -1691,7 +1749,6 @@ class Endpoints extends _is.EndpointDispatch {
                     autoFixFailingChecks: params['autoFixFailingChecks'],
                     maxCheckFixAttempts: params['maxCheckFixAttempts'],
                     attachmentIds: params['attachmentIds'],
-                    followDefaults: params['followDefaults'],
                   ),
         ),
         'update': _is.MethodConnector(
@@ -2024,6 +2081,25 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['taskId'],
                     params['message'],
+                  ),
+        ),
+        'listFeedback': _is.MethodConnector(
+          name: 'listFeedback',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).listFeedback(
+                    session,
+                    params['taskId'],
                   ),
         ),
         'latestFeedback': _is.MethodConnector(

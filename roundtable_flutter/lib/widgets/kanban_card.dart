@@ -56,7 +56,12 @@ class _KanbanCardState extends State<KanbanCard> {
         (task.status == TaskStatus.awaitingReview ||
             task.status == TaskStatus.running);
     final ciFailed = showChecks && task.checkState == PrCheckState.failure;
-    final pausedUntil = task.status == TaskStatus.paused
+    // A paused run, or a review waiting for the usage limit
+    // (`pausedPhase` review on an `awaitingReview` task).
+    final reviewPaused =
+        task.status == TaskStatus.awaitingReview &&
+        task.pausedPhase == LogPhase.review;
+    final pausedUntil = task.status == TaskStatus.paused || reviewPaused
         ? task.pausedUntil
         : null;
 
@@ -119,8 +124,8 @@ class _KanbanCardState extends State<KanbanCard> {
                           if (pausedUntil != null) ...[
                             const SizedBox(height: Spacing.xs),
                             Text(
-                              'Usage limit — resumes at '
-                              '${resumeTimeLabel(pausedUntil)}',
+                              '${reviewPaused ? 'Review paused' : 'Usage limit'}'
+                              ' — resumes at ${resumeTimeLabel(pausedUntil)}',
                               style: AppTypography.caption.copyWith(
                                 color: AppColors.warning,
                               ),

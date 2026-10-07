@@ -5,7 +5,6 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/pr_checks.dart';
-import 'app_card.dart';
 import 'status_pill.dart';
 
 /// A task PR's GitHub Actions checks (docs/FLOWS.md §4 "CI checks"): the
@@ -146,12 +145,19 @@ class PrChecksView extends StatelessWidget {
               : ListView(
                   children: [
                     for (final group in _groupByWorkflow(runs)) ...[
-                      _WorkflowCard(
-                        name: group.first.workflowName,
-                        jobs: group,
-                        selectedJobIds: selectedJobIds,
-                        onToggleJob: selectable ? onToggleJob : null,
-                        onOpenUrl: onOpenUrl,
+                      // Readable on wide screens, like the review view.
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 960),
+                          child: _WorkflowCard(
+                            name: group.first.workflowName,
+                            jobs: group,
+                            selectedJobIds: selectedJobIds,
+                            onToggleJob: selectable ? onToggleJob : null,
+                            onOpenUrl: onOpenUrl,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: Spacing.md),
                     ],
@@ -207,6 +213,9 @@ class _Banner extends StatelessWidget {
   }
 }
 
+/// One workflow run: its jobs under the workflow's name, or — with a
+/// single job — just that job, with the workflow's name beside it when
+/// it differs (`test` in `Tests`).
 class _WorkflowCard extends StatelessWidget {
   const _WorkflowCard({
     required this.name,
@@ -224,13 +233,29 @@ class _WorkflowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    final showHeader = jobs.length > 1;
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.bg1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(name.toUpperCase(), style: AppTypography.label),
-          const SizedBox(height: Spacing.sm),
-          for (final job in jobs)
+          if (showHeader)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.lg,
+                Spacing.md,
+                Spacing.lg,
+                Spacing.xs,
+              ),
+              child: Text(name.toUpperCase(), style: AppTypography.label),
+            ),
+          for (final (i, job) in jobs.indexed) ...[
+            if (i > 0) Divider(height: 1, color: AppColors.border),
             _JobRow(
               job: job,
               selected: selectedJobIds.contains(job.jobId),
@@ -238,19 +263,27 @@ class _WorkflowCard extends StatelessWidget {
                   ? () => onToggleJob!(job.jobId)
                   : null,
               onOpenUrl: onOpenUrl,
+              workflowName:
+                  !showHeader && job.jobName.toLowerCase() != name.toLowerCase()
+                  ? name
+                  : null,
             ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _JobRow extends StatelessWidget {
+/// One job: its outcome as an icon and a word, the failed step, how long
+/// it took. The whole row opens the job on GitHub.
+class _JobRow extends StatefulWidget {
   const _JobRow({
     required this.job,
     required this.selected,
     required this.onToggle,
     required this.onOpenUrl,
+    this.workflowName,
   });
 
   final PrCheckRun job;
@@ -258,58 +291,107 @@ class _JobRow extends StatelessWidget {
   final VoidCallback? onToggle;
   final ValueChanged<String>? onOpenUrl;
 
+  /// Shown beside the job's name for a single-job workflow without a header.
+  final String? workflowName;
+
+  @override
+  State<_JobRow> createState() => _JobRowState();
+}
+
+class _JobRowState extends State<_JobRow> {
+  bool _hovered = false;
+
   @override
   Widget build(BuildContext context) {
+    final job = widget.job;
     final appearance = checkRunAppearance(job);
     final url = job.htmlUrl;
+    final onOpenUrl = widget.onOpenUrl;
+    final open = url != null && onOpenUrl != null ? () => onOpenUrl(url) : null;
     final duration = _duration(job);
-    final detail = [
-      if (job.status != 'completed')
-        job.status.replaceAll('_', ' ')
-      else
-        job.conclusion ?? 'completed',
-      if (job.failedStep != null) 'at "${job.failedStep}"',
-      ?duration,
-    ].join(' · ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 32,
-            child: onToggle == null
-                ? null
-                : Checkbox(
-                    value: selected,
-                    onChanged: (_) => onToggle!(),
+    final failed = isFailedCheckRun(job);
+    return MouseRegion(
+      cursor: open != null ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: open,
+        child: Container(
+          color: _hovered && open != null ? AppColors.bg2 : null,
+          padding: EdgeInsets.fromLTRB(
+            widget.onToggle != null ? Spacing.xs : Spacing.lg,
+            Spacing.md,
+            Spacing.sm,
+            Spacing.md,
+          ),
+          child: Row(
+            children: [
+              if (widget.onToggle != null)
+                Tooltip(
+                  message: 'Select to send to the agent',
+                  child: Checkbox(
+                    value: widget.selected,
+                    onChanged: (_) => widget.onToggle!(),
                     visualDensity: VisualDensity.compact,
                   ),
-          ),
-          StatusDot(color: appearance.color, pulsing: appearance.pulsing),
-          const SizedBox(width: Spacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(job.jobName, style: AppTypography.body),
+                ),
+              _OutcomeIcon(job: job, color: appearance.color),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        text: job.jobName,
+                        style: AppTypography.bodyStrong,
+                        children: [
+                          if (widget.workflowName != null)
+                            TextSpan(
+                              text: '  ${widget.workflowName}',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.text2,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (failed && job.failedStep != null)
+                      Text(
+                        'Failed at "${job.failedStep}"',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.red,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (duration != null) ...[
                 Text(
-                  detail,
+                  duration,
+                  style: AppTypography.code.copyWith(color: AppColors.text1),
+                ),
+                const SizedBox(width: Spacing.lg),
+              ],
+              SizedBox(
+                width: 72,
+                child: Text(
+                  outcomeLabel(job),
                   style: AppTypography.caption.copyWith(
-                    color: isFailedCheckRun(job)
-                        ? AppColors.red
-                        : AppColors.text1,
+                    color: appearance.color,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (open != null)
+                IconButton(
+                  tooltip: 'Open on GitHub',
+                  onPressed: open,
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                ),
+            ],
           ),
-          if (url != null && onOpenUrl != null)
-            IconButton(
-              tooltip: 'Open on GitHub',
-              onPressed: () => onOpenUrl!(url),
-              icon: const Icon(Icons.open_in_new, size: 16),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -321,6 +403,48 @@ class _JobRow extends StatelessWidget {
     final elapsed = end.difference(start);
     if (elapsed.inMinutes == 0) return '${elapsed.inSeconds}s';
     return '${elapsed.inMinutes}m ${elapsed.inSeconds % 60}s';
+  }
+}
+
+/// A job's outcome in one word: Passed, Failed, Running…
+String outcomeLabel(PrCheckRun job) {
+  if (job.status != 'completed') {
+    return job.status == 'in_progress' ? 'Running' : 'Queued';
+  }
+  return switch (job.conclusion) {
+    'success' => 'Passed',
+    'skipped' => 'Skipped',
+    'neutral' => 'Neutral',
+    'cancelled' => 'Cancelled',
+    'timed_out' => 'Timed out',
+    _ => 'Failed',
+  };
+}
+
+class _OutcomeIcon extends StatelessWidget {
+  const _OutcomeIcon({required this.job, required this.color});
+
+  final PrCheckRun job;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (job.status != 'completed') {
+      return SizedBox(
+        width: 18,
+        height: 18,
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: CircularProgressIndicator(strokeWidth: 2, color: color),
+        ),
+      );
+    }
+    final icon = switch (job.conclusion) {
+      'success' => Icons.check_circle,
+      'skipped' || 'neutral' => Icons.remove_circle_outline,
+      _ => Icons.cancel,
+    };
+    return Icon(icon, size: 18, color: color);
   }
 }
 

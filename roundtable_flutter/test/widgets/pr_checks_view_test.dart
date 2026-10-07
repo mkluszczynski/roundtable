@@ -53,9 +53,28 @@ void main() {
     expect(find.text('CI failed'), findsOneWidget);
     expect(find.text('abc1234'), findsOneWidget);
     expect(find.text('CI'), findsOneWidget);
-    expect(find.text('E2E'), findsOneWidget);
-    expect(find.text('unit'), findsOneWidget);
-    expect(find.text('failure · at "Run tests"'), findsOneWidget);
+    expect(find.text('e2e', findRichText: true), findsOneWidget);
+    expect(find.text('unit', findRichText: true), findsOneWidget);
+    expect(find.text('Failed at "Run tests"'), findsOneWidget);
+    expect(find.text('Failed'), findsOneWidget);
+    expect(find.text('Passed'), findsNWidgets(2));
+  });
+
+  testWidgets('a workflow with one job named like it shows no header', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        PrChecksView(
+          checks: _checks(PrCheckState.success, [
+            _job(1, 'analyze', workflowName: 'Analyze'),
+          ]),
+        ),
+      ),
+    );
+
+    expect(find.text('ANALYZE'), findsNothing);
+    expect(find.text('analyze', findRichText: true), findsOneWidget);
   });
 
   testWidgets('read-only without canSendToAgent', (tester) async {

@@ -6,17 +6,24 @@
       "type": "alterTable",
       "alterTable": {
         "__className__": "serverpod.TableMigration",
-        "name": "task",
+        "name": "code_review",
         "schema": "public",
         "addColumns": [
           {
             "__className__": "serverpod.ColumnDefinition",
-            "name": "followsDefaults",
-            "fieldName": "followsDefaults",
-            "columnType": 1,
-            "isNullable": false,
-            "columnDefault": "false",
-            "dartType": "bool"
+            "name": "pausedUntil",
+            "fieldName": "pausedUntil",
+            "columnType": 4,
+            "isNullable": true,
+            "dartType": "DateTime?"
+          },
+          {
+            "__className__": "serverpod.ColumnDefinition",
+            "name": "pauseReason",
+            "fieldName": "pauseReason",
+            "columnType": 0,
+            "isNullable": true,
+            "dartType": "String?"
           }
         ],
         "deleteColumns": [],

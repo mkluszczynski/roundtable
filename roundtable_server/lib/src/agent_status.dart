@@ -42,3 +42,25 @@ Future<AgentStatus> settledAgentStatus(
   );
   return waiting > 0 ? AgentStatus.waitingForResponse : AgentStatus.idle;
 }
+
+/// The channel [saveAgentStatus] posts every agent status change to, for
+/// the panel (`AgentEndpoint.watchAgentStatuses`).
+const agentStatusChannel = 'agent-statuses';
+
+/// Stores [agent]'s status as [settledAgentStatus] settles [requested], and
+/// tells the panel, which otherwise only sees the agent list it fetched.
+Future<Agent> saveAgentStatus(
+  Session session,
+  Agent agent,
+  AgentStatus requested,
+) async {
+  final updated = await Agent.db.updateRow(
+    session,
+    agent.copyWith(
+      status: await settledAgentStatus(session, agent.id!, requested),
+    ),
+    columns: (a) => [a.status],
+  );
+  await session.messages.postMessage(agentStatusChannel, updated);
+  return updated;
+}

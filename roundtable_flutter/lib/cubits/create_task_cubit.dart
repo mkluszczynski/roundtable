@@ -46,7 +46,6 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
     bool autoFixFailingChecks = false,
     int? maxCheckFixAttempts,
     List<int> attachmentIds = const [],
-    bool followDefaults = false,
   }) async {
     emit(const CreateTaskSubmitting());
     try {
@@ -63,7 +62,6 @@ class CreateTaskCubit extends Cubit<CreateTaskState> {
         autoFixFailingChecks: autoFixFailingChecks,
         maxCheckFixAttempts: maxCheckFixAttempts,
         attachmentIds: attachmentIds,
-        followDefaults: followDefaults,
       );
       emit(CreateTaskSuccess(task));
     } catch (e) {

@@ -7,6 +7,8 @@ fields:
   task: Task?, relation(name=task_feedback, onDelete=Cascade)
   message: String
   phase: TaskFeedbackPhase
+  ### Null for plan feedback and rows from before kinds existed (the dev's).
+  kind: TaskFeedbackKind?
   createdAt: DateTime, default=now
 indexes:
   task_feedback_task_created_idx:
