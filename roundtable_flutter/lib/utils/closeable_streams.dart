@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Ties long-lived server streams to a Bloc/Cubit's lifetime.
@@ -12,6 +13,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 mixin CloseableStreams<S> on BlocBase<S> {
   final List<StreamController<Object?>> _controllers = [];
 
+  /// Wrapped streams still tracked for cancellation on `close()`.
+  @visibleForTesting
+  int get openStreamCount => _controllers.length;
+
   Stream<T> untilClosed<T>(Stream<T> source) {
     late final StreamController<T> controller;
     StreamSubscription<T>? subscription;
@@ -20,10 +25,19 @@ mixin CloseableStreams<S> on BlocBase<S> {
         subscription = source.listen(
           controller.add,
           onError: controller.addError,
-          onDone: controller.close,
+          onDone: () {
+            _controllers.remove(controller);
+            controller.close();
+          },
         );
       },
-      onCancel: () => subscription?.cancel(),
+      // Forgotten once its listener is gone, so a Bloc/Cubit that
+      // resubscribes (e.g. reconnecting after a drop) doesn't accumulate
+      // dead controllers until it closes.
+      onCancel: () {
+        _controllers.remove(controller);
+        return subscription?.cancel();
+      },
     );
     _controllers.add(controller);
     return controller.stream;
@@ -31,7 +45,8 @@ mixin CloseableStreams<S> on BlocBase<S> {
 
   @override
   Future<void> close() async {
-    for (final controller in _controllers) {
+    // A copy: closing a controller removes it from the list.
+    for (final controller in [..._controllers]) {
       await controller.close();
     }
     _controllers.clear();

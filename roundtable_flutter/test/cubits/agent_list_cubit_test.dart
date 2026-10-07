@@ -12,6 +12,10 @@ class _FakeAgentRepository implements AgentRepository {
   var listCalls = 0;
   Object? listError;
 
+  /// When set, [listAgents] waits for it — to finish a fetch after a
+  /// streamed update.
+  Completer<void>? listGate;
+
   /// One per [watchAgents] call — each reconnect opens a new stream.
   final streams = <StreamController<Agent>>[];
   StreamController<Agent> get updates => streams.last;
@@ -19,8 +23,10 @@ class _FakeAgentRepository implements AgentRepository {
   @override
   Future<List<Agent>> listAgents() async {
     listCalls++;
+    final snapshot = agents;
+    await listGate?.future;
     if (listError != null) throw listError!;
-    return agents;
+    return snapshot;
   }
 
   @override
@@ -157,5 +163,79 @@ void main() {
     await pumpEventQueue();
 
     expect(repository.streams, hasLength(1));
+  });
+
+  test('a fetch finishing after a newer streamed status keeps it', () async {
+    final repository = _FakeAgentRepository([agent(1)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    // E.g. the refresh after editing an agent: it reads the row as idle...
+    repository.listGate = Completer<void>();
+    final fetch = cubit.fetchAgents();
+    await pumpEventQueue();
+    // ...then the agent starts planning before the response arrives.
+    repository.updates.add(agent(1, status: AgentStatus.busy));
+    await pumpEventQueue();
+    repository.listGate!.complete();
+    await fetch;
+
+    expect(statuses(cubit), [AgentStatus.busy]);
+    await cubit.close();
+  });
+
+  test('streamed updates before the first fetch apply to its result', () async {
+    final repository = _FakeAgentRepository([agent(1), agent(2)]);
+    repository.listGate = Completer<void>();
+    final cubit = cubitFor(repository);
+    final fetch = cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    repository.updates.add(agent(2, status: AgentStatus.busy));
+    await pumpEventQueue();
+    repository.listGate!.complete();
+    await fetch;
+
+    expect(statuses(cubit), [AgentStatus.idle, AgentStatus.busy]);
+    await cubit.close();
+  });
+
+  test('a deleted agent is not brought back by its streamed row', () async {
+    final repository = _FakeAgentRepository([agent(1), agent(2)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+    repository.updates.add(agent(2, status: AgentStatus.busy));
+    await pumpEventQueue();
+
+    repository.agents = [agent(1)];
+    await cubit.fetchAgents();
+
+    expect((cubit.state as AgentListLoaded).agents.map((a) => a.id), [1]);
+    await cubit.close();
+  });
+
+  test('reconnecting does not pile up wrapped streams', () async {
+    final repository = _FakeAgentRepository([agent(1)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    for (var i = 0; i < 5; i++) {
+      repository.updates.addError(Exception('connection lost'));
+      await pumpEventQueue();
+    }
+    await repository.updates.close();
+    await pumpEventQueue();
+
+    expect(repository.streams, hasLength(7));
+    expect(cubit.openStreamCount, 1);
+    await cubit.close();
+    expect(cubit.openStreamCount, 0);
   });
 }

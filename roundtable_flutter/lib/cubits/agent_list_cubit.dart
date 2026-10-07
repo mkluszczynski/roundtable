@@ -48,6 +48,13 @@ class AgentListCubit extends Cubit<AgentListState>
   final Duration retryDelay;
   final Duration maxRetryDelay;
 
+  /// The latest row the live stream delivered per agent id, while it's
+  /// connected. A fetch can finish after a newer streamed change (or start
+  /// before the stream's first events), so these win over the rows it
+  /// returns. Cleared when the stream drops: the refetch after a reconnect
+  /// is newer than anything streamed before it.
+  final Map<int, Agent> _streamed = {};
+
   /// Loads the list. A [silent] refresh keeps the current list when it
   /// fails instead of replacing it with an error — for background refreshes.
   Future<void> fetchAgents({bool silent = false}) async {
@@ -57,7 +64,13 @@ class AgentListCubit extends Cubit<AgentListState>
     try {
       final agents = await _repository.listAgents();
       if (isClosed) return;
-      emit(AgentListLoaded(agents));
+      // Only rows the fetch returned are overlaid: an agent it lacks was
+      // deleted, or streamed in already and kept by a later merge.
+      emit(
+        AgentListLoaded([
+          for (final agent in agents) _streamed[agent.id] ?? agent,
+        ]),
+      );
     } catch (e) {
       if (isClosed || (silent && state is AgentListLoaded)) return;
       emit(AgentListError(errorMessage(e)));
@@ -65,8 +78,8 @@ class AgentListCubit extends Cubit<AgentListState>
   }
 
   /// Merges every agent `AgentEndpoint.watchAgents` streams into the loaded
-  /// list by id. Events before the first [fetchAgents] completes are
-  /// dropped — the fetch returns the same rows. When the stream errors or
+  /// list by id. Events before the first [fetchAgents] completes are kept
+  /// and applied to its result. When the stream errors or
   /// ends (server restart, laptop sleep, network blip) it keeps the last
   /// list, then after a backoff refetches it silently — catching changes
   /// missed while disconnected, deletions included — and resubscribes, so
@@ -82,6 +95,7 @@ class AgentListCubit extends Cubit<AgentListState>
       } catch (_) {
         // Reconnect below.
       }
+      _streamed.clear();
       if (isClosed) return;
       await Future<void>.delayed(delay);
       if (isClosed) return;
@@ -92,6 +106,7 @@ class AgentListCubit extends Cubit<AgentListState>
   }
 
   void _merge(Agent agent) {
+    if (agent.id != null) _streamed[agent.id!] = agent;
     final current = state;
     if (isClosed || current is! AgentListLoaded) return;
     final agents = [...current.agents];
@@ -113,6 +128,7 @@ class AgentListCubit extends Cubit<AgentListState>
     } catch (e) {
       failure = errorMessage(e);
     }
+    _streamed.remove(id);
     await fetchAgents();
     return failure;
   }
