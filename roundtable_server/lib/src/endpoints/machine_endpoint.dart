@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 
 import '../agent_runner_binaries.dart';
+import '../agent_status.dart';
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import '../task_lifecycle.dart';
@@ -339,11 +340,14 @@ class MachineEndpoint extends Endpoint {
       await postReviewChanged(session, reviewId);
     }
 
-    await Agent.db.update(
+    final reset = await Agent.db.update(
       session,
       [for (final agent in agents) agent.copyWith(status: AgentStatus.idle)],
       columns: (t) => [t.status],
     );
+    for (final agent in reset) {
+      await postAgentChanged(session, agent.id!);
+    }
   }
 
   /// Resolves the [Machine] a registration token belongs to, without

@@ -332,6 +332,21 @@ class EndpointAgent extends _isc.EndpointRef {
         {},
       );
 
+  /// Streams every agent (with its role) on subscribe, then each agent as
+  /// it changes — created, edited, or its status reported by a daemon — so
+  /// the panel's agent statuses stay live. Deletions aren't streamed: the
+  /// panel refetches [list] after deleting.
+  _ida.Stream<_ikth53tp.Agent> watchAgents() =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_ikth53tp.Agent>,
+        _ikth53tp.Agent
+      >(
+        'agent',
+        'watchAgents',
+        {},
+        {},
+      );
+
   /// Edits an agent's settings from the panel. The machine it lives on and
   /// its status can't be changed here — status is reported by the daemon
   /// through [setStatus]. The execution mode changes only while the agent

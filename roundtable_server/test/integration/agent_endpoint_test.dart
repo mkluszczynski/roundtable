@@ -225,5 +225,70 @@ void main() {
         throwsA(isA<InvalidStateException>()),
       );
     });
+
+    test(
+      'when an agent starts working then watchAgents emits its new status',
+      () async {
+        final machine = await createMachine();
+        final role = await AgentRoleDefinition.db.insertRow(
+          sessionBuilder.build(),
+          AgentRoleDefinition(name: 'backend', prompt: 'You are {name}.'),
+        );
+        final agent = await endpoints.agent.create(
+          sessionBuilder,
+          'Ana',
+          machine.id!,
+          roleId: role.id,
+        );
+
+        final stream = endpoints.agent.watchAgents(sessionBuilder);
+        // The replayed current row, then the status change.
+        final events = stream.take(2).toList();
+        await flushEventQueue();
+
+        await endpoints.agent.setStatus(
+          sessionBuilder,
+          agent.id!,
+          AgentStatus.busy,
+        );
+
+        final emitted = await events;
+        expect(emitted.map((a) => a.status), [
+          AgentStatus.idle,
+          AgentStatus.busy,
+        ]);
+        expect(emitted.last.id, agent.id);
+        expect(emitted.last.role?.name, 'backend');
+      },
+    );
+
+    test(
+      'when a status changes right after subscribing to watchAgents '
+      'then the change is delivered',
+      () async {
+        final machine = await createMachine();
+        final agent = await endpoints.agent.create(
+          sessionBuilder,
+          'Ana',
+          machine.id!,
+        );
+
+        final stream = endpoints.agent.watchAgents(sessionBuilder);
+        // No flushEventQueue: setStatus races the replay query. Whichever
+        // row the replay reads, the posted change must follow it — before,
+        // a post landing between the query and the channel subscription
+        // was lost and only the replayed row arrived.
+        final events = stream.take(2).toList();
+        await endpoints.agent.setStatus(
+          sessionBuilder,
+          agent.id!,
+          AgentStatus.busy,
+        );
+
+        final emitted = await events.timeout(const Duration(seconds: 10));
+        expect(emitted.last.id, agent.id);
+        expect(emitted.last.status, AgentStatus.busy);
+      },
+    );
   });
 }

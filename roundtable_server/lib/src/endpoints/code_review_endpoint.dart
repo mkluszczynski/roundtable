@@ -391,6 +391,7 @@ class CodeReviewEndpoint extends Endpoint {
       ),
       columns: (a) => [a.status],
     );
+    await postAgentChanged(session, agentId);
   }
 }
 

@@ -115,7 +115,9 @@ class _PanelShellState extends State<PanelShell> {
               ProjectListCubit(ProjectRepository(client))..fetchProjects(),
         ),
         BlocProvider(
-          create: (_) => AgentListCubit(AgentRepository(client))..fetchAgents(),
+          create: (_) => AgentListCubit(AgentRepository(client))
+            ..fetchAgents()
+            ..subscribe(),
         ),
         BlocProvider(
           create: (_) =>

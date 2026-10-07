@@ -18,7 +18,7 @@ class AgentEndpoint extends Endpoint {
     if (await Machine.db.findById(session, machineId) == null) {
       throw NotFoundException(message: 'Machine $machineId not found');
     }
-    return Agent.db.insertRow(
+    var agent = await Agent.db.insertRow(
       session,
       Agent(
         name: name,
@@ -29,6 +29,8 @@ class AgentEndpoint extends Endpoint {
         executionMode: executionMode ?? AgentExecutionMode.native,
       ),
     );
+    await postAgentChanged(session, agent.id!);
+    return agent;
   }
 
   /// With its role — the daemon builds the prompt prefix from it.
@@ -45,6 +47,27 @@ class AgentEndpoint extends Endpoint {
       session,
       include: Agent.include(role: AgentRoleDefinition.include()),
     );
+  }
+
+  /// Streams every agent (with its role) on subscribe, then each agent as
+  /// it changes — created, edited, or its status reported by a daemon — so
+  /// the panel's agent statuses stay live. Deletions aren't streamed: the
+  /// panel refetches [list] after deleting.
+  Stream<Agent> watchAgents(Session session) async* {
+    // Subscribed before the replay query: a change posted while it runs
+    // would otherwise be lost, leaving the replayed (older) row in the
+    // panel. `createStream` registers its listener right away and buffers
+    // until the loop below listens; a duplicate row is harmless, the panel
+    // merges by id.
+    var updates = session.messages.createStream<Agent>(allAgentsChannel);
+    var agents = await list(session);
+    for (var agent in agents) {
+      yield agent;
+    }
+
+    await for (var agent in updates) {
+      yield agent;
+    }
   }
 
   /// Edits an agent's settings from the panel. The machine it lives on and
@@ -69,7 +92,7 @@ class AgentEndpoint extends Endpoint {
         );
       }
     }
-    return Agent.db.updateRow(
+    var updated = await Agent.db.updateRow(
       session,
       agent,
       columns: (t) => [
@@ -80,6 +103,8 @@ class AgentEndpoint extends Endpoint {
         t.executionMode,
       ],
     );
+    await postAgentChanged(session, agent.id!);
+    return updated;
   }
 
   /// Reports what an agent is doing (`idle`/`busy`/`waitingForResponse`),
@@ -90,13 +115,15 @@ class AgentEndpoint extends Endpoint {
     AgentStatus status,
   ) async {
     var agent = await _requireAgent(session, agentId);
-    return Agent.db.updateRow(
+    var updated = await Agent.db.updateRow(
       session,
       agent.copyWith(
         status: await settledAgentStatus(session, agentId, status),
       ),
       columns: (t) => [t.status],
     );
+    await postAgentChanged(session, agentId);
+    return updated;
   }
 
   Future<Agent> _requireAgent(

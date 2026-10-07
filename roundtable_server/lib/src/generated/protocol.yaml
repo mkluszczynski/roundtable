@@ -13,6 +13,7 @@ agent:
   - create:
   - get:
   - list:
+  - watchAgents:
   - update:
   - setStatus:
   - delete:
