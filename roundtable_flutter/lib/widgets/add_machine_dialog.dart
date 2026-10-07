@@ -36,13 +36,11 @@ class _AddMachineDialogContent extends StatefulWidget {
 
 class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
   final _nameController = TextEditingController();
-  final _hostInfoController = TextEditingController();
   final _claudeTokenController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
-    _hostInfoController.dispose();
     _claudeTokenController.dispose();
     super.dispose();
   }
@@ -79,9 +77,6 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
               onPressed: canSubmit
                   ? () => context.read<AddMachineCubit>().submit(
                       _nameController.text.trim(),
-                      hostInfo: _hostInfoController.text.trim().isEmpty
-                          ? null
-                          : _hostInfoController.text.trim(),
                     )
                   : null,
               child: submitting
@@ -104,13 +99,11 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
                   decoration: const InputDecoration(labelText: 'Name'),
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: Spacing.lg),
-                TextField(
-                  controller: _hostInfoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Host/OS (optional)',
-                    hintText: 'e.g. Hetzner · Ubuntu 22.04',
-                  ),
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  'The OS version (e.g. Ubuntu 24.04) is detected '
+                  'automatically once the runner is installed.',
+                  style: AppTypography.caption,
                 ),
                 const SizedBox(height: Spacing.lg),
                 TextField(

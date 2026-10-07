@@ -311,6 +311,8 @@ class _MachineCard extends StatelessWidget {
     final updateStatus = _updateStatus(context);
     final dashboard = context.watch<DashboardCubit>().state;
     final lastSeen = machine.lastSeenAt;
+    // Detected by the daemon; the legacy hand-typed label for older runners.
+    final osDescription = machine.osVersion ?? machine.hostInfo;
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.xl),
       child: AppCard(
@@ -361,11 +363,11 @@ class _MachineCard extends StatelessWidget {
                                 : 'offline · seen ${relativeTime(lastSeen)}',
                             style: AppTypography.caption,
                           ),
-                          if (machine.hostInfo != null) ...[
+                          if (osDescription != null) ...[
                             Text('  ·  ', style: AppTypography.caption),
                             Flexible(
                               child: Text(
-                                machine.hostInfo!,
+                                osDescription,
                                 style: AppTypography.code,
                                 overflow: TextOverflow.ellipsis,
                               ),

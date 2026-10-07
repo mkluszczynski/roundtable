@@ -1146,6 +1146,31 @@ class Endpoints extends _is.EndpointDispatch {
                     params['toolchain'],
                   ),
         ),
+        'reportOsVersion': _is.MethodConnector(
+          name: 'reportOsVersion',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'osVersion': _is.ParameterDescription(
+              name: 'osVersion',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .reportOsVersion(
+                    session,
+                    params['token'],
+                    params['osVersion'],
+                  ),
+        ),
         'delete': _is.MethodConnector(
           name: 'delete',
           params: {

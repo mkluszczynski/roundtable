@@ -391,6 +391,21 @@ class AgentRunnerService {
     }
   }
 
+  /// Reports the OS (e.g. "Ubuntu 24.04") for the machine's card in the
+  /// panel, so the dev doesn't have to type it when registering the machine.
+  Future<void> _detectOsVersion() async {
+    final osVersion = await detectOsVersion();
+    _log('os: $osVersion');
+    try {
+      await _client.machine.reportOsVersion(
+        _config.registrationToken,
+        osVersion,
+      );
+    } catch (e) {
+      _log('reportOsVersion failed: $e');
+    }
+  }
+
   Future<List<TaskImage>> _fetchAttachments(int taskId) async {
     final attachments = await _client.taskAttachment.list(taskId);
     return [
@@ -499,6 +514,7 @@ class AgentRunnerService {
     _machineName = machine.name;
     // Before taking tasks, so even the first run knows its environment.
     await _detectToolchain();
+    await _detectOsVersion();
 
     _subscribeToAssignedTasks(machine.id!);
     _subscribeToAssignedReviews(machine.id!);

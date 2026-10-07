@@ -316,6 +316,8 @@ class _MachineRail extends StatelessWidget {
     };
     final online = machine.status == MachineStatus.online;
     final lastSeen = machine.lastSeenAt;
+    // Detected by the daemon; the legacy hand-typed label for older runners.
+    final osDescription = machine.osVersion ?? machine.hostInfo;
     final updateStatus = _updateStatus(machineState);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -339,8 +341,8 @@ class _MachineRail extends StatelessWidget {
                             : 'Offline — last seen ${relativeTime(lastSeen)}',
                         style: AppTypography.bodyStrong,
                       ),
-                      if (machine.hostInfo != null)
-                        Text(machine.hostInfo!, style: AppTypography.code),
+                      if (osDescription != null)
+                        Text(osDescription, style: AppTypography.code),
                       Text(
                         'Registered '
                         '${relativeTime(machine.createdAt, words: true)}',

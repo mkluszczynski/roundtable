@@ -796,6 +796,23 @@ class EndpointMachine extends _isc.EndpointRef {
     },
   );
 
+  /// Called by the daemon at startup with the OS it runs on (see
+  /// [Machine.osVersion]).
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> reportOsVersion(
+    String token,
+    String osVersion,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'reportOsVersion',
+    {
+      'token': token,
+      'osVersion': osVersion,
+    },
+  );
+
   /// Streams the latest [MachineMetric] for [machineId] (docs/FLOWS.md §6
   /// snapshot) — replays the current latest row on subscribe, then yields
   /// each new one as [reportMetric] stores it.
