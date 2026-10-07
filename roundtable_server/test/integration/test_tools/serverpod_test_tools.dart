@@ -2549,6 +2549,7 @@ class _TaskEndpoint {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
+    bool? followDefaults,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
@@ -2574,6 +2575,7 @@ class _TaskEndpoint {
             'autoFixFailingChecks': autoFixFailingChecks,
             'maxCheckFixAttempts': maxCheckFixAttempts,
             'attachmentIds': attachmentIds,
+            'followDefaults': followDefaults,
           }),
           serializationManager: _serializationManager,
         );

@@ -1,4 +1,5 @@
 import 'non_terminal_task_statuses.dart';
+import 'settings_endpoint.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
 import '../github_repo_client.dart';
@@ -35,6 +36,10 @@ class TaskEndpoint extends Endpoint {
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
+  ///
+  /// With [followDefaults] the dev left the advanced options untouched: the
+  /// task takes the project's current defaults (the option arguments are
+  /// ignored) and keeps following them, see `Task.followsDefaults`.
   Future<Task> createTask(
     Session session,
     int projectId,
@@ -51,9 +56,21 @@ class TaskEndpoint extends Endpoint {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
+    bool? followDefaults,
   }) async {
     if (await Project.db.findById(session, projectId) == null) {
       throw NotFoundException(message: 'Project $projectId not found');
+    }
+    if (followDefaults ?? false) {
+      final d = await resolveTaskDefaults(session, projectId);
+      skipPlanning = d.skipPlanning;
+      autoReview = d.autoReview;
+      reviewerAgentId = d.reviewerAgentId;
+      autoFixReview = d.autoFixReview;
+      maxReviewFixRounds = d.maxReviewFixRounds;
+      autoMerge = d.autoMerge;
+      autoFixFailingChecks = d.autoFixFailingChecks;
+      maxCheckFixAttempts = d.maxCheckFixAttempts;
     }
     if (reviewerAgentId != null &&
         await Agent.db.findById(session, reviewerAgentId) == null) {
@@ -81,6 +98,7 @@ class TaskEndpoint extends Endpoint {
         autoMerge: autoMerge ?? false,
         autoFixFailingChecks: autoFixFailingChecks ?? false,
         maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
+        followsDefaults: followDefaults ?? false,
         status: agent == null ? TaskStatus.draft : TaskStatus.queued,
       ),
     );
@@ -671,7 +689,7 @@ class TaskEndpoint extends Endpoint {
   /// in — both only matter when a run starts, so only before the first run
   /// or before a retry (which starts a fresh session). Not while queued to
   /// resume a paused run (`pausedPhase`), which keeps its session.
-  static const _promptEditableStatuses = {
+  static const promptEditableStatuses = {
     TaskStatus.draft,
     TaskStatus.queued,
     TaskStatus.failed,
@@ -683,7 +701,7 @@ class TaskEndpoint extends Endpoint {
   /// automation options are read fresh each time they apply, so they can
   /// change any time before the task is `done`; the prompt and
   /// [skipPlanning] only while no run is under way (see
-  /// [_promptEditableStatuses]). Turning auto review on applies from the
+  /// [promptEditableStatuses]). Turning auto review on applies from the
   /// next version the agent finishes.
   Future<Task> updateTaskSettings(
     Session session,
@@ -711,7 +729,7 @@ class TaskEndpoint extends Endpoint {
     final newSkipPlanning = skipPlanning ?? task.skipPlanning;
     final promptChanged =
         trimmed != task.prompt || newSkipPlanning != task.skipPlanning;
-    if (promptChanged && !_promptEditableStatuses.contains(task.status)) {
+    if (promptChanged && !promptEditableStatuses.contains(task.status)) {
       throw InvalidStateException(
         message:
             'The prompt of task $taskId can\'t change while '
@@ -732,23 +750,40 @@ class TaskEndpoint extends Endpoint {
       throw NotFoundException(message: 'Agent $reviewerAgentId not found');
     }
 
+    var next = task.copyWith(
+      prompt: trimmed,
+      skipPlanning: newSkipPlanning,
+      autoReview: autoReview ?? task.autoReview,
+      reviewerAgentId: reviewerAgentId,
+      autoFixReview: autoFixReview ?? task.autoFixReview,
+      maxReviewFixRounds: (maxReviewFixRounds ?? task.maxReviewFixRounds).clamp(
+        1,
+        10,
+      ),
+      autoMerge: autoMerge ?? task.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? task.autoFixFailingChecks,
+      maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
+          .clamp(1, 10),
+    );
+    // An option the dev changed by hand stops the task following the
+    // project's defaults; editing only the prompt doesn't.
+    if (next.skipPlanning != task.skipPlanning ||
+        next.autoReview != task.autoReview ||
+        next.reviewerAgentId != task.reviewerAgentId ||
+        next.autoFixReview != task.autoFixReview ||
+        next.maxReviewFixRounds != task.maxReviewFixRounds ||
+        next.autoMerge != task.autoMerge ||
+        next.autoFixFailingChecks != task.autoFixFailingChecks ||
+        next.maxCheckFixAttempts != task.maxCheckFixAttempts) {
+      next = next.copyWith(followsDefaults: false);
+    }
+
     // Only these columns, so a concurrent daemon `update` isn't reverted.
     final updated = await Task.db.updateRow(
       session,
-      task.copyWith(
-        prompt: trimmed,
-        skipPlanning: newSkipPlanning,
-        autoReview: autoReview ?? task.autoReview,
-        reviewerAgentId: reviewerAgentId,
-        autoFixReview: autoFixReview ?? task.autoFixReview,
-        maxReviewFixRounds: (maxReviewFixRounds ?? task.maxReviewFixRounds)
-            .clamp(1, 10),
-        autoMerge: autoMerge ?? task.autoMerge,
-        autoFixFailingChecks: autoFixFailingChecks ?? task.autoFixFailingChecks,
-        maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
-            .clamp(1, 10),
-      ),
+      next,
       columns: (t) => [
+        t.followsDefaults,
         t.prompt,
         t.skipPlanning,
         t.autoReview,

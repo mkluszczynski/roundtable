@@ -1039,6 +1039,13 @@ class Protocol extends _is.DatabaseSerializationManager {
           columnDefault: '2',
         ),
         _isp.ColumnDefinition(
+          name: 'followsDefaults',
+          columnType: _isp.ColumnType.boolean,
+          isNullable: false,
+          dartType: 'bool',
+          columnDefault: 'false',
+        ),
+        _isp.ColumnDefinition(
           name: 'status',
           columnType: _isp.ColumnType.text,
           isNullable: false,

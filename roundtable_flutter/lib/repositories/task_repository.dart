@@ -18,6 +18,7 @@ class TaskRepository {
     bool autoFixFailingChecks = false,
     int? maxCheckFixAttempts,
     List<int> attachmentIds = const [],
+    bool followDefaults = false,
   }) => _client.task.createTask(
     projectId,
     agentId,
@@ -31,6 +32,7 @@ class TaskRepository {
     autoFixFailingChecks: autoFixFailingChecks,
     maxCheckFixAttempts: maxCheckFixAttempts,
     attachmentIds: attachmentIds,
+    followDefaults: followDefaults,
   );
 
   Future<List<DiffFile>> getChangedFiles(int taskId) =>

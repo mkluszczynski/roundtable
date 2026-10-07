@@ -43,6 +43,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -78,6 +79,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
        autoMerge = autoMerge ?? false,
        autoFixFailingChecks = autoFixFailingChecks ?? false,
        maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
+       followsDefaults = followsDefaults ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -103,6 +105,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -175,6 +178,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
               jsonSerialization['autoFixFailingChecks'],
             ),
       maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      followsDefaults: jsonSerialization['followsDefaults'] == null
+          ? null
+          : _is.BoolJsonExtension.fromJson(
+              jsonSerialization['followsDefaults'],
+            ),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -313,6 +321,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   int maxCheckFixAttempts;
 
+  /// The advanced options above were left at the project's defaults: they
+  /// keep following the project/workspace settings when those change,
+  /// until the dev edits one of them on the task (or it's `done`).
+  bool followsDefaults;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -424,6 +437,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -473,6 +487,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
+      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -528,6 +543,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
+      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -631,6 +647,7 @@ class _TaskImpl extends Task {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -676,6 +693,7 @@ class _TaskImpl extends Task {
          autoMerge: autoMerge,
          autoFixFailingChecks: autoFixFailingChecks,
          maxCheckFixAttempts: maxCheckFixAttempts,
+         followsDefaults: followsDefaults,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -727,6 +745,7 @@ class _TaskImpl extends Task {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -779,6 +798,7 @@ class _TaskImpl extends Task {
       autoMerge: autoMerge ?? this.autoMerge,
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
       maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
+      followsDefaults: followsDefaults ?? this.followsDefaults,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
@@ -896,6 +916,11 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<int, int> maxCheckFixAttempts(int value) => _is.ColumnValue(
     table.maxCheckFixAttempts,
+    value,
+  );
+
+  _is.ColumnValue<bool, bool> followsDefaults(bool value) => _is.ColumnValue(
+    table.followsDefaults,
     value,
   );
 
@@ -1094,6 +1119,11 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    followsDefaults = _is.ColumnBool(
+      'followsDefaults',
+      this,
+      hasDefault: true,
+    );
     status = _is.ColumnEnum(
       'status',
       this,
@@ -1253,6 +1283,11 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnBool autoFixFailingChecks;
 
   late final _is.ColumnInt maxCheckFixAttempts;
+
+  /// The advanced options above were left at the project's defaults: they
+  /// keep following the project/workspace settings when those change,
+  /// until the dev edits one of them on the task (or it's `done`).
+  late final _is.ColumnBool followsDefaults;
 
   late final _is.ColumnEnum<_ic097rko.TaskStatus> status;
 
@@ -1532,6 +1567,7 @@ class TaskTable extends _is.Table<int?> {
     autoMerge,
     autoFixFailingChecks,
     maxCheckFixAttempts,
+    followsDefaults,
     status,
     currentPlan,
     failureReason,

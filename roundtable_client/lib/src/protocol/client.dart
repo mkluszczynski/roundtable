@@ -957,9 +957,10 @@ class EndpointProject extends _isc.EndpointRef {
 /// Workspace settings and the task defaults resolved from them.
 ///
 /// Defaults cascade workspace → project → task: a project's nullable
-/// override wins over the workspace value, and the result only pre-fills the
-/// new-task form — the task stores its own copy, so later settings changes
-/// never affect tasks that already exist.
+/// override wins over the workspace value, and the result pre-fills the
+/// new-task form. The task stores its own copy; one created with the
+/// defaults untouched (`Task.followsDefaults`) gets it rewritten whenever
+/// the settings change, until the dev edits its options or it's `done`.
 /// {@category Endpoint}
 class EndpointSettings extends _isc.EndpointRef {
   EndpointSettings(_isc.EndpointCaller caller) : super(caller);
@@ -1063,6 +1064,10 @@ class EndpointTask extends _isc.EndpointRef {
   /// `queued` and the agent's machine is notified via [watchAssignedTasks];
   /// without one it's a `draft` that nothing picks up until an agent is
   /// assigned via [reassignAgent].
+  ///
+  /// With [followDefaults] the dev left the advanced options untouched: the
+  /// task takes the project's current defaults (the option arguments are
+  /// ignored) and keeps following them, see `Task.followsDefaults`.
   _ida.Future<_iw53rmon.Task> createTask(
     int projectId,
     int? agentId,
@@ -1076,6 +1081,7 @@ class EndpointTask extends _isc.EndpointRef {
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
+    bool? followDefaults,
   }) => caller.callServerEndpoint<_iw53rmon.Task>(
     'task',
     'createTask',
@@ -1092,6 +1098,7 @@ class EndpointTask extends _isc.EndpointRef {
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
       'attachmentIds': attachmentIds,
+      'followDefaults': followDefaults,
     },
   );
 
@@ -1342,7 +1349,7 @@ class EndpointTask extends _isc.EndpointRef {
   /// automation options are read fresh each time they apply, so they can
   /// change any time before the task is `done`; the prompt and
   /// [skipPlanning] only while no run is under way (see
-  /// [_promptEditableStatuses]). Turning auto review on applies from the
+  /// [promptEditableStatuses]). Turning auto review on applies from the
   /// next version the agent finishes.
   _ida.Future<_iw53rmon.Task> updateTaskSettings(
     int taskId,

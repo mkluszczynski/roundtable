@@ -1666,6 +1666,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<List<int>?>(),
               nullable: true,
             ),
+            'followDefaults': _is.ParameterDescription(
+              name: 'followDefaults',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -1686,6 +1691,7 @@ class Endpoints extends _is.EndpointDispatch {
                     autoFixFailingChecks: params['autoFixFailingChecks'],
                     maxCheckFixAttempts: params['maxCheckFixAttempts'],
                     attachmentIds: params['attachmentIds'],
+                    followDefaults: params['followDefaults'],
                   ),
         ),
         'update': _is.MethodConnector(

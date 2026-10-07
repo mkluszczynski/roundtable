@@ -100,6 +100,11 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   static const _maxImages = 6;
   static const _maxBytes = 5 * 1024 * 1024;
 
+  /// The options are still the project's defaults: the task then keeps
+  /// following them when the project's settings change.
+  bool get _followsDefaults =>
+      _defaults != null && _options == TaskOptions.fromDefaults(_defaults!);
+
   @override
   void initState() {
     super.initState();
@@ -110,7 +115,10 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
   }
 
   void _selectProject(int projectId) {
-    setState(() => _projectId = projectId);
+    setState(() {
+      _projectId = projectId;
+      _defaults = null;
+    });
     _loadDefaults(projectId);
   }
 
@@ -252,6 +260,7 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                             for (final i in _images)
                               if (i.id != null) i.id!,
                           ],
+                          followDefaults: _followsDefaults,
                         );
                       }
                     : null,

@@ -38,6 +38,10 @@ fields:
   ### once per commit, at most [maxCheckFixAttempts] times until they pass.
   autoFixFailingChecks: bool, default=false
   maxCheckFixAttempts: int, default=2
+  ### The advanced options above were left at the project's defaults: they
+  ### keep following the project/workspace settings when those change,
+  ### until the dev edits one of them on the task (or it's `done`).
+  followsDefaults: bool, default=false
   status: TaskStatus, default=queued
   ### Content of the latest ExitPlanMode plan, when status=planReady.
   currentPlan: String?

@@ -43,6 +43,7 @@ abstract class Task
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     this.currentPlan,
     this.failureReason,
@@ -78,6 +79,7 @@ abstract class Task
        autoMerge = autoMerge ?? false,
        autoFixFailingChecks = autoFixFailingChecks ?? false,
        maxCheckFixAttempts = maxCheckFixAttempts ?? 2,
+       followsDefaults = followsDefaults ?? false,
        status = status ?? _ic097rko.TaskStatus.queued,
        checkState = checkState ?? _ivypql97.PrCheckState.none,
        checkFixAttempts = checkFixAttempts ?? 0,
@@ -103,6 +105,7 @@ abstract class Task
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -175,6 +178,11 @@ abstract class Task
               jsonSerialization['autoFixFailingChecks'],
             ),
       maxCheckFixAttempts: jsonSerialization['maxCheckFixAttempts'] as int?,
+      followsDefaults: jsonSerialization['followsDefaults'] == null
+          ? null
+          : _isc.BoolJsonExtension.fromJson(
+              jsonSerialization['followsDefaults'],
+            ),
       status: jsonSerialization['status'] == null
           ? null
           : _ic097rko.TaskStatus.fromJson(
@@ -313,6 +321,11 @@ abstract class Task
 
   int maxCheckFixAttempts;
 
+  /// The advanced options above were left at the project's defaults: they
+  /// keep following the project/workspace settings when those change,
+  /// until the dev edits one of them on the task (or it's `done`).
+  bool followsDefaults;
+
   _ic097rko.TaskStatus status;
 
   /// Content of the latest ExitPlanMode plan, when status=planReady.
@@ -421,6 +434,7 @@ abstract class Task
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -470,6 +484,7 @@ abstract class Task
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
+      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -525,6 +540,7 @@ abstract class Task
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
       'maxCheckFixAttempts': maxCheckFixAttempts,
+      'followsDefaults': followsDefaults,
       'status': status.toJson(),
       if (currentPlan != null) 'currentPlan': currentPlan,
       if (failureReason != null) 'failureReason': failureReason,
@@ -590,6 +606,7 @@ class _TaskImpl extends Task {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     String? currentPlan,
     String? failureReason,
@@ -635,6 +652,7 @@ class _TaskImpl extends Task {
          autoMerge: autoMerge,
          autoFixFailingChecks: autoFixFailingChecks,
          maxCheckFixAttempts: maxCheckFixAttempts,
+         followsDefaults: followsDefaults,
          status: status,
          currentPlan: currentPlan,
          failureReason: failureReason,
@@ -686,6 +704,7 @@ class _TaskImpl extends Task {
     bool? autoMerge,
     bool? autoFixFailingChecks,
     int? maxCheckFixAttempts,
+    bool? followsDefaults,
     _ic097rko.TaskStatus? status,
     Object? currentPlan = _Undefined,
     Object? failureReason = _Undefined,
@@ -738,6 +757,7 @@ class _TaskImpl extends Task {
       autoMerge: autoMerge ?? this.autoMerge,
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
       maxCheckFixAttempts: maxCheckFixAttempts ?? this.maxCheckFixAttempts,
+      followsDefaults: followsDefaults ?? this.followsDefaults,
       status: status ?? this.status,
       currentPlan: currentPlan is String? ? currentPlan : this.currentPlan,
       failureReason: failureReason is String?
