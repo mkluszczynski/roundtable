@@ -16,6 +16,8 @@ import '../repositories/task_repository.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../utils/open_task.dart';
+import '../widgets/active_tasks_nav.dart';
 import '../widgets/nav_rail.dart';
 import '../widgets/rail_nav_item.dart';
 import '../widgets/runner_update_banner.dart';
@@ -24,6 +26,7 @@ import 'dashboard_screen.dart';
 import 'machines_screen.dart';
 import 'projects_screen.dart';
 import 'settings_screen.dart';
+import 'task_detail_screen.dart';
 
 /// No top `AppBar` — each screen owns its own header content, per the
 /// design brief (the panel has no persistent app-wide top bar).
@@ -39,6 +42,29 @@ class PanelShell extends StatefulWidget {
 
 class _PanelShellState extends State<PanelShell> {
   int _selectedIndex = 0;
+
+  /// The Dashboard tab's navigator, where the rail's active tasks open.
+  final _dashboardNavigator = GlobalKey<NavigatorState>();
+
+  /// Opens [task] in the Dashboard tab, in place of whatever detail screen
+  /// is open there — jumping between tasks never stacks them, and back
+  /// always leads to the kanban.
+  void _openTask(Task task) {
+    setState(() => _selectedIndex = 0);
+    final navigator = _dashboardNavigator.currentState;
+    if (navigator == null) return;
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => TaskDetailScreen(initialTaskId: task.id!),
+      ),
+    );
+  }
+
+  void _showKanban() {
+    setState(() => _selectedIndex = 0);
+    _dashboardNavigator.currentState?.popUntil((route) => route.isFirst);
+  }
 
   /// Project/agent ids a task referenced before the lists knew them, already
   /// refetched once — so a dangling id can't trigger a refetch loop.
@@ -134,6 +160,8 @@ class _PanelShellState extends State<PanelShell> {
                 items: _items,
                 selectedIndex: _selectedIndex,
                 onSelected: (index) => setState(() => _selectedIndex = index),
+                onOpenTask: _openTask,
+                onShowKanban: _showKanban,
               ),
               Container(width: 1, color: AppColors.border),
               Expanded(
@@ -143,8 +171,9 @@ class _PanelShellState extends State<PanelShell> {
                   // (project/machine/task detail) stack within that tab's area
                   // instead of covering the nav rail via the app-root Navigator.
                   children: [
-                    for (final screen in _rootScreens)
+                    for (final (i, screen) in _rootScreens.indexed)
                       Navigator(
+                        key: i == 0 ? _dashboardNavigator : null,
                         onGenerateRoute: (settings) => MaterialPageRoute(
                           builder: (_) => screen,
                           settings: settings,
@@ -172,11 +201,15 @@ class _ShellNavRail extends StatefulWidget {
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
+    required this.onOpenTask,
+    required this.onShowKanban,
   });
 
   final List<NavRailItem> items;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final ValueChanged<Task> onOpenTask;
+  final VoidCallback onShowKanban;
 
   @override
   State<_ShellNavRail> createState() => _ShellNavRailState();
@@ -224,6 +257,11 @@ class _ShellNavRailState extends State<_ShellNavRail> {
               )
               .length
         : 0;
+    final agentState = context.watch<AgentListCubit>().state;
+    final agentNames = {
+      if (agentState is AgentListLoaded)
+        for (final a in agentState.agents) a.id!: a.name,
+    };
     final machines = machineState is MachineListLoaded
         ? machineState.machines
         : const <Machine>[];
@@ -259,6 +297,18 @@ class _ShellNavRailState extends State<_ShellNavRail> {
             child: StatusDot(color: AppColors.warning),
           ),
       },
+      section: ValueListenableBuilder(
+        valueListenable: openTaskId,
+        builder: (context, openId, _) => ActiveTasksNav(
+          tasks: taskState is DashboardLoaded
+              ? activeTasks(taskState.tasks.values)
+              : const [],
+          agentNames: agentNames,
+          openTaskId: openId,
+          onOpen: widget.onOpenTask,
+          onShowAll: widget.onShowKanban,
+        ),
+      ),
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

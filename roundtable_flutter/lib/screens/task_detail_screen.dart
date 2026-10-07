@@ -19,6 +19,7 @@ import '../utils/follow_up_prompt.dart';
 import '../widgets/copy_icon_button.dart';
 import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
+import '../utils/open_task.dart';
 import '../utils/task_status_label.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -319,12 +320,50 @@ class TaskDetailScreen extends StatelessWidget {
         agentRepository: AgentRepository(client),
         machineRepository: MachineRepository(client),
       )..add(TaskDetailSubscribed(initialTaskId)),
-      child: const Scaffold(
-        backgroundColor: AppColors.bg0,
-        body: _TaskDetailView(),
+      child: _OpenTaskReporter(
+        taskId: initialTaskId,
+        child: const Scaffold(
+          backgroundColor: AppColors.bg0,
+          body: _TaskDetailView(),
+        ),
       ),
     );
   }
+}
+
+/// Marks [taskId] as the open task ([openTaskId]) while this screen lives.
+class _OpenTaskReporter extends StatefulWidget {
+  const _OpenTaskReporter({required this.taskId, required this.child});
+
+  final int taskId;
+  final Widget child;
+
+  @override
+  State<_OpenTaskReporter> createState() => _OpenTaskReporterState();
+}
+
+class _OpenTaskReporterState extends State<_OpenTaskReporter> {
+  @override
+  void initState() {
+    super.initState();
+    // After the frame: the rail listening to it may be building now.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) openTaskId.value = widget.taskId;
+    });
+  }
+
+  @override
+  void dispose() {
+    // Not now: the tree is locked while it's torn down.
+    final id = widget.taskId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (openTaskId.value == id) openTaskId.value = null;
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// What the main area shows — picked from the rail's navigation.

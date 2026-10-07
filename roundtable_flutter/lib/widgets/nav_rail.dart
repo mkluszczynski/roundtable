@@ -28,6 +28,7 @@ class AppNavRail extends StatelessWidget {
     required this.onSelected,
     this.badges = const {},
     this.footer,
+    this.section,
   });
 
   final List<NavRailItem> items;
@@ -37,6 +38,10 @@ class AppNavRail extends StatelessWidget {
   /// Trailing widget per item index, e.g. a count of tasks waiting.
   final Map<int, Widget> badges;
   final Widget? footer;
+
+  /// Fills the space between the items and the [footer] (scrolls itself),
+  /// e.g. the active tasks.
+  final Widget? section;
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +115,8 @@ class AppNavRail extends StatelessWidget {
               ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: Spacing.xl),
+          Expanded(child: section ?? const SizedBox.shrink()),
           if (footer != null)
             Container(
               decoration: BoxDecoration(
