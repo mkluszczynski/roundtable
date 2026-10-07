@@ -10,6 +10,8 @@ import 'package:roundtable_flutter/client.dart';
 import 'package:roundtable_flutter/main.dart';
 import 'package:roundtable_flutter/widgets/create_task_dialog.dart';
 
+import 'support.dart';
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -74,47 +76,4 @@ void main() {
       'Hello, world!\n',
     );
   });
-}
-
-extension on WidgetTester {
-  /// Pumps frames until [finder] matches (the panel's pulsing status dots
-  /// never let `pumpAndSettle` settle), failing after [timeout].
-  Future<Finder> shown(
-    Finder finder, {
-    Duration timeout = const Duration(seconds: 30),
-  }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (finder.evaluate().isEmpty) {
-      if (DateTime.now().isAfter(deadline)) {
-        throw TestFailure('Timed out waiting for $finder');
-      }
-      await pump(const Duration(milliseconds: 200));
-    }
-    return finder;
-  }
-
-  Future<void> tapWhenShown(
-    Finder finder, {
-    Duration timeout = const Duration(seconds: 30),
-  }) async {
-    await shown(finder, timeout: timeout);
-    // A button shows disabled until its data loads (e.g. "New task" before
-    // the projects arrive): wait until it's enabled.
-    final button = find.ancestor(
-      of: finder.first,
-      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
-    );
-    await shown(
-      find.byWidgetPredicate(
-        (w) =>
-            w is ButtonStyleButton &&
-            w.enabled &&
-            button.evaluate().any((e) => e.widget == w),
-      ),
-      timeout: timeout,
-    ).catchError((Object _) => button, test: (_) => button.evaluate().isEmpty);
-    await ensureVisible(finder.first);
-    await tap(finder.first);
-    await pump(const Duration(milliseconds: 300));
-  }
 }

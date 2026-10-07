@@ -73,7 +73,7 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 | `roundtable_agent_runner` | `dart test` | dispatcher, review dispatcher, executor (fake `claude`), permission tool, worktrees (real git), PR opener, stream formatter, runner update |
 | `roundtable_flutter` | `flutter test` | shared widgets (`test/widgets/`), utils, kanban grouping |
 | `roundtable_e2e` | `dart test` | E2E: the real server and runner against a fake GitHub (see below) |
-| `roundtable_flutter` | `flutter test integration_test -d linux` | E2E UI: the panel clicked through the same stack |
+| `roundtable_flutter` | `scripts/ui-e2e.sh` | E2E UI: the panel clicked through the same stack |
 
 ### E2E tests
 
@@ -114,10 +114,13 @@ its fix turns CI green and auto merge lands it (`FakeGitHub.ciFailure`
 decides each commit's CI from its content).
 
 The panel is clicked through the same stack by
-`roundtable_flutter/integration_test/panel_flow_test.dart` (new task →
-plan → approve → accept & merge), on the Linux desktop at its default
-1280×720 window: `cd roundtable_flutter && flutter test integration_test
--d linux` (~2.5 min). It pumps frames until a widget shows instead of
+`roundtable_flutter/integration_test/` on the Linux desktop at its default
+1280×720 window: `panel_flow_test.dart` (new task → plan → approve →
+accept & merge) and `onboarding_test.dart` (empty panel → register a
+machine and start its runner with the shown token → add an agent →
+connect a project, detecting its tools). Run them with
+`scripts/ui-e2e.sh` (~1 min): one file per `flutter test` call, since a
+second file in the same call can't start the app on the Linux device. It pumps frames until a widget shows instead of
 `pumpAndSettle`, which never settles with the pulsing status dots.
 
 ## Conventions

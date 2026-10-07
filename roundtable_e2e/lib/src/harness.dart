@@ -24,16 +24,24 @@ class E2EHarness {
   final List<Process> _processes;
 
   /// The machine the runner registered as.
-  late final Machine machine;
+  late Machine machine;
+
+  late final String _serverUrl;
+  late final ({String runner, String permissionTool, String fakeClaude})
+  _binaries;
+  late final File _scenarioFile;
 
   static const owner = 'acme';
   static const repo = 'demo';
 
   /// Starts everything. [scenario] is the fake claude's script (see
-  /// `bin/fake_claude.dart`); [files] seed `acme/demo` on `main`.
+  /// `bin/fake_claude.dart`); [files] seed `acme/demo` on `main`. Without
+  /// [withMachine], no machine is registered: the test adds one (e.g. in
+  /// the panel) and calls [startRunner] with its token.
   static Future<E2EHarness> start({
     required Map<String, Object?> scenario,
     Map<String, String> files = const {'README.md': '# Demo\n'},
+    bool withMachine = true,
   }) async {
     final binaries = await _build();
     final temp = await Directory.systemTemp.createTemp('roundtable_e2e_');
@@ -82,37 +90,14 @@ class E2EHarness {
         }
       });
 
-      final registration = await client.machine.register('E2E machine');
-      final runner = await _startLogged(
-        'runner',
-        binaries.runner,
-        const [],
-        workingDirectory: temp.path,
-        environment: {
-          'REGISTRATION_TOKEN': registration.token,
-          'SERVER_URL': serverUrl,
-          'CLAUDE_EXECUTABLE': binaries.fakeClaude,
-          'CLAUDE_CODE_OAUTH_TOKEN': 'fake',
-          'WORKSPACE_ROOT': '${temp.path}/workspace',
-          'PERMISSION_PROMPT_TOOL_PATH': binaries.permissionTool,
-          'HOME': '${temp.path}/home',
-          'FAKE_CLAUDE_SCENARIO': scenarioFile.path,
-          'FAKE_CLAUDE_STATE': '${temp.path}/fake-claude',
-        },
-      );
-      processes.add(runner);
-
-      final harness = E2EHarness._(temp, github, client, processes);
-      harness.machine = await harness.waitFor(
-        'the machine to come online',
-        () async => (await client.machine.list())
-            .where(
-              (m) =>
-                  m.id == registration.machine.id &&
-                  m.status == MachineStatus.online,
-            )
-            .firstOrNull,
-      );
+      final harness = E2EHarness._(temp, github, client, processes)
+        .._serverUrl = serverUrl
+        .._binaries = binaries
+        .._scenarioFile = scenarioFile;
+      if (withMachine) {
+        final registration = await client.machine.register('E2E machine');
+        harness.machine = await harness.startRunner(registration.token);
+      }
       return harness;
     } catch (_) {
       for (final p in processes) {
@@ -121,6 +106,36 @@ class E2EHarness {
       await github.close();
       rethrow;
     }
+  }
+
+  /// Starts the agent runner with a machine's registration [token], like
+  /// running the install command, and waits until it's online.
+  Future<Machine> startRunner(String token) async {
+    final runner = await _startLogged(
+      'runner',
+      _binaries.runner,
+      const [],
+      workingDirectory: _temp.path,
+      environment: {
+        'REGISTRATION_TOKEN': token,
+        'SERVER_URL': _serverUrl,
+        'CLAUDE_EXECUTABLE': _binaries.fakeClaude,
+        'CLAUDE_CODE_OAUTH_TOKEN': 'fake',
+        'WORKSPACE_ROOT': '${_temp.path}/workspace',
+        'PERMISSION_PROMPT_TOOL_PATH': _binaries.permissionTool,
+        'HOME': '${_temp.path}/home',
+        'FAKE_CLAUDE_SCENARIO': _scenarioFile.path,
+        'FAKE_CLAUDE_STATE': '${_temp.path}/fake-claude',
+      },
+    );
+    _processes.add(runner);
+    // One runner per harness: its machine is the one that comes online.
+    return waitFor(
+      'the runner\'s machine to come online',
+      () async => (await client.machine.list())
+          .where((m) => m.status == MachineStatus.online)
+          .firstOrNull,
+    );
   }
 
   /// Creates project `acme/demo` (with a token, so PRs and reviews work)
