@@ -226,44 +226,14 @@ class _MachineCard extends StatelessWidget {
           ? state.latestRunnerVersion
           : null,
       updateRequestedAt: machine.updateRequestedAt,
+      busy: agents.any((a) => a.status != AgentStatus.idle),
     );
   }
 
-  /// Updating restarts the daemon, which kills any `claude` run in
-  /// progress — confirm first when an agent here is mid-task.
-  Future<void> _confirmAndUpdate(BuildContext context) async {
-    final cubit = context.read<MachineListCubit>();
-    final busy = agents.any((a) => a.status != AgentStatus.idle);
-    if (busy) {
-      final confirmed = await showAppModal<bool>(
-        context,
-        icon: Icons.system_update_alt,
-        title: 'Update agent runner?',
-        subtitle: machine.name,
-        child: Text(
-          'An agent on this machine is working on a task. Updating restarts '
-          'the agent runner, which interrupts that task.',
-          style: AppTypography.body,
-        ),
-        actions: [
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-          ),
-          Builder(
-            builder: (context) => FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Update anyway'),
-            ),
-          ),
-        ],
-      );
-      if (confirmed != true) return;
-    }
-    await cubit.requestRunnerUpdate(machine.id!);
-  }
+  /// Updating restarts the daemon, which waits for its agents to finish
+  /// their current work first (docs/FLOWS.md §2), so no confirmation needed.
+  Future<void> _update(BuildContext context) =>
+      context.read<MachineListCubit>().requestRunnerUpdate(machine.id!);
 
   Future<void> _confirmRemove(BuildContext context) async {
     final cubit = context.read<MachineListCubit>();
@@ -392,7 +362,7 @@ class _MachineCard extends StatelessWidget {
                     ),
                     if (updateStatus == RunnerUpdateStatus.available)
                       PopupMenuItem(
-                        value: _confirmAndUpdate,
+                        value: _update,
                         child: const Text('Update runner'),
                       ),
                     PopupMenuItem(
@@ -410,7 +380,7 @@ class _MachineCard extends StatelessWidget {
               const SizedBox(height: Spacing.md),
               RunnerUpdateBanner(
                 status: updateStatus,
-                onUpdate: () => _confirmAndUpdate(context),
+                onUpdate: () => _update(context),
               ),
             ],
             if (UsageLimitNote.isActive(machine.usageLimitedUntil)) ...[

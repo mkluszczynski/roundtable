@@ -10,6 +10,10 @@ import '../theme/typography.dart';
 enum RunnerUpdateStatus {
   upToDate,
   available,
+
+  /// Requested while an agent on the machine is busy: the daemon holds back
+  /// new work and updates once the current work is done.
+  scheduled,
   updating,
 
   /// The daemon predates in-panel updates and must be reinstalled once.
@@ -20,8 +24,11 @@ RunnerUpdateStatus runnerUpdateStatus({
   required String? installedVersion,
   required String? latestVersion,
   required DateTime? updateRequestedAt,
+  bool busy = false,
 }) {
-  if (updateRequestedAt != null) return RunnerUpdateStatus.updating;
+  if (updateRequestedAt != null) {
+    return busy ? RunnerUpdateStatus.scheduled : RunnerUpdateStatus.updating;
+  }
   if (latestVersion == null || installedVersion == latestVersion) {
     return RunnerUpdateStatus.upToDate;
   }
@@ -50,6 +57,11 @@ class RunnerUpdateBanner extends StatelessWidget {
       RunnerUpdateStatus.available => (
         'Agent runner update available',
         Icons.system_update_alt,
+      ),
+      RunnerUpdateStatus.scheduled => (
+        'Update scheduled — installs once the agents here finish their '
+            'current work',
+        Icons.schedule,
       ),
       RunnerUpdateStatus.updating => (
         'Updating agent runner…',

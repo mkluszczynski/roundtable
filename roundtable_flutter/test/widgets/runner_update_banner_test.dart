@@ -23,7 +23,7 @@ void main() {
       );
     });
 
-    test('distinguishes available, updating and unsupported', () {
+    test('distinguishes available, scheduled, updating and unsupported', () {
       expect(
         runnerUpdateStatus(
           installedVersion: 'a',
@@ -39,6 +39,15 @@ void main() {
           updateRequestedAt: DateTime.now(),
         ),
         RunnerUpdateStatus.updating,
+      );
+      expect(
+        runnerUpdateStatus(
+          installedVersion: 'a',
+          latestVersion: 'b',
+          updateRequestedAt: DateTime.now(),
+          busy: true,
+        ),
+        RunnerUpdateStatus.scheduled,
       );
       expect(
         runnerUpdateStatus(
@@ -84,6 +93,22 @@ void main() {
     );
 
     expect(find.text('Updating agent runner…'), findsOneWidget);
+    expect(find.text('Update'), findsNothing);
+  });
+
+  testWidgets('shows no Update button while scheduled', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RunnerUpdateBanner(
+            status: RunnerUpdateStatus.scheduled,
+            onUpdate: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('Update scheduled'), findsOneWidget);
     expect(find.text('Update'), findsNothing);
   });
 

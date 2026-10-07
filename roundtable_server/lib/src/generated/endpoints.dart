@@ -930,6 +930,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String?>(),
               nullable: true,
             ),
+            'drainsForUpdate': _is.ParameterDescription(
+              name: 'drainsForUpdate',
+              type: _is.getType<bool?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -940,6 +945,7 @@ class Endpoints extends _is.EndpointDispatch {
                     session,
                     params['token'],
                     params['runnerVersion'],
+                    drainsForUpdate: params['drainsForUpdate'],
                   ),
         ),
         'reportUsageLimit': _is.MethodConnector(

@@ -94,8 +94,9 @@ lockfile is newer than the cached build in
 To ship a runner change to a machine: the Machines screen compares each
 machine's reported `runnerVersion` (content hashes of its installed
 binaries) with `MachineEndpoint.latestRunnerVersion` and shows an "Update"
-button. It sets `updateRequestedAt`; the daemon's next `checkIn` (≤20 s)
-writes `/var/lib/agent-runner/update-requested`, and the root-side
+button. It sets `updateRequestedAt`; the daemon holds back new work and, at
+the first `checkIn` (every 20 s) with no agent busy, writes
+`/var/lib/agent-runner/update-requested` (`docs/FLOWS.md` §2), and the root-side
 `agent-runner-update.path` systemd unit (installed by
 `scripts/install-agent.sh`) re-downloads both binaries and restarts the
 service. Machines installed before this existed must re-run the install
