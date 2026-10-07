@@ -24,8 +24,10 @@ final serverUrl = getServerUrl();
 /// instead of using a global client object. This is just a simple example.
 late final Client client;
 
-Future<void> initializeClient() async {
-  client = Client(await serverUrl)
+/// [overrideUrl] points the app at another server — the E2E UI tests'
+/// (`integration_test/`), which runs on a random port.
+Future<void> initializeClient({String? overrideUrl}) async {
+  client = Client(overrideUrl ?? await serverUrl)
     ..connectivityMonitor = FlutterConnectivityMonitor()
     ..authSessionManager = FlutterAuthSessionManager();
   unawaited(client.auth.initialize());

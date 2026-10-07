@@ -48,6 +48,12 @@ dev_dependencies:
   flutter_lints: '>=3.0.0 <7.0.0'
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
+  # The E2E harness (real server + runner, fake GitHub and claude) the
+  # integration tests run against.
+  roundtable_e2e:
+    path: ../roundtable_e2e
 
 dependency_overrides:
   flutter_secure_storage: ^10.0.0

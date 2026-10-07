@@ -81,7 +81,7 @@ void main() {
     );
 
     expect(find.text('roundtable'), findsOneWidget);
-    expect(find.text('#7'), findsOneWidget);
+    expect(find.textContaining('#7', findRichText: true), findsOneWidget);
     expect(find.text('task-7'), findsOneWidget);
     expect(find.text('Unassigned'), findsOneWidget);
   });

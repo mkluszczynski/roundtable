@@ -73,6 +73,7 @@ Checklist after changes: `dart analyze` → `dart format` → migrations if need
 | `roundtable_agent_runner` | `dart test` | dispatcher, review dispatcher, executor (fake `claude`), permission tool, worktrees (real git), PR opener, stream formatter, runner update |
 | `roundtable_flutter` | `flutter test` | shared widgets (`test/widgets/`), utils, kanban grouping |
 | `roundtable_e2e` | `dart test` | E2E: the real server and runner against a fake GitHub (see below) |
+| `roundtable_flutter` | `flutter test integration_test -d linux` | E2E UI: the panel clicked through the same stack |
 
 ### E2E tests
 
@@ -102,6 +103,13 @@ Covered flows (`test/user_flows_test.dart`): plan → approve → execute →
 merge; auto review finds a blocker → auto fix → the re-review confirms the
 fix → auto merge; one task at a time per agent, and cancelling a waiting
 task.
+
+The panel is clicked through the same stack by
+`roundtable_flutter/integration_test/panel_flow_test.dart` (new task →
+plan → approve → accept & merge), on the Linux desktop at its default
+1280×720 window: `cd roundtable_flutter && flutter test integration_test
+-d linux` (~2.5 min). It pumps frames until a widget shows instead of
+`pumpAndSettle`, which never settles with the pulsing status dots.
 
 ## Conventions
 

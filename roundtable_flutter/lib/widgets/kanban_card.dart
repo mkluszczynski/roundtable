@@ -209,9 +209,22 @@ class _MetaRow extends StatelessWidget {
                 ),
                 Text('  ·  ', style: AppTypography.caption),
               ],
-              Text('#${task.id}', style: AppTypography.code),
-              Text('  ·  ', style: AppTypography.caption),
-              Text(relativeTime(task.createdAt), style: AppTypography.caption),
+              // One text, so a narrow column cuts the time, not the layout.
+              Flexible(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: '#${task.id}', style: AppTypography.code),
+                      TextSpan(
+                        text: '  ·  ${relativeTime(task.createdAt)}',
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
             ],
           ),
         ),
@@ -289,7 +302,14 @@ class _AssigneeRow extends StatelessWidget {
           Text('  ·  ', style: AppTypography.caption),
           const Icon(Icons.dns_outlined, size: 12, color: AppColors.text2),
           const SizedBox(width: Spacing.xs),
-          Text(machineName!, style: AppTypography.caption),
+          Flexible(
+            child: Text(
+              machineName!,
+              style: AppTypography.caption,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
         ],
       ],
     );
