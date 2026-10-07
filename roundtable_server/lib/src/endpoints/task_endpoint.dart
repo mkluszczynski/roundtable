@@ -1,6 +1,8 @@
 import 'non_terminal_task_statuses.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
+import '../task_option_inheritance.dart';
+import 'settings_endpoint.dart';
 import '../github_repo_client.dart';
 import '../pr_checks.dart';
 import '../task_lifecycle.dart';
@@ -52,7 +54,8 @@ class TaskEndpoint extends Endpoint {
     int? maxCheckFixAttempts,
     List<int>? attachmentIds,
   }) async {
-    if (await Project.db.findById(session, projectId) == null) {
+    final project = await Project.db.findById(session, projectId);
+    if (project == null) {
       throw NotFoundException(message: 'Project $projectId not found');
     }
     if (reviewerAgentId != null &&
@@ -67,21 +70,28 @@ class TaskEndpoint extends Endpoint {
       }
     }
 
+    var draft = Task(
+      projectId: projectId,
+      agentId: agentId,
+      prompt: prompt,
+      skipPlanning: skipPlanning,
+      autoReview: autoReview ?? false,
+      reviewerAgentId: reviewerAgentId,
+      autoFixReview: autoFixReview ?? false,
+      maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
+      autoMerge: autoMerge ?? false,
+      autoFixFailingChecks: autoFixFailingChecks ?? false,
+      maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
+      status: agent == null ? TaskStatus.draft : TaskStatus.queued,
+    );
+    // What the dev left at the defaults keeps following them.
     var task = await Task.db.insertRow(
       session,
-      Task(
-        projectId: projectId,
-        agentId: agentId,
-        prompt: prompt,
-        skipPlanning: skipPlanning,
-        autoReview: autoReview ?? false,
-        reviewerAgentId: reviewerAgentId,
-        autoFixReview: autoFixReview ?? false,
-        maxReviewFixRounds: (maxReviewFixRounds ?? 2).clamp(1, 10),
-        autoMerge: autoMerge ?? false,
-        autoFixFailingChecks: autoFixFailingChecks ?? false,
-        maxCheckFixAttempts: (maxCheckFixAttempts ?? 2).clamp(1, 10),
-        status: agent == null ? TaskStatus.draft : TaskStatus.queued,
+      draft.copyWith(
+        overriddenOptions: optionsDifferingFrom(
+          draft,
+          resolveTaskDefaults(project, await workspaceSettings(session)),
+        ),
       ),
     );
     // Linked before the machine is notified, so the runner sees them.
@@ -732,23 +742,27 @@ class TaskEndpoint extends Endpoint {
       throw NotFoundException(message: 'Agent $reviewerAgentId not found');
     }
 
+    final edited = task.copyWith(
+      prompt: trimmed,
+      skipPlanning: newSkipPlanning,
+      autoReview: autoReview ?? task.autoReview,
+      reviewerAgentId: reviewerAgentId,
+      autoFixReview: autoFixReview ?? task.autoFixReview,
+      maxReviewFixRounds: (maxReviewFixRounds ?? task.maxReviewFixRounds).clamp(
+        1,
+        10,
+      ),
+      autoMerge: autoMerge ?? task.autoMerge,
+      autoFixFailingChecks: autoFixFailingChecks ?? task.autoFixFailingChecks,
+      maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
+          .clamp(1, 10),
+    );
     // Only these columns, so a concurrent daemon `update` isn't reverted.
     final updated = await Task.db.updateRow(
       session,
-      task.copyWith(
-        prompt: trimmed,
-        skipPlanning: newSkipPlanning,
-        autoReview: autoReview ?? task.autoReview,
-        reviewerAgentId: reviewerAgentId,
-        autoFixReview: autoFixReview ?? task.autoFixReview,
-        maxReviewFixRounds: (maxReviewFixRounds ?? task.maxReviewFixRounds)
-            .clamp(1, 10),
-        autoMerge: autoMerge ?? task.autoMerge,
-        autoFixFailingChecks: autoFixFailingChecks ?? task.autoFixFailingChecks,
-        maxCheckFixAttempts: (maxCheckFixAttempts ?? task.maxCheckFixAttempts)
-            .clamp(1, 10),
-      ),
+      edited.copyWith(overriddenOptions: overridesAfterEdit(task, edited)),
       columns: (t) => [
+        t.overriddenOptions,
         t.prompt,
         t.skipPlanning,
         t.autoReview,

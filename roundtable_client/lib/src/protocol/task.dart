@@ -39,6 +39,7 @@ abstract class Task
     this.reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    this.overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -99,6 +100,7 @@ abstract class Task
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -165,6 +167,11 @@ abstract class Task
           ? null
           : _isc.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      overriddenOptions: jsonSerialization['overriddenOptions'] == null
+          ? null
+          : _i35hmugi.Protocol().deserialize<List<String>>(
+              jsonSerialization['overriddenOptions'],
+            ),
       reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
@@ -298,6 +305,11 @@ abstract class Task
 
   int maxReviewFixRounds;
 
+  /// The advanced options (`taskOptionNames`) the dev set for this task
+  /// itself. The others follow the project/workspace defaults: changing
+  /// those updates the unfinished tasks (`propagateTaskDefaults`).
+  List<String>? overriddenOptions;
+
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   int reviewFixRounds;
 
@@ -419,6 +431,7 @@ abstract class Task
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -468,6 +481,8 @@ abstract class Task
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
@@ -523,6 +538,8 @@ abstract class Task
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
@@ -588,6 +605,7 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -633,6 +651,7 @@ class _TaskImpl extends Task {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         overriddenOptions: overriddenOptions,
          reviewFixRounds: reviewFixRounds,
          autoMerge: autoMerge,
          autoFixFailingChecks: autoFixFailingChecks,
@@ -684,6 +703,7 @@ class _TaskImpl extends Task {
     Object? reviewerAgent = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    Object? overriddenOptions = _Undefined,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -736,6 +756,9 @@ class _TaskImpl extends Task {
           : this.reviewerAgent?.copyWith(),
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      overriddenOptions: overriddenOptions is List<String>?
+          ? overriddenOptions
+          : this.overriddenOptions?.map((e0) => e0).toList(),
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,

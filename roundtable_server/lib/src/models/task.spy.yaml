@@ -27,6 +27,10 @@ fields:
   ### agent without waiting for the dev — up to [maxReviewFixRounds] times.
   autoFixReview: bool, default=false
   maxReviewFixRounds: int, default=2
+  ### The advanced options (`taskOptionNames`) the dev set for this task
+  ### itself. The others follow the project/workspace defaults: changing
+  ### those updates the unfinished tasks (`propagateTaskDefaults`).
+  overriddenOptions: List<String>?
   ### Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   reviewFixRounds: int, default=0
   ### Squash-merge the PR without the dev once it's ready: CI green (or no

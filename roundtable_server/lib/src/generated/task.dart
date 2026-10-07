@@ -39,6 +39,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     this.reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    this.overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -99,6 +100,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -165,6 +167,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
           ? null
           : _is.BoolJsonExtension.fromJson(jsonSerialization['autoFixReview']),
       maxReviewFixRounds: jsonSerialization['maxReviewFixRounds'] as int?,
+      overriddenOptions: jsonSerialization['overriddenOptions'] == null
+          ? null
+          : _iikm6kmi.Protocol().deserialize<List<String>>(
+              jsonSerialization['overriddenOptions'],
+            ),
       reviewFixRounds: jsonSerialization['reviewFixRounds'] as int?,
       autoMerge: jsonSerialization['autoMerge'] == null
           ? null
@@ -298,6 +305,11 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
 
   int maxReviewFixRounds;
 
+  /// The advanced options (`taskOptionNames`) the dev set for this task
+  /// itself. The others follow the project/workspace defaults: changing
+  /// those updates the unfinished tasks (`propagateTaskDefaults`).
+  List<String>? overriddenOptions;
+
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   int reviewFixRounds;
 
@@ -422,6 +434,7 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -471,6 +484,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
       if (reviewerAgent != null) 'reviewerAgent': reviewerAgent?.toJson(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
@@ -526,6 +541,8 @@ abstract class Task implements _is.TableRow<int?>, _is.ProtocolSerialization {
         'reviewerAgent': reviewerAgent?.toJsonForProtocol(),
       'autoFixReview': autoFixReview,
       'maxReviewFixRounds': maxReviewFixRounds,
+      if (overriddenOptions != null)
+        'overriddenOptions': overriddenOptions?.toJson(),
       'reviewFixRounds': reviewFixRounds,
       'autoMerge': autoMerge,
       'autoFixFailingChecks': autoFixFailingChecks,
@@ -629,6 +646,7 @@ class _TaskImpl extends Task {
     _ijo8h3v4.Agent? reviewerAgent,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    List<String>? overriddenOptions,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -674,6 +692,7 @@ class _TaskImpl extends Task {
          reviewerAgent: reviewerAgent,
          autoFixReview: autoFixReview,
          maxReviewFixRounds: maxReviewFixRounds,
+         overriddenOptions: overriddenOptions,
          reviewFixRounds: reviewFixRounds,
          autoMerge: autoMerge,
          autoFixFailingChecks: autoFixFailingChecks,
@@ -725,6 +744,7 @@ class _TaskImpl extends Task {
     Object? reviewerAgent = _Undefined,
     bool? autoFixReview,
     int? maxReviewFixRounds,
+    Object? overriddenOptions = _Undefined,
     int? reviewFixRounds,
     bool? autoMerge,
     bool? autoFixFailingChecks,
@@ -777,6 +797,9 @@ class _TaskImpl extends Task {
           : this.reviewerAgent?.copyWith(),
       autoFixReview: autoFixReview ?? this.autoFixReview,
       maxReviewFixRounds: maxReviewFixRounds ?? this.maxReviewFixRounds,
+      overriddenOptions: overriddenOptions is List<String>?
+          ? overriddenOptions
+          : this.overriddenOptions?.map((e0) => e0).toList(),
       reviewFixRounds: reviewFixRounds ?? this.reviewFixRounds,
       autoMerge: autoMerge ?? this.autoMerge,
       autoFixFailingChecks: autoFixFailingChecks ?? this.autoFixFailingChecks,
@@ -877,6 +900,13 @@ class TaskUpdateTable extends _is.UpdateTable<TaskTable> {
 
   _is.ColumnValue<int, int> maxReviewFixRounds(int value) => _is.ColumnValue(
     table.maxReviewFixRounds,
+    value,
+  );
+
+  _is.ColumnValue<List<String>, List<String>> overriddenOptions(
+    List<String>? value,
+  ) => _is.ColumnValue(
+    table.overriddenOptions,
     value,
   );
 
@@ -1076,6 +1106,10 @@ class TaskTable extends _is.Table<int?> {
       this,
       hasDefault: true,
     );
+    overriddenOptions = _is.ColumnSerializable<List<String>>(
+      'overriddenOptions',
+      this,
+    );
     reviewFixRounds = _is.ColumnInt(
       'reviewFixRounds',
       this,
@@ -1240,6 +1274,11 @@ class TaskTable extends _is.Table<int?> {
   late final _is.ColumnBool autoFixReview;
 
   late final _is.ColumnInt maxReviewFixRounds;
+
+  /// The advanced options (`taskOptionNames`) the dev set for this task
+  /// itself. The others follow the project/workspace defaults: changing
+  /// those updates the unfinished tasks (`propagateTaskDefaults`).
+  late final _is.ColumnSerializable<List<String>> overriddenOptions;
 
   /// Review rounds auto fix has sent so far; caps the review ↔ fix loop.
   late final _is.ColumnInt reviewFixRounds;
@@ -1532,6 +1571,7 @@ class TaskTable extends _is.Table<int?> {
     reviewerAgentId,
     autoFixReview,
     maxReviewFixRounds,
+    overriddenOptions,
     reviewFixRounds,
     autoMerge,
     autoFixFailingChecks,

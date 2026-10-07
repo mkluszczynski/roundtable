@@ -1023,6 +1023,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           columnDefault: '2',
         ),
         _isp.ColumnDefinition(
+          name: 'overriddenOptions',
+          columnType: _isp.ColumnType.json,
+          isNullable: true,
+          dartType: 'List<String>?',
+        ),
+        _isp.ColumnDefinition(
           name: 'reviewFixRounds',
           columnType: _isp.ColumnType.bigint,
           isNullable: false,

@@ -1005,9 +1005,10 @@ class EndpointProject extends _isc.EndpointRef {
 /// Workspace settings and the task defaults resolved from them.
 ///
 /// Defaults cascade workspace → project → task: a project's nullable
-/// override wins over the workspace value, and the result only pre-fills the
-/// new-task form — the task stores its own copy, so later settings changes
-/// never affect tasks that already exist.
+/// override wins over the workspace value, and the result pre-fills the
+/// new-task form. The task stores its own copy; changing the defaults
+/// updates the unfinished tasks' options the dev didn't set themselves
+/// (`propagateTaskDefaults`).
 /// {@category Endpoint}
 class EndpointSettings extends _isc.EndpointRef {
   EndpointSettings(_isc.EndpointCaller caller) : super(caller);
