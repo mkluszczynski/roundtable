@@ -107,6 +107,11 @@ task.
 with the feedback; feedback on a PR resumes the session and updates the
 same PR; a question from the agent waits for the answer, which shapes the
 plan.
+`test/failure_flows_test.dart`: a run stopped by the usage limit pauses
+the task, flags the machine and resumes the same session after the reset
+(~2 min: the reset has minute precision); failing CI is sent to the agent,
+its fix turns CI green and auto merge lands it (`FakeGitHub.ciFailure`
+decides each commit's CI from its content).
 
 The panel is clicked through the same stack by
 `roundtable_flutter/integration_test/panel_flow_test.dart` (new task →

@@ -61,6 +61,14 @@ class FakeGitHub {
   /// waits its grace period before treating the PR as having no CI.
   bool ciPasses = true;
 
+  /// Decides each commit's CI result: the failure's log line, or null when
+  /// it passes. Unset, every run passes. Given the commit's repo and SHA, so
+  /// a test can fail CI on the content (e.g. while a file has a bug).
+  Future<String?> Function(String owner, String repo, String sha)? ciFailure;
+
+  /// Workflow runs reported so far: id → the commit and its failure log.
+  final _runs = <int, ({String owner, String repo, String sha, String? log})>{};
+
   final _pulls = <FakePullRequest>[];
   final _comments = <_FakeComment>[];
   var _nextId = 1000;
@@ -318,23 +326,27 @@ class FakeGitHub {
         return;
       case ['actions', 'runs']:
         final sha = request.uri.queryParameters['head_sha'];
-        final runs = !ciPasses || sha == null
-            ? const []
-            : [
-                {
-                  'id': _runId(sha),
-                  'name': 'CI',
-                  'head_sha': sha,
-                  'status': 'completed',
-                  'conclusion': 'success',
-                  'run_attempt': 1,
-                },
-              ];
+        final runs = <Map<String, Object?>>[];
+        if (ciPasses && sha != null) {
+          final log = await ciFailure?.call(owner, repo, sha);
+          final id = _runId(sha);
+          _runs[id] = (owner: owner, repo: repo, sha: sha, log: log);
+          runs.add({
+            'id': id,
+            'name': 'CI',
+            'head_sha': sha,
+            'status': 'completed',
+            'conclusion': log == null ? 'success' : 'failure',
+            'run_attempt': 1,
+          });
+        }
         return _json(request, 200, {
           'total_count': runs.length,
           'workflow_runs': runs,
         });
       case ['actions', 'runs', final runId, 'jobs']:
+        final failed = _runs[int.parse(runId)]?.log != null;
+        final conclusion = failed ? 'failure' : 'success';
         return _json(request, 200, {
           'total_count': 1,
           'jobs': [
@@ -342,11 +354,21 @@ class FakeGitHub {
               'id': int.parse(runId) + 1,
               'name': 'test',
               'status': 'completed',
-              'conclusion': 'success',
-              'steps': [],
+              'conclusion': conclusion,
+              'html_url': '$url/$owner/$repo/actions/runs/$runId',
+              'steps': [
+                {'name': 'Run tests', 'number': 1, 'conclusion': conclusion},
+              ],
             },
           ],
         });
+      case ['actions', 'jobs', final jobId, 'logs']:
+        final log = _runs[int.parse(jobId) - 1]?.log;
+        request.response.headers.contentType = ContentType.text;
+        request.response.write(
+          'Run tests\n${log == null ? 'All tests passed.' : '##[error]$log'}\n',
+        );
+        return;
       default:
         return _json(request, 404, {'message': 'Not Found: $path'});
     }

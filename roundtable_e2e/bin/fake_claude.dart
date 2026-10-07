@@ -75,8 +75,9 @@ Future<void> main(List<String> args) async {
 /// - `question` (Map?): asked in plan mode before the plan, see
 ///   [Scenario.question].
 /// - `runs` (List): one per planning/execution/feedback run — `files`
-///   (path → content written in the worktree), `result` (final message)
-///   and `sleepMs` (how long the run takes).
+///   (path → content written in the worktree), `result` (final message),
+///   `sleepMs` (how long the run takes) and `usageLimit` (fail with the
+///   CLI's usage-limit message, resetting a minute from now).
 /// - `reviews` (List): one per review run — `verdict`, `summary`,
 ///   `comments` (as the reviewer JSON) and `fixPrevious` (mark every earlier
 ///   comment listed in the prompt as fixed).
@@ -189,6 +190,17 @@ Future<String> _execute(Scenario scenario, Directory state) async {
     return 'Nothing left to change.';
   }
   final run = scenario.runs[index] as Map<String, dynamic>;
+  if (run['usageLimit'] == true) {
+    // What the real CLI prints when the account is rate limited; the
+    // runner reads the reset time from it (local time, minute precision).
+    final reset = DateTime.now().add(const Duration(minutes: 1));
+    final hour = reset.hour % 12 == 0 ? 12 : reset.hour % 12;
+    final minute = reset.minute.toString().padLeft(2, '0');
+    final meridiem = reset.hour < 12 ? 'am' : 'pm';
+    throw _Denied(
+      "You've hit your session limit · resets $hour:$minute$meridiem",
+    );
+  }
   final sleep = run['sleepMs'] as int?;
   if (sleep != null) await Future<void>.delayed(Duration(milliseconds: sleep));
   final files = (run['files'] as Map?)?.cast<String, String>() ?? const {};
