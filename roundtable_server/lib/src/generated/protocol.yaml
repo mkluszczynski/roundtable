@@ -15,6 +15,7 @@ agent:
   - list:
   - update:
   - setStatus:
+  - watchAgentStatuses:
   - delete:
 agentRole:
   - list:

@@ -358,6 +358,20 @@ class EndpointAgent extends _isc.EndpointRef {
     },
   );
 
+  /// Streams every agent whose status changes, for the panel's agent list
+  /// (the "Agents busy" count, the machine screens). Only `status` is
+  /// meant to be read from it: the agents come without their role.
+  _ida.Stream<_ikth53tp.Agent> watchAgentStatuses() =>
+      caller.callStreamingServerEndpoint<
+        _ida.Stream<_ikth53tp.Agent>,
+        _ikth53tp.Agent
+      >(
+        'agent',
+        'watchAgentStatuses',
+        {},
+        {},
+      );
+
   _ida.Future<void> delete(int id) => caller.callServerEndpoint<void>(
     'agent',
     'delete',

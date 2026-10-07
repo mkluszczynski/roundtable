@@ -416,13 +416,7 @@ class CodeReviewEndpoint extends Endpoint {
     if (agentId == null) return;
     var agent = await Agent.db.findById(session, agentId);
     if (agent == null) return;
-    await Agent.db.updateRow(
-      session,
-      agent.copyWith(
-        status: await settledAgentStatus(session, agentId, status),
-      ),
-      columns: (a) => [a.status],
-    );
+    await saveAgentStatus(session, agent, status);
   }
 }
 
