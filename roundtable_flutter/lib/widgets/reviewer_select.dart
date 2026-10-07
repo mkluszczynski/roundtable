@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
+import '../cubits/agent_list_cubit.dart';
+import '../cubits/machine_list_cubit.dart';
 import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../theme/colors.dart';
@@ -12,8 +15,11 @@ import 'agent_avatar.dart';
 
 /// Picks a reviewer agent from a menu styled like the dashboard's project
 /// filter: avatar, name, role and machine per agent, the current one
-/// checked. Loads agents and machines itself, so it also works inside
-/// dialogs outside the panel's providers.
+/// checked. Uses the panel's shared `AgentListCubit`/`MachineListCubit`
+/// when an ancestor provides them, so an agent added elsewhere shows up
+/// right away (the Settings tab is kept alive by the panel's
+/// IndexedStack); inside dialogs outside the panel's providers it loads
+/// agents and machines itself.
 class ReviewerSelect extends StatefulWidget {
   const ReviewerSelect({
     super.key,
@@ -52,7 +58,7 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
   @override
   void initState() {
     super.initState();
-    _load();
+    if (context.read<AgentListCubit?>() == null) _load();
   }
 
   Future<void> _load() async {
@@ -71,17 +77,42 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
     }
   }
 
-  Agent? _agent(int? id) =>
-      id == null ? null : _agents?.where((a) => a.id == id).firstOrNull;
+  /// The shared list when the panel provides one, else the self-loaded
+  /// one; null while loading. Keeps the last loaded shared list through a
+  /// failed refresh, so the chosen reviewer isn't shown as deleted.
+  List<Agent>? _watchAgents(BuildContext context) {
+    final shared = context.watch<AgentListCubit?>();
+    if (shared == null) return _agents;
+    return switch (shared.state) {
+      AgentListLoaded(:final agents) => _agents = [
+        ...agents,
+      ]..sort((a, b) => a.name.compareTo(b.name)),
+      AgentListError() => _agents ?? const [],
+      _ => _agents,
+    };
+  }
 
-  String get _noneTitle {
+  /// Keeps the last loaded names through the shared cubit's transient
+  /// states (e.g. `MachineDeletionBlockedOnline`) until its refetch lands.
+  Map<int, String> _watchMachineNames(BuildContext context) {
+    final state = context.watch<MachineListCubit?>()?.state;
+    if (state is MachineListLoaded) {
+      _machineNames = {for (final m in state.machines) m.id!: m.name};
+    }
+    return _machineNames;
+  }
+
+  Agent? _agent(List<Agent>? agents, int? id) =>
+      id == null ? null : agents?.where((a) => a.id == id).firstOrNull;
+
+  String _noneTitle(List<Agent>? agents) {
     if (!widget.inherits) return widget.noneLabel;
-    final inherited = _agent(widget.inheritedAgentId);
+    final inherited = _agent(agents, widget.inheritedAgentId);
     return '${widget.noneLabel} (${inherited?.name ?? 'none'})';
   }
 
-  String _subtitle(Agent agent) {
-    final machine = _machineNames[agent.machineId];
+  String _subtitle(Agent agent, Map<int, String> machineNames) {
+    final machine = machineNames[agent.machineId];
     return machine == null
         ? agent.roleLabel
         : '${agent.roleLabel} · on $machine';
@@ -89,8 +120,10 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
 
   @override
   Widget build(BuildContext context) {
-    final agents = _agents;
-    final selected = _agent(widget.selected);
+    final agents = _watchAgents(context);
+    final machineNames = _watchMachineNames(context);
+    final selected = _agent(agents, widget.selected);
+    final noneTitle = _noneTitle(agents);
     return SizedBox(
       width: widget.width,
       child: PopupMenuButton<int>(
@@ -116,7 +149,7 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
                 size: 18,
                 color: AppColors.text1,
               ),
-              title: _noneTitle,
+              title: noneTitle,
               subtitle: widget.noneSubtitle,
               selected: widget.selected == null,
               dividerBelow: true,
@@ -129,7 +162,7 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
               child: _Option(
                 leading: AgentAvatar(name: agent.name),
                 title: agent.name,
-                subtitle: _subtitle(agent),
+                subtitle: _subtitle(agent, machineNames),
                 selected: widget.selected == agent.id,
               ),
             ),
@@ -156,7 +189,7 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
                     : Text(
                         selected?.name ??
                             (widget.selected == null
-                                ? _noneTitle
+                                ? noneTitle
                                 : 'Deleted agent'),
                         style: AppTypography.body.copyWith(
                           color: selected == null
