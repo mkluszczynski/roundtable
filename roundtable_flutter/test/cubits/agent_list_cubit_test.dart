@@ -8,14 +8,27 @@ import 'package:roundtable_flutter/repositories/agent_repository.dart';
 class _FakeAgentRepository implements AgentRepository {
   _FakeAgentRepository(this.agents);
 
-  final List<Agent> agents;
-  final updates = StreamController<Agent>();
+  List<Agent> agents;
+  var listCalls = 0;
+  Object? listError;
+
+  /// One per [watchAgents] call — each reconnect opens a new stream.
+  final streams = <StreamController<Agent>>[];
+  StreamController<Agent> get updates => streams.last;
 
   @override
-  Future<List<Agent>> listAgents() async => agents;
+  Future<List<Agent>> listAgents() async {
+    listCalls++;
+    if (listError != null) throw listError!;
+    return agents;
+  }
 
   @override
-  Stream<Agent> watchAgents() => updates.stream;
+  Stream<Agent> watchAgents() {
+    final controller = StreamController<Agent>();
+    streams.add(controller);
+    return controller.stream;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -30,12 +43,15 @@ void main() {
     status: status,
   );
 
+  AgentListCubit cubitFor(AgentRepository repository) =>
+      AgentListCubit(repository, retryDelay: Duration.zero);
+
   List<AgentStatus> statuses(AgentListCubit cubit) =>
       (cubit.state as AgentListLoaded).agents.map((a) => a.status).toList();
 
   test('a streamed status change updates the loaded agent', () async {
     final repository = _FakeAgentRepository([agent(1), agent(2)]);
-    final cubit = AgentListCubit(repository);
+    final cubit = cubitFor(repository);
     await cubit.fetchAgents();
     unawaited(cubit.subscribe());
 
@@ -48,7 +64,7 @@ void main() {
 
   test('a streamed agent the list does not know is added', () async {
     final repository = _FakeAgentRepository([agent(1)]);
-    final cubit = AgentListCubit(repository);
+    final cubit = cubitFor(repository);
     await cubit.fetchAgents();
     unawaited(cubit.subscribe());
 
@@ -59,16 +75,87 @@ void main() {
     await cubit.close();
   });
 
-  test('a dropped stream keeps the last list', () async {
-    final repository = _FakeAgentRepository([agent(1)]);
-    final cubit = AgentListCubit(repository);
+  test('a dropped stream keeps the last list and resubscribes', () async {
+    final repository = _FakeAgentRepository([agent(1), agent(2)]);
+    final cubit = cubitFor(repository);
     await cubit.fetchAgents();
     unawaited(cubit.subscribe());
+    await pumpEventQueue();
 
     repository.updates.addError(Exception('connection lost'));
     await pumpEventQueue();
 
+    expect(statuses(cubit), [AgentStatus.idle, AgentStatus.idle]);
+    expect(repository.streams, hasLength(2));
+    expect(repository.listCalls, 2);
+
+    repository.updates.add(agent(1, status: AgentStatus.busy));
+    await pumpEventQueue();
+
+    expect(statuses(cubit), [AgentStatus.busy, AgentStatus.idle]);
+    await cubit.close();
+  });
+
+  test('a stream that ends resubscribes too', () async {
+    final repository = _FakeAgentRepository([agent(1)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    await repository.updates.close();
+    await pumpEventQueue();
+    repository.updates.add(agent(1, status: AgentStatus.busy));
+    await pumpEventQueue();
+
+    expect(repository.streams, hasLength(2));
+    expect(statuses(cubit), [AgentStatus.busy]);
+    await cubit.close();
+  });
+
+  test('the refetch after a drop picks up changes missed meanwhile', () async {
+    final repository = _FakeAgentRepository([agent(1), agent(2)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    // Agent 2 was deleted and agent 1 started working while disconnected.
+    repository.agents = [agent(1, status: AgentStatus.busy)];
+    repository.updates.addError(Exception('connection lost'));
+    await pumpEventQueue();
+
+    expect((cubit.state as AgentListLoaded).agents.map((a) => a.id), [1]);
+    expect(statuses(cubit), [AgentStatus.busy]);
+    await cubit.close();
+  });
+
+  test('a failed refetch after a drop keeps the last list', () async {
+    final repository = _FakeAgentRepository([agent(1)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    repository.listError = Exception('server down');
+    repository.updates.addError(Exception('connection lost'));
+    await pumpEventQueue();
+
+    expect(cubit.state, isA<AgentListLoaded>());
     expect(statuses(cubit), [AgentStatus.idle]);
     await cubit.close();
+  });
+
+  test('closing the cubit stops resubscribing', () async {
+    final repository = _FakeAgentRepository([agent(1)]);
+    final cubit = cubitFor(repository);
+    await cubit.fetchAgents();
+    unawaited(cubit.subscribe());
+    await pumpEventQueue();
+
+    await cubit.close();
+    await pumpEventQueue();
+
+    expect(repository.streams, hasLength(1));
   });
 }

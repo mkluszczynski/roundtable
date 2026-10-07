@@ -35,43 +35,73 @@ class AgentListError extends AgentListState {
 /// rows must follow without a reload.
 class AgentListCubit extends Cubit<AgentListState>
     with CloseableStreams<AgentListState> {
-  AgentListCubit(this._repository) : super(const AgentListInitial());
+  AgentListCubit(
+    this._repository, {
+    this.retryDelay = const Duration(seconds: 2),
+    this.maxRetryDelay = const Duration(seconds: 30),
+  }) : super(const AgentListInitial());
 
   final AgentRepository _repository;
 
-  Future<void> fetchAgents() async {
+  /// How long [subscribe] waits before reconnecting after the stream drops;
+  /// doubles on every consecutive failure, up to [maxRetryDelay].
+  final Duration retryDelay;
+  final Duration maxRetryDelay;
+
+  /// Loads the list. A [silent] refresh keeps the current list when it
+  /// fails instead of replacing it with an error — for background refreshes.
+  Future<void> fetchAgents({bool silent = false}) async {
     // Refreshes keep showing the current list; the cubit is shared
     // app-wide (PanelShell), so a spinner would blank every screen.
     if (state is! AgentListLoaded) emit(const AgentListLoading());
     try {
       final agents = await _repository.listAgents();
+      if (isClosed) return;
       emit(AgentListLoaded(agents));
     } catch (e) {
+      if (isClosed || (silent && state is AgentListLoaded)) return;
       emit(AgentListError(errorMessage(e)));
     }
   }
 
   /// Merges every agent `AgentEndpoint.watchAgents` streams into the loaded
   /// list by id. Events before the first [fetchAgents] completes are
-  /// dropped — the fetch returns the same rows. A dropped connection keeps
-  /// the last list rather than replacing it with an error.
+  /// dropped — the fetch returns the same rows. When the stream errors or
+  /// ends (server restart, laptop sleep, network blip) it keeps the last
+  /// list, then after a backoff refetches it silently — catching changes
+  /// missed while disconnected, deletions included — and resubscribes, so
+  /// statuses never stay frozen. Runs until the cubit closes.
   Future<void> subscribe() async {
-    try {
-      await for (final agent in untilClosed(_repository.watchAgents())) {
-        final current = state;
-        if (current is! AgentListLoaded) continue;
-        final agents = [...current.agents];
-        final index = agents.indexWhere((a) => a.id == agent.id);
-        if (index == -1) {
-          agents.add(agent);
-        } else {
-          agents[index] = agent;
+    var delay = retryDelay;
+    while (!isClosed) {
+      try {
+        await for (final agent in untilClosed(_repository.watchAgents())) {
+          delay = retryDelay;
+          _merge(agent);
         }
-        emit(AgentListLoaded(agents));
+      } catch (_) {
+        // Reconnect below.
       }
-    } catch (_) {
-      // Statuses go stale until the next fetch; the list itself stays usable.
+      if (isClosed) return;
+      await Future<void>.delayed(delay);
+      if (isClosed) return;
+      final doubled = delay * 2;
+      delay = doubled > maxRetryDelay ? maxRetryDelay : doubled;
+      await fetchAgents(silent: true);
     }
+  }
+
+  void _merge(Agent agent) {
+    final current = state;
+    if (isClosed || current is! AgentListLoaded) return;
+    final agents = [...current.agents];
+    final index = agents.indexWhere((a) => a.id == agent.id);
+    if (index == -1) {
+      agents.add(agent);
+    } else {
+      agents[index] = agent;
+    }
+    emit(AgentListLoaded(agents));
   }
 
   /// Deletes agent [id] and refreshes the list. Returns `null` on success,
