@@ -359,16 +359,20 @@ _TaskSection _defaultSectionFor(Task task) {
 /// Plan stays reachable as a read-only tab once there is one, so the dev can
 /// switch back to it after leaving `planReady` — except right on
 /// `planReady` itself, where Overview already shows it with approve/feedback.
-Set<_TaskSection> _availableSectionsFor(Task task) {
+/// AI review stays reachable once the task has a PR or a review, so the dev
+/// can read the comments an (auto) fix run is working on.
+Set<_TaskSection> _availableSectionsFor(TaskDetailLoaded state) {
+  final task = state.task;
   final s = task.status;
   return {
     if (!_isLive(s) && !_hasPullRequestViews(task)) _TaskSection.overview,
     if (task.currentPlan != null && s != TaskStatus.planReady)
       _TaskSection.plan,
-    if (_hasPullRequestViews(task)) ...{
-      _TaskSection.changes,
+    if (_hasPullRequestViews(task)) _TaskSection.changes,
+    if (_hasPullRequestViews(task) ||
+        task.prUrl != null ||
+        state.reviews.isNotEmpty)
       _TaskSection.review,
-    },
     // Also while a fix run is going, so the dev sees what it's fixing.
     if (task.prUrl != null) _TaskSection.checks,
     _TaskSection.logs,
@@ -388,6 +392,10 @@ extension _TaskDetailLoadedX on TaskDetailLoaded {
 
   int get openCommentCount =>
       reviewComments.where((c) => c.state == ReviewCommentState.open).length;
+
+  int get sentToFixCommentCount => reviewComments
+      .where((c) => c.state == ReviewCommentState.sentToFix)
+      .length;
 
   bool get hasConflicts => mergeStatus?.hasConflicts ?? false;
 
@@ -458,7 +466,7 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
   Widget _buildLoaded(TaskDetailLoaded state) {
     final picked = _section;
     final section =
-        picked != null && _availableSectionsFor(state.task).contains(picked)
+        picked != null && _availableSectionsFor(state).contains(picked)
         ? picked
         : _defaultSectionFor(state.task);
     return Column(
@@ -712,11 +720,7 @@ class _SettingsSection extends StatelessWidget {
           ? null
           : IconButton(
               tooltip: 'Edit settings',
-              icon: const Icon(
-                Icons.tune,
-                size: 16,
-                color: AppColors.text1,
-              ),
+              icon: const Icon(Icons.tune, size: 16, color: AppColors.text1),
               onPressed: () => _openEditTaskDialog(context, task),
               visualDensity: VisualDensity.compact,
             ),
@@ -747,9 +751,8 @@ class _ReviewerName extends StatefulWidget {
 }
 
 class _ReviewerNameState extends State<_ReviewerName> {
-  late final Future<Agent?> _agent = AgentRepository(
-    client,
-  ).getAgent(widget.agentId);
+  late final Future<Agent?> _agent = AgentRepository(client)
+      .getAgent(widget.agentId);
 
   @override
   Widget build(BuildContext context) {
@@ -858,9 +861,10 @@ class _RailNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available = _availableSectionsFor(state.task);
+    final available = _availableSectionsFor(state);
     final files = state.files;
     final openComments = state.openCommentCount;
+    final sentToFixComments = state.sentToFixCommentCount;
     return RailSection(
       label: 'View',
       child: Column(
@@ -914,6 +918,10 @@ class _RailNav extends StatelessWidget {
                   _TaskSection.review when openComments > 0 => CountBadge(
                     openComments,
                   ),
+                  _TaskSection.review when sentToFixComments > 0 => CountBadge(
+                    sentToFixComments,
+                    color: AppColors.text2,
+                  ),
                   _TaskSection.checks
                       when state.task.checkState == PrCheckState.failure =>
                     CountBadge(state.failedCheckCount, color: AppColors.red),
@@ -921,9 +929,8 @@ class _RailNav extends StatelessWidget {
                       when state.task.checkState != PrCheckState.none =>
                     StatusDot(
                       color: checkStateAppearance(state.task.checkState).color,
-                      pulsing: checkStateAppearance(
-                        state.task.checkState,
-                      ).pulsing,
+                      pulsing: checkStateAppearance(state.task.checkState)
+                          .pulsing,
                     ),
                   _TaskSection.logs when _isLive(state.task.status) =>
                     const StatusDot(color: AppColors.live, pulsing: true),
@@ -1878,6 +1885,15 @@ class _ReviewView extends StatelessWidget {
                 ),
             ],
           ),
+          if (_isLive(state.task.status) &&
+              state.sentToFixCommentCount > 0) ...[
+            const SizedBox(height: Spacing.xs),
+            Text(
+              'The agent is fixing the comments sent to it — read-only until '
+              "it's back in review.",
+              style: AppTypography.caption,
+            ),
+          ],
           const SizedBox(height: Spacing.lg),
           Expanded(
             child: ListView(
@@ -2101,9 +2117,9 @@ class _ReviewerLogState extends State<_ReviewerLog> {
 
   @override
   Widget build(BuildContext context) {
-    final reviewRuns = buildLogTimeline(
-      widget.logs,
-    ).where((r) => r.isReview).toList();
+    final reviewRuns = buildLogTimeline(widget.logs)
+        .where((r) => r.isReview)
+        .toList();
     // Structured runs carry their review; older logs only allow "the
     // latest review run" for the latest review.
     final run =
