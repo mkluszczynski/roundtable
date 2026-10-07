@@ -350,6 +350,104 @@ void main() {
       },
     );
 
+    group('when an update is requested while an agent is working', () {
+      late String token;
+      late Agent agent;
+      late Task task;
+
+      setUp(() async {
+        final session = sessionBuilder.build();
+        final registration = await endpoints.machine.register(
+          sessionBuilder,
+          'VPS',
+        );
+        token = registration.token;
+        await endpoints.machine.checkIn(sessionBuilder, token, 'v1');
+        agent = await Agent.db.insertRow(
+          session,
+          Agent(name: 'Ana', machineId: registration.machine.id!),
+        );
+        final project = await Project.db.insertRow(
+          session,
+          Project(
+            name: 'Roundtable',
+            repoUrl: 'https://github.com/example/roundtable',
+          ),
+        );
+        task = await Task.db.insertRow(
+          session,
+          Task(
+            projectId: project.id!,
+            agentId: agent.id,
+            prompt: 'Do something',
+            status: TaskStatus.planReady,
+          ),
+        );
+        await endpoints.machine.requestRunnerUpdate(
+          sessionBuilder,
+          registration.machine.id!,
+        );
+      });
+
+      test(
+        'then a daemon that does not drain is told only once the task is '
+        'no longer agent-driven',
+        () async {
+          expect(
+            await endpoints.machine.checkIn(sessionBuilder, token, 'v1'),
+            isFalse,
+          );
+
+          await Task.db.updateRow(
+            sessionBuilder.build(),
+            task.copyWith(status: TaskStatus.awaitingReview),
+          );
+
+          expect(
+            await endpoints.machine.checkIn(sessionBuilder, token, 'v1'),
+            isTrue,
+          );
+        },
+      );
+
+      test(
+        'then a daemon that does not drain is not told while the agent runs '
+        'a code review',
+        () async {
+          final session = sessionBuilder.build();
+          await Task.db.updateRow(
+            session,
+            task.copyWith(status: TaskStatus.awaitingReview),
+          );
+          await CodeReview.db.insertRow(
+            session,
+            CodeReview(
+              taskId: task.id!,
+              reviewerAgentId: agent.id,
+              status: CodeReviewStatus.running,
+            ),
+          );
+
+          expect(
+            await endpoints.machine.checkIn(sessionBuilder, token, 'v1'),
+            isFalse,
+          );
+        },
+      );
+
+      test('then a draining daemon is told right away', () async {
+        expect(
+          await endpoints.machine.checkIn(
+            sessionBuilder,
+            token,
+            'v1',
+            drainsForUpdate: true,
+          ),
+          isTrue,
+        );
+      });
+    });
+
     test(
       'when checking in with an unknown token then it throws '
       'InvalidTokenException',

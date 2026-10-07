@@ -41,16 +41,33 @@ both binaries.
 
 `checkIn` reports the installed version. The Machines screen compares it with
 `latestRunnerVersion` and shows **Update** (`widgets/runner_update_banner.dart`).
-If an agent on that machine is mid-task, it asks for confirmation first,
-because the restart kills the run.
+
+The update restarts the daemon, and a restart fails every agent-driven task
+and running review (`reportStartup`). So the update waits for the machine's
+agents to finish their current work. While an agent is busy, the banner reads
+"Update scheduled".
 
 ```
 Update click → requestRunnerUpdate (sets updateRequestedAt)
-→ next checkIn (≤20 s) returns true
-→ daemon writes /var/lib/agent-runner/update-requested
+→ next checkIn(drainsForUpdate: true) (≤20 s) returns true
+→ daemon holds back new task runs/reviews (AgentWorkQueue.drain),
+  the held ones log "Waiting — … busy with an agent runner update"
+→ first checkIn with no work in progress: daemon writes
+  /var/lib/agent-runner/update-requested
 → agent-runner-update.path fires as root → re-download binaries → restart service
 → new version reported → server clears updateRequestedAt
+→ held work is still `queued` and is replayed by watchAssigned* at subscribe
 ```
+
+Daemons from before this change don't pass `drainsForUpdate`. For them, the
+server reports the request only while none of the machine's agents has an
+agent-driven task or a `running` review. They don't hold back new work, so on
+a machine that never goes idle their update can be delayed.
+
+Work in progress includes a task in `planReady`/`waitingForAnswer` (its
+`claude` process is waiting for the dev) and work waiting inside the agent
+queue for the Claude usage limit to reset. Both delay the update until they
+finish.
 
 Machines installed before this mechanism existed have to re-run the install
 script once.
