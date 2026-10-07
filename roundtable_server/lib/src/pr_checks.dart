@@ -171,8 +171,28 @@ Future<Task> syncChecks(
     prUrl: context.prUrl,
     token: context.token,
   );
-  // A PR merged or closed on GitHub keeps its last known checks.
-  if (!head.open) return task;
+  // A PR merged or closed on GitHub keeps its last known checks — only its
+  // line totals (already in the response) are still worth storing.
+  if (!head.open) {
+    if (head.additions == task.prAdditions &&
+        head.deletions == task.prDeletions) {
+      return task;
+    }
+    final updated = await Task.db.updateRow(
+      session,
+      task.copyWith(prAdditions: head.additions, prDeletions: head.deletions),
+      columns: (t) => [t.prAdditions, t.prDeletions],
+    );
+    await session.messages.postMessage(
+      TaskEndpoint.channelForTask(taskId),
+      updated,
+    );
+    await session.messages.postMessage(
+      TaskEndpoint.channelForAllTasks(),
+      updated,
+    );
+    return updated;
+  }
   final (:owner, :repo, number: _) = github.parsePrUrl(context.prUrl);
 
   final now = DateTime.now().toUtc();

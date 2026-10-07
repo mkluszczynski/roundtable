@@ -22,9 +22,9 @@ UPDATE "task" SET "openReviewComments" = c."count"
 -- MIGRATION VERSION FOR roundtable
 --
 INSERT INTO "serverpod_migrations" ("module", "version", "timestamp")
-    VALUES ('roundtable', '20261007174422575', now())
+    VALUES ('roundtable', '20261007175141237-kanban-change-stats', now())
     ON CONFLICT ("module")
-    DO UPDATE SET "version" = '20261007174422575', "timestamp" = now();
+    DO UPDATE SET "version" = '20261007175141237-kanban-change-stats', "timestamp" = now();
 
 --
 -- MIGRATION VERSION FOR serverpod

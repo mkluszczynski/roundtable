@@ -5207,7 +5207,7 @@
     {
       "__className__": "serverpod.DatabaseMigrationVersionModel",
       "module": "roundtable",
-      "version": "20261007174422575"
+      "version": "20261007175141237-kanban-change-stats"
     },
     {
       "__className__": "serverpod.DatabaseMigrationVersion",
