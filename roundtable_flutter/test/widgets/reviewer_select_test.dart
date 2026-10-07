@@ -17,9 +17,11 @@ Agent _agent(int id, String name) => Agent(
 
 class _FakeAgentRepository implements AgentRepository {
   final agents = [_agent(1, 'Ada')];
+  bool fail = false;
 
   @override
-  Future<List<Agent>> listAgents() async => [...agents];
+  Future<List<Agent>> listAgents() async =>
+      fail ? throw Exception('offline') : [...agents];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -76,5 +78,20 @@ void main() {
 
     expect(find.text('Ada'), findsOneWidget);
     expect(find.text('Loading agents…'), findsNothing);
+  });
+
+  testWidgets('keeps the last loaded agents when a refresh fails', (
+    tester,
+  ) async {
+    final repository = _FakeAgentRepository();
+    final cubit = await _pump(tester, repository, selected: 1);
+
+    repository.fail = true;
+    await cubit.fetchAgents();
+    await tester.pumpAndSettle();
+    expect(cubit.state, isA<AgentListError>());
+
+    expect(find.text('Ada'), findsOneWidget);
+    expect(find.text('Deleted agent'), findsNothing);
   });
 }

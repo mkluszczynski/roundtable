@@ -78,16 +78,17 @@ class _ReviewerSelectState extends State<ReviewerSelect> {
   }
 
   /// The shared list when the panel provides one, else the self-loaded
-  /// one; null while loading.
+  /// one; null while loading. Keeps the last loaded shared list through a
+  /// failed refresh, so the chosen reviewer isn't shown as deleted.
   List<Agent>? _watchAgents(BuildContext context) {
     final shared = context.watch<AgentListCubit?>();
     if (shared == null) return _agents;
     return switch (shared.state) {
-      AgentListLoaded(:final agents) => [
+      AgentListLoaded(:final agents) => _agents = [
         ...agents,
       ]..sort((a, b) => a.name.compareTo(b.name)),
-      AgentListError() => const [],
-      _ => null,
+      AgentListError() => _agents ?? const [],
+      _ => _agents,
     };
   }
 
