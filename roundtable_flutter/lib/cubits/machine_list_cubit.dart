@@ -52,8 +52,8 @@ class MachineListCubit extends Cubit<MachineListState> {
 
   final MachineRepository _repository;
 
-  /// Refreshes the list while a runner update is in flight, so the card
-  /// flips from "Updating…" back to up to date without a manual reload.
+  /// Refreshes the list while a runner update or a Claude token is in
+  /// flight, so the card catches up without a manual reload.
   Timer? _updatePollTimer;
 
   /// Fetches the machine list. [silent] skips the loading state, for
@@ -74,7 +74,9 @@ class MachineListCubit extends Cubit<MachineListState> {
       emit(
         MachineListLoaded(machines, latestRunnerVersion: latestRunnerVersion),
       );
-      if (!machines.any((m) => m.updateRequestedAt != null)) {
+      if (!machines.any(
+        (m) => m.updateRequestedAt != null || m.claudeTokenRequestedAt != null,
+      )) {
         _updatePollTimer?.cancel();
         _updatePollTimer = null;
       }
@@ -82,6 +84,17 @@ class MachineListCubit extends Cubit<MachineListState> {
       if (isClosed) return;
       emit(MachineListError(errorMessage(e)));
     }
+  }
+
+  /// Sends machine [id] a new Claude token, then polls until its daemon has
+  /// picked it up. Throws on failure so the dialog can show why.
+  Future<void> setClaudeToken(int id, String token) async {
+    await _repository.setClaudeToken(id, token);
+    await fetchMachines(silent: true);
+    _updatePollTimer ??= Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => fetchMachines(silent: true),
+    );
   }
 
   /// Asks machine [id]'s daemon to update itself, then polls until every

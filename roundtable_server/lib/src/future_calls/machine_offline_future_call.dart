@@ -10,8 +10,24 @@ import 'package:serverpod/serverpod.dart';
 class MachineOfflineFutureCall extends FutureCall {
   static const _offlineThreshold = Duration(seconds: 60);
 
+  /// A Claude token set in the panel that no daemon picked up by then (the
+  /// machine is offline, or its runner predates the feature) is dropped,
+  /// so the secret doesn't linger in the database (docs/FLOWS.md §1).
+  static const claudeTokenTtl = Duration(minutes: 10);
+
   Future<void> check(Session session) async {
     final cutoff = DateTime.now().toUtc().subtract(_offlineThreshold);
+
+    await Machine.db.updateWhere(
+      session,
+      columnValues: (t) => [
+        t.pendingClaudeToken(null),
+        t.claudeTokenRequestedAt(null),
+      ],
+      where: (t) =>
+          t.claudeTokenRequestedAt <
+          DateTime.now().toUtc().subtract(claudeTokenTtl),
+    );
 
     final staleMachines = await Machine.db.find(
       session,
@@ -23,6 +39,7 @@ class MachineOfflineFutureCall extends FutureCall {
       await Machine.db.updateRow(
         session,
         machine.copyWith(status: MachineStatus.offline),
+        columns: (t) => [t.status],
       );
 
       final agentIds = (await Agent.db.find(

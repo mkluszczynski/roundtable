@@ -218,6 +218,126 @@ void main() {
       },
     );
 
+    test(
+      'when a Claude token is set in the panel then the daemon gets it until '
+      'it confirms saving it, and the panel never sees it',
+      () async {
+        final enrolled = await enrollMachine(sessionBuilder, endpoints, 'vps');
+
+        final set = await endpoints.machine.setClaudeToken(
+          sessionBuilder,
+          enrolled.machine.id!,
+          '  sk-ant-oat01-abc  ',
+        );
+        expect(set.claudeTokenRequestedAt, isNotNull);
+        final listed = await endpoints.machine.list(sessionBuilder);
+        expect(
+          listed
+              .firstWhere((m) => m.id == enrolled.machine.id)
+              .toJsonForProtocol(),
+          isNot(contains('pendingClaudeToken')),
+        );
+
+        // A save that failed on the machine is retried at the next check-in.
+        for (var i = 0; i < 2; i++) {
+          expect(
+            await endpoints.machine.takeClaudeToken(
+              sessionBuilder,
+              enrolled.token,
+            ),
+            'sk-ant-oat01-abc',
+          );
+        }
+        await endpoints.machine.confirmClaudeToken(
+          sessionBuilder,
+          enrolled.token,
+          'sk-ant-oat01-abc',
+        );
+
+        expect(
+          await endpoints.machine.takeClaudeToken(
+            sessionBuilder,
+            enrolled.token,
+          ),
+          isNull,
+        );
+        final machine = await endpoints.machine.get(
+          sessionBuilder,
+          enrolled.machine.id!,
+        );
+        expect(machine!.claudeTokenRequestedAt, isNull);
+        expect(machine.claudeTokenSetAt, isNotNull);
+      },
+    );
+
+    test(
+      'when a newer token is set before the daemon confirms the older one '
+      'then the newer one stays pending',
+      () async {
+        final enrolled = await enrollMachine(sessionBuilder, endpoints, 'vps');
+        final id = enrolled.machine.id!;
+        await endpoints.machine.setClaudeToken(sessionBuilder, id, 'sk-ant-a');
+        await endpoints.machine.takeClaudeToken(sessionBuilder, enrolled.token);
+        await endpoints.machine.setClaudeToken(sessionBuilder, id, 'sk-ant-b');
+
+        await endpoints.machine.confirmClaudeToken(
+          sessionBuilder,
+          enrolled.token,
+          'sk-ant-a',
+        );
+
+        expect(
+          await endpoints.machine.takeClaudeToken(
+            sessionBuilder,
+            enrolled.token,
+          ),
+          'sk-ant-b',
+        );
+      },
+    );
+
+    test(
+      'when the daemon checks in after a token was set then the token is '
+      'still pending',
+      () async {
+        final enrolled = await enrollMachine(sessionBuilder, endpoints, 'vps');
+        await endpoints.machine.setClaudeToken(
+          sessionBuilder,
+          enrolled.machine.id!,
+          'sk-ant-a',
+        );
+
+        await endpoints.machine.checkIn(sessionBuilder, enrolled.token, 'v1');
+        await endpoints.machine.heartbeat(sessionBuilder, enrolled.token);
+
+        expect(
+          await endpoints.machine.takeClaudeToken(
+            sessionBuilder,
+            enrolled.token,
+          ),
+          'sk-ant-a',
+        );
+      },
+    );
+
+    test(
+      'when the pasted text is not a Claude token then it is rejected',
+      () async {
+        final enrolled = await enrollMachine(sessionBuilder, endpoints, 'vps');
+
+        for (final text in ['   ', 'my password', 'ghp_github_token']) {
+          await expectLater(
+            endpoints.machine.setClaudeToken(
+              sessionBuilder,
+              enrolled.machine.id!,
+              text,
+            ),
+            throwsA(isA<InvalidStateException>()),
+          );
+        }
+      },
+    );
+
     test('when getting a machine by id then it is returned', () async {
       final created = await enrollMachine(sessionBuilder, endpoints, 'VPS');
 

@@ -98,7 +98,10 @@ class ReviewDispatcher {
 
   final WorktreeManager worktreeManager;
   final ClaudeCodeExecutor Function() executorFactory;
-  final String? oauthToken;
+
+  /// The current Claude Code OAuth token: it can change from the panel
+  /// while the daemon runs (docs/FLOWS.md §1). Null: `claude login`.
+  final String? Function()? oauthToken;
   final Future<String> Function(int projectId) getCloneUrl;
   final Future<Agent> Function(int agentId) fetchAgent;
 
@@ -297,7 +300,7 @@ class ReviewDispatcher {
         workingDirectory: worktree.path,
         environment: toolchain?.environment,
         allowBash: inContainer,
-        oauthToken: oauthToken,
+        oauthToken: oauthToken?.call(),
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
         additionalDirectories: [?attachmentDir?.path],

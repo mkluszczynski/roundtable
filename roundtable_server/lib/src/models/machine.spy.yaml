@@ -42,6 +42,18 @@ fields:
   ### the daemon when a run hits the usage limit. The daemon starts no new
   ### work until then; the panel shows it while it's in the future.
   usageLimitedUntil: DateTime?
+  ### Claude Code OAuth token set in the panel, held only until the daemon
+  ### picks it up (MachineEndpoint.takeClaudeToken), then cleared. Never
+  ### sent back to the panel.
+  pendingClaudeToken: String?, scope=serverOnly
+  ### When the dev set a token in the panel that the daemon hasn't picked up
+  ### yet. Null once it has.
+  claudeTokenRequestedAt: DateTime?
+  ### When the daemon last saved a token set in the panel.
+  claudeTokenSetAt: DateTime?
+  ### Where the daemon gets its Claude credentials from. Null for daemons
+  ### that predate the check.
+  claudeAuthSource: ClaudeAuthSource?
   createdAt: DateTime, default=now
   agents: List<Agent>?, relation(name=machine_agents)
   metrics: List<MachineMetric>?, relation(name=machine_metrics)

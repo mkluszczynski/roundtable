@@ -14,6 +14,7 @@
 import 'package:roundtable_server/src/generated/protocol.dart' as _iikm6kmi;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'agent.dart' as _ijo8h3v4;
+import 'claude_auth_source.dart' as _it4knivm;
 import 'machine_metric.dart' as _ixivwx7g;
 import 'machine_status.dart' as _i6yugb3s;
 
@@ -35,6 +36,10 @@ abstract class Machine
     this.updateRequestedAt,
     this.toolchain,
     this.usageLimitedUntil,
+    this.pendingClaudeToken,
+    this.claudeTokenRequestedAt,
+    this.claudeTokenSetAt,
+    this.claudeAuthSource,
     DateTime? createdAt,
     this.agents,
     this.metrics,
@@ -55,6 +60,10 @@ abstract class Machine
     DateTime? updateRequestedAt,
     List<String>? toolchain,
     DateTime? usageLimitedUntil,
+    String? pendingClaudeToken,
+    DateTime? claudeTokenRequestedAt,
+    DateTime? claudeTokenSetAt,
+    _it4knivm.ClaudeAuthSource? claudeAuthSource,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -97,6 +106,23 @@ abstract class Machine
           ? null
           : _is.DateTimeJsonExtension.fromJson(
               jsonSerialization['usageLimitedUntil'],
+            ),
+      pendingClaudeToken: jsonSerialization['pendingClaudeToken'] as String?,
+      claudeTokenRequestedAt:
+          jsonSerialization['claudeTokenRequestedAt'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['claudeTokenRequestedAt'],
+            ),
+      claudeTokenSetAt: jsonSerialization['claudeTokenSetAt'] == null
+          ? null
+          : _is.DateTimeJsonExtension.fromJson(
+              jsonSerialization['claudeTokenSetAt'],
+            ),
+      claudeAuthSource: jsonSerialization['claudeAuthSource'] == null
+          ? null
+          : _it4knivm.ClaudeAuthSource.fromJson(
+              (jsonSerialization['claudeAuthSource'] as String),
             ),
       createdAt: jsonSerialization['createdAt'] == null
           ? null
@@ -172,6 +198,22 @@ abstract class Machine
   /// work until then; the panel shows it while it's in the future.
   DateTime? usageLimitedUntil;
 
+  /// Claude Code OAuth token set in the panel, held only until the daemon
+  /// picks it up (MachineEndpoint.takeClaudeToken), then cleared. Never
+  /// sent back to the panel.
+  String? pendingClaudeToken;
+
+  /// When the dev set a token in the panel that the daemon hasn't picked up
+  /// yet. Null once it has.
+  DateTime? claudeTokenRequestedAt;
+
+  /// When the daemon last saved a token set in the panel.
+  DateTime? claudeTokenSetAt;
+
+  /// Where the daemon gets its Claude credentials from. Null for daemons
+  /// that predate the check.
+  _it4knivm.ClaudeAuthSource? claudeAuthSource;
+
   DateTime createdAt;
 
   List<_ijo8h3v4.Agent>? agents;
@@ -198,6 +240,10 @@ abstract class Machine
     DateTime? updateRequestedAt,
     List<String>? toolchain,
     DateTime? usageLimitedUntil,
+    String? pendingClaudeToken,
+    DateTime? claudeTokenRequestedAt,
+    DateTime? claudeTokenSetAt,
+    _it4knivm.ClaudeAuthSource? claudeAuthSource,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -222,6 +268,13 @@ abstract class Machine
       if (toolchain != null) 'toolchain': toolchain?.toJson(),
       if (usageLimitedUntil != null)
         'usageLimitedUntil': usageLimitedUntil?.toJson(),
+      if (pendingClaudeToken != null) 'pendingClaudeToken': pendingClaudeToken,
+      if (claudeTokenRequestedAt != null)
+        'claudeTokenRequestedAt': claudeTokenRequestedAt?.toJson(),
+      if (claudeTokenSetAt != null)
+        'claudeTokenSetAt': claudeTokenSetAt?.toJson(),
+      if (claudeAuthSource != null)
+        'claudeAuthSource': claudeAuthSource?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJson()),
@@ -249,6 +302,12 @@ abstract class Machine
       if (toolchain != null) 'toolchain': toolchain?.toJson(),
       if (usageLimitedUntil != null)
         'usageLimitedUntil': usageLimitedUntil?.toJson(),
+      if (claudeTokenRequestedAt != null)
+        'claudeTokenRequestedAt': claudeTokenRequestedAt?.toJson(),
+      if (claudeTokenSetAt != null)
+        'claudeTokenSetAt': claudeTokenSetAt?.toJson(),
+      if (claudeAuthSource != null)
+        'claudeAuthSource': claudeAuthSource?.toJson(),
       'createdAt': createdAt.toJson(),
       if (agents != null)
         'agents': agents?.toJson(valueToJson: (v) => v.toJsonForProtocol()),
@@ -308,6 +367,10 @@ class _MachineImpl extends Machine {
     DateTime? updateRequestedAt,
     List<String>? toolchain,
     DateTime? usageLimitedUntil,
+    String? pendingClaudeToken,
+    DateTime? claudeTokenRequestedAt,
+    DateTime? claudeTokenSetAt,
+    _it4knivm.ClaudeAuthSource? claudeAuthSource,
     DateTime? createdAt,
     List<_ijo8h3v4.Agent>? agents,
     List<_ixivwx7g.MachineMetric>? metrics,
@@ -325,6 +388,10 @@ class _MachineImpl extends Machine {
          updateRequestedAt: updateRequestedAt,
          toolchain: toolchain,
          usageLimitedUntil: usageLimitedUntil,
+         pendingClaudeToken: pendingClaudeToken,
+         claudeTokenRequestedAt: claudeTokenRequestedAt,
+         claudeTokenSetAt: claudeTokenSetAt,
+         claudeAuthSource: claudeAuthSource,
          createdAt: createdAt,
          agents: agents,
          metrics: metrics,
@@ -348,6 +415,10 @@ class _MachineImpl extends Machine {
     Object? updateRequestedAt = _Undefined,
     Object? toolchain = _Undefined,
     Object? usageLimitedUntil = _Undefined,
+    Object? pendingClaudeToken = _Undefined,
+    Object? claudeTokenRequestedAt = _Undefined,
+    Object? claudeTokenSetAt = _Undefined,
+    Object? claudeAuthSource = _Undefined,
     DateTime? createdAt,
     Object? agents = _Undefined,
     Object? metrics = _Undefined,
@@ -378,6 +449,18 @@ class _MachineImpl extends Machine {
       usageLimitedUntil: usageLimitedUntil is DateTime?
           ? usageLimitedUntil
           : this.usageLimitedUntil,
+      pendingClaudeToken: pendingClaudeToken is String?
+          ? pendingClaudeToken
+          : this.pendingClaudeToken,
+      claudeTokenRequestedAt: claudeTokenRequestedAt is DateTime?
+          ? claudeTokenRequestedAt
+          : this.claudeTokenRequestedAt,
+      claudeTokenSetAt: claudeTokenSetAt is DateTime?
+          ? claudeTokenSetAt
+          : this.claudeTokenSetAt,
+      claudeAuthSource: claudeAuthSource is _it4knivm.ClaudeAuthSource?
+          ? claudeAuthSource
+          : this.claudeAuthSource,
       createdAt: createdAt ?? this.createdAt,
       agents: agents is List<_ijo8h3v4.Agent>?
           ? agents
@@ -461,6 +544,30 @@ class MachineUpdateTable extends _is.UpdateTable<MachineTable> {
         value,
       );
 
+  _is.ColumnValue<String, String> pendingClaudeToken(String? value) =>
+      _is.ColumnValue(
+        table.pendingClaudeToken,
+        value,
+      );
+
+  _is.ColumnValue<DateTime, DateTime> claudeTokenRequestedAt(DateTime? value) =>
+      _is.ColumnValue(
+        table.claudeTokenRequestedAt,
+        value,
+      );
+
+  _is.ColumnValue<DateTime, DateTime> claudeTokenSetAt(DateTime? value) =>
+      _is.ColumnValue(
+        table.claudeTokenSetAt,
+        value,
+      );
+
+  _is.ColumnValue<_it4knivm.ClaudeAuthSource, _it4knivm.ClaudeAuthSource>
+  claudeAuthSource(_it4knivm.ClaudeAuthSource? value) => _is.ColumnValue(
+    table.claudeAuthSource,
+    value,
+  );
+
   _is.ColumnValue<DateTime, DateTime> createdAt(DateTime value) =>
       _is.ColumnValue(
         table.createdAt,
@@ -521,6 +628,23 @@ class MachineTable extends _is.Table<int?> {
       'usageLimitedUntil',
       this,
     );
+    pendingClaudeToken = _is.ColumnString(
+      'pendingClaudeToken',
+      this,
+    );
+    claudeTokenRequestedAt = _is.ColumnDateTime(
+      'claudeTokenRequestedAt',
+      this,
+    );
+    claudeTokenSetAt = _is.ColumnDateTime(
+      'claudeTokenSetAt',
+      this,
+    );
+    claudeAuthSource = _is.ColumnEnum(
+      'claudeAuthSource',
+      this,
+      _is.EnumSerialization.byName,
+    );
     createdAt = _is.ColumnDateTime(
       'createdAt',
       this,
@@ -580,6 +704,22 @@ class MachineTable extends _is.Table<int?> {
   /// the daemon when a run hits the usage limit. The daemon starts no new
   /// work until then; the panel shows it while it's in the future.
   late final _is.ColumnDateTime usageLimitedUntil;
+
+  /// Claude Code OAuth token set in the panel, held only until the daemon
+  /// picks it up (MachineEndpoint.takeClaudeToken), then cleared. Never
+  /// sent back to the panel.
+  late final _is.ColumnString pendingClaudeToken;
+
+  /// When the dev set a token in the panel that the daemon hasn't picked up
+  /// yet. Null once it has.
+  late final _is.ColumnDateTime claudeTokenRequestedAt;
+
+  /// When the daemon last saved a token set in the panel.
+  late final _is.ColumnDateTime claudeTokenSetAt;
+
+  /// Where the daemon gets its Claude credentials from. Null for daemons
+  /// that predate the check.
+  late final _is.ColumnEnum<_it4knivm.ClaudeAuthSource> claudeAuthSource;
 
   late final _is.ColumnDateTime createdAt;
 
@@ -670,6 +810,10 @@ class MachineTable extends _is.Table<int?> {
     updateRequestedAt,
     toolchain,
     usageLimitedUntil,
+    pendingClaudeToken,
+    claudeTokenRequestedAt,
+    claudeTokenSetAt,
+    claudeAuthSource,
     createdAt,
   ];
 

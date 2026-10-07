@@ -1,0 +1,13 @@
+### Where a machine's daemon gets its Claude credentials from
+### (docs/FLOWS.md §1).
+enum: ClaudeAuthSource
+serialized: byName
+values:
+  ### A token set in the panel ("Set Claude token").
+  - panel
+  ### CLAUDE_CODE_OAUTH_TOKEN from install-agent.sh --claude-token.
+  - install
+  ### `claude login` credentials in the service account's ~/.claude.
+  - login
+  ### None: every run fails until a token is set.
+  - none

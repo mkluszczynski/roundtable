@@ -120,6 +120,7 @@ class MachineEndpoint extends Endpoint {
         await Machine.db.updateRow(
           session,
           enrolled.copyWith(tokenHash: _hashToken(token)),
+          columns: (t) => [t.tokenHash],
           transaction: transaction,
         );
         return token;
@@ -236,6 +237,7 @@ class MachineEndpoint extends Endpoint {
         status: MachineStatus.online,
         lastSeenAt: DateTime.now().toUtc(),
       ),
+      columns: (t) => [t.status, t.lastSeenAt],
     );
   }
 
@@ -274,6 +276,15 @@ class MachineEndpoint extends Endpoint {
         runnerVersion: runnerVersion,
         updateRequestedAt: updateRequestedAt,
       ),
+      // Only what the check-in owns: a full row read before a concurrent
+      // write from the panel (a Claude token, an update request) would
+      // undo it.
+      columns: (t) => [
+        t.status,
+        t.lastSeenAt,
+        t.runnerVersion,
+        t.updateRequestedAt,
+      ],
     );
     if (updateRequestedAt == null) return false;
     if (drainsForUpdate ?? false) return true;
@@ -335,6 +346,7 @@ class MachineEndpoint extends Endpoint {
     return Machine.db.updateRow(
       session,
       machine.copyWith(updateRequestedAt: DateTime.now().toUtc()),
+      columns: (t) => [t.updateRequestedAt],
     );
   }
 
@@ -361,7 +373,18 @@ class MachineEndpoint extends Endpoint {
     final registered = await _findByToken(session, token);
     final machine = await Machine.db.updateRow(
       session,
-      registered.copyWith(status: MachineStatus.offline, tokenHash: null),
+      registered.copyWith(
+        status: MachineStatus.offline,
+        tokenHash: null,
+        pendingClaudeToken: null,
+        claudeTokenRequestedAt: null,
+      ),
+      columns: (t) => [
+        t.status,
+        t.tokenHash,
+        t.pendingClaudeToken,
+        t.claudeTokenRequestedAt,
+      ],
     );
     await _failOrphanedWork(
       session,
@@ -528,17 +551,113 @@ class MachineEndpoint extends Endpoint {
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
+  ///
+  /// [authSource] is where the daemon gets its Claude credentials from;
+  /// null from daemons that predate the check.
   Future<void> reportClaudeStatus(
     Session session,
     String token,
     bool ok,
-    String? message,
-  ) async {
+    String? message, {
+    ClaudeAuthSource? authSource,
+  }) async {
     final machine = await _findByToken(session, token);
     await Machine.db.updateRow(
       session,
-      machine.copyWith(claudeExecutableOk: ok, claudeExecutableError: message),
+      machine.copyWith(
+        claudeExecutableOk: ok,
+        claudeExecutableError: message,
+        claudeAuthSource: authSource,
+      ),
+      columns: (t) => [
+        t.claudeExecutableOk,
+        t.claudeExecutableError,
+        t.claudeAuthSource,
+      ],
     );
+  }
+
+  /// Sets the Claude Code OAuth token the daemon on machine [id] runs
+  /// `claude` with, replacing the one from the install. Held on the server
+  /// only until the daemon picks it up on its next check-in
+  /// ([takeClaudeToken]); the panel can't read it back (docs/FLOWS.md §1).
+  Future<Machine> setClaudeToken(
+    Session session,
+    int id,
+    String claudeToken,
+  ) async {
+    final trimmed = claudeToken.trim();
+    if (!trimmed.startsWith('sk-ant-') ||
+        trimmed.length > 500 ||
+        trimmed.contains(RegExp(r'\s'))) {
+      throw InvalidStateException(
+        message: 'Paste the token from `claude setup-token`',
+      );
+    }
+    final machine = await Machine.db.findById(session, id);
+    if (machine == null) {
+      throw NotFoundException(message: 'Machine $id not found');
+    }
+    return Machine.db.updateRow(
+      session,
+      machine.copyWith(
+        pendingClaudeToken: trimmed,
+        claudeTokenRequestedAt: DateTime.now().toUtc(),
+      ),
+      columns: (t) => [t.pendingClaudeToken, t.claudeTokenRequestedAt],
+    );
+  }
+
+  /// Called by the daemon on every check-in: the token set in the panel
+  /// that it hasn't saved yet, or null. It stays on the server until the
+  /// daemon confirms it saved it ([confirmClaudeToken]), so a failed save
+  /// just retries at the next check-in.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<String?> takeClaudeToken(Session session, String token) async {
+    final machine = await _findByToken(session, token);
+    return machine.pendingClaudeToken;
+  }
+
+  /// Called by the daemon once it saved [claudeToken] from
+  /// [takeClaudeToken]: clears it from the server. A newer token set in the
+  /// panel meanwhile stays pending for the next check-in.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  Future<void> confirmClaudeToken(
+    Session session,
+    String token,
+    String claudeToken,
+  ) async {
+    final registered = await _findByToken(session, token);
+    await session.db.transaction((transaction) async {
+      final machine = await Machine.db.findById(
+        session,
+        registered.id!,
+        transaction: transaction,
+        lockMode: LockMode.forUpdate,
+      );
+      if (machine == null) return;
+      final delivered = machine.pendingClaudeToken == claudeToken;
+      await Machine.db.updateRow(
+        session,
+        machine.copyWith(
+          pendingClaudeToken: delivered ? null : machine.pendingClaudeToken,
+          claudeTokenRequestedAt: delivered
+              ? null
+              : machine.claudeTokenRequestedAt,
+          claudeTokenSetAt: DateTime.now().toUtc(),
+        ),
+        columns: (t) => [
+          t.pendingClaudeToken,
+          t.claudeTokenRequestedAt,
+          t.claudeTokenSetAt,
+        ],
+        transaction: transaction,
+      );
+    });
   }
 
   /// Called by the daemon at startup with the tools it found on its PATH

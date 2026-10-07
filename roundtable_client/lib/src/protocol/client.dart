@@ -20,6 +20,8 @@ import 'package:roundtable_client/src/protocol/agent_execution_mode.dart'
 import 'package:roundtable_client/src/protocol/agent_role_definition.dart'
     as _iw3o4s27;
 import 'package:roundtable_client/src/protocol/agent_status.dart' as _ijqfzoc4;
+import 'package:roundtable_client/src/protocol/claude_auth_source.dart'
+    as _ivujt72j;
 import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
 import 'package:roundtable_client/src/protocol/code_review_verdict.dart'
     as _ijtwbvlr;
@@ -850,17 +852,70 @@ class EndpointMachine extends _isc.EndpointRef {
   ///
   /// Throws [InvalidTokenException] if [token] doesn't match any currently
   /// registered machine.
+  ///
+  /// [authSource] is where the daemon gets its Claude credentials from;
+  /// null from daemons that predate the check.
   _ida.Future<void> reportClaudeStatus(
     String token,
     bool ok,
-    String? message,
-  ) => caller.callServerEndpoint<void>(
+    String? message, {
+    _ivujt72j.ClaudeAuthSource? authSource,
+  }) => caller.callServerEndpoint<void>(
     'machine',
     'reportClaudeStatus',
     {
       'token': token,
       'ok': ok,
       'message': message,
+      'authSource': authSource,
+    },
+  );
+
+  /// Sets the Claude Code OAuth token the daemon on machine [id] runs
+  /// `claude` with, replacing the one from the install. Held on the server
+  /// only until the daemon picks it up on its next check-in
+  /// ([takeClaudeToken]); the panel can't read it back (docs/FLOWS.md §1).
+  _ida.Future<_iwz93qz1.Machine> setClaudeToken(
+    int id,
+    String claudeToken,
+  ) => caller.callServerEndpoint<_iwz93qz1.Machine>(
+    'machine',
+    'setClaudeToken',
+    {
+      'id': id,
+      'claudeToken': claudeToken,
+    },
+  );
+
+  /// Called by the daemon on every check-in: the token set in the panel
+  /// that it hasn't saved yet, or null. It stays on the server until the
+  /// daemon confirms it saved it ([confirmClaudeToken]), so a failed save
+  /// just retries at the next check-in.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<String?> takeClaudeToken(String token) =>
+      caller.callServerEndpoint<String?>(
+        'machine',
+        'takeClaudeToken',
+        {'token': token},
+      );
+
+  /// Called by the daemon once it saved [claudeToken] from
+  /// [takeClaudeToken]: clears it from the server. A newer token set in the
+  /// panel meanwhile stays pending for the next check-in.
+  ///
+  /// Throws [InvalidTokenException] if [token] doesn't match any currently
+  /// registered machine.
+  _ida.Future<void> confirmClaudeToken(
+    String token,
+    String claudeToken,
+  ) => caller.callServerEndpoint<void>(
+    'machine',
+    'confirmClaudeToken',
+    {
+      'token': token,
+      'claudeToken': claudeToken,
     },
   );
 

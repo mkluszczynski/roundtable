@@ -5,6 +5,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 
 import 'src/agent_work_queue.dart';
 import 'src/claude_code_executor.dart';
+import 'src/claude_token_store.dart';
 import 'src/container_sandbox.dart';
 import 'src/github_pull_request_opener.dart';
 import 'src/metrics_collector.dart';
@@ -58,13 +59,15 @@ class AgentRunnerConfig {
     this.claudeExecutable = 'claude',
     this.permissionPromptToolPath,
     this.updateFlagPath,
+    this.claudeTokenPath,
   });
 
   final String registrationToken;
   final String serverUrl;
 
   /// Passed as `CLAUDE_CODE_OAUTH_TOKEN` to the `claude` subprocess
-  /// (docs/ARCHITECTURE.md) — never sent to the server.
+  /// (docs/ARCHITECTURE.md) — never sent to the server. A token set in the
+  /// panel replaces it ([ClaudeTokenStore]).
   final String? claudeCodeOauthToken;
 
   /// Path (or bare name resolved via PATH) to the `claude` CLI. Defaults to
@@ -94,6 +97,10 @@ class AgentRunnerConfig {
   /// service restarted (see [requestRunnerUpdate]). `null` for installs that
   /// predate in-panel updates, or dev-mode runs.
   final String? updateFlagPath;
+
+  /// Where a Claude token set in the panel is saved
+  /// ([ClaudeTokenStore]). Defaults to `~/.roundtable/claude-oauth-token`.
+  final String? claudeTokenPath;
 
   /// Reads REGISTRATION_TOKEN/SERVER_URL/CLAUDE_CODE_OAUTH_TOKEN/WORKSPACE_ROOT.
   ///
@@ -135,6 +142,7 @@ class AgentRunnerConfig {
       claudeExecutable: values['CLAUDE_EXECUTABLE'] ?? 'claude',
       permissionPromptToolPath: values['PERMISSION_PROMPT_TOOL_PATH'],
       updateFlagPath: values['UPDATE_FLAG_PATH'],
+      claudeTokenPath: values['CLAUDE_TOKEN_PATH'],
     );
   }
 
@@ -188,6 +196,25 @@ class AgentRunnerService {
     permissionPromptToolPath: _config.permissionPromptToolPath,
   );
 
+  /// The Claude token `claude` runs with; the panel can replace it.
+  late final _claudeToken = () {
+    final home = Platform.environment['HOME'];
+    final path =
+        _config.claudeTokenPath ??
+        (home == null ? null : '$home/.roundtable/claude-oauth-token');
+    if (path == null) {
+      // Never a shared directory like /tmp: the token would be exposed.
+      throw StateError('HOME is not set — set CLAUDE_TOKEN_PATH in the config');
+    }
+    return ClaudeTokenStore(
+      path,
+      installToken: _config.claudeCodeOauthToken,
+      loginCredentialsPath: home == null
+          ? null
+          : '$home/.claude/.credentials.json',
+    );
+  }();
+
   late final _worktreeManager = WorktreeManager(
     workspaceRoot: _config.workspaceRoot,
   );
@@ -204,7 +231,7 @@ class AgentRunnerService {
     worktreeManager: _worktreeManager,
     executorFactory: () =>
         ClaudeCodeExecutor(executable: _config.claudeExecutable),
-    oauthToken: _config.claudeCodeOauthToken,
+    oauthToken: () => _claudeToken.token,
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: _fetchAgent,
     startReview: (reviewId) => _client.codeReview.startReview(reviewId),
@@ -252,7 +279,7 @@ class AgentRunnerService {
     worktreeManager: _worktreeManager,
     executorFactory: () =>
         ClaudeCodeExecutor(executable: _config.claudeExecutable),
-    oauthToken: _config.claudeCodeOauthToken,
+    oauthToken: () => _claudeToken.token,
     getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
     fetchAgent: _fetchAgent,
     updateTask: (task) => _client.task.update(task),
@@ -554,6 +581,7 @@ class AgentRunnerService {
         _config.registrationToken,
         failureMessage == null,
         failureMessage,
+        authSource: _claudeToken.source,
       );
     } catch (e) {
       _log('reportClaudeStatus failed, will retry: $e');
@@ -652,6 +680,7 @@ class AgentRunnerService {
       );
       _log('heartbeat ok');
       _handleUpdateRequest(updateRequested);
+      await _pickUpClaudeToken();
     } on InvalidTokenException catch (e) {
       _log(
         'FATAL: registration token rejected by server (${e.message}) — '
@@ -662,6 +691,27 @@ class AgentRunnerService {
       _log('heartbeat failed, will retry: $e');
     }
     await _checkClaudeExecutable();
+  }
+
+  /// Saves a Claude token set in the panel since the last check-in, then
+  /// tells the server it can drop it. A failure leaves it on the server for
+  /// the next check-in. Runs already in progress keep the token they
+  /// started with.
+  Future<void> _pickUpClaudeToken() async {
+    try {
+      final token = await _client.machine.takeClaudeToken(
+        _config.registrationToken,
+      );
+      if (token == null) return;
+      await _claudeToken.save(token);
+      await _client.machine.confirmClaudeToken(
+        _config.registrationToken,
+        token,
+      );
+      _log('Claude token updated from the panel');
+    } catch (e) {
+      _log('could not update the Claude token: $e');
+    }
   }
 
   /// The update restarts this service, which would kill the `claude` runs in

@@ -40,6 +40,7 @@ import 'agent_effort.dart' as _iexg9pz4;
 import 'agent_execution_mode.dart' as _i4babe00;
 import 'agent_role_definition.dart' as _i8tbvaw8;
 import 'agent_status.dart' as _i69bozh7;
+import 'claude_auth_source.dart' as _it4knivm;
 import 'code_review.dart' as _icksttbv;
 import 'code_review_status.dart' as _i4rgwvgz;
 import 'code_review_verdict.dart' as _ijks0ur1;
@@ -86,6 +87,7 @@ export 'agent_effort.dart';
 export 'agent_execution_mode.dart';
 export 'agent_role_definition.dart';
 export 'agent_status.dart';
+export 'claude_auth_source.dart';
 export 'code_review.dart';
 export 'code_review_status.dart';
 export 'code_review_verdict.dart';
@@ -507,6 +509,30 @@ class Protocol extends _is.DatabaseSerializationManager {
           columnType: _isp.ColumnType.timestampWithoutTimeZone,
           isNullable: true,
           dartType: 'DateTime?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'pendingClaudeToken',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'claudeTokenRequestedAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'claudeTokenSetAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: true,
+          dartType: 'DateTime?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'claudeAuthSource',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:ClaudeAuthSource?',
         ),
         _isp.ColumnDefinition(
           name: 'createdAt',
@@ -1843,6 +1869,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i69bozh7.AgentStatus) {
       return _i69bozh7.AgentStatus.fromJson(data) as T;
     }
+    if (t == _it4knivm.ClaudeAuthSource) {
+      return _it4knivm.ClaudeAuthSource.fromJson(data) as T;
+    }
     if (t == _icksttbv.CodeReview) {
       return _icksttbv.CodeReview.fromJson(data) as T;
     }
@@ -1984,6 +2013,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i69bozh7.AgentStatus?>()) {
       return (data != null ? _i69bozh7.AgentStatus.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_it4knivm.ClaudeAuthSource?>()) {
+      return (data != null ? _it4knivm.ClaudeAuthSource.fromJson(data) : null)
+          as T;
     }
     if (t == _is.getType<_icksttbv.CodeReview?>()) {
       return (data != null ? _icksttbv.CodeReview.fromJson(data) : null) as T;
@@ -2394,6 +2427,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _i4babe00.AgentExecutionMode => 'AgentExecutionMode',
       _i8tbvaw8.AgentRoleDefinition => 'AgentRoleDefinition',
       _i69bozh7.AgentStatus => 'AgentStatus',
+      _it4knivm.ClaudeAuthSource => 'ClaudeAuthSource',
       _icksttbv.CodeReview => 'CodeReview',
       _i4rgwvgz.CodeReviewStatus => 'CodeReviewStatus',
       _ijks0ur1.CodeReviewVerdict => 'CodeReviewVerdict',
@@ -2459,6 +2493,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'AgentRoleDefinition';
       case _i69bozh7.AgentStatus():
         return 'AgentStatus';
+      case _it4knivm.ClaudeAuthSource():
+        return 'ClaudeAuthSource';
       case _icksttbv.CodeReview():
         return 'CodeReview';
       case _i4rgwvgz.CodeReviewStatus():
@@ -2581,6 +2617,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'AgentStatus') {
       return deserialize<_i69bozh7.AgentStatus>(data['data']);
+    }
+    if (dataClassName == 'ClaudeAuthSource') {
+      return deserialize<_it4knivm.ClaudeAuthSource>(data['data']);
     }
     if (dataClassName == 'CodeReview') {
       return deserialize<_icksttbv.CodeReview>(data['data']);

@@ -39,13 +39,15 @@ The installer writes it into `/etc/agent-runner/config.env` (mode `600`)
 alongside the machine's token (returned by the server when the install
 token is redeemed), and the daemon reads it from there when
 launching Claude Code subprocesses. It never reaches the central server or
-database — unlike the repo access token, this one is tied to a specific
-`claude` installation on this specific host and stays local.
+database.
 
-If you forgot to pass `--claude-token` on first install, re-run
-`install-agent.sh` with `--server`, `--script-url` and `--claude-token` —
-no `--enroll` needed, it keeps the machine's token from `config.env` — it's safe to
-run again (it stops the existing service before reinstalling).
+`--claude-token` is optional. Without it, or to replace an expired token,
+use **Set Claude token** on the machine in the panel: the server holds the
+token only until the daemon picks it up (within about 20 seconds), and the
+daemon saves it to `/var/lib/agent-runner/.roundtable/claude-oauth-token`
+(mode `600`), which takes precedence over `config.env`. The panel can
+replace the token but never read it back. Re-running the installer with
+`--claude-token` deletes that file, so the token you pass wins.
 
 **Known limitation:** the token is pinned to one human subscription, sized
 for one person's interactive use. Several agents on the same machine firing

@@ -21,6 +21,8 @@ import 'package:roundtable_server/src/generated/agent_execution_mode.dart'
 import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
+import 'package:roundtable_server/src/generated/claude_auth_source.dart'
+    as _ig9lvlvr;
 import 'package:roundtable_server/src/generated/code_review.dart' as _i42ca4ig;
 import 'package:roundtable_server/src/generated/code_review_verdict.dart'
     as _i0brbj9a;
@@ -1911,8 +1913,9 @@ class _MachineEndpoint {
     _ist.TestSessionBuilder sessionBuilder,
     String token,
     bool ok,
-    String? message,
-  ) async {
+    String? message, {
+    _ig9lvlvr.ClaudeAuthSource? authSource,
+  }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
@@ -1928,6 +1931,108 @@ class _MachineEndpoint {
             'token': token,
             'ok': ok,
             'message': message,
+            'authSource': authSource,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<void>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_ilqrziin.Machine> setClaudeToken(
+    _ist.TestSessionBuilder sessionBuilder,
+    int id,
+    String claudeToken,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'setClaudeToken',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'setClaudeToken',
+          parameters: _ist.testObjectToJson({
+            'id': id,
+            'claudeToken': claudeToken,
+          }),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ilqrziin.Machine>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<String?> takeClaudeToken(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'takeClaudeToken',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'takeClaudeToken',
+          parameters: _ist.testObjectToJson({'token': token}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<String?>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<void> confirmClaudeToken(
+    _ist.TestSessionBuilder sessionBuilder,
+    String token,
+    String claudeToken,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'confirmClaudeToken',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'confirmClaudeToken',
+          parameters: _ist.testObjectToJson({
+            'token': token,
+            'claudeToken': claudeToken,
           }),
           serializationManager: _serializationManager,
         );

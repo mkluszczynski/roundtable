@@ -52,6 +52,9 @@ machine:
   - identify:
   - reportMetric:
   - reportClaudeStatus:
+  - setClaudeToken:
+  - takeClaudeToken:
+  - confirmClaudeToken:
   - reportToolchain:
   - reportOsVersion:
   - watchLatestMetric:

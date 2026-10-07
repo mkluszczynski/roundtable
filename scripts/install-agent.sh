@@ -346,6 +346,11 @@ if [[ -n "$ENROLL_TOKEN" ]]; then
   TOKEN="$(printf '%s' "$ENROLL_RESPONSE" | tr -d '"[:space:]')"
 fi
 
+if [[ -n "$CLAUDE_TOKEN" ]]; then
+  # A token set in the panel would otherwise keep winning over this one.
+  rm -f "${DATA_DIR}/.roundtable/claude-oauth-token"
+fi
+
 echo "Writing ${CONFIG_PATH}..."
 mkdir -p "$CONFIG_DIR"
 {

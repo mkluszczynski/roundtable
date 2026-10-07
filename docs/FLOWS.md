@@ -43,7 +43,23 @@ can jump straight in.
    (`widgets/add_agent_dialog.dart` → `AgentEndpoint.create`).
 
 Claude auth: run `claude setup-token` once on any browser-capable device and
-pass the result with `--claude-token`. Details are in `scripts/README.md`.
+pass the result with `--claude-token`, or leave it out and paste it in the
+panel later. **Set Claude token** on the machine (`claude_token_dialog.dart`)
+→ `MachineEndpoint.setClaudeToken` stores it in `Machine.pendingClaudeToken`
+(serverOnly) and sets `claudeTokenRequestedAt`. At its next check-in (≤ 20 s)
+the daemon calls `takeClaudeToken`, saves the token to
+`~/.roundtable/claude-oauth-token` (mode 600, `ClaudeTokenStore`), and only
+then calls `confirmClaudeToken`, which clears it from the server (unless a
+newer one was set meanwhile). A failed save leaves it pending for the next
+check-in. New runs use it; runs in progress keep the old one. A token no
+daemon confirms within 10 minutes is dropped by `MachineOfflineFutureCall`.
+The daemon reports where its credentials come from
+(`reportClaudeStatus(authSource:)`: panel, install, login or none), so a
+machine without any shows "No Claude token" with a **Set token** action.
+The action needs the machine online and a runner that reports
+`authSource` (older runners never pick a token up). A reinstall with
+`--claude-token` deletes the panel token, so the new one wins. Details are
+in `scripts/README.md`.
 
 ## 2. Updating the runner on a machine
 

@@ -143,5 +143,40 @@ void main() {
         expect(fetchedMachine!.status, MachineStatus.offline);
       },
     );
+
+    test(
+      'when a Claude token set in the panel was never picked up then it is '
+      'dropped after a while',
+      () async {
+        final session = sessionBuilder.build();
+        final stale = DateTime.now().toUtc().subtract(
+          MachineOfflineFutureCall.claudeTokenTtl + const Duration(minutes: 1),
+        );
+        final old = await Machine.db.insertRow(
+          session,
+          Machine(
+            name: 'old',
+            pendingClaudeToken: 'sk-ant-old',
+            claudeTokenRequestedAt: stale,
+          ),
+        );
+        final fresh = await Machine.db.insertRow(
+          session,
+          Machine(
+            name: 'fresh',
+            pendingClaudeToken: 'sk-ant-fresh',
+            claudeTokenRequestedAt: DateTime.now().toUtc(),
+          ),
+        );
+
+        await MachineOfflineFutureCall().check(session);
+
+        final dropped = await Machine.db.findById(session, old.id!);
+        expect(dropped!.pendingClaudeToken, isNull);
+        expect(dropped.claudeTokenRequestedAt, isNull);
+        final kept = await Machine.db.findById(session, fresh.id!);
+        expect(kept!.pendingClaudeToken, 'sk-ant-fresh');
+      },
+    );
   });
 }

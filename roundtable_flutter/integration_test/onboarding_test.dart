@@ -49,7 +49,7 @@ void main() {
     );
     await tester.enterText(
       inMachineDialog(
-        find.widgetWithText(TextField, 'Claude Code OAuth token'),
+        find.widgetWithText(TextField, 'Claude Code OAuth token (optional)'),
       ),
       'fake-claude-token',
     );

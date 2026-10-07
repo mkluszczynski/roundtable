@@ -18,6 +18,8 @@ import 'package:roundtable_server/src/generated/agent_execution_mode.dart'
 import 'package:roundtable_server/src/generated/agent_role_definition.dart'
     as _ifj5d7s0;
 import 'package:roundtable_server/src/generated/agent_status.dart' as _ii7o6oli;
+import 'package:roundtable_server/src/generated/claude_auth_source.dart'
+    as _ig9lvlvr;
 import 'package:roundtable_server/src/generated/code_review_verdict.dart'
     as _i0brbj9a;
 import 'package:roundtable_server/src/generated/future_calls.dart' as _iewj8v67;
@@ -1215,6 +1217,11 @@ class Endpoints extends _is.EndpointDispatch {
               type: _is.getType<String?>(),
               nullable: true,
             ),
+            'authSource': _is.ParameterDescription(
+              name: 'authSource',
+              type: _is.getType<_ig9lvlvr.ClaudeAuthSource?>(),
+              nullable: true,
+            ),
           },
           call:
               (
@@ -1226,6 +1233,76 @@ class Endpoints extends _is.EndpointDispatch {
                     params['token'],
                     params['ok'],
                     params['message'],
+                    authSource: params['authSource'],
+                  ),
+        ),
+        'setClaudeToken': _is.MethodConnector(
+          name: 'setClaudeToken',
+          params: {
+            'id': _is.ParameterDescription(
+              name: 'id',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+            'claudeToken': _is.ParameterDescription(
+              name: 'claudeToken',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .setClaudeToken(
+                    session,
+                    params['id'],
+                    params['claudeToken'],
+                  ),
+        ),
+        'takeClaudeToken': _is.MethodConnector(
+          name: 'takeClaudeToken',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .takeClaudeToken(
+                    session,
+                    params['token'],
+                  ),
+        ),
+        'confirmClaudeToken': _is.MethodConnector(
+          name: 'confirmClaudeToken',
+          params: {
+            'token': _is.ParameterDescription(
+              name: 'token',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'claudeToken': _is.ParameterDescription(
+              name: 'claudeToken',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .confirmClaudeToken(
+                    session,
+                    params['token'],
+                    params['claudeToken'],
                   ),
         ),
         'reportToolchain': _is.MethodConnector(

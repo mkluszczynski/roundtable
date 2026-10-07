@@ -20,6 +20,7 @@ import '../widgets/add_agent_dialog.dart';
 import '../widgets/agent_row.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/claude_token_dialog.dart';
 import '../widgets/claude_warning_banner.dart';
 import '../widgets/kanban_card.dart';
 import '../widgets/load_failed_view.dart';
@@ -350,6 +351,10 @@ class _MachineRail extends StatelessWidget {
                     label: 'Claude usage',
                     child: UsageLimitNote(until: machine.usageLimitedUntil),
                   ),
+                RailSection(
+                  label: 'Claude token',
+                  child: ClaudeAuthStatus(machine: machine),
+                ),
                 RailSection(
                   label: 'Claude CLI',
                   child: switch (machine.claudeExecutableOk) {

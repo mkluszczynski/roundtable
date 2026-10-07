@@ -16,6 +16,7 @@ import '../widgets/add_machine_dialog.dart';
 import '../widgets/agent_row.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/claude_token_dialog.dart';
 import '../widgets/claude_warning_banner.dart';
 import '../widgets/machine_online_delete_blocked_dialog.dart';
 import '../widgets/machine_metrics.dart';
@@ -266,6 +267,14 @@ class _MachineCard extends StatelessWidget {
     if (confirmed ?? false) await cubit.deleteMachine(machine.id!);
   }
 
+  void _setClaudeToken(BuildContext context) => showDialog<bool>(
+    context: context,
+    builder: (_) => BlocProvider.value(
+      value: context.read<MachineListCubit>(),
+      child: ClaudeTokenDialog(machine: machine),
+    ),
+  );
+
   Future<void> _addAgent(BuildContext context) async {
     final cubit = context.read<AgentListCubit>();
     final added = await showDialog<bool>(
@@ -366,6 +375,11 @@ class _MachineCard extends StatelessWidget {
                         child: const Text('Update runner'),
                       ),
                     PopupMenuItem(
+                      value: _setClaudeToken,
+                      enabled: online && machine.claudeAuthSource != null,
+                      child: const Text('Set Claude token'),
+                    ),
+                    PopupMenuItem(
                       value: _confirmRemove,
                       child: Text(
                         'Remove machine',
@@ -386,6 +400,10 @@ class _MachineCard extends StatelessWidget {
             if (UsageLimitNote.isActive(machine.usageLimitedUntil)) ...[
               const SizedBox(height: Spacing.md),
               UsageLimitNote(until: machine.usageLimitedUntil),
+            ],
+            if (ClaudeAuthStatus.needsAttention(machine)) ...[
+              const SizedBox(height: Spacing.md),
+              ClaudeAuthStatus(machine: machine, compact: true),
             ],
             if (machine.claudeExecutableOk == false) ...[
               const SizedBox(height: Spacing.md),

@@ -20,6 +20,11 @@ class MachineRepository {
   Future<Machine?> enrolledMachine(int enrollmentId) =>
       _client.machine.enrolledMachine(enrollmentId);
 
+  /// Sends a Claude Code OAuth token to machine [id]'s daemon, which picks
+  /// it up at its next check-in (docs/FLOWS.md §1).
+  Future<Machine> setClaudeToken(int id, String token) =>
+      _client.machine.setClaudeToken(id, token);
+
   Future<void> deleteMachine(int id) => _client.machine.delete(id);
 
   /// Base URL the install/uninstall scripts are served from — used to render

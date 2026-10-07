@@ -60,8 +60,7 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
         }
 
         final submitting = state is AddMachineSubmitting;
-        final canSubmit =
-            !submitting && _claudeTokenController.text.trim().isNotEmpty;
+        final canSubmit = !submitting;
         return AppModal(
           icon: Icons.dns_outlined,
 
@@ -109,10 +108,10 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
                 TextField(
                   controller: _claudeTokenController,
                   decoration: const InputDecoration(
-                    labelText: 'Claude Code OAuth token',
+                    labelText: 'Claude Code OAuth token (optional)',
+                    hintText: 'Or set it on the machine once it shows up',
                   ),
                   obscureText: true,
-                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: Spacing.sm),
                 const ClaudeTokenHelpAccordion(),

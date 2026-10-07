@@ -48,4 +48,6 @@ Key ideas:
   task.** Feedback iterations resume the same Claude session in the same
   worktree.
 - **Secrets stay where they belong.** The GitHub token lives server-side
-  (`scope=serverOnly`). The Claude OAuth token stays on the machine.
+  (`scope=serverOnly`). The Claude OAuth token stays on the machine;
+  one set in the panel passes through the server only until the machine
+  picks it up.
