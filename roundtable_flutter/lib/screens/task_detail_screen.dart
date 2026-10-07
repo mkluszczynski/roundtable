@@ -1000,23 +1000,33 @@ class _BranchRow extends StatelessWidget {
       children: [
         const Icon(Icons.call_split, size: 14, color: AppColors.text1),
         const SizedBox(width: Spacing.xs),
-        // Flexible, not Expanded: the actions sit right after the name.
-        Flexible(
-          child: Tooltip(
-            message: task.branchName ?? '',
-            child: Text(
-              task.branchName ?? '—',
-              style: AppTypography.code,
-              overflow: TextOverflow.ellipsis,
-            ),
+        // The name and its copy button take the free space, so the PR
+        // button ends at the rail's edge; the copy button stays right after
+        // the name (a Spacer here would split the space with the name).
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Tooltip(
+                  message: task.branchName ?? '',
+                  child: Text(
+                    task.branchName ?? '—',
+                    style: AppTypography.code,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              if (task.branchName != null) ...[
+                const SizedBox(width: Spacing.xs),
+                CopyIconButton(
+                  text: checkoutCommand(task.branchName!),
+                  tooltip: 'Copy checkout commands',
+                ),
+              ],
+            ],
           ),
         ),
-        if (task.branchName != null)
-          CopyIconButton(
-            text: checkoutCommand(task.branchName!),
-            tooltip: 'Copy checkout commands',
-          ),
-        if (task.prUrl != null)
+        if (task.prUrl != null) ...[
           TextButton.icon(
             onPressed: () => launchUrl(
               Uri.parse(task.prUrl!),
@@ -1024,8 +1034,14 @@ class _BranchRow extends StatelessWidget {
             ),
             icon: const Icon(Icons.open_in_new, size: 14),
             label: const Text('PR'),
-            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            // No right padding: the label lines up with the rail's edge.
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.only(left: Spacing.sm),
+              minimumSize: Size.zero,
+            ),
           ),
+        ],
       ],
     );
   }
