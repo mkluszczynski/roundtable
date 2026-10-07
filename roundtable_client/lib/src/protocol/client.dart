@@ -1379,6 +1379,15 @@ class EndpointTask extends _isc.EndpointRef {
   /// a review-phase feedback that woke it via [submitFeedback], and to tell
   /// a stale replay (e.g. after a daemon restart) apart from a real pending
   /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  /// Every feedback sent on [taskId], oldest first — the panel's timeline
+  /// names each feedback run after the one it started from.
+  _ida.Future<List<_ifl2c5cu.TaskFeedback>> listFeedback(int taskId) =>
+      caller.callServerEndpoint<List<_ifl2c5cu.TaskFeedback>>(
+        'task',
+        'listFeedback',
+        {'taskId': taskId},
+      );
+
   _ida.Future<_ifl2c5cu.TaskFeedback?> latestFeedback(int taskId) =>
       caller.callServerEndpoint<_ifl2c5cu.TaskFeedback?>(
         'task',

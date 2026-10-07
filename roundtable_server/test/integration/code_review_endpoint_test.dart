@@ -730,6 +730,7 @@ void main() {
           'Please fix this first.',
         );
         expect(feedback.phase, TaskFeedbackPhase.review);
+        expect(feedback.kind, TaskFeedbackKind.reviewComments);
         expect(feedback.message, startsWith('Please fix this first.'));
         expect(feedback.message, contains('lib/a.dart:3 [blocker] Crash'));
         expect(feedback.message, isNot(contains('lib/b.dart')));

@@ -74,6 +74,10 @@ class TaskRepository {
 
   /// Streams every task as it's created/changed, for the dashboard kanban.
   /// Each event is a single task — merge it into your task list by id.
+  /// Every feedback sent on [taskId], oldest first.
+  Future<List<TaskFeedback>> listFeedback(int taskId) =>
+      _client.task.listFeedback(taskId);
+
   Stream<Task> watchAllTasks() => _client.task.watchAllTasks();
 
   Stream<TaskLogEntry> watchLogs(int taskId) => _client.task.watchLogs(taskId);

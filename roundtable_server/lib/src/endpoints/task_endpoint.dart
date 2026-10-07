@@ -335,6 +335,7 @@ class TaskEndpoint extends Endpoint {
       session,
       task,
       conflictResolutionPrompt(base),
+      kind: TaskFeedbackKind.conflicts,
     );
   }
 
@@ -454,7 +455,12 @@ class TaskEndpoint extends Endpoint {
     );
     await session.messages.postMessage(channelForTask(taskId), reopened);
     await session.messages.postMessage(channelForAllTasks(), reopened);
-    return queueReviewFeedback(session, reopened, message.trim());
+    return queueReviewFeedback(
+      session,
+      reopened,
+      message.trim(),
+      kind: TaskFeedbackKind.dev,
+    );
   }
 
   /// Resumes a task paused by a usage limit right away instead of waiting
@@ -659,6 +665,7 @@ class TaskEndpoint extends Endpoint {
       session,
       await _requireTask(session, taskId),
       message,
+      kind: TaskFeedbackKind.dev,
     );
   }
 
@@ -667,6 +674,15 @@ class TaskEndpoint extends Endpoint {
   /// a review-phase feedback that woke it via [submitFeedback], and to tell
   /// a stale replay (e.g. after a daemon restart) apart from a real pending
   /// one — see `TaskDispatcher.handle`'s use of `Task.finishedAt`.
+  /// Every feedback sent on [taskId], oldest first — the panel's timeline
+  /// names each feedback run after the one it started from.
+  Future<List<TaskFeedback>> listFeedback(Session session, int taskId) =>
+      TaskFeedback.db.find(
+        session,
+        where: (t) => t.taskId.equals(taskId),
+        orderBy: (t) => t.createdAt,
+      );
+
   Future<TaskFeedback?> latestFeedback(Session session, int taskId) async {
     var results = await TaskFeedback.db.find(
       session,

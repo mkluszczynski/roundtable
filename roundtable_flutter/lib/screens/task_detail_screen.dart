@@ -21,6 +21,7 @@ import '../utils/pr_checks.dart';
 import '../utils/question_context.dart';
 import '../utils/open_task.dart';
 import '../utils/task_status_label.dart';
+import '../utils/task_timeline.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -46,6 +47,7 @@ import '../widgets/task_attachments_view.dart';
 import '../widgets/task_options_form.dart';
 import '../utils/log_timeline.dart';
 import '../widgets/task_log_timeline.dart';
+import '../widgets/task_timeline_view.dart';
 import '../utils/relative_time.dart';
 
 /// Mirrors the server's `cancelTask` guard (`nonTerminalTaskStatuses` minus
@@ -723,15 +725,17 @@ class _InfoRail extends StatelessWidget {
                 _SettingsSection(task: task),
                 RailSection(
                   label: 'Timeline',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TimelineRow('Created', task.createdAt),
-                      if (task.startedAt != null)
-                        _TimelineRow('Started running', task.startedAt),
-                      if (task.finishedAt != null)
-                        _TimelineRow('Finished', task.finishedAt),
-                    ],
+                  child: TaskTimelineView(
+                    steps: buildTaskTimeline(
+                      task: task,
+                      logs: state.logs,
+                      reviews: state.reviews,
+                      feedback: state.feedback,
+                    ),
+                    onOpen: (link) => onSectionSelected(switch (link) {
+                      TimelineLink.log => _TaskSection.logs,
+                      TimelineLink.review => _TaskSection.review,
+                    }),
                   ),
                 ),
               ],
@@ -1189,30 +1193,6 @@ List<Widget> _acceptButtons(
       label: const Text('Merge anyway'),
     ),
   ];
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow(this.label, this.at);
-
-  final String label;
-  final DateTime? at;
-
-  @override
-  Widget build(BuildContext context) {
-    final timestamp = at;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: AppTypography.caption)),
-          Text(
-            timestamp == null ? '—' : relativeTime(timestamp),
-            style: AppTypography.caption,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _SectionContent extends StatelessWidget {

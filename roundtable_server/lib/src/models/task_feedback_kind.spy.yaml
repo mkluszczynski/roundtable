@@ -1,0 +1,12 @@
+### Why a review-phase [TaskFeedback] was sent — the task's timeline names
+### the run it starts after it.
+enum: TaskFeedbackKind
+values:
+  ### the dev's own message
+  - dev
+  ### AI review comments (by hand or auto fix)
+  - reviewComments
+  ### failing CI checks
+  - checks
+  ### merge conflicts with the base branch
+  - conflicts

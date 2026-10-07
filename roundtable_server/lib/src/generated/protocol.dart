@@ -27,6 +27,8 @@ import 'package:roundtable_server/src/generated/review_comment_draft.dart'
 import 'package:roundtable_server/src/generated/task.dart' as _i77xifuu;
 import 'package:roundtable_server/src/generated/task_attachment.dart'
     as _i8vmihz0;
+import 'package:roundtable_server/src/generated/task_feedback.dart'
+    as _il2mubb9;
 import 'package:serverpod/protocol.dart' as _isp;
 import 'package:serverpod/serverpod.dart' as _is;
 import 'package:serverpod_auth_core_server/serverpod_auth_core_server.dart'
@@ -72,6 +74,7 @@ import 'task_attachment.dart' as _isyamz65;
 import 'task_defaults.dart' as _ipm7yd3q;
 import 'task_deleted.dart' as _imh5lex6;
 import 'task_feedback.dart' as _i5hi2zxr;
+import 'task_feedback_kind.dart' as _izdpr1k1;
 import 'task_feedback_phase.dart' as _iitmdld3;
 import 'task_log_entry.dart' as _ihv3trno;
 import 'task_question.dart' as _ivtt8ejd;
@@ -116,6 +119,7 @@ export 'task_attachment.dart';
 export 'task_defaults.dart';
 export 'task_deleted.dart';
 export 'task_feedback.dart';
+export 'task_feedback_kind.dart';
 export 'task_feedback_phase.dart';
 export 'task_log_entry.dart';
 export 'task_question.dart';
@@ -1392,6 +1396,12 @@ class Protocol extends _is.DatabaseSerializationManager {
           dartType: 'protocol:TaskFeedbackPhase',
         ),
         _isp.ColumnDefinition(
+          name: 'kind',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'protocol:TaskFeedbackKind?',
+        ),
+        _isp.ColumnDefinition(
           name: 'createdAt',
           columnType: _isp.ColumnType.timestampWithoutTimeZone,
           isNullable: false,
@@ -1877,6 +1887,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i5hi2zxr.TaskFeedback) {
       return _i5hi2zxr.TaskFeedback.fromJson(data) as T;
     }
+    if (t == _izdpr1k1.TaskFeedbackKind) {
+      return _izdpr1k1.TaskFeedbackKind.fromJson(data) as T;
+    }
     if (t == _iitmdld3.TaskFeedbackPhase) {
       return _iitmdld3.TaskFeedbackPhase.fromJson(data) as T;
     }
@@ -2042,6 +2055,10 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (t == _is.getType<_i5hi2zxr.TaskFeedback?>()) {
       return (data != null ? _i5hi2zxr.TaskFeedback.fromJson(data) : null) as T;
+    }
+    if (t == _is.getType<_izdpr1k1.TaskFeedbackKind?>()) {
+      return (data != null ? _izdpr1k1.TaskFeedbackKind.fromJson(data) : null)
+          as T;
     }
     if (t == _is.getType<_iitmdld3.TaskFeedbackPhase?>()) {
       return (data != null ? _iitmdld3.TaskFeedbackPhase.fromJson(data) : null)
@@ -2277,6 +2294,12 @@ class Protocol extends _is.DatabaseSerializationManager {
               : null)
           as T;
     }
+    if (t == List<_il2mubb9.TaskFeedback>) {
+      return (data as List)
+              .map((e) => deserialize<_il2mubb9.TaskFeedback>(e))
+              .toList()
+          as T;
+    }
     if (t == List<_i77xifuu.Task>) {
       return (data as List).map((e) => deserialize<_i77xifuu.Task>(e)).toList()
           as T;
@@ -2340,6 +2363,7 @@ class Protocol extends _is.DatabaseSerializationManager {
       _ipm7yd3q.TaskDefaults => 'TaskDefaults',
       _imh5lex6.TaskDeleted => 'TaskDeleted',
       _i5hi2zxr.TaskFeedback => 'TaskFeedback',
+      _izdpr1k1.TaskFeedbackKind => 'TaskFeedbackKind',
       _iitmdld3.TaskFeedbackPhase => 'TaskFeedbackPhase',
       _ihv3trno.TaskLogEntry => 'TaskLogEntry',
       _ivtt8ejd.TaskQuestion => 'TaskQuestion',
@@ -2437,6 +2461,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'TaskDeleted';
       case _i5hi2zxr.TaskFeedback():
         return 'TaskFeedback';
+      case _izdpr1k1.TaskFeedbackKind():
+        return 'TaskFeedbackKind';
       case _iitmdld3.TaskFeedbackPhase():
         return 'TaskFeedbackPhase';
       case _ihv3trno.TaskLogEntry():
@@ -2589,6 +2615,9 @@ class Protocol extends _is.DatabaseSerializationManager {
     }
     if (dataClassName == 'TaskFeedback') {
       return deserialize<_i5hi2zxr.TaskFeedback>(data['data']);
+    }
+    if (dataClassName == 'TaskFeedbackKind') {
+      return deserialize<_izdpr1k1.TaskFeedbackKind>(data['data']);
     }
     if (dataClassName == 'TaskFeedbackPhase') {
       return deserialize<_iitmdld3.TaskFeedbackPhase>(data['data']);

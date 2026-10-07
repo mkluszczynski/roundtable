@@ -22,6 +22,7 @@ Future<TaskFeedback> queueReviewFeedback(
   Session session,
   Task task,
   String message, {
+  required TaskFeedbackKind kind,
   Future<void> Function(Transaction transaction)? alsoWrite,
   TransactionSettings? transactionSettings,
 }) async {
@@ -51,6 +52,7 @@ Future<TaskFeedback> queueReviewFeedback(
         taskId: task.id!,
         message: message,
         phase: TaskFeedbackPhase.review,
+        kind: kind,
       ),
       transaction: transaction,
     );
@@ -447,6 +449,7 @@ Future<TaskFeedback> sendCommentsToAgent(
     session,
     task,
     message.toString().trim(),
+    kind: TaskFeedbackKind.reviewComments,
     alsoWrite: comments.isEmpty
         ? null
         : (transaction) => ReviewComment.db.update(

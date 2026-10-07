@@ -2083,6 +2083,25 @@ class Endpoints extends _is.EndpointDispatch {
                     params['message'],
                   ),
         ),
+        'listFeedback': _is.MethodConnector(
+          name: 'listFeedback',
+          params: {
+            'taskId': _is.ParameterDescription(
+              name: 'taskId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['task'] as _idmllfay.TaskEndpoint).listFeedback(
+                    session,
+                    params['taskId'],
+                  ),
+        ),
         'latestFeedback': _is.MethodConnector(
           name: 'latestFeedback',
           params: {

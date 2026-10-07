@@ -573,6 +573,12 @@ void main() {
 
         expect(feedback.message, 'Implement it.');
         expect(feedback.phase, TaskFeedbackPhase.review);
+        expect(feedback.kind, TaskFeedbackKind.dev);
+        final listed = await endpoints.task.listFeedback(
+          sessionBuilder,
+          task.id!,
+        );
+        expect(listed.map((f) => f.id), [feedback.id]);
         expect(reopened!.status, TaskStatus.awaitingReview);
         expect(
           () => endpoints.task.continueTask(sessionBuilder, task.id!, 'Again'),
