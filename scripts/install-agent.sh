@@ -9,7 +9,7 @@
 #
 # Usage:
 #   curl -fsSL <script-url>/install-agent.sh | sudo bash -s -- \
-#       --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> \
+#       --enroll <INSTALL_TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> \
 #       [--name <MACHINE_NAME>] [--claude-token <CLAUDE_CODE_OAUTH_TOKEN>] \
 #       [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>] \
 #       [--docker]
@@ -21,9 +21,17 @@
 # --script-url is where this script (and the agent-runner binary it fetches)
 # were served from — the panel fills in both automatically.
 #
-# The registration token is shown once by the panel when you register a
-# machine, and is written to /etc/agent-runner/config.env (mode 600) — never
-# into the systemd unit file, so it doesn't show up in `systemctl status`/`ps`.
+# --enroll is the one-time install token from the panel's "Add machine"
+# dialog (valid for an hour). Once everything is installed, the script
+# redeems it: that's when the machine appears in the panel, named --name,
+# else the name given in the panel, else this host's hostname. A failed
+# install leaves no machine behind. --enroll is refused on a machine that's
+# already installed — re-run without it, or uninstall first. The machine's own token the server returns is
+# written to /etc/agent-runner/config.env (mode 600) — never into the systemd
+# unit file, so it doesn't show up in `systemctl status`/`ps`.
+#
+# Re-running the script on an installed machine needs no token: it keeps the
+# one in config.env. --token <TOKEN> sets a machine token directly.
 
 set -euo pipefail
 
@@ -48,6 +56,7 @@ UPDATE_SERVICE_PATH="/etc/systemd/system/${UPDATE_SERVICE_NAME}.service"
 UPDATE_PATH_UNIT_PATH="/etc/systemd/system/${UPDATE_SERVICE_NAME}.path"
 
 TOKEN=""
+ENROLL_TOKEN=""
 SERVER=""
 SCRIPT_URL=""
 MACHINE_NAME=""
@@ -60,7 +69,7 @@ DOCKER=0
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 --token <TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>] [--docker]
+Usage: $0 --enroll <INSTALL_TOKEN> --server <SERVER_URL> --script-url <SCRIPT_URL> [--name <MACHINE_NAME>] [--claude-token <TOKEN>] [--claude-path </path/to/claude>] [--extra-path <dir[:dir...]>] [--docker]
 EOF
 }
 
@@ -68,6 +77,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --token)
       TOKEN="${2:-}"
+      shift 2
+      ;;
+    --enroll)
+      ENROLL_TOKEN="${2:-}"
       shift 2
       ;;
     --server)
@@ -110,8 +123,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TOKEN" || -z "$SERVER" || -z "$SCRIPT_URL" ]]; then
-  echo "install-agent: --token, --server and --script-url are required" >&2
+# A re-install keeps the machine it was already enrolled as.
+INSTALLED_TOKEN=""
+if [[ -f "$CONFIG_PATH" ]]; then
+  INSTALLED_TOKEN="$(sed -n 's/^REGISTRATION_TOKEN=//p' "$CONFIG_PATH" | tail -n 1)"
+fi
+if [[ -n "$ENROLL_TOKEN" && -n "$INSTALLED_TOKEN" ]]; then
+  # Enrolling again would add a second machine to the panel and leave this
+  # one's old entry offline for good.
+  echo "install-agent: this machine is already installed — re-run without" \
+    "--enroll to reinstall it, or run uninstall-agent.sh first to add it" \
+    "as a new machine" >&2
+  exit 1
+fi
+if [[ -z "$TOKEN" && -z "$ENROLL_TOKEN" ]]; then
+  TOKEN="$INSTALLED_TOKEN"
+fi
+
+if [[ ( -z "$TOKEN" && -z "$ENROLL_TOKEN" ) || -z "$SERVER" || -z "$SCRIPT_URL" ]]; then
+  echo "install-agent: --enroll, --server and --script-url are required" >&2
   usage
   exit 1
 fi
@@ -282,6 +312,38 @@ if [[ -n "$EXTRA_PATH" ]]; then
         "Install SDKs outside your home directory (e.g. /opt)." >&2
     fi
   done
+fi
+
+if [[ -n "$ENROLL_TOKEN" ]]; then
+  # Last step before writing the config: anything that failed above has
+  # already exited, so the panel never shows a machine that isn't installed.
+  # Only safe characters go into the JSON body; empty means "decide on the
+  # server" (the panel's name, else the hostname).
+  ENROLL_NAME="$(printf '%s' "$MACHINE_NAME" | tr -cd '[:alnum:] ._-')"
+  ENROLL_HOST="$(hostname | tr -cd '[:alnum:]._-')"
+  ENROLL_BODY="{\"enrollmentToken\":\"$(printf '%s' "$ENROLL_TOKEN" | tr -cd '[:alnum:]_-')\",\"hostname\":\"${ENROLL_HOST}\"${ENROLL_NAME:+,\"name\":\"${ENROLL_NAME}\"}}"
+  ENROLL_RESPONSE_FILE="$(mktemp)"
+  echo "Adding machine to ${SERVER}..."
+  # A lost response is retried: the server hands the same, not yet
+  # connected machine a new token rather than rejecting the used one. The
+  # body goes through stdin so the token doesn't show up in `ps`.
+  for attempt in 1 2 3; do
+    ENROLL_STATUS="$(printf '%s' "$ENROLL_BODY" | curl -sS --max-time 30 \
+      -o "$ENROLL_RESPONSE_FILE" -w '%{http_code}' \
+      -X POST "${SERVER%/}/machine/enroll" \
+      -H 'Content-Type: application/json' --data @-)" || ENROLL_STATUS=0
+    [[ "$ENROLL_STATUS" == "200" || "$ENROLL_STATUS" == 4* ]] && break
+    sleep 3
+  done
+  ENROLL_RESPONSE="$(cat "$ENROLL_RESPONSE_FILE")"
+  rm -f "$ENROLL_RESPONSE_FILE"
+  if [[ "$ENROLL_STATUS" != "200" ]]; then
+    MESSAGE="$(printf '%s' "$ENROLL_RESPONSE" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
+    echo "install-agent: could not add the machine (HTTP ${ENROLL_STATUS}): ${MESSAGE:-$ENROLL_RESPONSE}" >&2
+    exit 1
+  fi
+  # The endpoint returns the machine token as a JSON string.
+  TOKEN="$(printf '%s' "$ENROLL_RESPONSE" | tr -d '"[:space:]')"
 fi
 
 echo "Writing ${CONFIG_PATH}..."

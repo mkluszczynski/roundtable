@@ -28,10 +28,10 @@ import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
     as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
+import 'package:roundtable_client/src/protocol/machine_install_command.dart'
+    as _iix5nei1;
 import 'package:roundtable_client/src/protocol/machine_metric.dart'
     as _il2pq5ll;
-import 'package:roundtable_client/src/protocol/machine_registration.dart'
-    as _i80z6wcv;
 import 'package:roundtable_client/src/protocol/pr_checks.dart' as _ixcrf414;
 import 'package:roundtable_client/src/protocol/pr_merge_status.dart'
     as _ikiwas8h;
@@ -608,17 +608,54 @@ class EndpointMachine extends _isc.EndpointRef {
   @override
   String get name => 'machine';
 
-  _ida.Future<_i80z6wcv.MachineRegistration> register(
-    String name, {
-    String? hostInfo,
-  }) => caller.callServerEndpoint<_i80z6wcv.MachineRegistration>(
+  /// Issues a one-time install token for the "Add machine" dialog. No
+  /// machine exists until install-agent.sh redeems it with [enroll], so an
+  /// abandoned dialog leaves nothing behind (docs/FLOWS.md §1). [name]
+  /// overrides the hostname the machine would otherwise be named after.
+  _ida.Future<_iix5nei1.MachineInstallCommand> createEnrollment({
+    String? name,
+  }) => caller.callServerEndpoint<_iix5nei1.MachineInstallCommand>(
     'machine',
-    'register',
+    'createEnrollment',
+    {'name': name},
+  );
+
+  /// Called by install-agent.sh once the runner is installed: redeems
+  /// [enrollmentToken], creates the machine and returns the machine's own
+  /// registration token for config.env. The machine is named [name] (the
+  /// script's `--name`), else as chosen in the panel, else after
+  /// [hostname] — with a numeric suffix if that's taken.
+  ///
+  /// Redeeming a used token again before it expires, while its machine has
+  /// never connected, issues that machine a new token instead of failing:
+  /// the script retries when the first response was lost, and must not
+  /// leave an orphaned machine behind.
+  ///
+  /// Throws [InvalidTokenException] if the token is unknown, expired or
+  /// already used by a machine that has connected.
+  _ida.Future<String> enroll(
+    String enrollmentToken,
+    String hostname, {
+    String? name,
+  }) => caller.callServerEndpoint<String>(
+    'machine',
+    'enroll',
     {
+      'enrollmentToken': enrollmentToken,
+      'hostname': hostname,
       'name': name,
-      'hostInfo': hostInfo,
     },
   );
+
+  /// The machine created from enrollment [enrollmentId], or null while its
+  /// install command hasn't been run yet. Polled by the "Add machine"
+  /// dialog so it can say once the machine shows up.
+  _ida.Future<_iwz93qz1.Machine?> enrolledMachine(int enrollmentId) =>
+      caller.callServerEndpoint<_iwz93qz1.Machine?>(
+        'machine',
+        'enrolledMachine',
+        {'enrollmentId': enrollmentId},
+      );
 
   /// Base URL the install/uninstall scripts (and the agent-runner binary
   /// install-agent.sh downloads) are served from — the panel's "Delete"

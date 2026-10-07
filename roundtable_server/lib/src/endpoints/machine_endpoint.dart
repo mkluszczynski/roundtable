@@ -30,20 +30,40 @@ class MachineEndpoint extends Endpoint {
   static String _channelForMachineMetrics(int machineId) =>
       'machine-$machineId-metrics';
 
-  Future<MachineRegistration> register(
-    Session session,
-    String name, {
-    String? hostInfo,
+  /// How long an install command from the panel stays redeemable.
+  static const enrollmentTtl = Duration(hours: 1);
+
+  /// Issues a one-time install token for the "Add machine" dialog. No
+  /// machine exists until install-agent.sh redeems it with [enroll], so an
+  /// abandoned dialog leaves nothing behind (docs/FLOWS.md §1). [name]
+  /// overrides the hostname the machine would otherwise be named after.
+  Future<MachineInstallCommand> createEnrollment(
+    Session session, {
+    String? name,
   }) async {
-    final token = _generateRegistrationToken();
-    final machine = await Machine.db.insertRow(
+    final now = DateTime.now().toUtc();
+    // Tokens an hour past their expiry can't be redeemed or retried, and
+    // no dialog still waits on them; drop them here instead of running a
+    // separate cleanup job.
+    await MachineEnrollment.db.deleteWhere(
       session,
-      Machine(name: name, hostInfo: hostInfo, tokenHash: _hashToken(token)),
+      where: (e) => e.expiresAt < now.subtract(enrollmentTtl),
+    );
+    final token = _generateRegistrationToken();
+    final trimmed = name?.trim();
+    final enrollment = await MachineEnrollment.db.insertRow(
+      session,
+      MachineEnrollment(
+        tokenHash: _hashToken(token),
+        name: trimmed == null || trimmed.isEmpty ? null : trimmed,
+        expiresAt: now.add(enrollmentTtl),
+      ),
     );
     final apiServer = session.serverpod.config.apiServer;
-    return MachineRegistration(
-      machine: machine,
-      token: token,
+    return MachineInstallCommand(
+      enrollmentId: enrollment.id!,
+      enrollmentToken: token,
+      expiresAt: enrollment.expiresAt,
       serverUrl: Uri(
         scheme: apiServer.publicScheme,
         host: apiServer.publicHost,
@@ -51,6 +71,117 @@ class MachineEndpoint extends Endpoint {
       ).toString(),
       scriptUrl: _scriptUrl(session),
     );
+  }
+
+  /// Called by install-agent.sh once the runner is installed: redeems
+  /// [enrollmentToken], creates the machine and returns the machine's own
+  /// registration token for config.env. The machine is named [name] (the
+  /// script's `--name`), else as chosen in the panel, else after
+  /// [hostname] — with a numeric suffix if that's taken.
+  ///
+  /// Redeeming a used token again before it expires, while its machine has
+  /// never connected, issues that machine a new token instead of failing:
+  /// the script retries when the first response was lost, and must not
+  /// leave an orphaned machine behind.
+  ///
+  /// Throws [InvalidTokenException] if the token is unknown, expired or
+  /// already used by a machine that has connected.
+  Future<String> enroll(
+    Session session,
+    String enrollmentToken,
+    String hostname, {
+    String? name,
+  }) async {
+    return session.db.transaction((transaction) async {
+      final enrollment = await MachineEnrollment.db.findFirstRow(
+        session,
+        where: (e) => e.tokenHash.equals(_hashToken(enrollmentToken)),
+        transaction: transaction,
+        lockMode: LockMode.forUpdate,
+      );
+      final invalid = InvalidTokenException(
+        message:
+            'Unknown, expired or already used install token — generate '
+            'a new install command in the panel',
+      );
+      if (enrollment == null ||
+          enrollment.expiresAt.isBefore(DateTime.now().toUtc())) {
+        throw invalid;
+      }
+      final token = _generateRegistrationToken();
+      final enrolledId = enrollment.machineId;
+      if (enrolledId != null) {
+        final enrolled = await Machine.db.findById(
+          session,
+          enrolledId,
+          transaction: transaction,
+        );
+        if (enrolled == null || enrolled.lastSeenAt != null) throw invalid;
+        await Machine.db.updateRow(
+          session,
+          enrolled.copyWith(tokenHash: _hashToken(token)),
+          transaction: transaction,
+        );
+        return token;
+      }
+      final machine = await Machine.db.insertRow(
+        session,
+        Machine(
+          name: await _uniqueName(
+            session,
+            _nonEmpty(name) ?? enrollment.name ?? hostname.trim(),
+            transaction,
+          ),
+          tokenHash: _hashToken(token),
+        ),
+        transaction: transaction,
+      );
+      await MachineEnrollment.db.updateRow(
+        session,
+        enrollment.copyWith(machineId: machine.id),
+        transaction: transaction,
+      );
+      return token;
+    });
+  }
+
+  /// The machine created from enrollment [enrollmentId], or null while its
+  /// install command hasn't been run yet. Polled by the "Add machine"
+  /// dialog so it can say once the machine shows up.
+  Future<Machine?> enrolledMachine(Session session, int enrollmentId) async {
+    final enrollment = await MachineEnrollment.db.findById(
+      session,
+      enrollmentId,
+    );
+    final machineId = enrollment?.machineId;
+    return machineId == null ? null : Machine.db.findById(session, machineId);
+  }
+
+  static String? _nonEmpty(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<String> _uniqueName(
+    Session session,
+    String base,
+    Transaction transaction,
+  ) async {
+    final name = base.isEmpty ? 'machine' : base;
+    final taken = {
+      for (final m in await Machine.db.find(
+        session,
+        where: (m) => m.name.like('$name%'),
+        transaction: transaction,
+      ))
+        m.name,
+    };
+    if (!taken.contains(name)) return name;
+    var n = 2;
+    while (taken.contains('$name-$n')) {
+      n++;
+    }
+    return '$name-$n';
   }
 
   /// Base URL the install/uninstall scripts (and the agent-runner binary

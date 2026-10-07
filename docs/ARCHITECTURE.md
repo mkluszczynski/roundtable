@@ -64,7 +64,7 @@ Both failure paths, plus `MachineEndpoint.reportStartup`, go through
 | Endpoint | Panel-facing | Runner-facing |
 |---|---|---|
 | `ProjectEndpoint` | `create/get/list`, `update` (name/repoUrl/dockerImage only), `updateRepoAccessToken` (write-only token), `updateTools` (validated toolchain list), `detectTools` (suggests toolchains from the repo's manifests via the GitHub API — pubspec.yaml, package.json, .nvmrc, .fvmrc, go.mod, a root `.mise.toml`/`.tool-versions`…), `delete` (blocked by non-terminal tasks) | `getCloneUrl`: HTTPS URL with the token injected as `x-access-token` |
-| `MachineEndpoint` | `register` (returns a one-time token + install command data), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"; a daemon that doesn't pass `drainsForUpdate` is told only while its agents have no agent-driven task or running review), `reportMetric`, `reportClaudeStatus`, `reportToolchain`, `reportOsVersion` (OS detected at startup from `/etc/os-release` / `sw_vers`, e.g. "Ubuntu 24.04"), `deregister` (uninstall: deletes the machine, or marks it offline + revokes the token if unfinished tasks block that) |
+| `MachineEndpoint` | `createEnrollment` (one-time install token valid 1 h + install command data; no machine yet), `enrolledMachine` (polled by the dialog), `enroll` (called by install-agent.sh: redeems the install token, creates the machine, returns its token; a retry before the machine first connects re-issues its token), `list/get/delete`, `update` (name/hostInfo only), `getScriptUrl`, `latestRunnerVersion`, `requestRunnerUpdate`, `watchLatestMetric` | token-authenticated: `identify`, `reportStartup` (fails tasks/reviews orphaned by a restart, resets agents to idle), `heartbeat`, `checkIn` (heartbeat + version, returns "update requested"; a daemon that doesn't pass `drainsForUpdate` is told only while its agents have no agent-driven task or running review), `reportMetric`, `reportClaudeStatus`, `reportToolchain`, `reportOsVersion` (OS detected at startup from `/etc/os-release` / `sw_vers`, e.g. "Ubuntu 24.04"), `deregister` (uninstall: deletes the machine, or marks it offline + revokes the token if unfinished tasks block that) |
 | `AgentEndpoint` | `create/get/list`, `update` (name/role/model/effort only), `delete` (blocked by non-terminal tasks) | `setStatus` (`idle`/`busy`/`waitingForResponse`) |
 | `TaskEndpoint` | `createTask`, `cancelTask` (back to the backlog as an agent-less draft), `retryTask`, `reassignAgent`, `deleteTask`, `answerQuestion`, `approvePlan`, `submitPlanFeedback`, `submitFeedback`, `continueTask`, `acceptTask` (squash-merge, only with passing CI unless `force`), `getMergeStatus`, `resolveConflicts`, `getChecks`, `watchChecks`, `refreshChecks`, `fixFailingChecks`, `getChangedFiles`, `getFileContent`, `watchAllTasks`, `watchTask`, `watchLogs`, `watchTaskDeletions`, `latestQuestion` | `watchAssignedTasks`, `update` (runner-owned columns only; status limited to planning/running/awaitingReview/failed/cancelled; a write to an already-finished task or a draft is ignored), `appendLog`, `latestFeedback`, `findTasks` (worktree cleanup), and for the permission tool: `createQuestion`, `watchAnswer`, `setPlanReady`, `watchPlanDecision` |
 | `CodeReviewEndpoint` | `requestReview`, `watchReviews`, `setCommentState`, `sendCommentsToFix` | `watchAssignedReviews`, `startReview`, `completeReview`, `failReview` |
@@ -99,6 +99,7 @@ erDiagram
 | Entity | Notable fields |
 |---|---|
 | `Project` | `repoUrl`, `repoAccessToken` (**serverOnly**), `repoAccessTokenUpdatedAt`, `dockerImage` (docker-mode container image, default `buildpack-deps:bookworm-scm`), `tools` (`List<ProjectTool>` — mise tool id + version spec, e.g. `flutter 3.24`; the runner installs them with mise before each task and puts them first on `claude`'s PATH, docs/FLOWS.md §7; null/empty: only what the machine has), task-default overrides (`skipPlanning`, `autoReview`, `reviewerAgent`, `autoFixReview`, `maxReviewFixRounds`, `autoMerge`, `autoFixFailingChecks`, `maxCheckFixAttempts` — null inherits `WorkspaceSettings`; changing them updates the unfinished tasks' options not listed in `Task.overriddenOptions`, `propagateTaskDefaults`) |
+| `MachineEnrollment` | (**serverOnly**) `tokenHash` (unique), `name` (null: hostname), `expiresAt`, `machineId` (set once redeemed); rows an hour past expiry are dropped on the next `createEnrollment` |
 | `Machine` | `tokenHash` (**serverOnly**, unique index), `status` online/offline, `lastSeenAt`, `claudeExecutableOk/Error`, `runnerVersion`, `updateRequestedAt` |
 | `Agent` | `machine` (cascade on delete), `name`, `role` (→ `AgentRoleDefinition`: `name`, `description`, `prompt`; editable in Settings, deleting one in use is blocked), `defaultModel`, `defaultEffort`, `executionMode` (`native`, or `docker`: task runs in a rootless Podman container, docs/FLOWS.md §8; switchable while the agent has no open task), `status` |
 | `Task` | `project` (cascade), `agent` (optional, set null on delete), `prompt`, `title` (optional; suggested by the agent, editable by the dev), `skipPlanning`, advanced options (`autoReview`…`maxCheckFixAttempts`, with `overriddenOptions`: the ones the dev set on the task — the rest follow the project/workspace defaults), `status`, `currentPlan`, `failureReason`, `claudeSessionId`, `branchName`, `prUrl`, `startedAt/finishedAt/lastProgressAt`, CI: `prHeadSha`, `prHeadSeenAt`, `checkState` none/pending/success/failure, `checkError`, `checkFixAttempts`, `checkFixSentForSha` |
@@ -110,7 +111,7 @@ erDiagram
 | `ReviewComment` | `path`, `line`, `body`, `severity` blocker/issue/nit, `state` open/dismissed/sentToFix/resolved, `githubCommentId` |
 | `MachineMetric` | `cpuPercent`, `memoryUsedMb/TotalMb`, index on `(machineId, recordedAt)` |
 
-Non-table DTOs: `MachineRegistration`, `DiffFile`, `PrMergeStatus`, `PrChecks`,
+Non-table DTOs: `MachineInstallCommand`, `DiffFile`, `PrMergeStatus`, `PrChecks`,
 `ReviewCommentDraft`, `TaskDeleted`.
 
 Typed exceptions (their `message` reaches the panel; a plain `Exception`
@@ -202,8 +203,9 @@ Design choices worth keeping:
 
 ## Auth and secrets
 
-- **Machine ↔ server:** `register` generates a random token and stores only
-  its hash. Runner-facing `MachineEndpoint` methods look up the machine by
+- **Machine ↔ server:** the panel gets a one-time install token
+  (`createEnrollment`, 1 h); install-agent.sh redeems it with `enroll`, which
+  creates the machine with its own random token. Only hashes are stored. Runner-facing `MachineEndpoint` methods look up the machine by
   token. `deregister` deletes the machine (or clears the hash if unfinished
   tasks still block deletion).
 - **Panel ↔ server: no authentication.** Serverpod's email IdP is initialized

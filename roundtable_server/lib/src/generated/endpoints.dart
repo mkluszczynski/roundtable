@@ -872,16 +872,40 @@ class Endpoints extends _is.EndpointDispatch {
       name: 'machine',
       endpoint: endpoints['machine']!,
       methodConnectors: {
-        'register': _is.MethodConnector(
-          name: 'register',
+        'createEnrollment': _is.MethodConnector(
+          name: 'createEnrollment',
           params: {
             'name': _is.ParameterDescription(
               name: 'name',
+              type: _is.getType<String?>(),
+              nullable: true,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .createEnrollment(
+                    session,
+                    name: params['name'],
+                  ),
+        ),
+        'enroll': _is.MethodConnector(
+          name: 'enroll',
+          params: {
+            'enrollmentToken': _is.ParameterDescription(
+              name: 'enrollmentToken',
               type: _is.getType<String>(),
               nullable: false,
             ),
-            'hostInfo': _is.ParameterDescription(
-              name: 'hostInfo',
+            'hostname': _is.ParameterDescription(
+              name: 'hostname',
+              type: _is.getType<String>(),
+              nullable: false,
+            ),
+            'name': _is.ParameterDescription(
+              name: 'name',
               type: _is.getType<String?>(),
               nullable: true,
             ),
@@ -891,10 +915,30 @@ class Endpoints extends _is.EndpointDispatch {
                 _is.Session session,
                 Map<String, dynamic> params,
               ) async =>
-                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).register(
+                  (endpoints['machine'] as _ij6wllr0.MachineEndpoint).enroll(
                     session,
-                    params['name'],
-                    hostInfo: params['hostInfo'],
+                    params['enrollmentToken'],
+                    params['hostname'],
+                    name: params['name'],
+                  ),
+        ),
+        'enrolledMachine': _is.MethodConnector(
+          name: 'enrolledMachine',
+          params: {
+            'enrollmentId': _is.ParameterDescription(
+              name: 'enrollmentId',
+              type: _is.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _is.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['machine'] as _ij6wllr0.MachineEndpoint)
+                  .enrolledMachine(
+                    session,
+                    params['enrollmentId'],
                   ),
         ),
         'getScriptUrl': _is.MethodConnector(

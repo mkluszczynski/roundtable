@@ -52,8 +52,8 @@ import 'log_kind.dart' as _i7oqmlti;
 import 'log_phase.dart' as _iv8oofn2;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
+import 'machine_install_command.dart' as _ihqh286z;
 import 'machine_metric.dart' as _ixivwx7g;
-import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'not_found_exception.dart' as _i6jvclsf;
 import 'pr_check_run.dart' as _idxabcvw;
@@ -97,8 +97,8 @@ export 'log_kind.dart';
 export 'log_phase.dart';
 export 'log_source.dart';
 export 'machine.dart';
+export 'machine_install_command.dart';
 export 'machine_metric.dart';
-export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'not_found_exception.dart';
 export 'pr_check_run.dart';
@@ -216,11 +216,11 @@ class Protocol extends _isc.SerializationManager {
     if (t == _i0hti3f2.Machine) {
       return _i0hti3f2.Machine.fromJson(data) as T;
     }
+    if (t == _ihqh286z.MachineInstallCommand) {
+      return _ihqh286z.MachineInstallCommand.fromJson(data) as T;
+    }
     if (t == _ixivwx7g.MachineMetric) {
       return _ixivwx7g.MachineMetric.fromJson(data) as T;
-    }
-    if (t == _in7daleg.MachineRegistration) {
-      return _in7daleg.MachineRegistration.fromJson(data) as T;
     }
     if (t == _i6yugb3s.MachineStatus) {
       return _i6yugb3s.MachineStatus.fromJson(data) as T;
@@ -370,14 +370,14 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isc.getType<_i0hti3f2.Machine?>()) {
       return (data != null ? _i0hti3f2.Machine.fromJson(data) : null) as T;
     }
-    if (t == _isc.getType<_ixivwx7g.MachineMetric?>()) {
-      return (data != null ? _ixivwx7g.MachineMetric.fromJson(data) : null)
+    if (t == _isc.getType<_ihqh286z.MachineInstallCommand?>()) {
+      return (data != null
+              ? _ihqh286z.MachineInstallCommand.fromJson(data)
+              : null)
           as T;
     }
-    if (t == _isc.getType<_in7daleg.MachineRegistration?>()) {
-      return (data != null
-              ? _in7daleg.MachineRegistration.fromJson(data)
-              : null)
+    if (t == _isc.getType<_ixivwx7g.MachineMetric?>()) {
+      return (data != null ? _ixivwx7g.MachineMetric.fromJson(data) : null)
           as T;
     }
     if (t == _isc.getType<_i6yugb3s.MachineStatus?>()) {
@@ -729,8 +729,8 @@ class Protocol extends _isc.SerializationManager {
       _iv8oofn2.LogPhase => 'LogPhase',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
+      _ihqh286z.MachineInstallCommand => 'MachineInstallCommand',
       _ixivwx7g.MachineMetric => 'MachineMetric',
-      _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _i6jvclsf.NotFoundException => 'NotFoundException',
       _idxabcvw.PrCheckRun => 'PrCheckRun',
@@ -807,10 +807,10 @@ class Protocol extends _isc.SerializationManager {
         return 'LogSource';
       case _i0hti3f2.Machine():
         return 'Machine';
+      case _ihqh286z.MachineInstallCommand():
+        return 'MachineInstallCommand';
       case _ixivwx7g.MachineMetric():
         return 'MachineMetric';
-      case _in7daleg.MachineRegistration():
-        return 'MachineRegistration';
       case _i6yugb3s.MachineStatus():
         return 'MachineStatus';
       case _i6jvclsf.NotFoundException():
@@ -938,11 +938,11 @@ class Protocol extends _isc.SerializationManager {
     if (dataClassName == 'Machine') {
       return deserialize<_i0hti3f2.Machine>(data['data']);
     }
+    if (dataClassName == 'MachineInstallCommand') {
+      return deserialize<_ihqh286z.MachineInstallCommand>(data['data']);
+    }
     if (dataClassName == 'MachineMetric') {
       return deserialize<_ixivwx7g.MachineMetric>(data['data']);
-    }
-    if (dataClassName == 'MachineRegistration') {
-      return deserialize<_in7daleg.MachineRegistration>(data['data']);
     }
     if (dataClassName == 'MachineStatus') {
       return deserialize<_i6yugb3s.MachineStatus>(data['data']);

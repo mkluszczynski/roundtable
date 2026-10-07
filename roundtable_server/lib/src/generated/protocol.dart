@@ -54,8 +54,9 @@ import 'log_kind.dart' as _i7oqmlti;
 import 'log_phase.dart' as _iv8oofn2;
 import 'log_source.dart' as _ilj2nbps;
 import 'machine.dart' as _i0hti3f2;
+import 'machine_enrollment.dart' as _ikdnf1ur;
+import 'machine_install_command.dart' as _ihqh286z;
 import 'machine_metric.dart' as _ixivwx7g;
-import 'machine_registration.dart' as _in7daleg;
 import 'machine_status.dart' as _i6yugb3s;
 import 'not_found_exception.dart' as _i6jvclsf;
 import 'pr_check_run.dart' as _idxabcvw;
@@ -99,8 +100,9 @@ export 'log_kind.dart';
 export 'log_phase.dart';
 export 'log_source.dart';
 export 'machine.dart';
+export 'machine_enrollment.dart';
+export 'machine_install_command.dart';
 export 'machine_metric.dart';
-export 'machine_registration.dart';
 export 'machine_status.dart';
 export 'not_found_exception.dart';
 export 'pr_check_run.dart';
@@ -518,6 +520,62 @@ class Protocol extends _is.DatabaseSerializationManager {
       indexes: [
         _isp.IndexDefinition(
           indexName: 'machine_token_hash_idx',
+          tableSpace: null,
+          elements: [
+            _isp.IndexElementDefinition(
+              type: _isp.IndexElementDefinitionType.column,
+              definition: 'tokenHash',
+            ),
+          ],
+          type: 'btree',
+          isUnique: true,
+          isPrimary: false,
+        ),
+      ],
+      managed: true,
+    ),
+    _isp.TableDefinition(
+      name: 'machine_enrollment',
+      dartName: 'MachineEnrollment',
+      schema: 'public',
+      module: 'roundtable',
+      columns: [
+        _isp.ColumnDefinition(
+          name: 'id',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: false,
+          dartType: 'int?',
+          columnDefault: 'serial',
+        ),
+        _isp.ColumnDefinition(
+          name: 'tokenHash',
+          columnType: _isp.ColumnType.text,
+          isNullable: false,
+          dartType: 'String',
+        ),
+        _isp.ColumnDefinition(
+          name: 'name',
+          columnType: _isp.ColumnType.text,
+          isNullable: true,
+          dartType: 'String?',
+        ),
+        _isp.ColumnDefinition(
+          name: 'expiresAt',
+          columnType: _isp.ColumnType.timestampWithoutTimeZone,
+          isNullable: false,
+          dartType: 'DateTime',
+        ),
+        _isp.ColumnDefinition(
+          name: 'machineId',
+          columnType: _isp.ColumnType.bigint,
+          isNullable: true,
+          dartType: 'int?',
+        ),
+      ],
+      foreignKeys: [],
+      indexes: [
+        _isp.IndexDefinition(
+          indexName: 'machine_enrollment_token_idx',
           tableSpace: null,
           elements: [
             _isp.IndexElementDefinition(
@@ -1827,11 +1885,14 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _i0hti3f2.Machine) {
       return _i0hti3f2.Machine.fromJson(data) as T;
     }
+    if (t == _ikdnf1ur.MachineEnrollment) {
+      return _ikdnf1ur.MachineEnrollment.fromJson(data) as T;
+    }
+    if (t == _ihqh286z.MachineInstallCommand) {
+      return _ihqh286z.MachineInstallCommand.fromJson(data) as T;
+    }
     if (t == _ixivwx7g.MachineMetric) {
       return _ixivwx7g.MachineMetric.fromJson(data) as T;
-    }
-    if (t == _in7daleg.MachineRegistration) {
-      return _in7daleg.MachineRegistration.fromJson(data) as T;
     }
     if (t == _i6yugb3s.MachineStatus) {
       return _i6yugb3s.MachineStatus.fromJson(data) as T;
@@ -1981,14 +2042,18 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (t == _is.getType<_i0hti3f2.Machine?>()) {
       return (data != null ? _i0hti3f2.Machine.fromJson(data) : null) as T;
     }
-    if (t == _is.getType<_ixivwx7g.MachineMetric?>()) {
-      return (data != null ? _ixivwx7g.MachineMetric.fromJson(data) : null)
+    if (t == _is.getType<_ikdnf1ur.MachineEnrollment?>()) {
+      return (data != null ? _ikdnf1ur.MachineEnrollment.fromJson(data) : null)
           as T;
     }
-    if (t == _is.getType<_in7daleg.MachineRegistration?>()) {
+    if (t == _is.getType<_ihqh286z.MachineInstallCommand?>()) {
       return (data != null
-              ? _in7daleg.MachineRegistration.fromJson(data)
+              ? _ihqh286z.MachineInstallCommand.fromJson(data)
               : null)
+          as T;
+    }
+    if (t == _is.getType<_ixivwx7g.MachineMetric?>()) {
+      return (data != null ? _ixivwx7g.MachineMetric.fromJson(data) : null)
           as T;
     }
     if (t == _is.getType<_i6yugb3s.MachineStatus?>()) {
@@ -2343,8 +2408,9 @@ class Protocol extends _is.DatabaseSerializationManager {
       _iv8oofn2.LogPhase => 'LogPhase',
       _ilj2nbps.LogSource => 'LogSource',
       _i0hti3f2.Machine => 'Machine',
+      _ikdnf1ur.MachineEnrollment => 'MachineEnrollment',
+      _ihqh286z.MachineInstallCommand => 'MachineInstallCommand',
       _ixivwx7g.MachineMetric => 'MachineMetric',
-      _in7daleg.MachineRegistration => 'MachineRegistration',
       _i6yugb3s.MachineStatus => 'MachineStatus',
       _i6jvclsf.NotFoundException => 'NotFoundException',
       _idxabcvw.PrCheckRun => 'PrCheckRun',
@@ -2421,10 +2487,12 @@ class Protocol extends _is.DatabaseSerializationManager {
         return 'LogSource';
       case _i0hti3f2.Machine():
         return 'Machine';
+      case _ikdnf1ur.MachineEnrollment():
+        return 'MachineEnrollment';
+      case _ihqh286z.MachineInstallCommand():
+        return 'MachineInstallCommand';
       case _ixivwx7g.MachineMetric():
         return 'MachineMetric';
-      case _in7daleg.MachineRegistration():
-        return 'MachineRegistration';
       case _i6yugb3s.MachineStatus():
         return 'MachineStatus';
       case _i6jvclsf.NotFoundException():
@@ -2556,11 +2624,14 @@ class Protocol extends _is.DatabaseSerializationManager {
     if (dataClassName == 'Machine') {
       return deserialize<_i0hti3f2.Machine>(data['data']);
     }
+    if (dataClassName == 'MachineEnrollment') {
+      return deserialize<_ikdnf1ur.MachineEnrollment>(data['data']);
+    }
+    if (dataClassName == 'MachineInstallCommand') {
+      return deserialize<_ihqh286z.MachineInstallCommand>(data['data']);
+    }
     if (dataClassName == 'MachineMetric') {
       return deserialize<_ixivwx7g.MachineMetric>(data['data']);
-    }
-    if (dataClassName == 'MachineRegistration') {
-      return deserialize<_in7daleg.MachineRegistration>(data['data']);
     }
     if (dataClassName == 'MachineStatus') {
       return deserialize<_i6yugb3s.MachineStatus>(data['data']);
@@ -2683,6 +2754,8 @@ class Protocol extends _is.DatabaseSerializationManager {
         return _icksttbv.CodeReview.t;
       case _i0hti3f2.Machine:
         return _i0hti3f2.Machine.t;
+      case _ikdnf1ur.MachineEnrollment:
+        return _ikdnf1ur.MachineEnrollment.t;
       case _ixivwx7g.MachineMetric:
         return _ixivwx7g.MachineMetric.t;
       case _idxabcvw.PrCheckRun:

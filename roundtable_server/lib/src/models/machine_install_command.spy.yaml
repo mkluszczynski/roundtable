@@ -1,0 +1,14 @@
+### Returned once from MachineEndpoint.createEnrollment: the raw one-time
+### enrollment token plus the URLs the panel folds into the install command
+### (docs/FLOWS.md §1). Not a database table.
+###
+### serverUrl and scriptUrl can differ: serverUrl is the API server the
+### installed agent-runner connects to, scriptUrl is where the install
+### script itself is hosted (the web server).
+class: MachineInstallCommand
+fields:
+  enrollmentId: int
+  enrollmentToken: String
+  expiresAt: DateTime
+  serverUrl: String
+  scriptUrl: String

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
 import '../cubits/add_machine_cubit.dart';
@@ -11,9 +12,10 @@ import 'app_modal.dart';
 import 'claude_token_help_accordion.dart';
 import 'code_block.dart';
 
-/// Two-step machine registration (docs/FLOWS.md §1–3): a name form, then the
-/// generated one-time token + install command — shown once, no back button
-/// once generated. Opened from `machines_screen.dart`.
+/// Two-step machine setup (docs/FLOWS.md §1): a form, then the install
+/// command with a one-time token. The machine is created by the install
+/// script, not here — the second step waits for it to show up. Opened from
+/// `machines_screen.dart`.
 class AddMachineDialog extends StatelessWidget {
   const AddMachineDialog({super.key});
 
@@ -49,21 +51,17 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
   Widget build(BuildContext context) {
     return BlocBuilder<AddMachineCubit, AddMachineState>(
       builder: (context, state) {
-        if (state is AddMachineRegistered) {
-          return _RegisteredStep(
-            machineName: state.machine.name,
-            token: state.token,
-            serverUrl: state.serverUrl,
-            scriptUrl: state.scriptUrl,
+        if (state is AddMachineCommandReady) {
+          return _InstallStep(
+            command: state.command,
+            machine: state.machine,
             claudeToken: _claudeTokenController.text.trim(),
           );
         }
 
         final submitting = state is AddMachineSubmitting;
         final canSubmit =
-            !submitting &&
-            _nameController.text.trim().isNotEmpty &&
-            _claudeTokenController.text.trim().isNotEmpty;
+            !submitting && _claudeTokenController.text.trim().isNotEmpty;
         return AppModal(
           icon: Icons.dns_outlined,
 
@@ -85,7 +83,7 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Register'),
+                  : const Text('Get install command'),
             ),
           ],
           child: SizedBox(
@@ -96,13 +94,15 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
               children: [
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Name (optional)',
+                    hintText: "Defaults to the machine's hostname",
+                  ),
                 ),
                 const SizedBox(height: Spacing.xs),
                 Text(
-                  'The OS version (e.g. Ubuntu 24.04) is detected '
-                  'automatically once the runner is installed.',
+                  'The machine appears once the install command has run on '
+                  'it. Its OS version is detected automatically.',
                   style: AppTypography.caption,
                 ),
                 const SizedBox(height: Spacing.lg),
@@ -132,54 +132,52 @@ class _AddMachineDialogContentState extends State<_AddMachineDialogContent> {
   }
 }
 
-class _RegisteredStep extends StatefulWidget {
-  const _RegisteredStep({
-    required this.machineName,
-    required this.token,
-    required this.serverUrl,
-    required this.scriptUrl,
+class _InstallStep extends StatefulWidget {
+  const _InstallStep({
+    required this.command,
+    required this.machine,
     required this.claudeToken,
   });
 
-  final String machineName;
-  final String token;
-  final String serverUrl;
-  final String scriptUrl;
+  final MachineInstallCommand command;
+
+  /// The machine the command created, once install-agent.sh has run it.
+  final Machine? machine;
 
   /// Claude Code OAuth token entered in the form step — never sent to the
   /// server (docs/ARCHITECTURE.md), only folded into the install command below.
   final String claudeToken;
 
   @override
-  State<_RegisteredStep> createState() => _RegisteredStepState();
+  State<_InstallStep> createState() => _InstallStepState();
 }
 
-class _RegisteredStepState extends State<_RegisteredStep> {
+class _InstallStepState extends State<_InstallStep> {
   /// Adds `--docker`: installs rootless Podman for docker-mode agents.
   bool _docker = false;
 
   @override
   Widget build(BuildContext context) {
-    final _RegisteredStep(
-      :machineName,
-      :token,
-      :serverUrl,
-      :scriptUrl,
-      :claudeToken,
-    ) = widget;
-    final command =
+    final _InstallStep(:command, :machine, :claudeToken) = widget;
+    final scriptUrl = command.scriptUrl;
+    final installCommand =
         'curl -fsSL $scriptUrl/install-agent.sh | sudo bash -s -- '
-        '--token $token --server $serverUrl --script-url $scriptUrl'
+        '--enroll ${command.enrollmentToken} --server ${command.serverUrl} '
+        '--script-url $scriptUrl'
         "${claudeToken.isEmpty ? '' : " --claude-token '$claudeToken'"}"
         "${_docker ? ' --docker' : ''}";
+    final expires = command.expiresAt.toLocal();
+    final expiresAt =
+        '${expires.hour.toString().padLeft(2, '0')}:'
+        '${expires.minute.toString().padLeft(2, '0')}';
     return AppModal(
-      icon: Icons.check_circle_outline,
-      title: 'Machine registered',
-      subtitle: machineName,
+      icon: machine == null ? Icons.terminal : Icons.check_circle_outline,
+      title: machine == null ? 'Install the runner' : 'Machine added',
+      subtitle: machine?.name,
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Done'),
+          child: Text(machine == null ? 'Close' : 'Done'),
         ),
       ],
       child: SizedBox(
@@ -189,8 +187,8 @@ class _RegisteredStepState extends State<_RegisteredStep> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This token is shown once. Run the following command on the '
-              'target machine to install the agent runner:',
+              'Run this command on the target machine. It works once and '
+              'expires at $expiresAt.',
               style: AppTypography.body,
             ),
             const SizedBox(height: Spacing.md),
@@ -207,7 +205,41 @@ class _RegisteredStepState extends State<_RegisteredStep> {
               ),
             ),
             const SizedBox(height: Spacing.md),
-            CodeBlock(code: command),
+            CodeBlock(code: installCommand),
+            const SizedBox(height: Spacing.lg),
+            if (machine == null)
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: Spacing.sm),
+                  Text(
+                    'Waiting for the machine to finish installing…',
+                    style: AppTypography.caption,
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: AppColors.live,
+                  ),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(
+                    child: Text(
+                      '${machine.name} is installed. Add agents to it from '
+                      'the Machines screen.',
+                      style: AppTypography.body,
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

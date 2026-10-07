@@ -30,10 +30,10 @@ import 'package:roundtable_server/src/generated/greetings/greeting.dart'
     as _iob7x90u;
 import 'package:roundtable_server/src/generated/log_source.dart' as _iexu01r8;
 import 'package:roundtable_server/src/generated/machine.dart' as _ilqrziin;
+import 'package:roundtable_server/src/generated/machine_install_command.dart'
+    as _iryogpl8;
 import 'package:roundtable_server/src/generated/machine_metric.dart'
     as _idvadg1i;
-import 'package:roundtable_server/src/generated/machine_registration.dart'
-    as _i1b54xmb;
 import 'package:roundtable_server/src/generated/pr_checks.dart' as _iuvdgnoc;
 import 'package:roundtable_server/src/generated/pr_merge_status.dart'
     as _idwnfayv;
@@ -1390,25 +1390,58 @@ class _MachineEndpoint {
 
   final _is.SerializationManager _serializationManager;
 
-  _ida.Future<_i1b54xmb.MachineRegistration> register(
-    _ist.TestSessionBuilder sessionBuilder,
-    String name, {
-    String? hostInfo,
+  _ida.Future<_iryogpl8.MachineInstallCommand> createEnrollment(
+    _ist.TestSessionBuilder sessionBuilder, {
+    String? name,
   }) async {
     return _ist.callAwaitableFunctionAndHandleExceptions(() async {
       var _localUniqueSession =
           (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
             endpoint: 'machine',
-            method: 'register',
+            method: 'createEnrollment',
           );
       try {
         var _localCallContext = await _endpointDispatch.getMethodCallContext(
           createSessionCallback: (_) => _localUniqueSession,
           endpointPath: 'machine',
-          methodName: 'register',
+          methodName: 'createEnrollment',
+          parameters: _ist.testObjectToJson({'name': name}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_iryogpl8.MachineInstallCommand>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<String> enroll(
+    _ist.TestSessionBuilder sessionBuilder,
+    String enrollmentToken,
+    String hostname, {
+    String? name,
+  }) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'enroll',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'enroll',
           parameters: _ist.testObjectToJson({
+            'enrollmentToken': enrollmentToken,
+            'hostname': hostname,
             'name': name,
-            'hostInfo': hostInfo,
           }),
           serializationManager: _serializationManager,
         );
@@ -1417,7 +1450,38 @@ class _MachineEndpoint {
                   _localUniqueSession,
                   _localCallContext.arguments,
                 )
-                as _ida.Future<_i1b54xmb.MachineRegistration>);
+                as _ida.Future<String>);
+        return _localReturnValue;
+      } finally {
+        await _localUniqueSession.close();
+      }
+    });
+  }
+
+  _ida.Future<_ilqrziin.Machine?> enrolledMachine(
+    _ist.TestSessionBuilder sessionBuilder,
+    int enrollmentId,
+  ) async {
+    return _ist.callAwaitableFunctionAndHandleExceptions(() async {
+      var _localUniqueSession =
+          (sessionBuilder as _ist.InternalTestSessionBuilder).internalBuild(
+            endpoint: 'machine',
+            method: 'enrolledMachine',
+          );
+      try {
+        var _localCallContext = await _endpointDispatch.getMethodCallContext(
+          createSessionCallback: (_) => _localUniqueSession,
+          endpointPath: 'machine',
+          methodName: 'enrolledMachine',
+          parameters: _ist.testObjectToJson({'enrollmentId': enrollmentId}),
+          serializationManager: _serializationManager,
+        );
+        var _localReturnValue =
+            await (_localCallContext.method.call(
+                  _localUniqueSession,
+                  _localCallContext.arguments,
+                )
+                as _ida.Future<_ilqrziin.Machine?>);
         return _localReturnValue;
       } finally {
         await _localUniqueSession.close();

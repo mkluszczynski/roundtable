@@ -1,6 +1,7 @@
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
 
+import 'enroll_machine.dart';
 import 'test_tools/serverpod_test_tools.dart';
 
 /// Guards on the generic `update` endpoints, typed exceptions, and the
@@ -141,8 +142,9 @@ void main() {
       });
 
       test('when updating a machine then its token hash is kept', () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         final machine = (await Machine.db.findById(
@@ -231,8 +233,9 @@ void main() {
         'when the daemon restarts then its in-flight tasks and reviews fail, '
         'queued ones stay, and its agents go idle',
         () async {
-          final registration = await endpoints.machine.register(
+          final registration = await enrollMachine(
             sessionBuilder,
+            endpoints,
             'VPS',
           );
           final agent = await Agent.db.insertRow(

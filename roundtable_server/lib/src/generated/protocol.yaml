@@ -35,7 +35,9 @@ codeReview:
   - setCommentState:
   - sendCommentsToFix:
 machine:
-  - register:
+  - createEnrollment:
+  - enroll:
+  - enrolledMachine:
   - getScriptUrl:
   - get:
   - list:

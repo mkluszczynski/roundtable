@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:test/test.dart';
 
+import 'enroll_machine.dart';
 import 'test_tools/serverpod_test_tools.dart';
 
 void main() {
@@ -11,8 +12,9 @@ void main() {
     test(
       'when registering a machine then it is persisted as offline',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -26,8 +28,9 @@ void main() {
       'when registering a machine then a token is returned and the stored '
       'hash matches it',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -43,8 +46,9 @@ void main() {
       'when registering a machine then the raw token itself is never '
       'persisted as tokenHash',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -56,9 +60,10 @@ void main() {
       'when registering two machines then they get different tokens and '
       'hashes',
       () async {
-        final first = await endpoints.machine.register(sessionBuilder, 'VPS');
-        final second = await endpoints.machine.register(
+        final first = await enrollMachine(sessionBuilder, endpoints, 'VPS');
+        final second = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'Laptop',
         );
 
@@ -67,8 +72,154 @@ void main() {
       },
     );
 
+    test(
+      'when an install command is created then no machine exists until the '
+      'script enrolls',
+      () async {
+        final before = await endpoints.machine.list(sessionBuilder);
+        final command = await endpoints.machine.createEnrollment(
+          sessionBuilder,
+        );
+
+        expect(command.enrollmentToken, isNotEmpty);
+        expect(
+          await endpoints.machine.list(sessionBuilder),
+          hasLength(before.length),
+        );
+        expect(
+          await endpoints.machine.enrolledMachine(
+            sessionBuilder,
+            command.enrollmentId,
+          ),
+          isNull,
+        );
+
+        await endpoints.machine.enroll(
+          sessionBuilder,
+          command.enrollmentToken,
+          'vps-hetzner',
+        );
+        final machine = await endpoints.machine.enrolledMachine(
+          sessionBuilder,
+          command.enrollmentId,
+        );
+        expect(machine!.name, 'vps-hetzner');
+      },
+    );
+
+    test(
+      'when a connected machine\'s install token is used again then it fails',
+      () async {
+        final command = await endpoints.machine.createEnrollment(
+          sessionBuilder,
+        );
+        final token = await endpoints.machine.enroll(
+          sessionBuilder,
+          command.enrollmentToken,
+          'a',
+        );
+        await endpoints.machine.heartbeat(sessionBuilder, token);
+
+        await expectLater(
+          endpoints.machine.enroll(
+            sessionBuilder,
+            command.enrollmentToken,
+            'b',
+          ),
+          throwsA(isA<InvalidTokenException>()),
+        );
+      },
+    );
+
+    test(
+      'when the script retries a used token before the machine connected '
+      'then the same machine gets a new token',
+      () async {
+        final command = await endpoints.machine.createEnrollment(
+          sessionBuilder,
+        );
+        final first = await endpoints.machine.enroll(
+          sessionBuilder,
+          command.enrollmentToken,
+          'host',
+        );
+        final retried = await endpoints.machine.enroll(
+          sessionBuilder,
+          command.enrollmentToken,
+          'host',
+        );
+
+        expect(retried, isNot(first));
+        final machine = await endpoints.machine.identify(
+          sessionBuilder,
+          retried,
+        );
+        expect(machine.id, isNotNull);
+        await expectLater(
+          endpoints.machine.identify(sessionBuilder, first),
+          throwsA(isA<InvalidTokenException>()),
+        );
+        final machines = await endpoints.machine.list(sessionBuilder);
+        expect(machines.where((m) => m.name.startsWith('host')), hasLength(1));
+      },
+    );
+
+    test(
+      'when the script passes a name then it beats the panel name',
+      () async {
+        final command = await endpoints.machine.createEnrollment(
+          sessionBuilder,
+          name: 'from-panel',
+        );
+        await endpoints.machine.enroll(
+          sessionBuilder,
+          command.enrollmentToken,
+          'host',
+          name: 'from-script',
+        );
+
+        final machine = await endpoints.machine.enrolledMachine(
+          sessionBuilder,
+          command.enrollmentId,
+        );
+        expect(machine!.name, 'from-script');
+      },
+    );
+
+    test('when an install token has expired then enrolling fails', () async {
+      final command = await endpoints.machine.createEnrollment(sessionBuilder);
+      final session = sessionBuilder.build();
+      final enrollment = await MachineEnrollment.db.findById(
+        session,
+        command.enrollmentId,
+      );
+      await MachineEnrollment.db.updateRow(
+        session,
+        enrollment!.copyWith(
+          expiresAt: DateTime.now().toUtc().subtract(
+            const Duration(minutes: 1),
+          ),
+        ),
+      );
+
+      await expectLater(
+        endpoints.machine.enroll(sessionBuilder, command.enrollmentToken, 'a'),
+        throwsA(isA<InvalidTokenException>()),
+      );
+    });
+
+    test(
+      'when the hostname is already a machine name then a suffix is added',
+      () async {
+        await enrollMachine(sessionBuilder, endpoints, 'laptop');
+        final second = await enrollMachine(sessionBuilder, endpoints, 'laptop');
+
+        expect(second.machine.name, 'laptop-2');
+      },
+    );
+
     test('when getting a machine by id then it is returned', () async {
-      final created = await endpoints.machine.register(sessionBuilder, 'VPS');
+      final created = await enrollMachine(sessionBuilder, endpoints, 'VPS');
 
       final fetched = await endpoints.machine.get(
         sessionBuilder,
@@ -82,9 +233,10 @@ void main() {
     test(
       'when listing machines then all created machines are included',
       () async {
-        final first = await endpoints.machine.register(sessionBuilder, 'VPS');
-        final second = await endpoints.machine.register(
+        final first = await enrollMachine(sessionBuilder, endpoints, 'VPS');
+        final second = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'Laptop',
         );
 
@@ -98,7 +250,7 @@ void main() {
     );
 
     test('when updating a machine then the change is persisted', () async {
-      final created = await endpoints.machine.register(sessionBuilder, 'VPS');
+      final created = await enrollMachine(sessionBuilder, endpoints, 'VPS');
 
       await endpoints.machine.update(
         sessionBuilder,
@@ -115,7 +267,7 @@ void main() {
     test(
       'when deleting an offline machine with no tasks then it is removed',
       () async {
-        final created = await endpoints.machine.register(sessionBuilder, 'VPS');
+        final created = await enrollMachine(sessionBuilder, endpoints, 'VPS');
 
         await endpoints.machine.delete(sessionBuilder, created.machine.id!);
 
@@ -239,8 +391,9 @@ void main() {
       'when sending a heartbeat with a valid token then the machine is '
       'marked online and lastSeenAt is refreshed',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -267,8 +420,9 @@ void main() {
     );
 
     test('when the daemon reports a usage limit then it is stored', () async {
-      final registration = await endpoints.machine.register(
+      final registration = await enrollMachine(
         sessionBuilder,
+        endpoints,
         'VPS',
       );
       final until = DateTime.utc(2026, 10, 7, 15, 30);
@@ -290,8 +444,9 @@ void main() {
       'when checking in then the machine is marked online and its runner '
       'version is recorded',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -315,8 +470,9 @@ void main() {
       'when an update is requested then check-ins report it until the '
       'daemon comes back with a new version',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         final id = registration.machine.id!;
@@ -357,8 +513,9 @@ void main() {
 
       setUp(() async {
         final session = sessionBuilder.build();
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         token = registration.token;
@@ -463,8 +620,9 @@ void main() {
       'when deregistering an online machine with a valid token then the '
       'machine is deleted and the token no longer works',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         await endpoints.machine.heartbeat(sessionBuilder, registration.token);
@@ -491,8 +649,9 @@ void main() {
       'the task fails, keeps its history, and the machine is deleted',
       () async {
         final session = sessionBuilder.build();
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         await endpoints.machine.heartbeat(sessionBuilder, registration.token);
@@ -540,8 +699,9 @@ void main() {
       'blocked only by that task',
       () async {
         final session = sessionBuilder.build();
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         await endpoints.machine.heartbeat(sessionBuilder, registration.token);
@@ -604,8 +764,9 @@ void main() {
       'is deleted',
       () async {
         final session = sessionBuilder.build();
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'Reviewer VPS',
         );
         final reviewer = await Agent.db.insertRow(
@@ -737,8 +898,9 @@ void main() {
       'when reporting a failing claude status with a valid token then it is '
       'persisted on the machine',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 
@@ -765,8 +927,9 @@ void main() {
       'when reporting a successful claude status then a previous error is '
       'cleared',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
         await endpoints.machine.reportClaudeStatus(
@@ -812,8 +975,9 @@ void main() {
       'when reporting the OS version with a valid token then it is persisted '
       'on the machine',
       () async {
-        final registration = await endpoints.machine.register(
+        final registration = await enrollMachine(
           sessionBuilder,
+          endpoints,
           'VPS',
         );
 

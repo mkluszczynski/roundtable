@@ -39,12 +39,12 @@ void main() {
   ) async {
     await tester.pumpWidget(const MyApp());
 
-    // 1. Register a machine; "install" its runner with the shown token.
+    // 1. Add a machine; "install" its runner with the shown command.
     await tester.tapWhenShown(find.text('Add machine'));
     Finder inMachineDialog(Finder f) =>
         find.descendant(of: find.byType(AddMachineDialog), matching: f);
     await tester.enterText(
-      inMachineDialog(find.widgetWithText(TextField, 'Name')),
+      inMachineDialog(find.widgetWithText(TextField, 'Name (optional)')),
       'Laptop',
     );
     await tester.enterText(
@@ -53,10 +53,17 @@ void main() {
       ),
       'fake-claude-token',
     );
-    await tester.tapWhenShown(inMachineDialog(find.text('Register')));
-    await tester.shown(find.text('Machine registered'));
+    await tester.tapWhenShown(
+      inMachineDialog(find.text('Get install command')),
+    );
+    await tester.shown(find.text('Install the runner'));
     final command = tester.widget<CodeBlock>(find.byType(CodeBlock)).code;
-    final token = RegExp(r'--token (\S+)').firstMatch(command)!.group(1)!;
+    final installToken = RegExp(
+      r'--enroll (\S+)',
+    ).firstMatch(command)!.group(1)!;
+    // What install-agent.sh does once the runner is installed.
+    final token = await e2e.client.machine.enroll(installToken, 'laptop-host');
+    await tester.shown(find.text('Machine added'));
     await tester.tapWhenShown(find.text('Done'));
     await tester.gone(find.byType(AddMachineDialog));
     final machine = await e2e.startRunner(token);

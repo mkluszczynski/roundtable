@@ -6,17 +6,30 @@ can jump straight in.
 ## 1. Adding a machine
 
 1. Panel → **Add machine** (`widgets/add_machine_dialog.dart`) →
-   `MachineEndpoint.register(name)`. The server generates a random token,
-   stores only `tokenHash`, and returns `MachineRegistration` (token,
-   `serverUrl`, `scriptUrl`). The token is shown **once** with a ready-made
-   command:
-   `curl -fsSL <scriptUrl>/install-agent.sh | sudo bash -s -- --token … --server … --claude-token …`
+   `MachineEndpoint.createEnrollment(name?)`. The server stores only the
+   hash of a one-time install token valid for 1 hour (`MachineEnrollment`)
+   and returns `MachineInstallCommand` (token, `serverUrl`, `scriptUrl`).
+   **No machine exists yet.** The dialog shows a ready-made command:
+   `curl -fsSL <scriptUrl>/install-agent.sh | sudo bash -s -- --enroll … --server … --claude-token …`
+   and polls `enrolledMachine` until the machine appears, then shows
+   "Machine added".
 2. `scripts/install-agent.sh` (Linux + systemd) does the following:
    - creates the system user `roundtable-agent` with home `/var/lib/agent-runner`
    - downloads both binaries from `/agent-runner-bin` and
      `/permission-prompt-tool-bin`
    - writes `/etc/agent-runner/config.env` (mode 600), resolving an absolute
      `CLAUDE_EXECUTABLE` path
+   - as the last step before writing the config, redeems the install token
+     with `MachineEndpoint.enroll(token, hostname, name: --name)`. The
+     server creates the machine (named `--name`, else as given in the
+     panel, else the hostname, with a `-2` suffix if taken) and returns the
+     machine's own token. An expired or used token stops the install, so a
+     failed install never leaves a machine in the panel. If the response is
+     lost, the script retries: a used token whose machine has never
+     connected gets that machine a new token instead of an error.
+   - `--enroll` on a machine that already has a `config.env` token is
+     refused (it would add a duplicate machine). Re-running the script
+     without `--enroll` keeps the token in `config.env`.
    - installs and starts `agent-runner.service`, plus the root-side updater
      units `agent-runner-update.{service,path}`
 3. The daemon starts. It calls `identify(token)` to learn its machine id,

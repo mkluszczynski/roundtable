@@ -1,0 +1,19 @@
+### A one-time install token from the panel's "Add machine" dialog. The
+### machine itself is only created when install-agent.sh redeems it via
+### MachineEndpoint.enroll, so an abandoned dialog or a failed install leaves
+### no machine behind (docs/FLOWS.md §1).
+class: MachineEnrollment
+table: machine_enrollment
+serverOnly: true
+fields:
+  ### Hash of the raw enrollment token. The raw token is shown to the dev only once.
+  tokenHash: String
+  ### Name chosen in the panel. Null means the machine's hostname.
+  name: String?
+  expiresAt: DateTime
+  ### The machine created by redeeming this token. Set means used.
+  machineId: int?
+indexes:
+  machine_enrollment_token_idx:
+    fields: tokenHash
+    unique: true

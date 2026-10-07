@@ -95,8 +95,14 @@ class E2EHarness {
         .._binaries = binaries
         .._scenarioFile = scenarioFile;
       if (withMachine) {
-        final registration = await client.machine.register('E2E machine');
-        harness.machine = await harness.startRunner(registration.token);
+        final command = await client.machine.createEnrollment(
+          name: 'E2E machine',
+        );
+        final token = await client.machine.enroll(
+          command.enrollmentToken,
+          'e2e-host',
+        );
+        harness.machine = await harness.startRunner(token);
       }
       return harness;
     } catch (_) {

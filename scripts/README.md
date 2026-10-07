@@ -25,23 +25,26 @@ terminal on the machine.
 > the machine, and only the resulting token comes back over the terminal.
 
 Pass that token to the installer with `--claude-token`, alongside the
-machine registration token and server URL:
+one-time install token (`--enroll`, from the panel's **Add machine**
+dialog, valid for an hour) and server URL:
 
 ```bash
 sudo ./scripts/install-agent.sh \
-  --token <REGISTRATION_TOKEN> \
+  --enroll <INSTALL_TOKEN> \
   --server https://your-server.example.com \
   --claude-token <CLAUDE_CODE_OAUTH_TOKEN>
 ```
 
 The installer writes it into `/etc/agent-runner/config.env` (mode `600`)
-alongside the registration token, and the daemon reads it from there when
+alongside the machine's token (returned by the server when the install
+token is redeemed), and the daemon reads it from there when
 launching Claude Code subprocesses. It never reaches the central server or
 database — unlike the repo access token, this one is tied to a specific
 `claude` installation on this specific host and stays local.
 
 If you forgot to pass `--claude-token` on first install, re-run
-`install-agent.sh` with the same flags plus `--claude-token` — it's safe to
+`install-agent.sh` with `--server`, `--script-url` and `--claude-token` —
+no `--enroll` needed, it keeps the machine's token from `config.env` — it's safe to
 run again (it stops the existing service before reinstalling).
 
 **Known limitation:** the token is pinned to one human subscription, sized

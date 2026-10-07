@@ -9,11 +9,16 @@ class MachineRepository {
 
   Future<Machine?> getMachine(int id) => _client.machine.get(id);
 
-  /// Registers a new machine, returning it along with the one-time raw
-  /// registration token — only ever available here, never persisted or
-  /// re-fetchable (docs/FLOWS.md §1–3).
-  Future<MachineRegistration> registerMachine(String name) =>
-      _client.machine.register(name);
+  /// A one-time install token for a new machine, valid for an hour. The
+  /// machine itself appears only once install-agent.sh redeems it
+  /// (docs/FLOWS.md §1). A null [name] means the machine's hostname.
+  Future<MachineInstallCommand> createInstallCommand({String? name}) =>
+      _client.machine.createEnrollment(name: name);
+
+  /// The machine created from install command [enrollmentId], or null
+  /// while it hasn't been run yet.
+  Future<Machine?> enrolledMachine(int enrollmentId) =>
+      _client.machine.enrolledMachine(enrollmentId);
 
   Future<void> deleteMachine(int id) => _client.machine.delete(id);
 
