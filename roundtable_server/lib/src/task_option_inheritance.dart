@@ -2,8 +2,8 @@ import 'package:serverpod/serverpod.dart';
 
 import 'endpoints/non_terminal_task_statuses.dart';
 import 'endpoints/settings_endpoint.dart';
-import 'endpoints/task_endpoint.dart';
 import 'generated/protocol.dart';
+import 'task_events.dart';
 
 /// The task options that follow the project/workspace defaults unless the
 /// dev sets them on the task (`Task.overriddenOptions`). `skipPlanning` is
@@ -128,14 +128,7 @@ Future<void> propagateTaskDefaults(Session session, {int? projectId}) async {
           t.maxCheckFixAttempts,
         ],
       );
-      await session.messages.postMessage(
-        TaskEndpoint.channelForTask(updated.id!),
-        updated,
-      );
-      await session.messages.postMessage(
-        TaskEndpoint.channelForAllTasks(),
-        updated,
-      );
+      await publishTask(session, updated);
     }
   }
 }

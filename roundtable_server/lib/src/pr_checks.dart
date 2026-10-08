@@ -1,9 +1,9 @@
 import 'package:serverpod/serverpod.dart';
 
-import 'endpoints/task_endpoint.dart';
 import 'generated/protocol.dart';
 import 'github_repo_client.dart';
 import 'task_review_support.dart';
+import 'task_events.dart';
 
 /// GitHub Actions checks on a task's PR (docs/FLOWS.md §4 "CI checks"):
 /// mirrored into [PrCheckRun] rows and `Task.checkState` by [syncChecks],
@@ -183,14 +183,7 @@ Future<Task> syncChecks(
       task.copyWith(prAdditions: head.additions, prDeletions: head.deletions),
       columns: (t) => [t.prAdditions, t.prDeletions],
     );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForTask(taskId),
-      updated,
-    );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForAllTasks(),
-      updated,
-    );
+    await publishTask(session, updated);
     return updated;
   }
   final (:owner, :repo, number: _) = github.parsePrUrl(context.prUrl);
@@ -301,14 +294,7 @@ Future<Task> syncChecks(
         t.prDeletions,
       ],
     );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForTask(taskId),
-      updated,
-    );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForAllTasks(),
-      updated,
-    );
+    await publishTask(session, updated);
   }
   if (runsChanged || taskChanged) {
     await session.messages.postMessage(

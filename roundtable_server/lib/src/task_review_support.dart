@@ -1,8 +1,8 @@
 import 'package:serverpod/serverpod.dart';
 
-import 'endpoints/task_endpoint.dart';
 import 'generated/protocol.dart';
 import 'github_repo_client.dart';
+import 'task_events.dart';
 
 /// Server-side pieces shared by `TaskEndpoint` and `CodeReviewEndpoint` —
 /// kept out of the endpoint classes so they aren't exposed as RPC methods.
@@ -68,14 +68,7 @@ Future<TaskFeedback> queueReviewFeedback(
       task.copyWith(checkState: PrCheckState.pending),
       columns: (t) => [t.checkState],
     );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForTask(task.id!),
-      updated,
-    );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForAllTasks(),
-      updated,
-    );
+    await publishTask(session, updated);
   }
 
   // Status is deliberately left as `awaitingReview` here — the dispatcher
@@ -267,14 +260,7 @@ Future<void> refreshReviewPause(Session session, int taskId) async {
     next,
     columns: (t) => [t.pausedUntil, t.pauseReason, t.pausedPhase],
   );
-  await session.messages.postMessage(
-    TaskEndpoint.channelForTask(taskId),
-    updated,
-  );
-  await session.messages.postMessage(
-    TaskEndpoint.channelForAllTasks(),
-    updated,
-  );
+  await publishTask(session, updated);
 }
 
 /// Review comment states that still wait for a fix or a decision.
@@ -321,14 +307,7 @@ Future<void> refreshOpenReviewComments(Session session, int taskId) async {
     task.copyWith(openReviewComments: open),
     columns: (t) => [t.openReviewComments],
   );
-  await session.messages.postMessage(
-    TaskEndpoint.channelForTask(taskId),
-    updated,
-  );
-  await session.messages.postMessage(
-    TaskEndpoint.channelForAllTasks(),
-    updated,
-  );
+  await publishTask(session, updated);
 }
 
 /// Adds a system event to [taskId]'s timeline, inside its latest run (an

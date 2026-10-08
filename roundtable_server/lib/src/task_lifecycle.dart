@@ -1,8 +1,7 @@
 import 'package:serverpod/serverpod.dart';
 
-import 'endpoints/task_endpoint.dart';
 import 'generated/protocol.dart';
-import 'task_review_support.dart';
+import 'task_events.dart';
 
 /// Task statuses in which a live `claude` process on the agent's machine is
 /// driving the task. If that process is gone (machine offline, daemon
@@ -32,14 +31,7 @@ Future<void> failTasks(
         finishedAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForTask(updated.id!),
-      updated,
-    );
-    await session.messages.postMessage(
-      TaskEndpoint.channelForAllTasks(),
-      updated,
-    );
+    await publishTask(session, updated);
   }
 }
 
@@ -59,19 +51,6 @@ Future<Task> resumePausedTask(Session session, Task task) async {
   final agent = agentId == null
       ? null
       : await Agent.db.findById(session, agentId);
-  if (agent != null) {
-    await session.messages.postMessage(
-      taskChannelForMachine(agent.machineId),
-      updated,
-    );
-  }
-  await session.messages.postMessage(
-    TaskEndpoint.channelForTask(updated.id!),
-    updated,
-  );
-  await session.messages.postMessage(
-    TaskEndpoint.channelForAllTasks(),
-    updated,
-  );
+  await publishTask(session, updated, machineId: agent?.machineId);
   return updated;
 }

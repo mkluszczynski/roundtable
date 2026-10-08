@@ -8,6 +8,7 @@ import '../pr_checks.dart';
 import '../task_lifecycle.dart';
 import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
+import '../task_events.dart';
 
 /// Task creation and the daemon's assignment feed (docs/FLOWS.md §4).
 class TaskEndpoint extends Endpoint {
@@ -101,13 +102,7 @@ class TaskEndpoint extends Endpoint {
       attachmentIds ?? const [],
     );
 
-    if (agent != null) {
-      await session.messages.postMessage(
-        taskChannelForMachine(agent.machineId),
-        task,
-      );
-    }
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task, machineId: agent?.machineId);
 
     return task;
   }
@@ -183,8 +178,7 @@ class TaskEndpoint extends Endpoint {
         t.lastProgressAt,
       ],
     );
-    await session.messages.postMessage(channelForTask(updated.id!), updated);
-    await session.messages.postMessage(channelForAllTasks(), updated);
+    await publishTask(session, updated);
     // A finished fix run addressed the review comments it was sent, and
     // likely pushed a commit whose CI checks start now.
     if (previous.status == TaskStatus.running &&
@@ -293,14 +287,7 @@ class TaskEndpoint extends Endpoint {
     var agent = agentId == null
         ? null
         : await Agent.db.findById(session, agentId);
-    if (agent != null) {
-      await session.messages.postMessage(
-        taskChannelForMachine(agent.machineId),
-        task,
-      );
-    }
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task, machineId: agent?.machineId);
     return task;
   }
 
@@ -453,8 +440,7 @@ class TaskEndpoint extends Endpoint {
       task.copyWith(status: TaskStatus.awaitingReview),
       columns: (t) => [t.status],
     );
-    await session.messages.postMessage(channelForTask(taskId), reopened);
-    await session.messages.postMessage(channelForAllTasks(), reopened);
+    await publishTask(session, reopened);
     return queueReviewFeedback(
       session,
       reopened,
@@ -542,8 +528,7 @@ class TaskEndpoint extends Endpoint {
       channelForTask(taskId),
       task.copyWith(status: TaskStatus.cancelled),
     );
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task);
 
     return task;
   }
@@ -593,12 +578,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
 
-    await session.messages.postMessage(
-      taskChannelForMachine(agent.machineId),
-      task,
-    );
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task, machineId: agent.machineId);
 
     return task;
   }
@@ -642,12 +622,7 @@ class TaskEndpoint extends Endpoint {
     // backlog waiting to be picked up — the same channel [createTask] posts
     // to, since `watchAssignedTasks` only replays already-pending tasks once
     // at subscribe time.
-    await session.messages.postMessage(
-      taskChannelForMachine(agent.machineId),
-      task,
-    );
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task, machineId: agent.machineId);
 
     return task;
   }
@@ -790,8 +765,7 @@ class TaskEndpoint extends Endpoint {
         t.maxCheckFixAttempts,
       ],
     );
-    await session.messages.postMessage(channelForTask(updated.id!), updated);
-    await session.messages.postMessage(channelForAllTasks(), updated);
+    await publishTask(session, updated);
     return updated;
   }
 
@@ -834,8 +808,7 @@ class TaskEndpoint extends Endpoint {
       task.copyWith(title: title),
       columns: (t) => [t.title],
     );
-    await session.messages.postMessage(channelForTask(updated.id!), updated);
-    await session.messages.postMessage(channelForAllTasks(), updated);
+    await publishTask(session, updated);
     return updated;
   }
 
@@ -866,8 +839,7 @@ class TaskEndpoint extends Endpoint {
         transaction: transaction,
       );
     });
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task);
     return created;
   }
 
@@ -907,8 +879,7 @@ class TaskEndpoint extends Endpoint {
           lastProgressAt: DateTime.now().toUtc(),
         ),
       );
-      await session.messages.postMessage(channelForTask(task.id!), task);
-      await session.messages.postMessage(channelForAllTasks(), task);
+      await publishTask(session, task);
     }
     return question;
   }
@@ -958,8 +929,7 @@ class TaskEndpoint extends Endpoint {
         lastProgressAt: DateTime.now().toUtc(),
       ),
     );
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task);
     return task;
   }
 
@@ -982,8 +952,7 @@ class TaskEndpoint extends Endpoint {
       ),
     );
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task);
     return task;
   }
 
@@ -1024,8 +993,7 @@ class TaskEndpoint extends Endpoint {
       );
     });
     await session.messages.postMessage(_channelForPlanDecision(taskId), task);
-    await session.messages.postMessage(channelForTask(taskId), task);
-    await session.messages.postMessage(channelForAllTasks(), task);
+    await publishTask(session, task);
     return feedback;
   }
 
