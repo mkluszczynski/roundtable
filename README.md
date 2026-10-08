@@ -9,18 +9,18 @@ instead of SSH-ing into a box and babysitting a terminal.
 
 ## The problem
 
-Running a coding agent today means a terminal window per agent: you start
-`claude` on a laptop or a VPS, watch it scroll, answer its questions when you
-happen to look, copy its plan somewhere to review, then push and open the PR
-yourself. Two agents mean two terminals; an agent on a VPS means an SSH
-session you keep coming back to. Nothing tells you an agent is stuck waiting
-for you.
+Coding agents are good enough to do real work now — but you still have to
+sit and watch them. Each one lives in its own terminal. It stops to ask a
+question and waits until you happen to look. Its plan, its diff and its pull
+request are all yours to chase. An agent on a VPS means one more SSH session
+to keep checking. Step away from your desk and everything just stops.
 
-**Roundtable is for a developer who wants agents working in parallel on real
-repos** while they stay in control of what gets merged. You register your
-machines once, create agents on them (a name, a role, a model, an effort
-level), and hand them tasks. Roundtable runs each task headlessly and brings
-everything that needs you to one place.
+**Roundtable lets you keep a project moving without sitting at your
+computer.** Your agents keep working on your machines, and everything that
+needs you comes to one panel — on your laptop or on your phone. Answer a
+question from the couch, approve a plan on the train, look at the diff and
+merge the PR while you're waiting for a coffee. Several agents can work on
+several tasks at once, and you stay in control of what gets merged.
 
 ## What a task goes through
 
