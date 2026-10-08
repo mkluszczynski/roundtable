@@ -61,9 +61,9 @@ This starts PostgreSQL, the server (which also serves the panel) and a
 the server. The first build takes a few minutes (it builds the Flutter web
 app). Then open **http://localhost:8082** and:
 
-1. **Machines**, on the demo-machine card **⋯ → Set Claude token**: paste
-   a token you get by running `claude setup-token` on any computer with a
-   browser.
+1. **Machines → demo-machine**: the card says *No Claude token* — click
+   **Set token** and paste a token you get by running `claude setup-token`
+   on any computer with a browser.
 2. **Add agent** on the same card: a name and a role are enough.
 3. **Projects → New project**: your repo's URL and a fine-grained GitHub
    token for it with **Contents** and **Pull requests: Read and write**,
