@@ -148,14 +148,21 @@ Design choices worth keeping:
 
 ## Agent runner (`roundtable_agent_runner/`)
 
-- `lib/roundtable_agent_runner.dart`: `AgentRunnerConfig` reads env vars
-  (`REGISTRATION_TOKEN`, `SERVER_URL`, `CLAUDE_CODE_OAUTH_TOKEN`,
-  `WORKSPACE_ROOT`, `CLAUDE_EXECUTABLE`, permission-tool path, update flag
-  path). `AgentRunnerService` runs `identify` (exponential backoff up to 30 s
-  while the server is down), then `reportStartup`, subscribes to the
-  assigned task and review streams (resubscribes after 5 s on error), runs
-  `checkIn` every 20 s, reports metrics every 8 s, sweeps worktrees every
-  30 min, and checks that `claude` can be launched.
+- `lib/roundtable_agent_runner.dart`: `AgentRunnerService` runs `identify`
+  (exponential backoff up to 30 s while the server is down), then
+  `reportStartup`, subscribes to the assigned task and review streams,
+  runs `checkIn` every 20 s, reports metrics every 8 s, sweeps worktrees
+  every 30 min, and checks that `claude` can be launched. It wires:
+  - `src/agent_runner_config.dart`: `AgentRunnerConfig` reads env vars
+    (`REGISTRATION_TOKEN`, `SERVER_URL`, `CLAUDE_CODE_OAUTH_TOKEN`,
+    `WORKSPACE_ROOT`, `CLAUDE_EXECUTABLE`, permission-tool path, update
+    flag path);
+  - `src/resilient_subscription.dart`: a stream subscription that
+    resubscribes after 5 s on error or close;
+  - `src/sandbox_factory.dart`: what a docker-mode run's container mounts
+    (FLOWS.md §8);
+  - `src/update_coordinator.dart`: holds work back and hands a requested
+    update off once no agent is busy (FLOWS.md §2).
 - `src/task_dispatcher.dart`: runs one task: worktree → Claude
   (planning or execution/resume) → commit/push → open PR → final status.
 - `src/run_environment.dart`: where a run's `claude` runs (natively or in
