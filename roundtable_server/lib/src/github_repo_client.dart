@@ -43,12 +43,10 @@ class GitHubRepoClient {
       }),
       headers: _headers(token),
     );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: 'Failed to fetch changed files for $owner/$repo#$number',
-        statusCode: response.statusCode,
-      );
-    }
+    _expectStatus(
+      response.statusCode,
+      'Failed to fetch changed files for $owner/$repo#$number',
+    );
 
     final decoded = jsonDecode(response.body) as List<dynamic>;
     return decoded
@@ -93,12 +91,10 @@ class GitHubRepoClient {
       uri,
       headers: {..._headers(token), 'Accept': 'application/vnd.github.raw'},
     );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: 'Failed to fetch file content from $contentsUrl',
-        statusCode: response.statusCode,
-      );
-    }
+    _expectStatus(
+      response.statusCode,
+      'Failed to fetch file content from $contentsUrl',
+    );
 
     return response.body;
   }
@@ -154,12 +150,10 @@ class GitHubRepoClient {
         ],
       }),
     );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: 'Failed to create a review on $owner/$repo#$number',
-        statusCode: response.statusCode,
-      );
-    }
+    _expectStatus(
+      response.statusCode,
+      'Failed to create a review on $owner/$repo#$number',
+    );
     final reviewId =
         (jsonDecode(response.body) as Map<String, dynamic>)['id'] as int;
 
@@ -245,13 +239,11 @@ class GitHubRepoClient {
       headers: _headers(token),
       body: jsonEncode({'body': 'Resolved in Roundtable.'}),
     );
-    if (reply.statusCode != 201) {
-      throw GitHubException(
-        message:
-            'Failed to resolve comment $githubCommentId on $owner/$repo#$number',
-        statusCode: reply.statusCode,
-      );
-    }
+    _expectStatus(
+      reply.statusCode,
+      'Failed to resolve comment $githubCommentId on $owner/$repo#$number',
+      expected: 201,
+    );
   }
 
   /// Squash-merges the pull request at [prUrl]. With [sha], GitHub only
@@ -276,12 +268,7 @@ class GitHubRepoClient {
       }),
     );
     if (response.statusCode != 200) {
-      var reason = response.body;
-      try {
-        reason =
-            (jsonDecode(response.body) as Map<String, dynamic>)['message']
-                as String;
-      } catch (_) {}
+      final reason = _gitHubMessage(response.body);
       throw GitHubException(
         message: 'GitHub refused to merge $owner/$repo#$number: $reason',
         statusCode: response.statusCode,
@@ -304,12 +291,10 @@ class GitHubRepoClient {
         gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number'),
         headers: _headers(token),
       );
-      if (response.statusCode != 200) {
-        throw GitHubException(
-          message: 'Failed to fetch $owner/$repo#$number',
-          statusCode: response.statusCode,
-        );
-      }
+      _expectStatus(
+        response.statusCode,
+        'Failed to fetch $owner/$repo#$number',
+      );
       final pr = jsonDecode(response.body) as Map<String, dynamic>;
       baseRef = (pr['base'] as Map<String, dynamic>)['ref'] as String;
       final mergeable = pr['mergeable'] as bool?;
@@ -335,12 +320,7 @@ class GitHubRepoClient {
       gitHubHost.apiUri('/repos/$owner/$repo/pulls/$number'),
       token,
     );
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: 'Failed to fetch $owner/$repo#$number',
-        statusCode: response.statusCode,
-      );
-    }
+    _expectStatus(response.statusCode, 'Failed to fetch $owner/$repo#$number');
     final pr = jsonDecode(response.body) as Map<String, dynamic>;
     return (
       sha: (pr['head'] as Map<String, dynamic>)['sha'] as String,
@@ -519,6 +499,30 @@ class GitHubRepoClient {
 
   /// A GitHub error message, pointing at the token's missing "Actions: read"
   /// permission when GitHub denies access.
+  /// Throws a [GitHubException] with [message] unless GitHub answered
+  /// [expected].
+  static void _expectStatus(
+    int statusCode,
+    String message, {
+    int expected = 200,
+  }) {
+    if (statusCode != expected) {
+      throw GitHubException(message: message, statusCode: statusCode);
+    }
+  }
+
+  /// The `message` of a GitHub error response, or the raw [body].
+  static String _gitHubMessage(String body) {
+    try {
+      if (jsonDecode(body) case {'message': final String message}) {
+        return message;
+      }
+    } on FormatException {
+      // Not JSON — the body is the best explanation there is.
+    }
+    return body;
+  }
+
   static String _actionsErrorMessage(String message, int statusCode) =>
       statusCode == 403 || statusCode == 404
       ? '$message — make sure the project\'s token has the '
@@ -529,7 +533,7 @@ class GitHubRepoClient {
     if (steps is! List) return null;
     for (final step in steps.cast<Map<String, dynamic>>()) {
       final conclusion = step['conclusion'];
-      if (conclusion == 'failure' || conclusion == 'timed_out') {
+      if (_failedStepConclusions.contains(conclusion)) {
         return step['name'] as String?;
       }
     }
@@ -640,12 +644,10 @@ class GitHubRepoClient {
       headers: {..._headers(token), 'Accept': 'application/vnd.github.raw'},
     );
     if (response.statusCode == 404) return null;
-    if (response.statusCode != 200) {
-      throw GitHubException(
-        message: 'Failed to fetch $path from $owner/$repo',
-        statusCode: response.statusCode,
-      );
-    }
+    _expectStatus(
+      response.statusCode,
+      'Failed to fetch $path from $owner/$repo',
+    );
     return response.body;
   }
 
@@ -712,6 +714,22 @@ Set<int> commentableLines(String? patch) {
   }
   return lines;
 }
+
+/// The `status` of a GitHub Actions run or job once it has a `conclusion`.
+const actionsCompleted = 'completed';
+
+/// Conclusions of a completed run or job that don't block a merge.
+const _passingConclusions = {'success', 'skipped', 'neutral'};
+
+/// Whether a run or job with [status] and [conclusion] finished without
+/// passing.
+bool isFailedActionsResult(String status, String? conclusion) =>
+    status == actionsCompleted &&
+    conclusion != null &&
+    !_passingConclusions.contains(conclusion);
+
+/// Step conclusions that mark the step a job failed at.
+const _failedStepConclusions = {'failure', 'timed_out'};
 
 /// One GitHub Actions workflow run, as [GitHubRepoClient.listWorkflowRuns]
 /// returns it.

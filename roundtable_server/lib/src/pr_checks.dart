@@ -44,16 +44,12 @@ bool shouldPollChecks(Task task, {DateTime? now}) {
 /// Prompt budget for the failing jobs' logs [sendFailingChecksToFix] sends.
 const _maxPromptLogChars = 20000;
 
-const _passingConclusions = {'success', 'skipped', 'neutral'};
-
 /// Whether [run] finished without passing.
 bool isFailedCheck(PrCheckRun run) =>
-    run.status == 'completed' &&
-    run.conclusion != null &&
-    !_passingConclusions.contains(run.conclusion);
+    isFailedActionsResult(run.status, run.conclusion);
 
 /// Whether [run] hasn't finished yet.
-bool isPendingCheck(PrCheckRun run) => run.status != 'completed';
+bool isPendingCheck(PrCheckRun run) => run.status != actionsCompleted;
 
 /// The aggregated state of [runs] (the jobs of one head commit).
 /// [hasUnstartedRuns] is true when a workflow run has no jobs yet; with no
@@ -173,19 +169,7 @@ Future<Task> syncChecks(
   );
   // A PR merged or closed on GitHub keeps its last known checks — only its
   // line totals (already in the response) are still worth storing.
-  if (!head.open) {
-    if (head.additions == task.prAdditions &&
-        head.deletions == task.prDeletions) {
-      return task;
-    }
-    final updated = await Task.db.updateRow(
-      session,
-      task.copyWith(prAdditions: head.additions, prDeletions: head.deletions),
-      columns: (t) => [t.prAdditions, t.prDeletions],
-    );
-    await publishTask(session, updated);
-    return updated;
-  }
+  if (!head.open) return _syncClosedPr(session, task, head);
   final (:owner, :repo, number: _) = github.parsePrUrl(context.prUrl);
 
   final now = DateTime.now().toUtc();
@@ -200,30 +184,16 @@ Future<Task> syncChecks(
   );
   final cachedForSha = newCommit ? const <PrCheckRun>[] : stored;
 
-  var fresh = <PrCheckRun>[];
-  var hasUnstartedRuns = false;
-  String? checkError;
-  try {
-    (fresh, hasUnstartedRuns) = await _fetchJobs(
-      github,
-      taskId: taskId,
-      owner: owner,
-      repo: repo,
-      headSha: head.sha,
-      token: context.token,
-      cachedForSha: cachedForSha,
-    );
-  } on GitHubException catch (e) {
-    if (e.statusCode != 403 && e.statusCode != 404) rethrow;
-    // Typically a token created before CI checks existed, without "Actions:
-    // Read". Report the checks as unknown rather than blocking the PR —
-    // GitHub's own branch protection still applies to the merge.
-    session.log(
-      'Cannot read the CI checks of task $taskId: ${e.message}',
-      level: LogLevel.warning,
-    );
-    checkError = e.message;
-  }
+  final (:fresh, :hasUnstartedRuns, :checkError) = await _readJobs(
+    session,
+    github,
+    taskId: taskId,
+    owner: owner,
+    repo: repo,
+    headSha: head.sha,
+    token: context.token,
+    cachedForSha: cachedForSha,
+  );
 
   final fixRunQueued = await hasQueuedFixRun(session, task);
   final state = checkError != null
@@ -244,20 +214,7 @@ Future<Task> syncChecks(
   var runs = stored;
   final runsChanged = newCommit || _signature(stored) != _signature(fresh);
   if (runsChanged) {
-    runs = await session.db.transaction((transaction) async {
-      await PrCheckRun.db.deleteWhere(
-        session,
-        where: (r) => r.taskId.equals(taskId),
-        transaction: transaction,
-      );
-      return fresh.isEmpty
-          ? <PrCheckRun>[]
-          : await PrCheckRun.db.insert(
-              session,
-              fresh,
-              transaction: transaction,
-            );
-    });
+    runs = await _replaceRuns(session, taskId, fresh);
   }
 
   final previousState = task.checkState;
@@ -309,33 +266,129 @@ Future<Task> syncChecks(
     );
   }
 
-  if (newCommit && previousSha != null) {
-    await logTaskEvent(
-      session,
-      taskId,
-      'New commit ${shortSha(head.sha)} — CI checks restarted',
-    );
-  }
-  if (state != previousState) {
-    if (state == PrCheckState.failure) {
-      final failed = runs
-          .where(isFailedCheck)
-          .map((r) => '${r.workflowName} / ${r.jobName}')
-          .join(', ');
-      await logTaskEvent(session, taskId, 'CI failed: $failed');
-    } else if (state == PrCheckState.success) {
-      await logTaskEvent(
-        session,
-        taskId,
-        'CI passed (${runs.length} ${runs.length == 1 ? 'job' : 'jobs'})',
-      );
-    }
-  }
+  await _logCheckEvents(
+    session,
+    taskId,
+    newHeadSha: newCommit && previousSha != null ? head.sha : null,
+    state: state,
+    previousState: previousState,
+    runs: runs,
+  );
 
   if (state == PrCheckState.failure && !runs.any(isPendingCheck)) {
     await _autoFix(session, updated);
   }
   return updated;
+}
+
+/// A PR merged or closed on GitHub keeps its last known checks — only its
+/// line totals (already in [head]) are still worth storing.
+Future<Task> _syncClosedPr(
+  Session session,
+  Task task,
+  ({String sha, bool open, int? additions, int? deletions}) head,
+) async {
+  if (head.additions == task.prAdditions &&
+      head.deletions == task.prDeletions) {
+    return task;
+  }
+  final updated = await Task.db.updateRow(
+    session,
+    task.copyWith(prAdditions: head.additions, prDeletions: head.deletions),
+    columns: (t) => [t.prAdditions, t.prDeletions],
+  );
+  await publishTask(session, updated);
+  return updated;
+}
+
+/// [_fetchJobs], tolerating a token that can't read Actions: typically one
+/// created before CI checks existed, without "Actions: Read". The checks
+/// are then reported as unknown ([checkError]) rather than blocking the PR —
+/// GitHub's own branch protection still applies to the merge.
+Future<({List<PrCheckRun> fresh, bool hasUnstartedRuns, String? checkError})>
+_readJobs(
+  Session session,
+  GitHubRepoClient github, {
+  required int taskId,
+  required String owner,
+  required String repo,
+  required String headSha,
+  required String token,
+  required List<PrCheckRun> cachedForSha,
+}) async {
+  try {
+    final (fresh, hasUnstartedRuns) = await _fetchJobs(
+      github,
+      taskId: taskId,
+      owner: owner,
+      repo: repo,
+      headSha: headSha,
+      token: token,
+      cachedForSha: cachedForSha,
+    );
+    return (fresh: fresh, hasUnstartedRuns: hasUnstartedRuns, checkError: null);
+  } on GitHubException catch (e) {
+    if (e.statusCode != 403 && e.statusCode != 404) rethrow;
+    session.log(
+      'Cannot read the CI checks of task $taskId: ${e.message}',
+      level: LogLevel.warning,
+    );
+    return (
+      fresh: const <PrCheckRun>[],
+      hasUnstartedRuns: false,
+      checkError: e.message,
+    );
+  }
+}
+
+/// Replaces [taskId]'s stored check runs with [fresh], returning them as
+/// stored.
+Future<List<PrCheckRun>> _replaceRuns(
+  Session session,
+  int taskId,
+  List<PrCheckRun> fresh,
+) => session.db.transaction((transaction) async {
+  await PrCheckRun.db.deleteWhere(
+    session,
+    where: (r) => r.taskId.equals(taskId),
+    transaction: transaction,
+  );
+  return fresh.isEmpty
+      ? <PrCheckRun>[]
+      : await PrCheckRun.db.insert(session, fresh, transaction: transaction);
+});
+
+/// Notes on the task's timeline a new head commit ([newHeadSha]) and the
+/// checks turning red or green.
+Future<void> _logCheckEvents(
+  Session session,
+  int taskId, {
+  required String? newHeadSha,
+  required PrCheckState state,
+  required PrCheckState previousState,
+  required List<PrCheckRun> runs,
+}) async {
+  if (newHeadSha != null) {
+    await logTaskEvent(
+      session,
+      taskId,
+      'New commit ${shortSha(newHeadSha)} — CI checks restarted',
+    );
+  }
+  if (state == previousState) return;
+  if (state == PrCheckState.failure) {
+    final failed = runs
+        .where(isFailedCheck)
+        .map((r) => '${r.workflowName} / ${r.jobName}')
+        .join(', ');
+    await logTaskEvent(session, taskId, 'CI failed: $failed');
+  } else if (state == PrCheckState.success) {
+    await logTaskEvent(
+      session,
+      taskId,
+      'CI passed (${runs.length} ${runs.length == 1 ? 'job' : 'jobs'})',
+    );
+  }
 }
 
 /// The Actions jobs of commit [headSha], and whether a workflow run has no
@@ -368,7 +421,7 @@ Future<(List<PrCheckRun>, bool)> _fetchJobs(
           (r) => r.workflowRunId == run.id && r.runAttempt == run.runAttempt,
         )
         .toList();
-    if (run.status == 'completed' &&
+    if (run.status == actionsCompleted &&
         cached.isNotEmpty &&
         !cached.any(isPendingCheck)) {
       fresh.addAll(cached.map((r) => r.copyWith(id: null)));
@@ -382,10 +435,9 @@ Future<(List<PrCheckRun>, bool)> _fetchJobs(
       token: token,
     );
     if (jobs.isEmpty) {
-      if (run.status != 'completed') {
+      if (run.status != actionsCompleted) {
         hasUnstartedRuns = true;
-      } else if (run.conclusion != null &&
-          !_passingConclusions.contains(run.conclusion)) {
+      } else if (isFailedActionsResult(run.status, run.conclusion)) {
         // A run that failed before any job started (e.g. an invalid
         // workflow file) still has to fail the checks.
         fresh.add(
