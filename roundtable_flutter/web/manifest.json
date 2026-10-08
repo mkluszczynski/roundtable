@@ -1,12 +1,12 @@
 {
-    "name": "roundtable_flutter",
-    "short_name": "roundtable_flutter",
+    "name": "Roundtable",
+    "short_name": "Roundtable",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "description": "A command center for AI coding agents.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

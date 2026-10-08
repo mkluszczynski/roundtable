@@ -2,45 +2,102 @@
 <html>
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    The base path the app is served from; replaced by the `--base-href`
+    argument of `flutter build`. It has to start and end with "/".
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Roundtable — a command center for AI coding agents.">
+  <meta name="theme-color" content="#000000">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="roundtable_flutter">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="Roundtable">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>roundtable_flutter</title>
+  <title>Roundtable</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Loading screen, shown until Flutter paints its first frame: the
+       brand mark as the table, agents' seats circling it, taking turns. */
+    html, body { margin: 0; height: 100%; background: #000; }
+    #splash {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+      background: radial-gradient(circle at 50% 42%, #1a1030 0%, #000 55%);
+      font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      transition: opacity 400ms ease;
+    }
+    #splash.done { opacity: 0; pointer-events: none; }
+    .table { position: relative; width: 168px; height: 168px; }
+    .mark {
+      position: absolute; inset: 50px; border-radius: 19px;
+      background: url(icons/Icon-192.png) center / cover;
+      animation: glow 2.4s ease-in-out infinite;
+    }
+    .seats { position: absolute; inset: 0; animation: orbit 12s linear infinite; }
+    .seat {
+      position: absolute; left: 50%; top: 50%;
+      width: 12px; height: 12px; margin: -6px;
+      border-radius: 50%; background: #2a2340;
+      transform: rotate(var(--a)) translateY(-70px);
+      animation: turn 2.5s ease-in-out infinite;
+      animation-delay: var(--d);
+    }
+    .seat:nth-child(1) { --a: 0deg;   --d: 0s; }
+    .seat:nth-child(2) { --a: 72deg;  --d: 0.5s; }
+    .seat:nth-child(3) { --a: 144deg; --d: 1s; }
+    .seat:nth-child(4) { --a: 216deg; --d: 1.5s; }
+    .seat:nth-child(5) { --a: 288deg; --d: 2s; }
+    .ring {
+      position: absolute; inset: 14px; border-radius: 50%;
+      border: 1px dashed #2a2340;
+    }
+    .name { color: #fff; font-size: 22px; font-weight: 600; letter-spacing: 0.2px; }
+    .tagline { margin-top: -18px; color: #8a8a92; font-size: 13px; }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    @keyframes turn {
+      0%, 30%, 100% { background: #2a2340; box-shadow: none; }
+      12% { background: #a78bfa; box-shadow: 0 0 14px #7d39eb; }
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 24px rgba(125, 57, 235, 0.35); }
+      50% { box-shadow: 0 0 44px rgba(167, 139, 250, 0.6); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .seats, .seat, .mark { animation: none; }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="splash" role="status" aria-label="Loading Roundtable">
+    <div class="table" aria-hidden="true">
+      <div class="ring"></div>
+      <div class="seats">
+        <div class="seat"></div><div class="seat"></div><div class="seat"></div>
+        <div class="seat"></div><div class="seat"></div>
+      </div>
+      <div class="mark"></div>
+    </div>
+    <div class="name">Roundtable</div>
+    <div class="tagline">Gathering your agents…</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.classList.add('done');
+      setTimeout(function () { splash.remove(); }, 450);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
