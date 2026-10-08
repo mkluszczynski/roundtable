@@ -485,6 +485,19 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
               previous.task.status != current.task.status,
           listener: (context, state) => setState(() => _section = null),
         ),
+        BlocListener<TaskDetailBloc, TaskDetailState>(
+          listenWhen: (previous, current) =>
+              current is TaskDetailLoaded &&
+              current.actionError != null &&
+              (previous is! TaskDetailLoaded ||
+                  previous.actionError != current.actionError),
+          listener: (context, state) =>
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(
+                  content: Text((state as TaskDetailLoaded).actionError!),
+                ),
+              ),
+        ),
       ],
       child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
         builder: (context, state) {

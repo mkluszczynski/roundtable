@@ -9,410 +9,8 @@ import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
 import '../utils/pr_checks.dart';
 
-sealed class TaskDetailEvent {
-  const TaskDetailEvent();
-}
-
-class TaskDetailSubscribed extends TaskDetailEvent {
-  const TaskDetailSubscribed(this.taskId);
-
-  final int taskId;
-}
-
-class AnswerSubmitted extends TaskDetailEvent {
-  const AnswerSubmitted(this.questionId, this.answer);
-
-  final int questionId;
-  final String answer;
-}
-
-class PlanApproved extends TaskDetailEvent {
-  const PlanApproved(this.taskId);
-
-  final int taskId;
-}
-
-class PlanFeedbackSubmitted extends TaskDetailEvent {
-  const PlanFeedbackSubmitted(this.taskId, this.message);
-
-  final int taskId;
-  final String message;
-}
-
-class ReviewFeedbackSubmitted extends TaskDetailEvent {
-  const ReviewFeedbackSubmitted(this.taskId, this.message);
-
-  final int taskId;
-  final String message;
-}
-
-/// Continues a task that finished without code changes, resuming the
-/// agent's session with [message].
-class TaskContinued extends TaskDetailEvent {
-  const TaskContinued(this.taskId, this.message);
-
-  final int taskId;
-  final String message;
-}
-
-/// Resumes a task paused by a usage limit right away.
-class TaskResumed extends TaskDetailEvent {
-  const TaskResumed(this.taskId);
-
-  final int taskId;
-}
-
-class TaskCancelled extends TaskDetailEvent {
-  const TaskCancelled(this.taskId);
-
-  final int taskId;
-}
-
-class TaskRetried extends TaskDetailEvent {
-  const TaskRetried(this.taskId);
-
-  final int taskId;
-}
-
-class AgentReassigned extends TaskDetailEvent {
-  const AgentReassigned(this.taskId, this.agentId);
-
-  final int taskId;
-  final int agentId;
-}
-
-class TaskRenamed extends TaskDetailEvent {
-  const TaskRenamed(this.taskId, this.title);
-
-  final int taskId;
-  final String title;
-}
-
-class TaskDeleteRequested extends TaskDetailEvent {
-  const TaskDeleteRequested(this.taskId);
-
-  final int taskId;
-}
-
-class TaskAccepted extends TaskDetailEvent {
-  const TaskAccepted(this.taskId, {this.force = false});
-
-  final int taskId;
-
-  /// Merge even though the CI checks are pending or failing.
-  final bool force;
-}
-
-class ConflictsResolveRequested extends TaskDetailEvent {
-  const ConflictsResolveRequested(this.taskId);
-
-  final int taskId;
-}
-
-/// Refetches the PR's changed files and merge status, e.g. after a failed
-/// load.
-class ChangedFilesReloaded extends TaskDetailEvent {
-  const ChangedFilesReloaded(this.taskId);
-
-  final int taskId;
-}
-
-class ReviewRequested extends TaskDetailEvent {
-  const ReviewRequested(this.taskId, this.agentId);
-
-  final int taskId;
-  final int agentId;
-}
-
-/// Ticks/unticks a review comment for the next "send to agent".
-class CommentSelectionToggled extends TaskDetailEvent {
-  const CommentSelectionToggled(this.commentId);
-
-  final int commentId;
-}
-
-/// Replaces the selection, e.g. "Select all open" or "Clear".
-class CommentsSelectionSet extends TaskDetailEvent {
-  const CommentsSelectionSet(this.commentIds);
-
-  final Set<int> commentIds;
-}
-
-class CommentStateChanged extends TaskDetailEvent {
-  const CommentStateChanged(this.commentId, this.state);
-
-  final int commentId;
-  final ReviewCommentState state;
-}
-
-/// Sends the selected comments (and [note]) to the task's agent.
-class CommentsSentToFix extends TaskDetailEvent {
-  const CommentsSentToFix(this.taskId, this.note);
-
-  final int taskId;
-  final String note;
-}
-
-/// Reads the PR's CI checks from GitHub now.
-class ChecksRefreshRequested extends TaskDetailEvent {
-  const ChecksRefreshRequested(this.taskId);
-
-  final int taskId;
-}
-
-/// Ticks/unticks a failing CI job for the next "send to agent".
-class CheckJobSelectionToggled extends TaskDetailEvent {
-  const CheckJobSelectionToggled(this.jobId);
-
-  final int jobId;
-}
-
-/// Unticks every failing CI job, so the next send covers all of them.
-class CheckJobsSelectionCleared extends TaskDetailEvent {
-  const CheckJobsSelectionCleared();
-}
-
-/// Sends the selected failing CI jobs (all of them when none is selected)
-/// and [note] to the task's agent.
-class FailingChecksSentToFix extends TaskDetailEvent {
-  const FailingChecksSentToFix(this.taskId, this.note);
-
-  final int taskId;
-  final String note;
-}
-
-/// Internal: starts the CI checks stream for [taskId]. Added once.
-class _ChecksSubscribed extends TaskDetailEvent {
-  const _ChecksSubscribed(this.taskId);
-
-  final int taskId;
-}
-
-/// Internal: starts the code-review stream for [taskId]. Added once.
-class _ReviewsSubscribed extends TaskDetailEvent {
-  const _ReviewsSubscribed(this.taskId);
-
-  final int taskId;
-}
-
-/// Internal: starts the log tail (history, then live) for [taskId]. Added
-/// once, on the first task event.
-class _LogsSubscribed extends TaskDetailEvent {
-  const _LogsSubscribed(this.taskId);
-
-  final int taskId;
-}
-
-/// Internal: fetches the PR's changed files for [taskId]. Added once, the
-/// first time the task reaches `awaitingReview`/`done`.
-class _ChangedFilesRequested extends TaskDetailEvent {
-  const _ChangedFilesRequested(this.taskId);
-
-  final int taskId;
-}
-
-class FileSelected extends TaskDetailEvent {
-  const FileSelected(this.file);
-
-  final DiffFile file;
-}
-
-class FullFileContentRequested extends TaskDetailEvent {
-  const FullFileContentRequested();
-}
-
-sealed class TaskDetailState {
-  const TaskDetailState();
-}
-
-class TaskDetailInitial extends TaskDetailState {
-  const TaskDetailInitial();
-}
-
-class TaskDetailLoading extends TaskDetailState {
-  const TaskDetailLoading();
-}
-
-class TaskDetailError extends TaskDetailState {
-  const TaskDetailError(this.message);
-
-  final String message;
-}
-
-/// Terminal state reached once [TaskDeleteRequested] succeeds — the task no
-/// longer exists, so there's nothing left for `_TaskDetailView` to render;
-/// the screen listens for this to pop back to the dashboard.
-class TaskDetailDeleted extends TaskDetailState {
-  const TaskDetailDeleted();
-}
-
-class TaskDetailLoaded extends TaskDetailState {
-  const TaskDetailLoaded({
-    required this.task,
-    this.project,
-    this.agent,
-    this.machine,
-    this.pendingQuestion,
-    this.submitting = false,
-    this.logs = const [],
-    this.logsSubscribed = false,
-    this.feedback = const [],
-    this.files,
-    this.filesRequested = false,
-    this.filesError,
-    this.mergeStatus,
-    this.selectedFile,
-    this.fileContent,
-    this.fileContentLoading = false,
-    this.fileContentError,
-    this.reviews = const [],
-    this.reviewsSubscribed = false,
-    this.selectedCommentIds = const {},
-    this.reviewBusy = false,
-    this.reviewError,
-    this.checks,
-    this.checksSubscribed = false,
-    this.selectedCheckJobIds = const {},
-    this.checksBusy = false,
-    this.checksError,
-  });
-
-  final Task task;
-
-  /// Fetched once alongside the task (`Task.projectId`/`agentId` are just
-  /// foreign keys — `watchTask` doesn't include relations), for the info
-  /// rail's PROJECT/AGENT/BRANCH sections.
-  final Project? project;
-  final Agent? agent;
-  final Machine? machine;
-
-  final TaskQuestion? pendingQuestion;
-  final bool submitting;
-
-  /// Live-execution sub-state (`planning`/`running`): the task's log tail.
-  final List<TaskLogEntry> logs;
-  final bool logsSubscribed;
-
-  /// Feedback sent to the agent, oldest first: the timeline names each
-  /// feedback run after the kind it started from.
-  final List<TaskFeedback> feedback;
-
-  /// Diff-review sub-state (`awaitingReview`/`done`): the PR's changed files.
-  final List<DiffFile>? files;
-  final bool filesRequested;
-
-  /// Why loading [files] failed — shown with a retry instead of a spinner.
-  final String? filesError;
-
-  /// Whether the PR conflicts with its base branch; null until fetched.
-  final PrMergeStatus? mergeStatus;
-  final DiffFile? selectedFile;
-  final String? fileContent;
-  final bool fileContentLoading;
-  final String? fileContentError;
-
-  /// AI code reviews of the PR, oldest first, each with its comments.
-  final List<CodeReview> reviews;
-  final bool reviewsSubscribed;
-
-  /// Open comments ticked for the next "send to agent".
-  final Set<int> selectedCommentIds;
-
-  /// A review action (request/triage/send/accept) is in flight. Kept apart
-  /// from [submitting] since most of these don't change the task itself.
-  final bool reviewBusy;
-
-  /// Why the last review action failed (e.g. GitHub refused the merge) —
-  /// shown inline instead of replacing the whole screen with an error.
-  final String? reviewError;
-
-  /// The PR's GitHub Actions checks; null until the first snapshot.
-  final PrChecks? checks;
-  final bool checksSubscribed;
-
-  /// Failing jobs ticked for the next "send to agent".
-  final Set<int> selectedCheckJobIds;
-
-  /// A checks action (refresh/send) is in flight.
-  final bool checksBusy;
-
-  /// Why the last checks action failed, shown in the checks view.
-  final String? checksError;
-
-  /// Every comment across [reviews].
-  List<ReviewComment> get reviewComments => [
-    for (final review in reviews) ...?review.comments,
-  ];
-
-  TaskDetailLoaded copyWith({
-    Task? task,
-    Project? project,
-    Agent? agent,
-    bool clearAgent = false,
-    Machine? machine,
-    bool clearMachine = false,
-    TaskQuestion? pendingQuestion,
-    bool clearPendingQuestion = false,
-    bool? submitting,
-    List<TaskLogEntry>? logs,
-    bool? logsSubscribed,
-    List<TaskFeedback>? feedback,
-    List<DiffFile>? files,
-    bool? filesRequested,
-    String? filesError,
-    bool clearFilesError = false,
-    PrMergeStatus? mergeStatus,
-    DiffFile? selectedFile,
-    String? fileContent,
-    bool? fileContentLoading,
-    String? fileContentError,
-    bool clearFileContent = false,
-    List<CodeReview>? reviews,
-    bool? reviewsSubscribed,
-    Set<int>? selectedCommentIds,
-    bool? reviewBusy,
-    String? reviewError,
-    bool clearReviewError = false,
-    PrChecks? checks,
-    bool? checksSubscribed,
-    Set<int>? selectedCheckJobIds,
-    bool? checksBusy,
-    String? checksError,
-    bool clearChecksError = false,
-  }) {
-    return TaskDetailLoaded(
-      task: task ?? this.task,
-      project: project ?? this.project,
-      agent: clearAgent ? null : (agent ?? this.agent),
-      machine: clearMachine ? null : (machine ?? this.machine),
-      pendingQuestion: clearPendingQuestion
-          ? null
-          : (pendingQuestion ?? this.pendingQuestion),
-      submitting: submitting ?? this.submitting,
-      logs: logs ?? this.logs,
-      logsSubscribed: logsSubscribed ?? this.logsSubscribed,
-      feedback: feedback ?? this.feedback,
-      files: files ?? this.files,
-      filesRequested: filesRequested ?? this.filesRequested,
-      filesError: clearFilesError ? null : (filesError ?? this.filesError),
-      mergeStatus: mergeStatus ?? this.mergeStatus,
-      selectedFile: selectedFile ?? this.selectedFile,
-      fileContent: clearFileContent ? null : (fileContent ?? this.fileContent),
-      fileContentLoading: fileContentLoading ?? this.fileContentLoading,
-      fileContentError: clearFileContent ? null : fileContentError,
-      reviews: reviews ?? this.reviews,
-      reviewsSubscribed: reviewsSubscribed ?? this.reviewsSubscribed,
-      selectedCommentIds: selectedCommentIds ?? this.selectedCommentIds,
-      reviewBusy: reviewBusy ?? this.reviewBusy,
-      reviewError: clearReviewError ? null : (reviewError ?? this.reviewError),
-      checks: checks ?? this.checks,
-      checksSubscribed: checksSubscribed ?? this.checksSubscribed,
-      selectedCheckJobIds: selectedCheckJobIds ?? this.selectedCheckJobIds,
-      checksBusy: checksBusy ?? this.checksBusy,
-      checksError: clearChecksError ? null : (checksError ?? this.checksError),
-    );
-  }
-}
+part 'task_detail_event.dart';
+part 'task_detail_state.dart';
 
 /// Reacts to a task's live status (docs/FLOWS.md §4), its log tail while it's
 /// executing, its diff once it's up for review, and to the dev's actions on
@@ -430,42 +28,59 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     required this._machineRepository,
   }) : super(const TaskDetailInitial()) {
     on<TaskDetailSubscribed>(_onSubscribed);
-    on<AnswerSubmitted>(_onAnswerSubmitted);
-    on<PlanApproved>(_onPlanApproved);
-    on<PlanFeedbackSubmitted>(_onPlanFeedbackSubmitted);
-    on<ReviewFeedbackSubmitted>(_onReviewFeedbackSubmitted);
-    on<TaskContinued>((event, emit) async {
-      final current = state;
-      if (current is! TaskDetailLoaded) return;
-      emit(current.copyWith(submitting: true));
-      try {
-        await _repository.continueTask(event.taskId, event.message);
-      } catch (e) {
-        emit(TaskDetailError(errorMessage(e)));
-      }
-    });
-    on<TaskResumed>((event, emit) async {
-      final current = state;
-      if (current is! TaskDetailLoaded) return;
-      emit(current.copyWith(submitting: true));
-      try {
-        await _repository.resumeTask(event.taskId);
-      } catch (e) {
-        emit(TaskDetailError(errorMessage(e)));
-      }
-    });
-    on<TaskCancelled>(_onTaskCancelled);
-    on<TaskRetried>(_onTaskRetried);
-    on<AgentReassigned>(_onAgentReassigned);
-    on<TaskRenamed>((event, emit) async {
-      // The new title arrives through `watchTask`, like every other change.
-      try {
-        await _repository.setTitle(event.taskId, event.title);
-      } catch (e) {
-        emit(TaskDetailError(errorMessage(e)));
-      }
-    });
-    on<TaskDeleteRequested>(_onTaskDeleteRequested);
+    on<AnswerSubmitted>(
+      (e, emit) => _submit(
+        emit,
+        () => _repository.answerQuestion(e.questionId, e.answer),
+      ),
+    );
+    on<PlanApproved>(
+      (e, emit) => _submit(emit, () => _repository.approvePlan(e.taskId)),
+    );
+    on<PlanFeedbackSubmitted>(
+      (e, emit) => _submit(
+        emit,
+        () => _repository.submitPlanFeedback(e.taskId, e.message),
+      ),
+    );
+    on<ReviewFeedbackSubmitted>(
+      (e, emit) =>
+          _submit(emit, () => _repository.submitFeedback(e.taskId, e.message)),
+    );
+    on<TaskContinued>(
+      (e, emit) =>
+          _submit(emit, () => _repository.continueTask(e.taskId, e.message)),
+    );
+    on<TaskResumed>(
+      (e, emit) => _submit(emit, () => _repository.resumeTask(e.taskId)),
+    );
+    on<TaskCancelled>(
+      (e, emit) => _submit(emit, () => _repository.cancelTask(e.taskId)),
+    );
+    on<TaskRetried>(
+      (e, emit) => _submit(emit, () => _repository.retryTask(e.taskId)),
+    );
+    on<AgentReassigned>(
+      (e, emit) => _submit(
+        emit,
+        () => _repository.reassignAgent(e.taskId, e.agentId),
+      ),
+    );
+    // The new title arrives through `watchTask`, like every other change.
+    on<TaskRenamed>(
+      (e, emit) => _submit(
+        emit,
+        () => _repository.setTitle(e.taskId, e.title),
+        showProgress: false,
+      ),
+    );
+    on<TaskDeleteRequested>(
+      (e, emit) => _submit(
+        emit,
+        () => _repository.deleteTask(e.taskId),
+        onSuccess: () => emit(const TaskDetailDeleted()),
+      ),
+    );
     on<TaskAccepted>(_onTaskAccepted);
     on<ReviewRequested>(_onReviewRequested);
     on<CommentSelectionToggled>(_onCommentSelectionToggled);
@@ -615,117 +230,38 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState>
     );
   }
 
-  Future<void> _onAnswerSubmitted(
-    AnswerSubmitted event,
+  /// Runs a task action. [TaskDetailLoaded.submitting] stays on until
+  /// `watchTask` delivers the resulting task; a failure turns it off and is
+  /// kept in [TaskDetailLoaded.actionError].
+  Future<void> _submit(
     Emitter<TaskDetailState> emit,
-  ) async {
+    Future<void> Function() action, {
+    bool showProgress = true,
+    void Function()? onSuccess,
+  }) async {
     final current = state;
     if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
+    emit(
+      current.copyWith(
+        submitting: showProgress ? true : null,
+        clearActionError: true,
+      ),
+    );
     try {
-      await _repository.answerQuestion(event.questionId, event.answer);
+      await action();
     } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
+      final latest = state;
+      if (latest is TaskDetailLoaded) {
+        emit(
+          latest.copyWith(
+            submitting: showProgress ? false : null,
+            actionError: errorMessage(e),
+          ),
+        );
+      }
+      return;
     }
-  }
-
-  Future<void> _onPlanApproved(
-    PlanApproved event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.approvePlan(event.taskId);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onPlanFeedbackSubmitted(
-    PlanFeedbackSubmitted event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.submitPlanFeedback(event.taskId, event.message);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onReviewFeedbackSubmitted(
-    ReviewFeedbackSubmitted event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.submitFeedback(event.taskId, event.message);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onTaskCancelled(
-    TaskCancelled event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.cancelTask(event.taskId);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onTaskRetried(
-    TaskRetried event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.retryTask(event.taskId);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onAgentReassigned(
-    AgentReassigned event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.reassignAgent(event.taskId, event.agentId);
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
-  }
-
-  Future<void> _onTaskDeleteRequested(
-    TaskDeleteRequested event,
-    Emitter<TaskDetailState> emit,
-  ) async {
-    final current = state;
-    if (current is! TaskDetailLoaded) return;
-    emit(current.copyWith(submitting: true));
-    try {
-      await _repository.deleteTask(event.taskId);
-      emit(const TaskDetailDeleted());
-    } catch (e) {
-      emit(TaskDetailError(errorMessage(e)));
-    }
+    onSuccess?.call();
   }
 
   Future<void> _onLogsSubscribed(
