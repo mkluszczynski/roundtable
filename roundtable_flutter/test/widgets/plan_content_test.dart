@@ -26,4 +26,17 @@ void main() {
     expect(find.textContaining('**OAuth**'), findsNothing);
     expect(find.textContaining('- Add the client'), findsNothing);
   });
+
+  testWidgets("an image in the plan isn't fetched, only its alt text shown", (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PlanContent(markdown: 'Plan ![diagram](https://evil.test/x.png)'),
+      ),
+    );
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.textContaining('[diagram]'), findsOneWidget);
+  });
 }

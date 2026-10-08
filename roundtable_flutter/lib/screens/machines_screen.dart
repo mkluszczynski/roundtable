@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -114,9 +115,7 @@ class _MachinesHeader extends StatelessWidget {
             MachineListLoaded(:final machines) => machines,
             _ => const <Machine>[],
           };
-          final online = machines
-              .where((m) => m.status == MachineStatus.online)
-              .length;
+          final online = machines.where((m) => m.isOnline).length;
           return Row(
             children: [
               Expanded(
@@ -166,7 +165,7 @@ class _MachinesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sorted = [
-      ...machines.where((m) => m.status == MachineStatus.online),
+      ...machines.where((m) => m.isOnline),
       ...machines.where((m) => m.status != MachineStatus.online),
     ];
     return LayoutBuilder(
@@ -233,8 +232,15 @@ class _MachineCard extends StatelessWidget {
 
   /// Updating restarts the daemon, which waits for its agents to finish
   /// their current work first (docs/FLOWS.md §2), so no confirmation needed.
-  Future<void> _update(BuildContext context) =>
-      context.read<MachineListCubit>().requestRunnerUpdate(machine.id!);
+  Future<void> _update(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final failure = await context.read<MachineListCubit>().requestRunnerUpdate(
+      machine.id!,
+    );
+    if (failure != null) {
+      messenger?.showSnackBar(SnackBar(content: Text(failure)));
+    }
+  }
 
   Future<void> _confirmRemove(BuildContext context) async {
     final cubit = context.read<MachineListCubit>();
@@ -287,7 +293,7 @@ class _MachineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final online = machine.status == MachineStatus.online;
+    final online = machine.isOnline;
     final updateStatus = _updateStatus(context);
     final dashboard = context.watch<DashboardCubit>().state;
     final lastSeen = machine.lastSeenAt;

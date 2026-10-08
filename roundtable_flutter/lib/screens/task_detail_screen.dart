@@ -5,7 +5,7 @@ import '../utils/agent_role_label.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/external_url.dart';
 
 import '../blocs/task_detail_bloc.dart';
 import '../client.dart';

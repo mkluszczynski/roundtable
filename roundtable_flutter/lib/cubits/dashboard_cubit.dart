@@ -1,9 +1,9 @@
+import '../utils/status_rules.dart';
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
-import '../utils/error_message.dart';
 import '../repositories/task_repository.dart';
 import '../utils/closeable_streams.dart';
 
@@ -66,9 +66,7 @@ class DashboardStats {
     waiting: tasks.where((t) => waitsOnDev(t.status)).length,
     busyAgents: agents.where((a) => a.status != AgentStatus.idle).length,
     agents: agents.length,
-    onlineMachines: machines
-        .where((m) => m.status == MachineStatus.online)
-        .length,
+    onlineMachines: machines.where((m) => m.isOnline).length,
     machines: machines.length,
   );
 
@@ -105,9 +103,13 @@ class DashboardError extends DashboardState {
 }
 
 class DashboardLoaded extends DashboardState {
-  const DashboardLoaded(this.tasks);
+  const DashboardLoaded(this.tasks, {this.reconnecting = false});
 
   final Map<int, Task> tasks;
+
+  /// The live connection dropped: [tasks] is the last known state until
+  /// it's back.
+  final bool reconnecting;
 
   Map<KanbanColumn, List<Task>> get columns => columnsFor();
 
@@ -164,32 +166,55 @@ class DashboardCubit extends Cubit<DashboardState>
     // with zero tasks in the database it never emits at all, so without
     // this the cubit would sit in `DashboardLoading` forever instead of
     // showing an empty board.
-    emit(DashboardLoaded(Map.of(_tasks)));
+    _emit();
     unawaited(_watchTasks());
     unawaited(_watchDeletions());
   }
 
+  var _reconnecting = false;
+
+  void _emit() =>
+      emit(DashboardLoaded(Map.of(_tasks), reconnecting: _reconnecting));
+
+  void _dropped() {
+    if (_reconnecting) return;
+    _reconnecting = true;
+    _emit();
+  }
+
+  /// Back after a drop: `watchAllTasks` replays every task, but deletions
+  /// made meanwhile were missed — drop the tasks that are gone. Throws
+  /// while the server is still unreachable.
+  Future<void> _resync() async {
+    if (_tasks.isNotEmpty) {
+      final existing = {
+        for (final task in await _repository.findTasks(_tasks.keys.toList()))
+          task.id!,
+      };
+      _tasks.removeWhere((id, _) => !existing.contains(id));
+    }
+    _reconnecting = false;
+    _emit();
+  }
+
   Future<void> _watchTasks() async {
-    try {
-      await for (final task in untilClosed(_repository.watchAllTasks())) {
-        _tasks[task.id!] = task;
-        emit(DashboardLoaded(Map.of(_tasks)));
-      }
-    } catch (e) {
-      emit(DashboardError(errorMessage(e)));
+    await for (final task in keepAlive(
+      _repository.watchAllTasks,
+      onDrop: _dropped,
+      onReopen: _resync,
+    )) {
+      _tasks[task.id!] = task;
+      _emit();
     }
   }
 
   Future<void> _watchDeletions() async {
-    try {
-      await for (final deletion in untilClosed(
-        _repository.watchTaskDeletions(),
-      )) {
-        _tasks.remove(deletion.taskId);
-        emit(DashboardLoaded(Map.of(_tasks)));
-      }
-    } catch (e) {
-      emit(DashboardError(errorMessage(e)));
+    await for (final deletion in keepAlive(
+      _repository.watchTaskDeletions,
+      onDrop: _dropped,
+    )) {
+      _tasks.remove(deletion.taskId);
+      _emit();
     }
   }
 }

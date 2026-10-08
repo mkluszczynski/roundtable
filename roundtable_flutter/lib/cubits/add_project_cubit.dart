@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/error_message.dart';
 import '../repositories/project_repository.dart';
 
@@ -28,7 +29,8 @@ class AddProjectError extends AddProjectState {
   final String message;
 }
 
-class AddProjectCubit extends Cubit<AddProjectState> {
+class AddProjectCubit extends Cubit<AddProjectState>
+    with SafeEmit<AddProjectState> {
   AddProjectCubit(this._repository) : super(const AddProjectInitial());
 
   final ProjectRepository _repository;

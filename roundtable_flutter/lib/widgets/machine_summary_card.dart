@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -28,7 +29,7 @@ class MachineSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final online = machine.status == MachineStatus.online;
+    final online = machine.isOnline;
     final dashboard = context.watch<DashboardCubit>().state;
     final lastSeen = machine.lastSeenAt;
     return Padding(

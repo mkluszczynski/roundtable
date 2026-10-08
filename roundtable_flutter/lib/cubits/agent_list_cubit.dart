@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/closeable_streams.dart';
 import '../utils/error_message.dart';
 import '../repositories/agent_repository.dart';
@@ -32,7 +33,7 @@ class AgentListError extends AgentListState {
 }
 
 class AgentListCubit extends Cubit<AgentListState>
-    with CloseableStreams<AgentListState> {
+    with SafeEmit<AgentListState>, CloseableStreams<AgentListState> {
   AgentListCubit(this._repository) : super(const AgentListInitial());
 
   final AgentRepository _repository;
@@ -45,7 +46,8 @@ class AgentListCubit extends Cubit<AgentListState>
       final agents = await _repository.listAgents();
       emit(AgentListLoaded(agents));
     } catch (e) {
-      emit(AgentListError(errorMessage(e)));
+      // A failed refresh keeps the list on screen (e.g. while reconnecting).
+      if (state is! AgentListLoaded) emit(AgentListError(errorMessage(e)));
     }
   }
 
@@ -53,23 +55,21 @@ class AgentListCubit extends Cubit<AgentListState>
   /// the machine screens) — [fetchAgents] alone is a snapshot. Only the
   /// panel-wide cubit (`PanelShell`) calls this.
   Future<void> watchStatuses() async {
-    try {
-      await for (final changed in untilClosed(
-        _repository.watchAgentStatuses(),
-      )) {
-        final current = state;
-        if (current is! AgentListLoaded) continue;
-        emit(
-          AgentListLoaded([
-            for (final agent in current.agents)
-              agent.id == changed.id
-                  ? agent.copyWith(status: changed.status)
-                  : agent,
-          ]),
-        );
-      }
-    } catch (_) {
-      // A dropped stream leaves the last statuses; the next fetch fixes it.
+    await for (final changed in keepAlive(
+      _repository.watchAgentStatuses,
+      // Statuses that changed while the stream was down were missed.
+      onReopen: fetchAgents,
+    )) {
+      final current = state;
+      if (current is! AgentListLoaded) continue;
+      emit(
+        AgentListLoaded([
+          for (final agent in current.agents)
+            agent.id == changed.id
+                ? agent.copyWith(status: changed.status)
+                : agent,
+        ]),
+      );
     }
   }
 

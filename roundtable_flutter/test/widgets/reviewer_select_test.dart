@@ -89,7 +89,8 @@ void main() {
     repository.fail = true;
     await cubit.fetchAgents();
     await tester.pumpAndSettle();
-    expect(cubit.state, isA<AgentListError>());
+    // The shared list stays loaded: a failed refresh doesn't blank screens.
+    expect(cubit.state, isA<AgentListLoaded>());
 
     expect(find.text('Ada'), findsOneWidget);
     expect(find.text('Deleted agent'), findsNothing);

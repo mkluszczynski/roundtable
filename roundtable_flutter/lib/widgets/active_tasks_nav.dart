@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
@@ -191,9 +192,7 @@ class _ActiveTaskRowState extends State<_ActiveTaskRow> {
     if (task.status == TaskStatus.paused && until != null) {
       return 'Paused · ${resumeTimeLabel(until)}';
     }
-    if (task.status == TaskStatus.awaitingReview &&
-        task.pausedPhase == LogPhase.review &&
-        until != null) {
+    if (task.isReviewPaused && until != null) {
       return 'Review paused · ${resumeTimeLabel(until)}';
     }
     final label = task.status.label;

@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -259,9 +260,7 @@ class _ShellNavRailState extends State<_ShellNavRail> {
     final machines = machineState is MachineListLoaded
         ? machineState.machines
         : const <Machine>[];
-    final online = machines
-        .where((m) => m.status == MachineStatus.online)
-        .length;
+    final online = machines.where((m) => m.isOnline).length;
     final machineNeedsAttention =
         machineState is MachineListLoaded &&
         machines.any(
@@ -310,6 +309,7 @@ class _ShellNavRailState extends State<_ShellNavRail> {
             children: [
               StatusDot(
                 color: switch (taskState) {
+                  DashboardLoaded(reconnecting: true) => AppColors.warning,
                   DashboardLoaded() => AppColors.live,
                   DashboardError() => AppColors.red,
                   DashboardLoading() => AppColors.text2,
@@ -318,6 +318,7 @@ class _ShellNavRailState extends State<_ShellNavRail> {
               const SizedBox(width: Spacing.sm),
               Text(
                 switch (taskState) {
+                  DashboardLoaded(reconnecting: true) => 'Reconnecting…',
                   DashboardLoaded() => 'Live updates on',
                   DashboardError() => 'Disconnected — reload',
                   DashboardLoading() => 'Connecting…',

@@ -176,8 +176,7 @@ class _ChecksView extends StatelessWidget {
           : null,
       onToggleJob: (jobId) => bloc.add(CheckJobSelectionToggled(jobId)),
       onSendToAgent: (note) => bloc.add(FailingChecksSentToFix(taskId, note)),
-      onOpenUrl: (url) =>
-          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      onOpenUrl: openExternalUrl,
     );
   }
 }

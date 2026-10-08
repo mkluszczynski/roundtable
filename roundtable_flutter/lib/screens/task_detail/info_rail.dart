@@ -403,10 +403,7 @@ class _BranchRow extends StatelessWidget {
         ),
         if (task.prUrl != null) ...[
           TextButton.icon(
-            onPressed: () => launchUrl(
-              Uri.parse(task.prUrl!),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed: () => openExternalUrl(task.prUrl!),
             icon: const Icon(Icons.open_in_new, size: 14),
             label: const Text('PR'),
             // No right padding: the label lines up with the rail's edge.

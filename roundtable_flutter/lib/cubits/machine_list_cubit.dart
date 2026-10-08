@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/error_message.dart';
 import '../repositories/machine_repository.dart';
 
@@ -47,7 +48,8 @@ class MachineDeletionBlockedOnline extends MachineListState {
   final String? scriptUrl;
 }
 
-class MachineListCubit extends Cubit<MachineListState> {
+class MachineListCubit extends Cubit<MachineListState>
+    with SafeEmit<MachineListState> {
   MachineListCubit(this._repository) : super(const MachineListInitial());
 
   final MachineRepository _repository;
@@ -70,7 +72,6 @@ class MachineListCubit extends Cubit<MachineListState> {
       } catch (_) {
         // Non-fatal: without it the panel just doesn't offer updates.
       }
-      if (isClosed) return;
       emit(
         MachineListLoaded(machines, latestRunnerVersion: latestRunnerVersion),
       );
@@ -81,7 +82,6 @@ class MachineListCubit extends Cubit<MachineListState> {
         _updatePollTimer = null;
       }
     } catch (e) {
-      if (isClosed) return;
       emit(MachineListError(errorMessage(e)));
     }
   }
@@ -98,18 +98,20 @@ class MachineListCubit extends Cubit<MachineListState> {
   }
 
   /// Asks machine [id]'s daemon to update itself, then polls until every
-  /// pending update has been picked up.
-  Future<void> requestRunnerUpdate(int id) async {
+  /// pending update has been picked up. Returns `null` on success, or the
+  /// message to show — the list stays on screen either way.
+  Future<String?> requestRunnerUpdate(int id) async {
     try {
       await _repository.requestRunnerUpdate(id);
     } catch (e) {
-      emit(MachineListError(errorMessage(e)));
+      return errorMessage(e);
     }
     await fetchMachines(silent: true);
     _updatePollTimer ??= Timer.periodic(
       const Duration(seconds: 5),
       (_) => fetchMachines(silent: true),
     );
+    return null;
   }
 
   @override

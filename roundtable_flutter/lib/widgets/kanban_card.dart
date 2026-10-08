@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
@@ -56,14 +57,9 @@ class _KanbanCardState extends State<KanbanCard> {
         (task.status == TaskStatus.awaitingReview ||
             task.status == TaskStatus.running);
     final ciFailed = showChecks && task.checkState == PrCheckState.failure;
-    // A paused run, or a review waiting for the usage limit
-    // (`pausedPhase` review on an `awaitingReview` task).
-    final reviewPaused =
-        task.status == TaskStatus.awaitingReview &&
-        task.pausedPhase == LogPhase.review;
-    final pausedUntil = task.status == TaskStatus.paused || reviewPaused
-        ? task.pausedUntil
-        : null;
+    // A paused run, or a review waiting for the usage limit.
+    final reviewPaused = task.isReviewPaused;
+    final pausedUntil = task.pausedUntilNow;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.sm),

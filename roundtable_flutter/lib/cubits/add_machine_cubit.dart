@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/error_message.dart';
 import '../repositories/machine_repository.dart';
 
@@ -33,7 +34,8 @@ class AddMachineError extends AddMachineState {
   final String message;
 }
 
-class AddMachineCubit extends Cubit<AddMachineState> {
+class AddMachineCubit extends Cubit<AddMachineState>
+    with SafeEmit<AddMachineState> {
   AddMachineCubit(
     this._repository, {
     this.pollInterval = const Duration(seconds: 3),

@@ -1,6 +1,7 @@
+import '../utils/repo_slug.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/external_url.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
 import '../client.dart';
@@ -225,7 +226,7 @@ class _Header extends StatelessWidget {
               children: [
                 Text(project.name, style: AppTypography.screenTitle),
                 Text(
-                  _repoSlug(project.repoUrl),
+                  repoSlug(project.repoUrl),
                   style: AppTypography.code.copyWith(color: AppColors.text1),
                 ),
               ],
@@ -243,17 +244,6 @@ class _Header extends StatelessWidget {
       ),
     );
   }
-}
-
-/// `https://github.com/owner/repo(.git)` → `owner/repo`.
-String _repoSlug(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null) return url;
-  final slug = uri.pathSegments
-      .where((s) => s.isNotEmpty)
-      .join('/')
-      .replaceFirst(RegExp(r'\.git$'), '');
-  return slug.isEmpty ? url : slug;
 }
 
 class _ProjectRail extends StatelessWidget {
@@ -293,7 +283,7 @@ class _ProjectRail extends StatelessWidget {
                           const SizedBox(width: Spacing.sm),
                           Expanded(
                             child: Text(
-                              _repoSlug(project.repoUrl),
+                              repoSlug(project.repoUrl),
                               style: AppTypography.code,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -303,10 +293,7 @@ class _ProjectRail extends StatelessWidget {
                             icon: const Icon(Icons.open_in_new, size: 14),
                             color: AppColors.text1,
                             visualDensity: VisualDensity.compact,
-                            onPressed: () => launchUrl(
-                              Uri.parse(project.repoUrl),
-                              mode: LaunchMode.externalApplication,
-                            ),
+                            onPressed: () => openExternalUrl(project.repoUrl),
                           ),
                         ],
                       ),
@@ -495,12 +482,7 @@ class _TaskStats extends StatelessWidget {
   Widget build(BuildContext context) {
     final needsYou = columns.values
         .expand((tasks) => tasks)
-        .where(
-          (t) =>
-              t.status == TaskStatus.waitingForAnswer ||
-              t.status == TaskStatus.planReady ||
-              t.status == TaskStatus.awaitingReview,
-        )
+        .where((t) => waitsOnDev(t.status))
         .length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

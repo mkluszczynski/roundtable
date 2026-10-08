@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/error_message.dart';
 import '../repositories/task_repository.dart';
 
@@ -28,7 +29,8 @@ class CreateTaskError extends CreateTaskState {
   final String message;
 }
 
-class CreateTaskCubit extends Cubit<CreateTaskState> {
+class CreateTaskCubit extends Cubit<CreateTaskState>
+    with SafeEmit<CreateTaskState> {
   CreateTaskCubit(this._repository) : super(const CreateTaskInitial());
 
   final TaskRepository _repository;

@@ -1,3 +1,5 @@
+import '../utils/status_rules.dart';
+import '../utils/repo_slug.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -608,7 +610,7 @@ class _ProjectFilter extends StatelessWidget {
             child: _ProjectFilterOption(
               icon: Icons.folder_outlined,
               title: p.name,
-              subtitle: _repoSlug(p.repoUrl),
+              subtitle: repoSlug(p.repoUrl),
               activeCount: activeIn(p.id),
               selected: selected?.id == p.id,
             ),
@@ -645,17 +647,6 @@ class _ProjectFilter extends StatelessWidget {
       ),
     );
   }
-}
-
-/// `https://github.com/owner/repo(.git)` → `owner/repo`.
-String _repoSlug(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null) return url;
-  final slug = uri.pathSegments
-      .where((s) => s.isNotEmpty)
-      .join('/')
-      .replaceFirst(RegExp(r'\.git$'), '');
-  return slug.isEmpty ? url : slug;
 }
 
 class _ProjectFilterOption extends StatelessWidget {
@@ -821,7 +812,7 @@ class _MachinesPanel extends StatelessWidget {
                                   // Online first; offline ones collapse.
                                   for (final machine in [
                                     ...machines.where(
-                                      (m) => m.status == MachineStatus.online,
+                                      (m) => m.isOnline,
                                     ),
                                     ...machines.where(
                                       (m) => m.status != MachineStatus.online,

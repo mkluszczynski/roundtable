@@ -1,3 +1,4 @@
+import '../utils/status_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
@@ -170,7 +171,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final online = machine.status == MachineStatus.online;
+    final online = machine.isOnline;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.bg1,
@@ -286,7 +287,7 @@ class _MachineRail extends StatelessWidget {
         agents.where((a) => a.machineId == machine.id).toList(),
       _ => const <Agent>[],
     };
-    final online = machine.status == MachineStatus.online;
+    final online = machine.isOnline;
     final lastSeen = machine.lastSeenAt;
     final osDescription = machine.osDescription;
     final updateStatus = _updateStatus(machineState, agents);
@@ -337,9 +338,19 @@ class _MachineRail extends StatelessWidget {
                       ? const _CheckLine(ok: true, text: 'Up to date')
                       : RunnerUpdateBanner(
                           status: updateStatus,
-                          onUpdate: () => context
-                              .read<MachineListCubit>()
-                              .requestRunnerUpdate(machine.id!),
+                          onUpdate: () async {
+                            final messenger = ScaffoldMessenger.maybeOf(
+                              context,
+                            );
+                            final failure = await context
+                                .read<MachineListCubit>()
+                                .requestRunnerUpdate(machine.id!);
+                            if (failure != null) {
+                              messenger?.showSnackBar(
+                                SnackBar(content: Text(failure)),
+                              );
+                            }
+                          },
                         ),
                 ),
                 RailSection(

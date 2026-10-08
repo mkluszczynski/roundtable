@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/safe_emit.dart';
 import '../utils/error_message.dart';
 import '../repositories/agent_repository.dart';
 
@@ -28,7 +29,7 @@ class AddAgentError extends AddAgentState {
   final String message;
 }
 
-class AddAgentCubit extends Cubit<AddAgentState> {
+class AddAgentCubit extends Cubit<AddAgentState> with SafeEmit<AddAgentState> {
   AddAgentCubit(this._repository) : super(const AddAgentInitial());
 
   final AgentRepository _repository;

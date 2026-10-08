@@ -17,6 +17,12 @@ class PlanContent extends StatelessWidget {
     return MarkdownBody(
       data: markdown,
       selectable: true,
+      // The plan is the agent's text: an image in it would make the panel
+      // fetch whatever URL it names. Show its alt text instead.
+      imageBuilder: (uri, title, alt) => Text(
+        alt?.isNotEmpty == true ? '[$alt]' : '[image]',
+        style: AppTypography.caption,
+      ),
       styleSheet: MarkdownStyleSheet(
         p: AppTypography.body,
         pPadding: const EdgeInsets.only(bottom: Spacing.md),

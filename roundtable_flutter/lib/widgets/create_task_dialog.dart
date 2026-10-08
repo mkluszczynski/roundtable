@@ -1,3 +1,4 @@
+import '../utils/repo_slug.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -445,11 +446,6 @@ class _ProjectOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // `https://github.com/owner/repo(.git)` → `owner/repo`.
-    final repo = Uri.tryParse(project.repoUrl)?.pathSegments
-        .where((s) => s.isNotEmpty)
-        .join('/')
-        .replaceFirst(RegExp(r'\.git$'), '');
     return Row(
       children: [
         const Icon(Icons.folder_outlined, size: 18, color: AppColors.text1),
@@ -464,7 +460,7 @@ class _ProjectOption extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                (repo == null || repo.isEmpty) ? project.repoUrl : repo,
+                repoSlug(project.repoUrl),
                 style: AppTypography.caption,
                 overflow: TextOverflow.ellipsis,
               ),
