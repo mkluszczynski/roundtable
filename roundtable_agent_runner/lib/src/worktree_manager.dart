@@ -1,16 +1,47 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:synchronized/synchronized.dart';
 
-/// Thrown when a git invocation made by [WorktreeManager] fails.
+/// Thrown when a git invocation made by [WorktreeManager] fails. Any
+/// credentials in a URL git echoed are redacted.
 class WorktreeException implements Exception {
-  WorktreeException(this.message, {required this.stderr});
+  WorktreeException(String message, {required String stderr})
+    : message = redactCredentials(message),
+      stderr = redactCredentials(stderr);
 
   final String message;
   final String stderr;
 
   @override
   String toString() => '$message: $stderr';
+}
+
+/// [text] with the userinfo of any URL in it (`https://x:TOKEN@host`)
+/// replaced by `***`.
+String redactCredentials(String text) =>
+    text.replaceAll(RegExp(r'://[^/\s@]+@'), '://***@');
+
+/// A remote URL as the server hands it out — possibly with an access token
+/// as its userinfo — split into a [url] without credentials and the
+/// `Authorization` header git sends instead. The header reaches git through
+/// its environment, so the token is never written to `repo.git/config`, a
+/// `FETCH_HEAD`, or a command line `ps` shows.
+class GitRemote {
+  GitRemote._(this.url, this.authHeader);
+
+  factory GitRemote.parse(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.userInfo.isEmpty) return GitRemote._(url, null);
+    final credentials = Uri.decodeComponent(uri.userInfo);
+    return GitRemote._(
+      uri.replace(userInfo: '').toString(),
+      'Authorization: Basic ${base64Encode(utf8.encode(credentials))}',
+    );
+  }
+
+  final String url;
+  final String? authHeader;
 }
 
 /// Manages git-worktree-based execution isolation per project
@@ -46,45 +77,100 @@ class WorktreeManager {
   /// fetching into a branch a worktree may have checked out is refused.
   static const baseRef = 'refs/roundtable/base';
 
+  /// Runs git with config that a run can't override: an agent can write to
+  /// its worktree (and, natively, anywhere), so hooks and `core.fsmonitor`
+  /// — commands git would run on the host — are switched off, and nothing
+  /// prompts for a password. [remote]'s credentials go in as an extra
+  /// header. Returns stdout; throws a [WorktreeException] naming [what].
+  Future<String> _git(
+    List<String> args, {
+    required String what,
+    required String cwd,
+    GitRemote? remote,
+  }) async {
+    final config = {
+      'core.hooksPath': '/dev/null',
+      'core.fsmonitor': 'false',
+      'http.extraHeader': ?remote?.authHeader,
+    };
+    final result = await Process.run(
+      'git',
+      args,
+      workingDirectory: cwd,
+      environment: {
+        'GIT_TERMINAL_PROMPT': '0',
+        'GIT_CONFIG_COUNT': '${config.length}',
+        for (final (i, MapEntry(:key, :value)) in config.entries.indexed) ...{
+          'GIT_CONFIG_KEY_$i': key,
+          'GIT_CONFIG_VALUE_$i': value,
+        },
+      },
+    );
+    if (result.exitCode != 0) {
+      throw WorktreeException('$what failed', stderr: '${result.stderr}');
+    }
+    return '${result.stdout}'.trim();
+  }
+
+  /// `--git-dir`/`--work-tree` for git commands on [taskId]'s worktree. The
+  /// worktree's own `.git` file is never followed: whoever ran in the
+  /// worktree could point it at a repository with its own config. The
+  /// admin directory is found from `repo.git`, which a run can't write.
+  List<String> _worktreeArgs(String projectId, String taskId) {
+    final worktreeDir = _worktreeDir(projectId, taskId);
+    final admin = Directory('${_bareRepoDir(projectId)}/worktrees');
+    final gitDir = admin.existsSync()
+        ? admin.listSync().whereType<Directory>().where((d) {
+            final file = File('${d.path}/gitdir');
+            return file.existsSync() &&
+                file.readAsStringSync().trim() == '$worktreeDir/.git';
+          }).firstOrNull
+        : null;
+    if (gitDir == null) {
+      throw WorktreeException(
+        'no git metadata for task $taskId on project $projectId',
+        stderr: '',
+      );
+    }
+    return ['--git-dir=${gitDir.path}', '--work-tree=$worktreeDir'];
+  }
+
   /// Ensures a bare clone for [projectId] exists, cloning from [cloneUrl] if
   /// it doesn't, then fetches the remote's current default branch into
   /// [baseRef]. Without the fetch every task would branch from the commit
   /// the project had when it was first cloned on this machine. Idempotent —
   /// safe to call every time a task for this project starts.
+  ///
+  /// The clone's `origin` is (re)set to [cloneUrl] without credentials:
+  /// clones made before [GitRemote] kept the token there.
   Future<void> ensureProjectCloned({
     required String projectId,
     required String cloneUrl,
   }) {
     _assertSafeSegment(projectId, name: 'projectId');
+    final remote = GitRemote.parse(cloneUrl);
     return _lockFor(projectId).synchronized(() async {
-      final repoDir = Directory(_bareRepoDir(projectId));
-      if (!repoDir.existsSync()) {
+      final repoDir = _bareRepoDir(projectId);
+      if (!Directory(repoDir).existsSync()) {
         await Directory(_projectDir(projectId)).create(recursive: true);
-        final result = await Process.run('git', [
-          'clone',
-          '--bare',
-          cloneUrl,
-          repoDir.path,
-        ]);
-        if (result.exitCode != 0) {
-          throw WorktreeException(
-            'git clone --bare failed for project $projectId',
-            stderr: result.stderr.toString(),
-          );
-        }
-      }
-
-      final fetch = await Process.run('git', [
-        'fetch',
-        cloneUrl,
-        '+HEAD:$baseRef',
-      ], workingDirectory: repoDir.path);
-      if (fetch.exitCode != 0) {
-        throw WorktreeException(
-          'git fetch of the default branch failed for project $projectId',
-          stderr: fetch.stderr.toString(),
+        await _git(
+          ['clone', '--bare', remote.url, repoDir],
+          what: 'git clone --bare for project $projectId',
+          cwd: _projectDir(projectId),
+          remote: remote,
         );
       }
+      await _git(
+        ['config', 'remote.origin.url', remote.url],
+        what: 'resetting the origin of project $projectId',
+        cwd: repoDir,
+      );
+      await _git(
+        ['fetch', remote.url, '+HEAD:$baseRef'],
+        what: 'git fetch of the default branch for project $projectId',
+        cwd: repoDir,
+        remote: remote,
+      );
     });
   }
 
@@ -101,31 +187,20 @@ class WorktreeManager {
     _assertSafeSegment(projectId, name: 'projectId');
     _assertSafeSegment(taskId, name: 'taskId');
     return _lockFor(projectId).synchronized(() async {
-      final worktreeDir = Directory(_worktreeDir(projectId, taskId));
-      if (worktreeDir.existsSync()) {
-        return worktreeDir.path;
-      }
+      final worktreeDir = _worktreeDir(projectId, taskId);
+      if (Directory(worktreeDir).existsSync()) return worktreeDir;
 
       await Directory(
         '${_projectDir(projectId)}/worktrees',
       ).create(recursive: true);
-      final result = await Process.run('git', [
-        'worktree',
-        'add',
-        worktreeDir.path,
-        '-b',
-        'task-$taskId',
+      await _git(
         // Branch from the freshly fetched default branch (see
         // [ensureProjectCloned]), not the bare clone's stale HEAD.
-        baseRef,
-      ], workingDirectory: _bareRepoDir(projectId));
-      if (result.exitCode != 0) {
-        throw WorktreeException(
-          'git worktree add failed for task $taskId on project $projectId',
-          stderr: result.stderr.toString(),
-        );
-      }
-      return worktreeDir.path;
+        ['worktree', 'add', worktreeDir, '-b', 'task-$taskId', baseRef],
+        what: 'git worktree add for task $taskId on project $projectId',
+        cwd: _bareRepoDir(projectId),
+      );
+      return worktreeDir;
     });
   }
 
@@ -141,28 +216,18 @@ class WorktreeManager {
     return _lockFor(projectId).synchronized(() async {
       final worktreeDir = _worktreeDir(projectId, taskId);
       if (!Directory(worktreeDir).existsSync()) return;
-
-      final reset = await Process.run('git', [
-        'reset',
-        '--hard',
-      ], workingDirectory: worktreeDir);
-      if (reset.exitCode != 0) {
-        throw WorktreeException(
-          'git reset --hard failed for task $taskId on project $projectId',
-          stderr: reset.stderr.toString(),
-        );
-      }
-
-      final clean = await Process.run('git', [
-        'clean',
-        '-fd',
-      ], workingDirectory: worktreeDir);
-      if (clean.exitCode != 0) {
-        throw WorktreeException(
-          'git clean -fd failed for task $taskId on project $projectId',
-          stderr: clean.stderr.toString(),
-        );
-      }
+      final worktree = _worktreeArgs(projectId, taskId);
+      final label = 'for task $taskId on project $projectId';
+      await _git(
+        [...worktree, 'reset', '--hard'],
+        what: 'git reset --hard $label',
+        cwd: worktreeDir,
+      );
+      await _git(
+        [...worktree, 'clean', '-fd'],
+        what: 'git clean -fd $label',
+        cwd: worktreeDir,
+      );
     });
   }
 
@@ -176,53 +241,33 @@ class WorktreeManager {
     _assertSafeSegment(projectId, name: 'projectId');
     _assertSafeSegment(taskId, name: 'taskId');
     return _lockFor(projectId).synchronized(() async {
-      final worktreeDir = Directory(_worktreeDir(projectId, taskId));
-      if (!worktreeDir.existsSync()) return;
-
-      final remove = await Process.run('git', [
-        'worktree',
-        'remove',
-        '--force',
-        worktreeDir.path,
-      ], workingDirectory: _bareRepoDir(projectId));
-      if (remove.exitCode != 0) {
-        throw WorktreeException(
-          'git worktree remove failed for task $taskId on project $projectId',
-          stderr: remove.stderr.toString(),
-        );
-      }
-
-      final prune = await Process.run('git', [
-        'worktree',
-        'prune',
-      ], workingDirectory: _bareRepoDir(projectId));
-      if (prune.exitCode != 0) {
-        throw WorktreeException(
-          'git worktree prune failed for project $projectId',
-          stderr: prune.stderr.toString(),
-        );
-      }
-
-      final deleteBranch = await Process.run('git', [
-        'branch',
-        '-D',
-        'task-$taskId',
-      ], workingDirectory: _bareRepoDir(projectId));
-      if (deleteBranch.exitCode != 0) {
-        throw WorktreeException(
-          'git branch -D failed for task $taskId on project $projectId',
-          stderr: deleteBranch.stderr.toString(),
-        );
-      }
+      final worktreeDir = _worktreeDir(projectId, taskId);
+      if (!Directory(worktreeDir).existsSync()) return;
+      final repo = _bareRepoDir(projectId);
+      final label = 'for task $taskId on project $projectId';
+      await _git(
+        ['worktree', 'remove', '--force', worktreeDir],
+        what: 'git worktree remove $label',
+        cwd: repo,
+      );
+      await _git(
+        ['worktree', 'prune'],
+        what: 'git worktree prune for project $projectId',
+        cwd: repo,
+      );
+      await _git(
+        ['branch', '-D', 'task-$taskId'],
+        what: 'git branch -D $label',
+        cwd: repo,
+      );
     });
   }
 
   /// Commits any pending changes in the task's worktree and pushes the
   /// resulting branch to [pushUrl] (docs/FLOWS.md §4). Returns `false`
   /// without committing or pushing if the worktree has no changes — nothing
-  /// for the agent to have done. [pushUrl] is used as a one-off push target,
-  /// never stored as a named git remote, so any credentials embedded in it
-  /// never touch git config on disk (docs/ARCHITECTURE.md).
+  /// for the agent to have done. [pushUrl]'s credentials go through
+  /// [GitRemote], never into git config or a command line.
   Future<bool> commitAndPush({
     required String projectId,
     required String taskId,
@@ -231,6 +276,7 @@ class WorktreeManager {
   }) {
     _assertSafeSegment(projectId, name: 'projectId');
     _assertSafeSegment(taskId, name: 'taskId');
+    final remote = GitRemote.parse(pushUrl);
     return _lockFor(projectId).synchronized(() async {
       final worktreeDir = _worktreeDir(projectId, taskId);
       if (!Directory(worktreeDir).existsSync()) {
@@ -239,60 +285,41 @@ class WorktreeManager {
           stderr: '',
         );
       }
+      final worktree = _worktreeArgs(projectId, taskId);
+      final label = 'for task $taskId on project $projectId';
 
-      final add = await Process.run('git', [
-        'add',
-        '-A',
-      ], workingDirectory: worktreeDir);
-      if (add.exitCode != 0) {
-        throw WorktreeException(
-          'git add failed for task $taskId on project $projectId',
-          stderr: add.stderr.toString(),
-        );
-      }
+      await _git(
+        [...worktree, 'add', '-A'],
+        what: 'git add $label',
+        cwd: worktreeDir,
+      );
+      final status = await _git(
+        [...worktree, 'status', '--porcelain'],
+        what: 'git status $label',
+        cwd: worktreeDir,
+      );
+      if (status.isEmpty) return false;
 
-      final status = await Process.run('git', [
-        'status',
-        '--porcelain',
-      ], workingDirectory: worktreeDir);
-      if (status.exitCode != 0) {
-        throw WorktreeException(
-          'git status failed for task $taskId on project $projectId',
-          stderr: status.stderr.toString(),
-        );
-      }
-      if (status.stdout.toString().trim().isEmpty) {
-        return false;
-      }
-
-      final commit = await Process.run('git', [
-        '-c',
-        'user.name=Roundtable Agent',
-        '-c',
-        'user.email=agent@roundtable.local',
-        'commit',
-        '-m',
-        commitMessage,
-      ], workingDirectory: worktreeDir);
-      if (commit.exitCode != 0) {
-        throw WorktreeException(
-          'git commit failed for task $taskId on project $projectId',
-          stderr: commit.stderr.toString(),
-        );
-      }
-
-      final push = await Process.run('git', [
-        'push',
-        pushUrl,
-        'HEAD:refs/heads/task-$taskId',
-      ], workingDirectory: worktreeDir);
-      if (push.exitCode != 0) {
-        throw WorktreeException(
-          'git push failed for task $taskId on project $projectId',
-          stderr: push.stderr.toString(),
-        );
-      }
-
+      await _git(
+        [
+          ...worktree,
+          '-c',
+          'user.name=Roundtable Agent',
+          '-c',
+          'user.email=agent@roundtable.local',
+          'commit',
+          '-m',
+          commitMessage,
+        ],
+        what: 'git commit $label',
+        cwd: worktreeDir,
+      );
+      await _git(
+        [...worktree, 'push', remote.url, 'HEAD:refs/heads/task-$taskId'],
+        what: 'git push $label',
+        cwd: worktreeDir,
+        remote: remote,
+      );
       return true;
     });
   }
@@ -313,71 +340,77 @@ class WorktreeManager {
   }) {
     _assertSafeSegment(projectId, name: 'projectId');
     _assertSafeSegment(reviewId, name: 'reviewId');
+    final remote = GitRemote.parse(fetchUrl);
     return _lockFor(projectId).synchronized(() async {
       final repo = _bareRepoDir(projectId);
       final headRef = 'refs/roundtable-reviews/$reviewId/head';
       final baseRef = 'refs/roundtable-reviews/$reviewId/base';
+      final label = 'for review $reviewId on project $projectId';
 
-      Future<String> git(List<String> args, {String? cwd}) async {
-        final result = await Process.run(
-          'git',
-          args,
-          workingDirectory: cwd ?? repo,
+      await _git(
+        ['fetch', remote.url, '+refs/heads/$branch:$headRef', '+HEAD:$baseRef'],
+        what: 'git fetch $label',
+        cwd: repo,
+        remote: remote,
+      );
+      final dir = _reviewDir(projectId, reviewId);
+      if (Directory(dir).existsSync()) {
+        await _git(
+          ['worktree', 'remove', '--force', dir],
+          what: 'git worktree remove $label',
+          cwd: repo,
         );
-        if (result.exitCode != 0) {
-          throw WorktreeException(
-            'git ${args.first} failed for review $reviewId on project $projectId',
-            stderr: result.stderr.toString(),
-          );
-        }
-        return result.stdout.toString().trim();
-      }
-
-      await git([
-        'fetch',
-        fetchUrl,
-        '+refs/heads/$branch:$headRef',
-        '+HEAD:$baseRef',
-      ]);
-
-      final dir = Directory(_reviewDir(projectId, reviewId));
-      if (dir.existsSync()) {
-        await git(['worktree', 'remove', '--force', dir.path]);
       }
       await Directory(
         '${_projectDir(projectId)}/reviews',
       ).create(recursive: true);
-      await git(['worktree', 'add', '--detach', dir.path, headRef]);
-
-      final baseSha = await git(['merge-base', baseRef, headRef]);
-      return (path: dir.path, baseSha: baseSha);
+      await _git(
+        ['worktree', 'add', '--detach', dir, headRef],
+        what: 'git worktree add $label',
+        cwd: repo,
+      );
+      final baseSha = await _git(
+        ['merge-base', baseRef, headRef],
+        what: 'git merge-base $label',
+        cwd: repo,
+      );
+      return (path: dir, baseSha: baseSha);
     });
   }
 
-  /// Removes [reviewId]'s worktree and refs. Idempotent.
+  /// Removes [reviewId]'s worktree and refs. Idempotent: best effort, a
+  /// failure is only reported through [onError].
   Future<void> removeReviewWorktree({
     required String projectId,
     required String reviewId,
+    void Function(Object error)? onError,
   }) {
     _assertSafeSegment(projectId, name: 'projectId');
     _assertSafeSegment(reviewId, name: 'reviewId');
     return _lockFor(projectId).synchronized(() async {
       final repo = _bareRepoDir(projectId);
-      final dir = Directory(_reviewDir(projectId, reviewId));
-      if (dir.existsSync()) {
-        await Process.run('git', [
-          'worktree',
-          'remove',
-          '--force',
-          dir.path,
-        ], workingDirectory: repo);
+      final dir = _reviewDir(projectId, reviewId);
+      Future<void> bestEffort(List<String> args) async {
+        try {
+          await _git(
+            args,
+            what: 'git ${args.first} for review $reviewId',
+            cwd: repo,
+          );
+        } on WorktreeException catch (e) {
+          onError?.call(e);
+        }
+      }
+
+      if (Directory(dir).existsSync()) {
+        await bestEffort(['worktree', 'remove', '--force', dir]);
       }
       for (final ref in ['head', 'base']) {
-        await Process.run('git', [
+        await bestEffort([
           'update-ref',
           '-d',
           'refs/roundtable-reviews/$reviewId/$ref',
-        ], workingDirectory: repo);
+        ]);
       }
     });
   }

@@ -293,6 +293,91 @@ void main() {
       },
     );
 
+    group("a run can't make the host run its code", () {
+      late String path;
+      late File marker;
+
+      setUp(() async {
+        await manager.ensureProjectCloned(
+          projectId: 'p1',
+          cloneUrl: fixtureRepo.path,
+        );
+        path = await manager.createWorktree(projectId: 'p1', taskId: 't1');
+        marker = File('${tempDir.path}/pwned');
+        File('$path/change.txt').writeAsStringSync('work\n');
+      });
+
+      /// An executable hook in [dir] that creates [marker] when git runs it.
+      void plantHook(String dir, String name) {
+        Directory(dir).createSync(recursive: true);
+        final hook = File('$dir/$name')
+          ..writeAsStringSync('#!/bin/sh\ntouch ${marker.path}\n');
+        Process.runSync('chmod', ['+x', hook.path]);
+      }
+
+      test('hooks in the clone are not run on commit', () async {
+        plantHook('${tempDir.path}/workspace/p1/repo.git/hooks', 'pre-commit');
+
+        await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'work',
+          pushUrl: fixtureRepo.path,
+        );
+
+        expect(marker.existsSync(), isFalse);
+      });
+
+      test("a rewritten .git file isn't followed", () async {
+        // The worktree's .git file points at a repo the run controls, with
+        // its own hook and fsmonitor.
+        final evil = '${tempDir.path}/evil.git';
+        await _git(tempDir.path, ['init', '--bare', evil]);
+        await _git(evil, ['config', 'core.fsmonitor', 'touch ${marker.path}']);
+        plantHook('$evil/hooks', 'pre-commit');
+        File('$path/.git').writeAsStringSync('gitdir: $evil\n');
+
+        await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'work',
+          pushUrl: fixtureRepo.path,
+        );
+
+        expect(marker.existsSync(), isFalse);
+        final pushed = await _gitOutput(fixtureRepo.path, [
+          'show',
+          '--stat',
+          '--format=%s',
+          'task-t1',
+        ]);
+        expect(pushed, contains('change.txt'));
+      });
+    });
+
+    test('a token left in the clone by an older runner is removed', () async {
+      await manager.ensureProjectCloned(
+        projectId: 'p1',
+        cloneUrl: fixtureRepo.path,
+      );
+      final repoGit = '${tempDir.path}/workspace/p1/repo.git';
+      await _git(repoGit, [
+        'config',
+        'remote.origin.url',
+        'https://x-access-token:secret@github.com/acme/app.git',
+      ]);
+
+      await manager.ensureProjectCloned(
+        projectId: 'p1',
+        cloneUrl: fixtureRepo.path,
+      );
+
+      expect(
+        File('$repoGit/config').readAsStringSync(),
+        isNot(contains('secret')),
+      );
+    });
+
     test('rejects projectId/taskId containing path separators', () {
       expect(
         () => manager.createWorktree(projectId: '../evil', taskId: 't1'),

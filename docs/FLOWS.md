@@ -454,7 +454,8 @@ Podman container that sees only what that task needs.
    --userns=keep-id` (the container runs as the runner's user, so the
    files it writes are the runner's to commit). Mounted at their host
    paths, so paths, `PATH` and the MCP config work unchanged:
-   - the task's worktree and the project's bare repo (git data), read-write;
+   - the task's worktree, read-write, and the project's bare repo (git
+     data), read-only — git on the host runs its config and hooks;
    - the mise installs and the pub cache, read-write (Flutter writes into
      its SDK);
    - a home per project (`~/containers/project-<id>`), holding Claude Code's
@@ -471,6 +472,12 @@ Podman container that sees only what that task needs.
    project toolchains.
 3. **Afterwards.** The runner commits and pushes from the host as for a
    native agent, and removes the container if it outlived the run.
+   Git on the host never trusts what the run could write: it is pointed
+   at the worktree with `--git-dir`/`--work-tree` (the worktree's own
+   `.git` file could lead to a repo with the run's config), with hooks and
+   `core.fsmonitor` off. The repo's access token never touches disk or a
+   command line: `GitRemote` strips it from the clone URL and git gets it
+   as an `http.extraHeader` through its environment.
    An agent's mode can only change while it has no open task: a task's
    Claude Code session lives either on the machine or in the container.
 4. **Code reviews.** A docker-mode reviewer (`ReviewDispatcher`) runs in

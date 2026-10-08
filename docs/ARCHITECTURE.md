@@ -167,7 +167,9 @@ Design choices worth keeping:
   `ExitPlanMode` through the server and auto-allows every other tool.
 - `src/worktree_manager.dart`: one bare clone per project at
   `<WORKSPACE_ROOT>/<projectId>/repo.git`, and one worktree per task at
-  `worktrees/<taskId>` on branch `task-<taskId>`.
+  `worktrees/<taskId>` on branch `task-<taskId>`. Every git call goes
+  through `_git` (hooks and fsmonitor off, credentials as a header from the
+  environment, never in `repo.git/config`) — see FLOWS.md §8.
 - `src/worktree_janitor.dart`: removes worktrees of tasks that were deleted,
   are `done`, or ended `failed`/`cancelled` without pushing a branch (kept
   otherwise, since a retry pushes onto the existing PR branch). It never

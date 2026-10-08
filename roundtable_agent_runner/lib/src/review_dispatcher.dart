@@ -361,6 +361,7 @@ class ReviewDispatcher {
         await worktreeManager.removeReviewWorktree(
           projectId: projectId,
           reviewId: '$reviewId',
+          onError: (e) => log('review $reviewId: worktree cleanup: $e'),
         );
       } catch (e) {
         log('review $reviewId: could not remove worktree: $e');

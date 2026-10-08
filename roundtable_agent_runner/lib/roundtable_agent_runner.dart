@@ -364,7 +364,9 @@ class AgentRunnerService {
       podman: _resolveExecutable('podman'),
       mounts: [
         (path: request.worktreePath, readOnly: false),
-        (path: '$workspace/${request.projectId}/repo.git', readOnly: false),
+        // Read-only: its config and hooks are run by git on the host (the
+        // commit and push after the run). The agent never commits itself.
+        (path: '$workspace/${request.projectId}/repo.git', readOnly: true),
         (path: containerHome.path, readOnly: false),
         for (final dir in shared) (path: dir, readOnly: false),
         (path: claude, readOnly: true),
@@ -383,7 +385,11 @@ class AgentRunnerService {
     final credentials = File('$home/.claude/.credentials.json');
     if (!credentials.existsSync()) return;
     Directory('$containerHome/.claude').createSync(recursive: true);
-    credentials.copySync('$containerHome/.claude/.credentials.json');
+    final copy = File('$containerHome/.claude/.credentials.json');
+    // Created owner-only before the secret goes in, like ClaudeTokenStore.
+    copy.writeAsStringSync('');
+    Process.runSync('chmod', ['600', copy.path]);
+    copy.writeAsBytesSync(credentials.readAsBytesSync());
   }
 
   /// The absolute, symlink-free path of [executable] (a path or a name on
