@@ -9,6 +9,7 @@ import 'claude_code_executor.dart';
 import 'container_sandbox.dart';
 import 'environment_prompt.dart';
 import 'role_prompts.dart';
+import 'run_environment.dart';
 import 'server_retry.dart';
 import 'log_entries.dart';
 import 'usage_limit.dart';
@@ -95,6 +96,15 @@ class TaskDispatcher {
   /// MCP config and listed in the prompt, so Claude Code can look at them
   /// with its Read tool. Bound to `client.taskAttachment` in production.
   final Future<List<TaskImage>> Function(int taskId) fetchAttachments;
+
+  late final _environments = RunEnvironments(
+    executorFactory: executorFactory,
+    sandboxFor: sandboxFor,
+    toolchainInstaller: toolchainInstaller,
+    fetchProject: fetchProject,
+    environmentPrompt: environmentPrompt,
+    log: log,
+  );
 
   final WorktreeManager worktreeManager;
   final ClaudeCodeExecutor Function() executorFactory;
@@ -350,55 +360,3 @@ String pullRequestBody({
 const usageLimitResumePrompt =
     'You were interrupted by the Claude usage limit, which has now reset. '
     'Continue exactly where you left off.';
-
-/// Installs the project's toolchains before a run, reporting a download
-/// on the task's timeline. A failure is logged there too, but doesn't
-/// fail the task: the agent works on and reports what it couldn't verify.
-Future<PreparedToolchain?> prepareToolchainForRun(
-  ToolchainInstaller? installer,
-  String label,
-  int projectId,
-  List<ProjectTool> tools,
-  void Function(LogItem item) append,
-  void Function(String message) log,
-) async {
-  if (installer == null || tools.isEmpty) return null;
-  try {
-    var installed = false;
-    final prepared = await installer.prepare(
-      projectId: projectId,
-      tools: tools,
-      onInstalling: (missing) {
-        installed = true;
-        log('$label: installing ${missing.join(', ')}');
-        append(
-          LogItem(
-            kind: LogKind.event,
-            content:
-                'Installing ${missing.join(', ')} — the first time takes '
-                'a few minutes',
-          ),
-        );
-      },
-    );
-    if (installed) {
-      append(
-        LogItem(
-          kind: LogKind.event,
-          content: 'Tools ready: ${prepared.tools.join(', ')}',
-        ),
-      );
-    }
-    return prepared;
-  } catch (e) {
-    log('$label: toolchain install failed: $e');
-    append(
-      LogItem(
-        kind: LogKind.event,
-        content: "Couldn't install the project's tools: $e",
-        isError: true,
-      ),
-    );
-    return null;
-  }
-}

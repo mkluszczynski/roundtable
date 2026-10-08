@@ -26,6 +26,7 @@ export 'src/github_pull_request_opener.dart';
 export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
 export 'src/review_dispatcher.dart';
+export 'src/run_environment.dart';
 export 'src/runner_update.dart';
 export 'src/server_retry.dart';
 export 'src/stream_json_formatter.dart';

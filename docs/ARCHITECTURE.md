@@ -158,8 +158,12 @@ Design choices worth keeping:
   30 min, and checks that `claude` can be launched.
 - `src/task_dispatcher.dart`: runs one task: worktree → Claude
   (planning or execution/resume) → commit/push → open PR → final status.
-- `src/review_dispatcher.dart`: runs one code review in a read-only
-  detached worktree. It parses the reviewer's final ```json block.
+- `src/run_environment.dart`: where a run's `claude` runs (natively or in
+  a container) with the project's toolchains, shared by task runs and
+  reviews.
+- `src/review_dispatcher.dart` (+ `review_run.dart`, `review_prompt.dart`):
+  runs one code review in a read-only detached worktree. It parses the
+  reviewer's final ```json block.
 - `src/claude_code_executor.dart`: spawns `claude -p` (`run`,
   `runPlanning`, `runReview`) and parses NDJSON.
 - `src/permission_prompt_tool.dart` + `bin/permission_prompt_tool.dart`: a

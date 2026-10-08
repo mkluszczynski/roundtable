@@ -8,11 +8,8 @@ const permissionPromptToolName = 'mcp__roundtable-permission__approval_prompt';
 /// starts.
 typedef _RunSetup = ({
   String prompt,
-  ClaudeCodeExecutor executor,
   String mcpConfigPath,
   List<String> attachmentDirs,
-  String? systemPrompt,
-  Map<String, String>? environment,
 });
 
 /// One run of a task, from the worktree to the final status, in steps
@@ -35,7 +32,7 @@ class _TaskRun {
   Process? _liveProcess;
   StreamSubscription<Task>? _watchSub;
   Directory? _mcpConfigDir;
-  ContainerSandbox? _sandbox;
+  RunEnvironment? _environment;
 
   /// One formatter per run: planning and execution share a single
   /// continuous `claude` process (see `runPlanning`'s doc comment), so its
@@ -190,70 +187,31 @@ class _TaskRun {
       }
     }
 
-    final project = await _d.fetchProject?.call(projectId);
-    final toolchain = await prepareToolchainForRun(
-      _d.toolchainInstaller,
-      'task $taskId',
-      projectId,
-      project?.tools ?? const [],
-      _append,
-      _d.log,
-    );
-    if (inContainer) {
-      _sandbox = _buildSandbox(worktreePath, mcpDir, project?.dockerImage);
-    }
-    final systemPrompt = [
-      ?_d.environmentPrompt?.call(container: inContainer),
-      if (toolchain != null) projectToolchainPrompt(toolchain.tools),
-      if (task.title == null) taskTitlePrompt(),
-    ].join('\n\n');
-
-    final sandbox = _sandbox;
-    return (
-      prompt: prompt,
-      executor: sandbox == null
-          ? _d.executorFactory()
-          : _d.executorFactory().inContainer(sandbox),
-      mcpConfigPath: mcpConfigPath,
-      attachmentDirs: attachmentDirs,
-      systemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
-      environment: toolchain?.environment,
-    );
-  }
-
-  ContainerSandbox _buildSandbox(
-    String worktreePath,
-    Directory mcpDir,
-    String? image,
-  ) {
-    final build = _d.sandboxFor;
-    if (build == null) {
-      throw StateError(
-        '${agent.name} runs in docker mode, but this machine has no '
-        'container runtime — install podman (install-agent.sh --docker) '
-        'or switch the agent to native',
-      );
-    }
-    final sandbox = build((
+    _environment = await _d._environments.prepare(
+      agent: agent,
+      label: 'task $taskId',
       projectId: projectId,
-      name: 'roundtable-task-$taskId',
+      containerName: 'roundtable-task-$taskId',
       worktreePath: worktreePath,
       readOnlyDirectories: [mcpDir.path],
-      image: image,
-    ));
-    _append(
-      LogItem(
-        kind: LogKind.event,
-        content: 'Running in a container (${sandbox.image})',
-      ),
+      append: _append,
     );
-    return sandbox;
+    return (
+      prompt: prompt,
+      mcpConfigPath: mcpConfigPath,
+      attachmentDirs: attachmentDirs,
+    );
   }
 
   Future<ClaudeCodeExecutionResult> _runClaude(
     _RunSetup setup,
     String worktreePath,
   ) {
+    final environment = _environment!;
+    final executor = environment.executor;
+    final systemPrompt = environment.systemPrompt([
+      if (task.title == null) taskTitlePrompt(),
+    ]);
     void onLine(String line) => _formatter.feedEntries(line).forEach(_append);
     void onProcessStarted(Process process) {
       _liveProcess = process;
@@ -263,7 +221,7 @@ class _TaskRun {
 
     if (kind.needsPlanning) {
       _log('running claude (planning)');
-      return setup.executor.runPlanning(
+      return executor.runPlanning(
         prompt: setup.prompt,
         workingDirectory: worktreePath,
         permissionPromptTool: permissionPromptToolName,
@@ -272,15 +230,15 @@ class _TaskRun {
         model: agent.defaultModel,
         effort: agent.defaultEffort?.name,
         additionalDirectories: setup.attachmentDirs,
-        appendSystemPrompt: setup.systemPrompt,
-        environment: setup.environment,
+        appendSystemPrompt: systemPrompt,
+        environment: environment.environment,
         resumeSessionId: _resumesPausedSession ? task.claudeSessionId : null,
         onLine: onLine,
         onProcessStarted: onProcessStarted,
       );
     }
     _log('running claude (execution)');
-    return setup.executor.run(
+    return executor.run(
       prompt: setup.prompt,
       workingDirectory: worktreePath,
       oauthToken: _d.oauthToken?.call(),
@@ -290,8 +248,8 @@ class _TaskRun {
       permissionPromptTool: permissionPromptToolName,
       mcpConfigPath: setup.mcpConfigPath,
       additionalDirectories: setup.attachmentDirs,
-      appendSystemPrompt: setup.systemPrompt,
-      environment: setup.environment,
+      appendSystemPrompt: systemPrompt,
+      environment: environment.environment,
       onLine: onLine,
       onProcessStarted: onProcessStarted,
     );
@@ -343,9 +301,7 @@ class _TaskRun {
     String? prUrl;
     final failureReason = result.success
         ? null
-        : _sandbox != null
-        ? describeContainerFailure(result.errorSummary)
-        : result.errorSummary;
+        : _environment!.describeFailure(result.errorSummary);
     var finishedWithoutCode = false;
     if (result.success) {
       final branch = 'task-$taskId';
@@ -439,7 +395,7 @@ class _TaskRun {
 
   Future<void> _cleanUp() async {
     await _watchSub?.cancel();
-    await _sandbox?.remove();
+    await _environment?.dispose();
     try {
       await _mcpConfigDir?.delete(recursive: true);
     } catch (e) {
