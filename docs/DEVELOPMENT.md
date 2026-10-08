@@ -24,7 +24,8 @@ roundtable/
 ├── roundtable_e2e/           E2E tests: fake GitHub, fake claude, harness
 ├── scripts/                  install-agent.sh / uninstall-agent.sh (+ README)
 ├── docs/                     you are here
-└── docker-compose.yml        server + Postgres for a packaged run
+├── docker/                   demo machine entrypoint
+└── docker-compose.yml        Postgres + server + demo machine (README.md)
 ```
 
 ## Running locally
@@ -35,10 +36,12 @@ roundtable/
   incrementally, and hot-reloads both the server and the app.
 - The app's entrypoint for development is `roundtable_flutter/lib/driver.dart`
   (it enables the Flutter driver extension).
-- Packaged run: `docker compose up --build` (see the header comment in
-  `docker-compose.yml`. You need a `.env` with `ROUNDTABLE_DB_PASSWORD`
-  matching `config/passwords.yaml`). The Dockerfile bakes the runner
-  binaries and install scripts into `web/static/`.
+- Packaged run: `docker compose up --build` starts Postgres, the server
+  (serving the panel built in the image) and a demo machine running the
+  agent runner (`docker/machine-entrypoint.sh`), with fixed demo
+  passwords and ports on `127.0.0.1` only — see the root `README.md`. The
+  Dockerfile bakes the runner binaries and install scripts into
+  `web/static/`.
 
 ### Running an agent machine during development
 

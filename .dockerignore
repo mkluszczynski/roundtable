@@ -1,0 +1,15 @@
+# Build context for roundtable_server/Dockerfile (docker compose up).
+.git
+.github
+.claude
+.dart_skills
+.dart_tool
+**/.dart_tool
+**/build
+build
+.env
+.mcp.json
+.vscode
+# Local secrets: the image gets its passwords from the environment
+# (docker-compose.yml), never from a developer's passwords.yaml.
+roundtable_server/config/passwords.yaml

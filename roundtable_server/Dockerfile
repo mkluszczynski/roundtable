@@ -1,5 +1,31 @@
 # Build from the project root with:
 # docker build -f roundtable_server/Dockerfile .
+# or, with the demo machine too: docker compose up --build (README.md).
+#
+# Targets: the default (last) stage is the server, serving the panel too;
+# `machine` is a demo machine running the agent runner.
+
+# Panel stage: the Flutter web app, served by the server from web/app.
+# Flutter is pinned to the version the app is developed with.
+FROM debian:bookworm-slim AS panel
+RUN apt-get update -qq \
+  && apt-get install -y -qq --no-install-recommends \
+    ca-certificates curl git unzip xz-utils \
+  && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch 3.47.4 https://github.com/flutter/flutter.git /flutter
+ENV PATH="/flutter/bin:${PATH}"
+RUN flutter config --no-analytics && flutter precache --web
+WORKDIR /app
+COPY pubspec.yaml pubspec.lock ./
+COPY roundtable_client roundtable_client
+COPY roundtable_server roundtable_server
+COPY roundtable_flutter roundtable_flutter
+COPY roundtable_agent_runner roundtable_agent_runner
+COPY roundtable_e2e roundtable_e2e
+RUN flutter pub get
+WORKDIR /app/roundtable_flutter
+RUN flutter build web --release
+
 
 # Build stage
 FROM dart:3.12.2 AS build
@@ -56,6 +82,22 @@ RUN cp build/bundle/bin/permission_prompt_tool \
 WORKDIR /app/roundtable_server
 RUN mkdir -p config web migrations
 
+# Demo machine: the agent runner with git and the Claude Code CLI, adding
+# itself to the server at startup (docker/machine-entrypoint.sh).
+FROM debian:bookworm-slim AS machine
+RUN apt-get update -qq \
+  && apt-get install -y -qq --no-install-recommends \
+    bash ca-certificates curl git openssh-client xz-utils unzip \
+  && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --shell /bin/bash agent
+COPY --from=build /app/roundtable_server/web/static/bin/roundtable-agent-runner /usr/local/bin/
+COPY --from=build /app/roundtable_server/web/static/bin/roundtable-permission-prompt-tool /usr/local/bin/
+COPY docker/machine-entrypoint.sh /usr/local/bin/machine-entrypoint
+USER agent
+WORKDIR /home/agent
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENTRYPOINT ["/usr/local/bin/machine-entrypoint"]
+
 # Final stage
 FROM alpine:latest
 WORKDIR /app
@@ -75,6 +117,7 @@ COPY --from=build /app/roundtable_server/build/bundle/ ./
 # Copy configuration files and resources
 COPY --from=build /app/roundtable_server/config/ config/
 COPY --from=build /app/roundtable_server/web/ web/
+COPY --from=panel /app/roundtable_flutter/build/web/ web/app/
 COPY --from=build /app/roundtable_server/migrations/ migrations/
 
 # This file is required to enable the endpoint log filter in Insights.
