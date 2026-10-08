@@ -22,6 +22,31 @@ void main() {
       return script.path;
     }
 
+    test('a run past maxRunDuration is killed, even ignoring SIGTERM, and '
+        'fails with the reason', () async {
+      final script = writeFakeClaude('''
+trap '' TERM
+while true; do sleep 0.1; done
+''');
+      final executor = ClaudeCodeExecutor(
+        executable: script,
+        maxRunDuration: const Duration(milliseconds: 300),
+        killGrace: const Duration(milliseconds: 300),
+        pipeDrainTimeout: const Duration(milliseconds: 100),
+      );
+
+      final result = await executor
+          .run(
+            prompt: 'do the thing',
+            workingDirectory: tempDir.path,
+            onLine: (_) {},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      expect(result.success, isFalse);
+      expect(result.errorSummary, contains('stopped after running'));
+    });
+
     test(
       'forwards every NDJSON line and reports success with the session id',
       () async {

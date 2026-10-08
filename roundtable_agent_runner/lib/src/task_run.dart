@@ -150,7 +150,9 @@ class _TaskRun {
       if (updated.status == TaskStatus.draft ||
           updated.status == TaskStatus.cancelled) {
         _cancelRequested = true;
-        _liveProcess?.kill(ProcessSignal.sigterm);
+        if (_liveProcess case final process?) {
+          ClaudeCodeExecutor.terminate(process);
+        }
       } else if (kind.needsPlanning) {
         final status = planningAgentStatus(updated.status);
         if (status != null) {
@@ -256,7 +258,7 @@ class _TaskRun {
     void onProcessStarted(Process process) {
       _liveProcess = process;
       // A cancel that arrived between the last check and the spawn.
-      if (_cancelRequested) process.kill(ProcessSignal.sigterm);
+      if (_cancelRequested) ClaudeCodeExecutor.terminate(process);
     }
 
     if (kind.needsPlanning) {

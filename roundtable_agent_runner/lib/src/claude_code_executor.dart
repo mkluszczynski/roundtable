@@ -67,6 +67,8 @@ class ClaudeCodeExecutor {
   ClaudeCodeExecutor({
     this.executable = 'claude',
     this.pipeDrainTimeout = const Duration(seconds: 5),
+    this.maxRunDuration = const Duration(hours: 4),
+    this.killGrace = defaultKillGrace,
     this.sandbox,
   });
 
@@ -82,11 +84,36 @@ class ClaudeCodeExecutor {
       ClaudeCodeExecutor(
         executable: executable,
         pipeDrainTimeout: pipeDrainTimeout,
+        maxRunDuration: maxRunDuration,
+        killGrace: killGrace,
         sandbox: sandbox,
       );
 
   /// How long to keep reading stdout/stderr after the process has exited.
   final Duration pipeDrainTimeout;
+
+  /// The longest an execution or review run may take before it's stopped
+  /// ([terminate]) and fails — so a hung `claude` can't hold its agent
+  /// forever. Planning runs are exempt: they legitimately wait for the
+  /// dev's answers.
+  final Duration maxRunDuration;
+
+  /// How long [terminate] waits after SIGTERM before SIGKILL.
+  static const defaultKillGrace = Duration(seconds: 10);
+
+  /// [terminate]'s grace for a run stopped at [maxRunDuration].
+  final Duration killGrace;
+
+  /// Stops [process]: SIGTERM, then SIGKILL if it's still running after
+  /// [grace] (a tool call can ignore SIGTERM).
+  static void terminate(Process process, {Duration grace = defaultKillGrace}) {
+    process.kill(ProcessSignal.sigterm);
+    var exited = false;
+    unawaited(process.exitCode.then((_) => exited = true));
+    Timer(grace, () {
+      if (!exited) process.kill(ProcessSignal.sigkill);
+    });
+  }
 
   /// Runs one execution-phase invocation. [prompt] is always passed to `-p`
   /// as given — the caller decides what it should be (empty for a
@@ -148,6 +175,7 @@ class ClaudeCodeExecutor {
     ];
 
     return _runProcess(
+      timeout: maxRunDuration,
       args: args,
       workingDirectory: workingDirectory,
       oauthToken: oauthToken,
@@ -262,6 +290,7 @@ class ClaudeCodeExecutor {
     ];
 
     return _runProcess(
+      timeout: maxRunDuration,
       args: args,
       workingDirectory: workingDirectory,
       oauthToken: oauthToken,
@@ -278,6 +307,7 @@ class ClaudeCodeExecutor {
     Map<String, String>? environment,
     required void Function(String line) onLine,
     void Function(Process process)? onProcessStarted,
+    Duration? timeout,
   }) async {
     final env = {...?environment, 'CLAUDE_CODE_OAUTH_TOKEN': ?oauthToken};
     final sandbox = this.sandbox;
@@ -335,7 +365,17 @@ class ClaudeCodeExecutor {
         .listen(stderrBuffer.write);
     final stderrDone = stderrSub.asFuture<void>();
 
-    final exitCode = await process.exitCode;
+    var timedOut = false;
+    final exitCode = timeout == null
+        ? await process.exitCode
+        : await process.exitCode.timeout(
+            timeout,
+            onTimeout: () {
+              timedOut = true;
+              terminate(process, grace: killGrace);
+              return process.exitCode;
+            },
+          );
     // A grandchild (e.g. the permission-prompt-tool MCP server) can inherit
     // and keep the pipes open after `claude` exits, so EOF may never come.
     try {
@@ -345,7 +385,7 @@ class ClaudeCodeExecutor {
       await stderrSub.cancel();
     }
 
-    final success = reportedSuccess && exitCode == 0;
+    final success = !timedOut && reportedSuccess && exitCode == 0;
     return ClaudeCodeExecutionResult(
       success: success,
       exitCode: exitCode,
@@ -355,6 +395,9 @@ class ClaudeCodeExecutor {
       // over stderr noise.
       errorSummary: success
           ? null
+          : timedOut
+          ? 'claude was stopped after running for ${_hours(timeout!)} '
+                '(the limit for one run)'
           : (resultText?.trim().isNotEmpty ?? false)
           ? resultText!.trim()
           : (stderrBuffer.isEmpty
@@ -363,3 +406,6 @@ class ClaudeCodeExecutor {
     );
   }
 }
+
+String _hours(Duration d) =>
+    d.inMinutes % 60 == 0 ? '${d.inHours} h' : '${d.inMinutes} min';

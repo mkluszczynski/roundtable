@@ -79,8 +79,9 @@ class WorktreeManager {
 
   /// Runs git with config that a run can't override: an agent can write to
   /// its worktree (and, natively, anywhere), so hooks and `core.fsmonitor`
-  /// — commands git would run on the host — are switched off, and nothing
-  /// prompts for a password. [remote]'s credentials go in as an extra
+  /// — commands git would run on the host — are switched off, nothing
+  /// prompts for a password, and a transfer slower than 1 KB/s for a
+  /// minute is aborted. [remote]'s credentials go in as an extra
   /// header. Returns stdout; throws a [WorktreeException] naming [what].
   Future<String> _git(
     List<String> args, {
@@ -99,6 +100,10 @@ class WorktreeManager {
       workingDirectory: cwd,
       environment: {
         'GIT_TERMINAL_PROMPT': '0',
+        // A fetch or push stalled on a dead connection would hold the
+        // project's lock — and every run on the project — forever.
+        'GIT_HTTP_LOW_SPEED_LIMIT': '1000',
+        'GIT_HTTP_LOW_SPEED_TIME': '60',
         'GIT_CONFIG_COUNT': '${config.length}',
         for (final (i, MapEntry(:key, :value)) in config.entries.indexed) ...{
           'GIT_CONFIG_KEY_$i': key,

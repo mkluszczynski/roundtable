@@ -223,12 +223,16 @@ terminal, the runner can't change it through `update` anymore.
      and Claude plans again (task → `planning`).
    - Every other tool → auto-allow.
 6. **Finish.** Cancelled during the run (the task turns `draft` on
-   `watchTask`) → `SIGTERM`, reset the worktree, report nothing more: the
-   server ignores daemon writes (`update`, `createQuestion`,
-   `setPlanReady`) to a draft. Success with changes → commit + push `task-<id>`, open a PR
-   on the first run (later runs push to the same PR) → `awaitingReview`.
-   Success with **no changes on the first run** → `failed` ("Agent finished
-   without changing any files."). Every outcome sets the agent back to `idle`.
+   `watchTask`) → `SIGTERM` (`SIGKILL` 10 s later if it's still running),
+   reset the worktree, report nothing more: the server ignores daemon
+   writes (`update`, `createQuestion`, `setPlanReady`) to a draft. Success
+   with changes → commit + push `task-<id>`, open a PR on the first run
+   (later runs push to the same PR) → `awaitingReview`. Success with **no
+   changes on the first run** → `done` without a PR: the agent's reply is
+   the result. An execution or review run longer than 4 h is stopped the
+   same way and fails (planning is exempt: it waits for the dev). Every
+   outcome sets the agent back to `idle`; the final reports are retried
+   while the server is briefly unreachable.
 7. **Review in the panel** (task detail, diff sub-state). `getChangedFiles`
    and `getFileContent` are proxied through the server using the project
    token. `getMergeStatus` asks GitHub whether the PR has conflicts.
