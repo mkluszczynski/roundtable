@@ -14,6 +14,7 @@
 import 'dart:async' as _ida;
 import 'package:clock/clock.dart' as _io0w16m8;
 import 'package:serverpod/serverpod.dart' as _is;
+import '../future_calls/attachment_cleanup_future_call.dart' as _izlujmgz;
 import '../future_calls/machine_metric_cleanup_future_call.dart' as _isi0pp7c;
 import '../future_calls/machine_offline_future_call.dart' as _iou5r7kt;
 import '../future_calls/paused_task_resume_future_call.dart' as _i1l5ctmh;
@@ -62,6 +63,7 @@ class FutureCalls extends _is.FutureCallDispatch<_FutureCallRef> {
     String serverId,
   ) {
     var registeredFutureCalls = <String, _is.InvokableFutureCall>{
+      'AttachmentCleanupCheckFutureCall': AttachmentCleanupCheckFutureCall(),
       'MachineMetricCleanupCheckFutureCall':
           MachineMetricCleanupCheckFutureCall(),
       'MachineOfflineCheckFutureCall': MachineOfflineCheckFutureCall(),
@@ -188,6 +190,10 @@ class _FutureCallRef {
 
   final _InvokeFutureCall _invokeFutureCall;
 
+  late final attachmentCleanup = _AttachmentCleanupFutureCallDispatcher(
+    _invokeFutureCall,
+  );
+
   late final machineMetricCleanup = _MachineMetricCleanupFutureCallDispatcher(
     _invokeFutureCall,
   );
@@ -203,6 +209,19 @@ class _FutureCallRef {
   late final prChecks = _PrChecksFutureCallDispatcher(_invokeFutureCall);
 
   late final stalledTask = _StalledTaskFutureCallDispatcher(_invokeFutureCall);
+}
+
+class _AttachmentCleanupFutureCallDispatcher {
+  _AttachmentCleanupFutureCallDispatcher(this._invokeFutureCall);
+
+  final _InvokeFutureCall _invokeFutureCall;
+
+  Future<void> check() {
+    return _invokeFutureCall(
+      'AttachmentCleanupCheckFutureCall',
+      null,
+    );
+  }
 }
 
 class _MachineMetricCleanupFutureCallDispatcher {
@@ -267,6 +286,17 @@ class _StalledTaskFutureCallDispatcher {
       'StalledTaskCheckFutureCall',
       null,
     );
+  }
+}
+
+class AttachmentCleanupCheckFutureCall extends _is.FutureCall
+    implements _is.InvokableFutureCall {
+  @override
+  _ida.Future<void> invoke(
+    _is.Session session,
+    _is.SerializableModel? object,
+  ) async {
+    await _izlujmgz.AttachmentCleanupFutureCall().check(session);
   }
 }
 

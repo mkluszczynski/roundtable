@@ -118,7 +118,8 @@ class AgentRunnerService {
     executorFactory: () =>
         ClaudeCodeExecutor(executable: _config.claudeExecutable),
     oauthToken: () => _claudeToken.token,
-    getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
+    getCloneUrl: (projectId) =>
+        _client.project.getCloneUrl(_config.registrationToken, projectId),
     fetchAgent: _fetchAgent,
     startReview: (reviewId) => _client.codeReview.startReview(reviewId),
     completeReview: (reviewId, findings) => _client.codeReview.completeReview(
@@ -166,7 +167,8 @@ class AgentRunnerService {
     executorFactory: () =>
         ClaudeCodeExecutor(executable: _config.claudeExecutable),
     oauthToken: () => _claudeToken.token,
-    getCloneUrl: (projectId) => _client.project.getCloneUrl(projectId),
+    getCloneUrl: (projectId) =>
+        _client.project.getCloneUrl(_config.registrationToken, projectId),
     fetchAgent: _fetchAgent,
     updateTask: (task) => _client.task.update(task),
     updateAgent: (agent) => _client.agent.setStatus(agent.id!, agent.status),

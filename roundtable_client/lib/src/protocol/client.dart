@@ -26,8 +26,6 @@ import 'package:roundtable_client/src/protocol/code_review.dart' as _i38oxrkr;
 import 'package:roundtable_client/src/protocol/code_review_verdict.dart'
     as _ijtwbvlr;
 import 'package:roundtable_client/src/protocol/diff_file.dart' as _iusyva9a;
-import 'package:roundtable_client/src/protocol/greetings/greeting.dart'
-    as _ixjw1k71;
 import 'package:roundtable_client/src/protocol/log_source.dart' as _ict2bn87;
 import 'package:roundtable_client/src/protocol/machine.dart' as _iwz93qz1;
 import 'package:roundtable_client/src/protocol/machine_install_command.dart'
@@ -64,231 +62,6 @@ import 'package:serverpod_auth_idp_client/serverpod_auth_idp_client.dart'
     as _iaic;
 import 'package:serverpod_client/serverpod_client.dart' as _isc;
 import 'protocol.dart' as _il2as5qe;
-
-/// By extending [EmailIdpBaseEndpoint], the email identity provider endpoints
-/// are made available on the server and enable the corresponding sign-in widget
-/// on the client.
-/// {@category Endpoint}
-class EndpointEmailIdp extends _iaic.EndpointEmailIdpBase {
-  EndpointEmailIdp(_isc.EndpointCaller caller) : super(caller);
-
-  @override
-  String get name => 'emailIdp';
-
-  /// Logs in the user and returns a new session.
-  ///
-  /// Throws an [EmailAccountLoginException] in case of errors, with reason:
-  /// - [EmailAccountLoginExceptionReason.invalidCredentials] if the email or
-  ///   password is incorrect.
-  /// - [EmailAccountLoginExceptionReason.tooManyAttempts] if there have been
-  ///   too many failed login attempts.
-  ///
-  /// Throws an [AuthUserBlockedException] if the auth user is blocked.
-  @override
-  _ida.Future<_iacc.AuthSuccess> login({
-    required String email,
-    required String password,
-  }) => caller.callServerEndpoint<_iacc.AuthSuccess>(
-    'emailIdp',
-    'login',
-    {
-      'email': email,
-      'password': password,
-    },
-  );
-
-  /// Starts the registration for a new user account with an email-based login
-  /// associated to it.
-  ///
-  /// Upon successful completion of this method, an email will have been
-  /// sent to [email] with a verification link, which the user must open to
-  /// complete the registration.
-  ///
-  /// Always returns a account request ID, which can be used to complete the
-  /// registration. If the email is already registered, the returned ID will not
-  /// be valid.
-  @override
-  _ida.Future<_isc.UuidValue> startRegistration({required String email}) =>
-      caller.callServerEndpoint<_isc.UuidValue>(
-        'emailIdp',
-        'startRegistration',
-        {'email': email},
-      );
-
-  /// Verifies an account request code and returns a token
-  /// that can be used to complete the account creation.
-  ///
-  /// Throws an [EmailAccountRequestException] in case of errors, with reason:
-  /// - [EmailAccountRequestExceptionReason.expired] if the account request has
-  ///   already expired.
-  /// - [EmailAccountRequestExceptionReason.policyViolation] if the password
-  ///   does not comply with the password policy.
-  /// - [EmailAccountRequestExceptionReason.invalid] if no request exists
-  ///   for the given [accountRequestId] or [verificationCode] is invalid.
-  @override
-  _ida.Future<String> verifyRegistrationCode({
-    required _isc.UuidValue accountRequestId,
-    required String verificationCode,
-  }) => caller.callServerEndpoint<String>(
-    'emailIdp',
-    'verifyRegistrationCode',
-    {
-      'accountRequestId': accountRequestId,
-      'verificationCode': verificationCode,
-    },
-  );
-
-  /// Completes a new account registration, creating a new auth user with a
-  /// profile and attaching the given email account to it.
-  ///
-  /// Throws an [EmailAccountRequestException] in case of errors, with reason:
-  /// - [EmailAccountRequestExceptionReason.expired] if the account request has
-  ///   already expired.
-  /// - [EmailAccountRequestExceptionReason.policyViolation] if the password
-  ///   does not comply with the password policy.
-  /// - [EmailAccountRequestExceptionReason.invalid] if the [registrationToken]
-  ///   is invalid.
-  ///
-  /// Throws an [AuthUserBlockedException] if the auth user is blocked.
-  ///
-  /// Returns a session for the newly created user.
-  @override
-  _ida.Future<_iacc.AuthSuccess> finishRegistration({
-    required String registrationToken,
-    required String password,
-  }) => caller.callServerEndpoint<_iacc.AuthSuccess>(
-    'emailIdp',
-    'finishRegistration',
-    {
-      'registrationToken': registrationToken,
-      'password': password,
-    },
-  );
-
-  /// Requests a password reset for [email].
-  ///
-  /// If the email address is registered, an email with reset instructions will
-  /// be send out. If the email is unknown, this method will have no effect.
-  ///
-  /// Always returns a password reset request ID, which can be used to complete
-  /// the reset. If the email is not registered, the returned ID will not be
-  /// valid.
-  ///
-  /// Throws an [EmailAccountPasswordResetException] in case of errors, with reason:
-  /// - [EmailAccountPasswordResetExceptionReason.tooManyAttempts] if the user has
-  ///   made too many attempts trying to request a password reset.
-  ///
-  @override
-  _ida.Future<_isc.UuidValue> startPasswordReset({required String email}) =>
-      caller.callServerEndpoint<_isc.UuidValue>(
-        'emailIdp',
-        'startPasswordReset',
-        {'email': email},
-      );
-
-  /// Verifies a password reset code and returns a finishPasswordResetToken
-  /// that can be used to finish the password reset.
-  ///
-  /// Throws an [EmailAccountPasswordResetException] in case of errors, with reason:
-  /// - [EmailAccountPasswordResetExceptionReason.expired] if the password reset
-  ///   request has already expired.
-  /// - [EmailAccountPasswordResetExceptionReason.tooManyAttempts] if the user has
-  ///   made too many attempts trying to verify the password reset.
-  /// - [EmailAccountPasswordResetExceptionReason.invalid] if no request exists
-  ///   for the given [passwordResetRequestId] or [verificationCode] is invalid.
-  ///
-  /// If multiple steps are required to complete the password reset, this endpoint
-  /// should be overridden to return credentials for the next step instead
-  /// of the credentials for setting the password.
-  @override
-  _ida.Future<String> verifyPasswordResetCode({
-    required _isc.UuidValue passwordResetRequestId,
-    required String verificationCode,
-  }) => caller.callServerEndpoint<String>(
-    'emailIdp',
-    'verifyPasswordResetCode',
-    {
-      'passwordResetRequestId': passwordResetRequestId,
-      'verificationCode': verificationCode,
-    },
-  );
-
-  /// Completes a password reset request by setting a new password.
-  ///
-  /// The [verificationCode] returned from [verifyPasswordResetCode] is used to
-  /// validate the password reset request.
-  ///
-  /// Throws an [EmailAccountPasswordResetException] in case of errors, with reason:
-  /// - [EmailAccountPasswordResetExceptionReason.expired] if the password reset
-  ///   request has already expired.
-  /// - [EmailAccountPasswordResetExceptionReason.policyViolation] if the new
-  ///   password does not comply with the password policy.
-  /// - [EmailAccountPasswordResetExceptionReason.invalid] if no request exists
-  ///   for the given [passwordResetRequestId] or [verificationCode] is invalid.
-  ///
-  /// Throws an [AuthUserBlockedException] if the auth user is blocked.
-  @override
-  _ida.Future<void> finishPasswordReset({
-    required String finishPasswordResetToken,
-    required String newPassword,
-  }) => caller.callServerEndpoint<void>(
-    'emailIdp',
-    'finishPasswordReset',
-    {
-      'finishPasswordResetToken': finishPasswordResetToken,
-      'newPassword': newPassword,
-    },
-  );
-
-  @override
-  _ida.Future<bool> hasAccount() => caller.callServerEndpoint<bool>(
-    'emailIdp',
-    'hasAccount',
-    {},
-  );
-}
-
-/// By extending [RefreshJwtTokensEndpoint], the JWT token refresh endpoint
-/// is made available on the server and enables automatic token refresh on the client.
-/// {@category Endpoint}
-class EndpointJwtRefresh extends _iacc.EndpointRefreshJwtTokens {
-  EndpointJwtRefresh(_isc.EndpointCaller caller) : super(caller);
-
-  @override
-  String get name => 'jwtRefresh';
-
-  /// Creates a new token pair for the given [refreshToken].
-  ///
-  /// If [refreshToken] is omitted, cookie-mode web clients fall back to the
-  /// configured HttpOnly refresh cookie. When neither source is present this
-  /// throws [RefreshTokenNotFoundException], the same public "no usable refresh
-  /// credential" exception used for unknown refresh tokens.
-  ///
-  /// Can throw the following exceptions:
-  /// -[RefreshTokenMalformedException]: refresh token is malformed and could
-  ///   not be parsed. Not expected to happen for tokens issued by the server.
-  /// -[RefreshTokenNotFoundException]: refresh token is unknown to the server.
-  ///   Either the token was deleted or generated by a different server.
-  /// -[RefreshTokenExpiredException]: refresh token has expired. Will happen
-  ///   only if it has not been used within configured `refreshTokenLifetime`.
-  /// -[RefreshTokenInvalidSecretException]: refresh token is incorrect, meaning
-  ///   it does not refer to the current secret refresh token. This indicates
-  ///   either a malfunctioning client or a malicious attempt by someone who has
-  ///   obtained the refresh token. In this case the underlying refresh token
-  ///   will be deleted, and access to it will expire fully when the last access
-  ///   token is elapsed.
-  ///
-  /// This endpoint is unauthenticated, meaning the client won't include any
-  /// authentication information with the call.
-  @override
-  _ida.Future<_iacc.AuthSuccess> refreshAccessToken({String? refreshToken}) =>
-      caller.callServerEndpoint<_iacc.AuthSuccess>(
-        'jwtRefresh',
-        'refreshAccessToken',
-        {'refreshToken': refreshToken},
-        authenticated: false,
-      );
-}
 
 /// CRUD for [Agent]. Deletion is blocked while the agent has a non-terminal
 /// task (docs/ARCHITECTURE.md).
@@ -1083,15 +856,21 @@ class EndpointProject extends _isc.EndpointRef {
 
   /// Returns a ready-to-clone HTTPS URL for [projectId], with
   /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
-  /// injected as the userinfo component when present. Called by the agent
-  /// daemon only at the moment a task starts, never persisted to disk on the
-  /// agent side (docs/ARCHITECTURE.md).
-  _ida.Future<String> getCloneUrl(int projectId) =>
-      caller.callServerEndpoint<String>(
-        'project',
-        'getCloneUrl',
-        {'projectId': projectId},
-      );
+  /// injected as the userinfo component when present. For agent daemons
+  /// only: [machineToken] must belong to a machine whose agent has a task,
+  /// or a review of one, in the project — the URL carries the repo's
+  /// token. The runner strips it before git sees the URL (`GitRemote`).
+  _ida.Future<String> getCloneUrl(
+    String machineToken,
+    int projectId,
+  ) => caller.callServerEndpoint<String>(
+    'project',
+    'getCloneUrl',
+    {
+      'machineToken': machineToken,
+      'projectId': projectId,
+    },
+  );
 }
 
 /// Workspace settings and the task defaults resolved from them.
@@ -1786,24 +1565,6 @@ class EndpointTask extends _isc.EndpointRef {
       );
 }
 
-/// This is an example endpoint that returns a greeting message through
-/// its [hello] method.
-/// {@category Endpoint}
-class EndpointGreeting extends _isc.EndpointRef {
-  EndpointGreeting(_isc.EndpointCaller caller) : super(caller);
-
-  @override
-  String get name => 'greeting';
-
-  /// Returns a personalized greeting message: "Hello {name}".
-  _ida.Future<_ixjw1k71.Greeting> hello(String name) =>
-      caller.callServerEndpoint<_ixjw1k71.Greeting>(
-        'greeting',
-        'hello',
-        {'name': name},
-      );
-}
-
 class Modules {
   Modules(Client client) {
     serverpod_auth_idp = _iaic.Caller(client);
@@ -1842,8 +1603,6 @@ class Client extends _isc.ServerpodClientShared {
              disconnectStreamsOnLostInternetConnection,
          httpClientOverride: httpClientOverride,
        ) {
-    emailIdp = EndpointEmailIdp(this);
-    jwtRefresh = EndpointJwtRefresh(this);
     agent = EndpointAgent(this);
     agentRole = EndpointAgentRole(this);
     codeReview = EndpointCodeReview(this);
@@ -1852,13 +1611,8 @@ class Client extends _isc.ServerpodClientShared {
     settings = EndpointSettings(this);
     taskAttachment = EndpointTaskAttachment(this);
     task = EndpointTask(this);
-    greeting = EndpointGreeting(this);
     modules = Modules(this);
   }
-
-  late final EndpointEmailIdp emailIdp;
-
-  late final EndpointJwtRefresh jwtRefresh;
 
   late final EndpointAgent agent;
 
@@ -1876,14 +1630,10 @@ class Client extends _isc.ServerpodClientShared {
 
   late final EndpointTask task;
 
-  late final EndpointGreeting greeting;
-
   late final Modules modules;
 
   @override
   Map<String, _isc.EndpointRef> get endpointRefLookup => {
-    'emailIdp': emailIdp,
-    'jwtRefresh': jwtRefresh,
     'agent': agent,
     'agentRole': agentRole,
     'codeReview': codeReview,
@@ -1892,7 +1642,6 @@ class Client extends _isc.ServerpodClientShared {
     'settings': settings,
     'taskAttachment': taskAttachment,
     'task': task,
-    'greeting': greeting,
   };
 
   @override

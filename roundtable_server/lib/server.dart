@@ -173,6 +173,7 @@ void run(List<String> args) async {
         'MachineMetricCleanupCheckFutureCall',
         'PrChecksCheckFutureCall',
         'PausedTaskResumeCheckFutureCall',
+        'AttachmentCleanupCheckFutureCall',
       }),
     );
     await seedDefaultAgentRoles(session);
@@ -210,6 +211,13 @@ void run(List<String> args) async {
       .callRecurring(identifier: 'machine-metric-cleanup')
       .every(const Duration(minutes: 10))
       .machineMetricCleanup
+      .check();
+
+  // Delete attachments that were uploaded but never linked to a task.
+  await pod.futureCalls
+      .callRecurring(identifier: 'attachment-cleanup')
+      .every(const Duration(hours: 1))
+      .attachmentCleanup
       .check();
 
   // Mirror the GitHub Actions checks of tasks in review, so the panel shows

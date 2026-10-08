@@ -4,12 +4,41 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:roundtable_server/src/generated/protocol.dart';
 import 'package:roundtable_server/src/github_repo_client.dart';
+import 'package:roundtable_server/src/machine_tokens.dart';
 import 'package:test/test.dart';
 
 import 'test_tools/serverpod_test_tools.dart';
 
 void main() {
   withServerpod('Given Project endpoint', (sessionBuilder, endpoints) {
+    const machineToken = 'machine-token';
+
+    /// A machine (registered with [machineToken], unless [token] is given)
+    /// whose agent has a task in [project].
+    Future<void> machineWorkingOn(Project project, {String? token}) async {
+      final session = sessionBuilder.build();
+      final machine = await Machine.db.insertRow(
+        session,
+        Machine(
+          name: 'VPS',
+          tokenHash: hashMachineToken(token ?? machineToken),
+        ),
+      );
+      final agent = await Agent.db.insertRow(
+        session,
+        Agent(name: 'Ana', machineId: machine.id!),
+      );
+      await Task.db.insertRow(
+        session,
+        Task(
+          projectId: project.id!,
+          agentId: agent.id,
+          prompt: 'Fix the bug',
+          status: TaskStatus.queued,
+        ),
+      );
+    }
+
     test(
       'when creating a project then it is persisted with the given fields',
       () async {
@@ -154,8 +183,10 @@ void main() {
         // wire serialization to the panel, not from in-process endpoint
         // calls like this test's — verify the real guarantee instead,
         // that `getCloneUrl` (the only server-side reader) sees it.
+        await machineWorkingOn(created);
         final cloneUrl = await endpoints.project.getCloneUrl(
           sessionBuilder,
+          machineToken,
           created.id!,
         );
         expect(
@@ -174,8 +205,12 @@ void main() {
           'https://github.com/example/roundtable',
         );
 
+        await machineWorkingOn(created);
+
         final cloneUrl = await endpoints.project.getCloneUrl(
           sessionBuilder,
+
+          machineToken,
           created.id!,
         );
 
@@ -193,8 +228,12 @@ void main() {
           repoAccessToken: 'secret-token',
         );
 
+        await machineWorkingOn(created);
+
         final cloneUrl = await endpoints.project.getCloneUrl(
           sessionBuilder,
+
+          machineToken,
           created.id!,
         );
 
@@ -215,14 +254,56 @@ void main() {
           repoAccessToken: 'secret-token',
         );
 
+        await machineWorkingOn(created);
+
         final cloneUrl = await endpoints.project.getCloneUrl(
           sessionBuilder,
+
+          machineToken,
           created.id!,
         );
 
         expect(cloneUrl, 'git@github.com:example/roundtable.git');
       },
     );
+
+    test('when getting the clone url without a machine token then it is '
+        'refused', () async {
+      final created = await endpoints.project.create(
+        sessionBuilder,
+        'Roundtable',
+        'https://github.com/example/roundtable',
+        repoAccessToken: 'secret-token',
+      );
+      await machineWorkingOn(created);
+
+      expect(
+        endpoints.project.getCloneUrl(sessionBuilder, 'stolen', created.id!),
+        throwsA(isA<InvalidTokenException>()),
+      );
+    });
+
+    test("when a machine asks for a project it doesn't work on then it is "
+        'refused', () async {
+      final mine = await endpoints.project.create(
+        sessionBuilder,
+        'Mine',
+        'https://github.com/example/mine',
+      );
+      final theirs = await endpoints.project.create(
+        sessionBuilder,
+        'Theirs',
+        'https://github.com/example/theirs',
+        repoAccessToken: 'secret-token',
+      );
+      await machineWorkingOn(mine);
+      await machineWorkingOn(theirs, token: 'other-machine');
+
+      expect(
+        endpoints.project.getCloneUrl(sessionBuilder, machineToken, theirs.id!),
+        throwsA(isA<NotFoundException>()),
+      );
+    });
 
     test('when creating a project with tools then they are validated and '
         'saved', () async {

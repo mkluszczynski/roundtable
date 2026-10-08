@@ -45,12 +45,17 @@ reviewer is always on the stronger model without setting it per agent.
 ### No user authentication, rate limiting or per-user data
 User login comes after the MVP (see `AGENTS.md`). Anyone who can reach the
 API can use every panel-facing endpoint. That's fine on localhost or a
-trusted network, and has to change before public exposure. Only the
-runner-facing `MachineEndpoint` methods are token-gated. The permission-tool
-methods on `TaskEndpoint` (`createQuestion`, `setPlanReady`, …) and
-`AgentEndpoint.setStatus` are not. The `serverpod_auth_idp_*` setup stays
-initialized so it can be wired up later. `lib/src/greetings/` is unused
-scaffold.
+trusted network, and has to change before public exposure — run it on
+localhost (in Docker, publish the port as `127.0.0.1:8080:8080`) or behind
+a VPN or an authenticating proxy. The runner-facing `MachineEndpoint`
+methods and `ProjectEndpoint.getCloneUrl` (it carries the repo token, and
+only goes to a machine working on the project) are token-gated. The other
+daemon RPCs — `TaskEndpoint.update`, the permission-tool methods
+(`createQuestion`, `setPlanReady`, …), `CodeReviewEndpoint.startReview` /
+`completeReview` and `AgentEndpoint.setStatus` — are not: gating them pays
+off together with panel login. The `serverpod_auth_idp_*` setup stays
+initialized in `server.dart`, but its endpoints (email sign-up, JWT
+refresh) aren't exposed until login is built.
 
 ### No concurrency limit per machine
 Each assigned task starts its own `claude` process. All agents on a machine

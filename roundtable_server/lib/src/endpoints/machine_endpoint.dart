@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
-
 import '../agent_runner_binaries.dart';
 import '../agent_status.dart';
 import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
+import '../machine_tokens.dart';
 import '../task_lifecycle.dart';
 import '../task_review_support.dart';
 import 'package:serverpod/serverpod.dart';
@@ -16,11 +15,6 @@ String _generateRegistrationToken() {
   final random = Random.secure();
   final bytes = List<int>.generate(32, (_) => random.nextInt(256));
   return base64UrlEncode(bytes).replaceAll('=', '');
-}
-
-/// Hashes a raw token for storage; only the hash is ever persisted.
-String _hashToken(String token) {
-  return sha256.convert(utf8.encode(token)).toString();
 }
 
 /// Registration and CRUD for [Machine]. Deletion is blocked while the machine
@@ -54,7 +48,7 @@ class MachineEndpoint extends Endpoint {
     final enrollment = await MachineEnrollment.db.insertRow(
       session,
       MachineEnrollment(
-        tokenHash: _hashToken(token),
+        tokenHash: hashMachineToken(token),
         name: trimmed == null || trimmed.isEmpty ? null : trimmed,
         expiresAt: now.add(enrollmentTtl),
       ),
@@ -95,7 +89,7 @@ class MachineEndpoint extends Endpoint {
     return session.db.transaction((transaction) async {
       final enrollment = await MachineEnrollment.db.findFirstRow(
         session,
-        where: (e) => e.tokenHash.equals(_hashToken(enrollmentToken)),
+        where: (e) => e.tokenHash.equals(hashMachineToken(enrollmentToken)),
         transaction: transaction,
         lockMode: LockMode.forUpdate,
       );
@@ -119,7 +113,7 @@ class MachineEndpoint extends Endpoint {
         if (enrolled == null || enrolled.lastSeenAt != null) throw invalid;
         await Machine.db.updateRow(
           session,
-          enrolled.copyWith(tokenHash: _hashToken(token)),
+          enrolled.copyWith(tokenHash: hashMachineToken(token)),
           columns: (t) => [t.tokenHash],
           transaction: transaction,
         );
@@ -133,7 +127,7 @@ class MachineEndpoint extends Endpoint {
             _nonEmpty(name) ?? enrollment.name ?? hostname.trim(),
             transaction,
           ),
-          tokenHash: _hashToken(token),
+          tokenHash: hashMachineToken(token),
         ),
         transaction: transaction,
       );
@@ -718,18 +712,8 @@ class MachineEndpoint extends Endpoint {
     }
   }
 
-  Future<Machine> _findByToken(Session session, String token) async {
-    final machine = await Machine.db.findFirstRow(
-      session,
-      where: (t) => t.tokenHash.equals(_hashToken(token)),
-    );
-    if (machine == null) {
-      throw InvalidTokenException(
-        message: 'Unknown or revoked registration token',
-      );
-    }
-    return machine;
-  }
+  Future<Machine> _findByToken(Session session, String token) =>
+      findMachineByToken(session, token);
 
   /// Deletes an offline machine whose agents have no non-terminal tasks.
   /// Its agents go with it, so their still-active code reviews are failed

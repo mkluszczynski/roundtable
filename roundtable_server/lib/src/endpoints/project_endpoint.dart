@@ -2,6 +2,7 @@ import 'non_terminal_task_statuses.dart';
 import '../generated/protocol.dart';
 import '../github_host.dart';
 import '../github_repo_client.dart';
+import '../machine_tokens.dart';
 import '../project_tools.dart';
 import 'package:serverpod/serverpod.dart';
 
@@ -159,12 +160,19 @@ class ProjectEndpoint extends Endpoint {
 
   /// Returns a ready-to-clone HTTPS URL for [projectId], with
   /// `repoAccessToken` (`scope=serverOnly`, never returned as its own field)
-  /// injected as the userinfo component when present. Called by the agent
-  /// daemon only at the moment a task starts, never persisted to disk on the
-  /// agent side (docs/ARCHITECTURE.md).
-  Future<String> getCloneUrl(Session session, int projectId) async {
+  /// injected as the userinfo component when present. For agent daemons
+  /// only: [machineToken] must belong to a machine whose agent has a task,
+  /// or a review of one, in the project — the URL carries the repo's
+  /// token. The runner strips it before git sees the URL (`GitRemote`).
+  Future<String> getCloneUrl(
+    Session session,
+    String machineToken,
+    int projectId,
+  ) async {
+    final machine = await findMachineByToken(session, machineToken);
     var project = await Project.db.findById(session, projectId);
-    if (project == null) {
+    if (project == null ||
+        !await _machineWorksOn(session, machine.id!, projectId)) {
       throw NotFoundException(message: 'Project $projectId not found');
     }
 
@@ -180,5 +188,40 @@ class ProjectEndpoint extends Endpoint {
     }
 
     return uri.replace(userInfo: 'x-access-token:$token').toString();
+  }
+
+  /// Whether one of [machineId]'s agents has a task in [projectId] or
+  /// reviews one there.
+  static Future<bool> _machineWorksOn(
+    Session session,
+    int machineId,
+    int projectId,
+  ) async {
+    final agentIds = {
+      for (final agent in await Agent.db.find(
+        session,
+        where: (a) => a.machineId.equals(machineId),
+      ))
+        agent.id!,
+    };
+    if (agentIds.isEmpty) return false;
+    final tasks = await Task.db.count(
+      session,
+      where: (t) => t.projectId.equals(projectId) & t.agentId.inSet(agentIds),
+    );
+    if (tasks > 0) return true;
+    final reviewedTaskIds = {
+      for (final review in await CodeReview.db.find(
+        session,
+        where: (r) => r.reviewerAgentId.inSet(agentIds),
+      ))
+        review.taskId,
+    };
+    if (reviewedTaskIds.isEmpty) return false;
+    final reviewed = await Task.db.count(
+      session,
+      where: (t) => t.projectId.equals(projectId) & t.id.inSet(reviewedTaskIds),
+    );
+    return reviewed > 0;
   }
 }

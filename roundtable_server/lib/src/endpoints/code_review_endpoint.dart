@@ -67,26 +67,43 @@ class CodeReviewEndpoint extends Endpoint {
   /// and its reviewer to `busy`. Returns the task under review, which the
   /// daemon needs for the branch and original prompt.
   Future<Task> startReview(Session session, int reviewId) async {
-    var review = await _requireReview(session, reviewId);
-    if (review.status != CodeReviewStatus.queued) {
-      throw InvalidStateException(
-        message: 'Code review $reviewId is already ${review.status.name}',
+    // Checked and claimed under a row lock: two subscriptions replaying the
+    // same queued review (e.g. around a reconnect) must not both start it.
+    final (:review, :task) = await session.db.transaction((transaction) async {
+      final review = await CodeReview.db.findById(
+        session,
+        reviewId,
+        transaction: transaction,
+        lockMode: LockMode.forUpdate,
       );
-    }
-    var task = await Task.db.findById(session, review.taskId);
-    if (task == null) {
-      throw NotFoundException(message: 'Task ${review.taskId} not found');
-    }
-
-    await CodeReview.db.updateRow(
-      session,
-      review.copyWith(
-        status: CodeReviewStatus.running,
-        pausedUntil: null,
-        pauseReason: null,
-      ),
-      columns: (r) => [r.status, r.pausedUntil, r.pauseReason],
-    );
+      if (review == null) {
+        throw NotFoundException(message: 'Code review $reviewId not found');
+      }
+      if (review.status != CodeReviewStatus.queued) {
+        throw InvalidStateException(
+          message: 'Code review $reviewId is already ${review.status.name}',
+        );
+      }
+      final task = await Task.db.findById(
+        session,
+        review.taskId,
+        transaction: transaction,
+      );
+      if (task == null) {
+        throw NotFoundException(message: 'Task ${review.taskId} not found');
+      }
+      await CodeReview.db.updateRow(
+        session,
+        review.copyWith(
+          status: CodeReviewStatus.running,
+          pausedUntil: null,
+          pauseReason: null,
+        ),
+        columns: (r) => [r.status, r.pausedUntil, r.pauseReason],
+        transaction: transaction,
+      );
+      return (review: review, task: task);
+    });
     await _setReviewerStatus(session, review, AgentStatus.busy);
     await postReviewChanged(session, reviewId);
     return task;

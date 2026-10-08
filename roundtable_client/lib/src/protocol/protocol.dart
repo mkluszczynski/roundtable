@@ -46,7 +46,6 @@ import 'deletion_block_reason.dart' as _iwa1mea8;
 import 'deletion_blocked_exception.dart' as _i8k4gzq0;
 import 'diff_file.dart' as _iji3k3fl;
 import 'git_hub_exception.dart' as _ixcrnhlg;
-import 'greetings/greeting.dart' as _izw8z7ou;
 import 'invalid_state_exception.dart' as _i0q2rwly;
 import 'invalid_token_exception.dart' as _isgtss3z;
 import 'log_kind.dart' as _i7oqmlti;
@@ -92,7 +91,6 @@ export 'deletion_block_reason.dart';
 export 'deletion_blocked_exception.dart';
 export 'diff_file.dart';
 export 'git_hub_exception.dart';
-export 'greetings/greeting.dart';
 export 'invalid_state_exception.dart';
 export 'invalid_token_exception.dart';
 export 'log_kind.dart';
@@ -199,9 +197,6 @@ class Protocol extends _isc.SerializationManager {
     }
     if (t == _ixcrnhlg.GitHubException) {
       return _ixcrnhlg.GitHubException.fromJson(data) as T;
-    }
-    if (t == _izw8z7ou.Greeting) {
-      return _izw8z7ou.Greeting.fromJson(data) as T;
     }
     if (t == _i0q2rwly.InvalidStateException) {
       return _i0q2rwly.InvalidStateException.fromJson(data) as T;
@@ -351,9 +346,6 @@ class Protocol extends _isc.SerializationManager {
     if (t == _isc.getType<_ixcrnhlg.GitHubException?>()) {
       return (data != null ? _ixcrnhlg.GitHubException.fromJson(data) : null)
           as T;
-    }
-    if (t == _isc.getType<_izw8z7ou.Greeting?>()) {
-      return (data != null ? _izw8z7ou.Greeting.fromJson(data) : null) as T;
     }
     if (t == _isc.getType<_i0q2rwly.InvalidStateException?>()) {
       return (data != null
@@ -732,7 +724,6 @@ class Protocol extends _isc.SerializationManager {
       _i8k4gzq0.DeletionBlockedException => 'DeletionBlockedException',
       _iji3k3fl.DiffFile => 'DiffFile',
       _ixcrnhlg.GitHubException => 'GitHubException',
-      _izw8z7ou.Greeting => 'Greeting',
       _i0q2rwly.InvalidStateException => 'InvalidStateException',
       _isgtss3z.InvalidTokenException => 'InvalidTokenException',
       _i7oqmlti.LogKind => 'LogKind',
@@ -805,8 +796,6 @@ class Protocol extends _isc.SerializationManager {
         return 'DiffFile';
       case _ixcrnhlg.GitHubException():
         return 'GitHubException';
-      case _izw8z7ou.Greeting():
-        return 'Greeting';
       case _i0q2rwly.InvalidStateException():
         return 'InvalidStateException';
       case _isgtss3z.InvalidTokenException():
@@ -931,9 +920,6 @@ class Protocol extends _isc.SerializationManager {
     }
     if (dataClassName == 'GitHubException') {
       return deserialize<_ixcrnhlg.GitHubException>(data['data']);
-    }
-    if (dataClassName == 'Greeting') {
-      return deserialize<_izw8z7ou.Greeting>(data['data']);
     }
     if (dataClassName == 'InvalidStateException') {
       return deserialize<_i0q2rwly.InvalidStateException>(data['data']);

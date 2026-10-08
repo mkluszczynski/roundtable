@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'non_terminal_task_statuses.dart';
 import 'task_attachment_endpoint.dart';
 import '../generated/protocol.dart';
@@ -211,6 +213,36 @@ class TaskEndpoint extends Endpoint {
     Session session,
     int taskId, {
     bool force = false,
+  }) => _oneMergeAt(taskId, () => _accept(session, taskId, force: force));
+
+  /// Merges in flight, by task. A merge from the panel and auto merge (or
+  /// two clicks) must never overlap: the second would find the PR already
+  /// merged on GitHub. The server is one process (`role: monolith`), so an
+  /// in-process lock is enough; whoever waited then finds the task `done`.
+  static final _merges = <int, Future<void>>{};
+
+  static Future<T> _oneMergeAt<T>(int taskId, Future<T> Function() body) async {
+    for (
+      var running = _merges[taskId];
+      running != null;
+      running = _merges[taskId]
+    ) {
+      await running;
+    }
+    final done = Completer<void>();
+    _merges[taskId] = done.future;
+    try {
+      return await body();
+    } finally {
+      unawaited(_merges.remove(taskId));
+      done.complete();
+    }
+  }
+
+  Future<Task> _accept(
+    Session session,
+    int taskId, {
+    required bool force,
   }) async {
     var task = await _requireTask(session, taskId);
     if (task.status != TaskStatus.awaitingReview) {
@@ -275,6 +307,8 @@ class TaskEndpoint extends Endpoint {
       rethrow;
     }
 
+    // Only these columns: CI checks and the daemon may have written others
+    // while GitHub merged.
     task = await Task.db.updateRow(
       session,
       task.copyWith(
@@ -282,6 +316,7 @@ class TaskEndpoint extends Endpoint {
         finishedAt: DateTime.now().toUtc(),
         lastProgressAt: DateTime.now().toUtc(),
       ),
+      columns: (t) => [t.status, t.finishedAt, t.lastProgressAt],
     );
     var agentId = task.agentId;
     var agent = agentId == null

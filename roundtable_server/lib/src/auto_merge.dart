@@ -77,7 +77,8 @@ Future<void> autoMergeIfReady(Session session, Task task) async {
       _ => '$e',
     };
     final current = await Task.db.findById(session, task.id!);
-    if (current == null) return;
+    // Gone, or merged meanwhile (e.g. from the panel): nothing to stop.
+    if (current == null || current.status == TaskStatus.done) return;
     // CI re-read fresh can still be pending: wait for the next poll.
     if (current.checkState == PrCheckState.pending) return;
     final updated = await Task.db.updateRow(
