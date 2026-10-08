@@ -396,8 +396,7 @@ class _SectionTabs extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: HorizontalScroller(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.md,
           vertical: Spacing.sm,

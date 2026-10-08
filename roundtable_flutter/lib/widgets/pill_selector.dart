@@ -59,7 +59,7 @@ class PillSelector<T> extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
+class _Pill extends StatefulWidget {
   const _Pill({
     required this.label,
     required this.selected,
@@ -73,6 +73,48 @@ class _Pill extends StatelessWidget {
   final bool disabled;
   final String? disabledHint;
   final VoidCallback onTap;
+
+  @override
+  State<_Pill> createState() => _PillState();
+}
+
+class _PillState extends State<_Pill> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.selected) _reveal(animate: false);
+  }
+
+  @override
+  void didUpdateWidget(_Pill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected && !oldWidget.selected) _reveal(animate: true);
+  }
+
+  /// In a sideways-scrolling row, brings the selected pill fully into
+  /// view. Only sideways: on a vertically scrolling screen (settings, a
+  /// dialog) it would scroll the whole page on open.
+  void _reveal({required bool animate}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null ||
+          axisDirectionToAxis(scrollable.axisDirection) != Axis.horizontal) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.5,
+        duration: animate ? const Duration(milliseconds: 200) : Duration.zero,
+      );
+    });
+  }
+
+  String get label => widget.label;
+  bool get selected => widget.selected;
+  bool get disabled => widget.disabled;
+  String? get disabledHint => widget.disabledHint;
+  VoidCallback get onTap => widget.onTap;
 
   @override
   Widget build(BuildContext context) {

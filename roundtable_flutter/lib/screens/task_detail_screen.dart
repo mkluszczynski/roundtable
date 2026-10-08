@@ -32,6 +32,7 @@ import '../widgets/code_block.dart';
 import '../widgets/create_task_dialog.dart';
 import '../widgets/diff_view.dart';
 import '../widgets/edit_task_dialog.dart';
+import '../widgets/horizontal_scroller.dart';
 import '../widgets/pill_selector.dart';
 import '../widgets/rail_nav_item.dart';
 import '../widgets/rail_section.dart';

@@ -10,6 +10,7 @@ import '../cubits/machine_list_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
+import '../widgets/horizontal_scroller.dart';
 import '../widgets/pill_selector.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -810,8 +811,7 @@ class _KanbanBoardState extends State<_KanbanBoard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
+              HorizontalScroller(
                 child: PillSelector<KanbanColumn>(
                   options: KanbanColumn.values,
                   labelBuilder: (c) =>

@@ -11,6 +11,7 @@ import '../repositories/project_repository.dart';
 import '../utils/error_message.dart';
 import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
+import '../widgets/horizontal_scroller.dart';
 import '../widgets/pill_selector.dart';
 import '../theme/breakpoints.dart';
 import '../theme/spacing.dart';
@@ -172,8 +173,7 @@ class _BoardState extends State<_Board> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                HorizontalScroller(
                   child: PillSelector<KanbanColumn>(
                     options: KanbanColumn.values,
                     labelBuilder: (c) =>

@@ -65,6 +65,15 @@ class _ChangesViewState extends State<_ChangesView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final sideBySide = constraints.maxWidth >= _sideBySideMin;
+        // One file: a list of one is a needless tap, show its diff.
+        final single = files.length == 1;
+        if (single && state.selectedFile == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.read<TaskDetailBloc>().add(FileSelected(files.single));
+            }
+          });
+        }
         final list = ListView.builder(
           itemCount: files.length,
           itemBuilder: (context, index) {
@@ -91,6 +100,8 @@ class _ChangesViewState extends State<_ChangesView> {
               Expanded(child: _SelectedFileDiff(state: state)),
             ],
           );
+        } else if (single) {
+          body = _SelectedFileDiff(state: state);
         } else if (_showingDiff && state.selectedFile != null) {
           body = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
