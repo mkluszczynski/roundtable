@@ -16,6 +16,9 @@ import 'toolchain_installer.dart';
 import 'task_images.dart';
 import 'worktree_manager.dart';
 
+part 'run_kind.dart';
+part 'task_run.dart';
+
 /// Runs an assigned [Task]: worktree, Claude Code (planning, execution, or a
 /// `--resume` feedback iteration), commit + push, PR, final status — see
 /// `docs/FLOWS.md` §4.
@@ -251,19 +254,10 @@ class TaskDispatcher {
     ).catchError((Object e) => log('task $taskId: appendLog failed: $e'));
   }
 
+  /// Removes a done task's worktree, or decides how [task] runs and hands
+  /// it to a [_TaskRun]. Anything else (e.g. replayed on reconnect while
+  /// already running) is left untouched.
   Future<void> _handle(Task task) async {
-    final isResume = task.status == TaskStatus.awaitingReview;
-    // Requeued after a usage-limit pause: continue the interrupted run's
-    // session the same way (planning stays in plan mode).
-    var pausedPhase = task.status == TaskStatus.queued
-        ? task.pausedPhase
-        : null;
-    var isPauseResume = pausedPhase != null;
-    var needsPlanning = isPauseResume
-        ? pausedPhase == LogPhase.planning
-        : !isResume && task.status == TaskStatus.queued && !task.skipPlanning;
-    String? resumePrompt;
-
     if (task.status == TaskStatus.done) {
       // Accepted and merged — the worktree is no longer needed.
       await worktreeManager.removeWorktree(
@@ -273,473 +267,46 @@ class TaskDispatcher {
       log('task ${task.id}: done, worktree removed');
       return;
     }
-
-    if (!isResume) {
-      if (task.status != TaskStatus.queued) {
-        log('task ${task.id}: not queued (status=${task.status}), skipping');
-        return;
-      }
-    }
-
-    final projectId = task.projectId;
     final agentId = task.agentId;
-    if (agentId == null) {
-      log('task ${task.id}: missing agentId, skipping');
-      return;
-    }
-
-    if (isResume) {
-      final sessionId = task.claudeSessionId;
-      if (sessionId == null) {
-        log('task ${task.id}: awaitingReview but no claudeSessionId, skipping');
-        return;
-      }
-      final feedback = await fetchLatestFeedback(task.id!);
-      final finishedAt = task.finishedAt;
-      final isFresh =
-          feedback != null &&
-          feedback.phase == TaskFeedbackPhase.review &&
-          (finishedAt == null || feedback.createdAt.isAfter(finishedAt));
-      if (!isFresh) {
-        // Either no feedback was ever submitted (the task is just sitting in
-        // awaitingReview for human review), or this is a stale replay of
-        // already-consumed feedback (e.g. daemon restart while the task sits
-        // in awaitingReview again after a resumed run finished) — comparing
-        // against `finishedAt` (bumped every time a run completes) is what
-        // tells the two apart without adding a schema field.
-        log('task ${task.id}: no new review feedback pending, skipping');
-        return;
-      }
-      resumePrompt = feedback.message;
-    }
-
-    Agent? agent;
-    var cancelRequested = false;
-    StreamSubscription<Task>? watchSub;
-    Directory? mcpConfigDir;
-    ContainerSandbox? sandbox;
-    log(
-      'task ${task.id}: starting (${isResume ? 'resume' : (needsPlanning ? 'planning' : 'execution')})',
-    );
-    try {
-      final cloneUrl = await getCloneUrl(projectId);
-      await worktreeManager.ensureProjectCloned(
-        projectId: '$projectId',
-        cloneUrl: cloneUrl,
-      );
-      final worktreePath = await worktreeManager.createWorktree(
-        projectId: '$projectId',
-        taskId: '${task.id}',
-      );
-      log('task ${task.id}: worktree ready at $worktreePath');
-
-      if (!isResume && fetchTask != null) {
-        // The dev may edit the prompt and skip planning while the task is
-        // queued (`TaskEndpoint.updateTaskSettings`), and cloning takes a
-        // while: start from the current row, not the dispatch snapshot.
-        final current = await fetchTask!(task.id!);
-        if (current == null ||
-            current.status != TaskStatus.queued ||
-            current.agentId != agentId) {
-          log(
-            'task ${task.id}: deleted, reassigned or no longer queued '
-            'while preparing, skipping',
-          );
-          return;
-        }
-        task = current;
-        pausedPhase = task.pausedPhase;
-        isPauseResume = pausedPhase != null;
-        needsPlanning = isPauseResume
-            ? pausedPhase == LogPhase.planning
-            : !task.skipPlanning;
-      }
-
-      agent = await fetchAgent(agentId);
-      await updateAgent(agent.copyWith(status: AgentStatus.busy));
-      await updateTask(
-        task.copyWith(
-          status: needsPlanning ? TaskStatus.planning : TaskStatus.running,
-          startedAt: task.startedAt ?? DateTime.now().toUtc(),
-          pausedPhase: null,
-          pauseReason: null,
-        ),
-      );
-
-      final resumeSessionId = task.claudeSessionId;
-      final canResumeSession = isPauseResume && resumeSessionId != null;
-      var prompt = isResume
-          ? resumePrompt!
-          : canResumeSession
-          ? usageLimitResumePrompt
-          : '${buildRolePrompt(agent)} ${task.prompt}';
-
-      // Subscribed for as long as this task is running, to detect a
-      // cancellation requested via `TaskEndpoint.cancelTask` (docs/FLOWS.md §4
-      // "Cancelling mid-run"). There's a small window between the
-      // `running`/`planning` update above and this subscription starting
-      // where a cancellation could be missed — an accepted limitation, not
-      // solved here. For a planning-phase task, also mirrors `Task.status`
-      // into `Agent.status` (`waitingForResponse` while a question/plan
-      // decision is pending, `busy` once planning resumes) — docs/FLOWS.md §4.
-      // One formatter per invocation: planning and execution share a single
-      // continuous `claude` process (see `runPlanning`'s doc comment), so
-      // its content-block buffering must persist across both phases.
-      final formatter = StreamJsonFormatter();
-      final runId = newRunId('task-${task.id}');
-      final phase =
-          pausedPhase ??
-          (isResume
-              ? LogPhase.feedback
-              : needsPlanning
-              ? LogPhase.planning
-              : LogPhase.execution);
-      void append(LogItem item) {
-        appendLog(
-          logEntryFor(item, taskId: task.id!, runId: runId, phase: phase),
-        ).catchError(
-          (Object e) => log('task ${task.id}: appendLog failed: $e'),
-        );
-      }
-
-      append(
-        LogItem(
-          kind: LogKind.runStarted,
-          content: switch (phase) {
-            _ when canResumeSession =>
-              '${agent.name} resumed after the usage limit reset',
-            LogPhase.feedback => '${agent.name} resumed with your feedback',
-            LogPhase.planning => '${agent.name} started planning',
-            _ => '${agent.name} started working',
-          },
-        ),
-      );
-      void onLine(String line) {
-        formatter.feedEntries(line).forEach(append);
-      }
-
-      Process? liveProcess;
-      watchSub = watchTask(task.id!).listen(
-        (updated) {
-          if (updated.status == TaskStatus.draft ||
-              updated.status == TaskStatus.cancelled) {
-            cancelRequested = true;
-            liveProcess?.kill(ProcessSignal.sigterm);
-          } else if (needsPlanning) {
-            switch (updated.status) {
-              case TaskStatus.waitingForAnswer:
-              case TaskStatus.planReady:
-                unawaited(
-                  updateAgent(
-                    agent!.copyWith(status: AgentStatus.waitingForResponse),
-                  ),
-                );
-              case TaskStatus.planning:
-                unawaited(
-                  updateAgent(agent!.copyWith(status: AgentStatus.busy)),
-                );
-              default:
-                break;
-            }
-          }
-        },
-        onError: (Object e) =>
-            log('task ${task.id}: watchTask stream error: $e'),
-      );
-
-      const permissionPromptTool =
-          'mcp__roundtable-permission__approval_prompt';
-      mcpConfigDir = await Directory.systemTemp.createTemp(
-        'roundtable-task-${task.id}-',
-      );
-      final inContainer = agent.executionMode == AgentExecutionMode.docker;
-      final mcpConfigPath = await _writeMcpConfig(
-        mcpConfigDir,
-        task.id!,
-        container: inContainer,
-      );
-
-      // A resumed session already saw the images in its first run.
-      final attachmentDirs = <String>[];
-      if (!isResume && !canResumeSession) {
-        final images = await fetchAttachments(task.id!);
-        if (images.isNotEmpty) {
-          final dir = await Directory(
-            '${mcpConfigDir.path}/attachments',
-          ).create();
-          final paths = await writeTaskImages(dir, images);
-          attachmentDirs.add(dir.path);
-          prompt = attachedImagesPrompt(prompt, paths);
-          log('task ${task.id}: ${images.length} attached image(s)');
-        }
-      }
-
-      final project = await fetchProject?.call(projectId);
-      final toolchain = await prepareToolchainForRun(
-        toolchainInstaller,
-        'task ${task.id}',
-        projectId,
-        project?.tools ?? const [],
-        append,
-        log,
-      );
-      if (inContainer) {
-        final build = sandboxFor;
-        if (build == null) {
-          throw StateError(
-            '${agent.name} runs in docker mode, but this machine has no '
-            'container runtime — install podman (install-agent.sh --docker) '
-            'or switch the agent to native',
-          );
-        }
-        sandbox = build((
-          projectId: projectId,
-          name: 'roundtable-task-${task.id}',
-          worktreePath: worktreePath,
-          readOnlyDirectories: [mcpConfigDir.path],
-          image: project?.dockerImage,
-        ));
-        append(
-          LogItem(
-            kind: LogKind.event,
-            content: 'Running in a container (${sandbox.image})',
-          ),
-        );
-      }
-      final executor = sandbox == null
-          ? executorFactory()
-          : executorFactory().inContainer(sandbox);
-      final systemPrompt = [
-        ?environmentPrompt?.call(container: inContainer),
-        if (toolchain != null) projectToolchainPrompt(toolchain.tools),
-        if (task.title == null) taskTitlePrompt(),
-      ].join('\n\n');
-
-      // Cancelled before claude started (e.g. while still queued/cloning):
-      // the replayed `draft` row set the flag, with no process to kill yet.
-      Future<void> stopCancelled() async {
-        // The server already moved the task back to the backlog; there's no
-        // status left to report.
-        log('task ${task.id}: cancelled, resetting worktree');
-        await worktreeManager.resetWorktree(
-          projectId: '$projectId',
-          taskId: '${task.id}',
-        );
-        await updateAgent(agent!.copyWith(status: AgentStatus.idle));
-      }
-
-      if (cancelRequested) {
-        await stopCancelled();
-        return;
-      }
-      void onProcessStarted(Process process) {
-        liveProcess = process;
-        // A cancel that arrived between the check above and the spawn.
-        if (cancelRequested) process.kill(ProcessSignal.sigterm);
-      }
-
-      final ClaudeCodeExecutionResult result;
-      if (needsPlanning) {
-        log('task ${task.id}: running claude (planning)');
-        result = await executor.runPlanning(
-          prompt: prompt,
-          workingDirectory: worktreePath,
-          permissionPromptTool: permissionPromptTool,
-          mcpConfigPath: mcpConfigPath,
-          oauthToken: oauthToken?.call(),
-          model: agent.defaultModel,
-          effort: agent.defaultEffort?.name,
-          additionalDirectories: attachmentDirs,
-          appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
-          environment: toolchain?.environment,
-          resumeSessionId: canResumeSession ? resumeSessionId : null,
-          onLine: onLine,
-          onProcessStarted: onProcessStarted,
-        );
-      } else {
-        log('task ${task.id}: running claude (execution)');
-        result = await executor.run(
-          prompt: prompt,
-          workingDirectory: worktreePath,
-          oauthToken: oauthToken?.call(),
-          model: agent.defaultModel,
-          effort: agent.defaultEffort?.name,
-          resumeSessionId: resumeSessionId,
-          permissionPromptTool: permissionPromptTool,
-          mcpConfigPath: mcpConfigPath,
-          additionalDirectories: attachmentDirs,
-          appendSystemPrompt: systemPrompt.isEmpty ? null : systemPrompt,
-          environment: toolchain?.environment,
-          onLine: onLine,
-          onProcessStarted: onProcessStarted,
-        );
-      }
-
-      if (cancelRequested) {
-        await stopCancelled();
-        return;
-      }
-
-      log(
-        'task ${task.id}: claude exited (code=${result.exitCode}, '
-        'success=${result.success})',
-      );
-
-      if (!result.success && isUsageLimitMessage(result.errorSummary)) {
-        final message = result.errorSummary!;
-        final resumeAt = usageLimitResetAt(message);
-        usageLimit.hit(resumeAt);
-        final at = localClock(resumeAt);
-        log('task ${task.id}: usage limit, paused until $resumeAt');
-        append(
-          LogItem(
-            kind: LogKind.event,
-            content: 'Paused by the Claude usage limit — resumes at $at',
-          ),
-        );
-        await updateTask(
-          task.copyWith(
-            status: TaskStatus.paused,
-            pausedUntil: resumeAt,
-            pauseReason: message,
-            pausedPhase: phase,
-            claudeSessionId: result.sessionId ?? task.claudeSessionId,
-          ),
-        );
-        await updateAgent(agent.copyWith(status: AgentStatus.idle));
-        return;
-      }
-
-      String? branchName;
-      String? prUrl;
-      String? failureReason = result.success
-          ? null
-          : sandbox != null
-          ? describeContainerFailure(result.errorSummary)
-          : result.errorSummary;
-      var finishedWithoutCode = false;
-      if (result.success) {
-        final branch = 'task-${task.id}';
-        final committed = await worktreeManager.commitAndPush(
-          projectId: '$projectId',
-          taskId: '${task.id}',
-          commitMessage:
-              'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
-          pushUrl: cloneUrl,
-        );
-        if (committed) {
-          branchName = branch;
-          if (task.prUrl == null) {
-            prUrl = await openPullRequest(
-              cloneUrl: cloneUrl,
-              branchName: branch,
-              title:
-                  'Roundtable task #${task.id}: ${_shortSummary(task.prompt)}',
-              body: pullRequestBody(
-                agentName: agent.name,
-                prompt: task.prompt,
-                summary: result.resultText,
-              ),
-            );
-          } else {
-            log('task ${task.id}: pushed additional commits to existing PR');
-          }
-        } else if (task.branchName == null) {
-          // E.g. the prompt was a question, or the agent found nothing to
-          // change — its reply is the result, not a failure.
-          log('task ${task.id}: no changes to commit, done without a PR');
-          finishedWithoutCode = true;
-        } else {
-          log('task ${task.id}: no new changes, keeping existing PR');
-        }
-      }
-
-      if (failureReason == null) {
-        final event = finishedWithoutCode
-            ? 'Finished without code changes — no pull request'
-            : prUrl != null
-            ? 'Committed and pushed $branchName, opened pull request $prUrl'
-            : branchName != null
-            ? 'Pushed new commits to $branchName'
-            : 'No new changes — the pull request is unchanged';
-        append(LogItem(kind: LogKind.event, content: event));
-      }
-
-      final status = failureReason != null
-          ? TaskStatus.failed
-          : finishedWithoutCode
-          ? TaskStatus.done
-          : TaskStatus.awaitingReview;
-      await updateTask(
-        task.copyWith(
-          status: status,
-          finishedAt: DateTime.now().toUtc(),
-          claudeSessionId: result.sessionId ?? task.claudeSessionId,
-          failureReason: failureReason,
-          resultSummary: result.resultText ?? task.resultSummary,
-          branchName: branchName ?? task.branchName,
-          prUrl: prUrl ?? task.prUrl,
-        ),
-      );
-      await updateAgent(agent.copyWith(status: AgentStatus.idle));
-      log('task ${task.id}: finished with status ${status.name}');
-    } catch (e) {
-      log('task ${task.id}: execution failed: $e');
-      if (!cancelRequested) {
-        await updateTask(
-          task.copyWith(
-            status: TaskStatus.failed,
-            finishedAt: DateTime.now().toUtc(),
-            failureReason: e is ProcessException
-                ? describeClaudeLaunchFailure(e)
-                : '$e',
-          ),
-        );
-      }
-      if (agent != null) {
-        await updateAgent(agent.copyWith(status: AgentStatus.idle));
-      }
-    } finally {
-      await watchSub?.cancel();
-      await sandbox?.remove();
-      try {
-        await mcpConfigDir?.delete(recursive: true);
-      } catch (e) {
-        log('task ${task.id}: could not remove MCP config dir: $e');
-      }
-    }
+    final kind = await _runKindFor(task);
+    if (kind == null) return;
+    await _TaskRun(this, task, kind, agentId!).execute();
   }
 
-  /// Writes the `--mcp-config` JSON registering the permission-prompt-tool
-  /// (docs/FLOWS.md §4) for [taskId]'s planning-phase run. Kept outside the
-  /// worktree so it never ends up in the task's commit. The tool process
-  /// reads `SERVER_URL`/`ROUNDTABLE_TASK_ID` from its environment (see
-  /// `bin/permission_prompt_tool.dart`) since `--mcp-config` only supports a
-  /// static command/args/env per server, not per-call params.
-  /// In a container, [serverUrl] is rewritten to reach the host.
-  Future<String> _writeMcpConfig(
-    Directory dir,
-    int taskId, {
-    bool container = false,
-  }) async {
-    final configFile = File('${dir.path}/mcp-config.json');
-    await configFile.writeAsString(
-      jsonEncode({
-        'mcpServers': {
-          'roundtable-permission': {
-            'command': permissionPromptToolCommand.first,
-            'args': permissionPromptToolCommand.skip(1).toList(),
-            'env': {
-              'SERVER_URL': container
-                  ? containerServerUrl(serverUrl)
-                  : serverUrl,
-              'ROUNDTABLE_TASK_ID': '$taskId',
-            },
-          },
-        },
-      }),
-    );
-    return configFile.path;
+  /// How [task] runs, or null (logged) when it shouldn't run now.
+  Future<RunKind?> _runKindFor(Task task) async {
+    final isResume = task.status == TaskStatus.awaitingReview;
+    if (!isResume && task.status != TaskStatus.queued) {
+      log('task ${task.id}: not queued (status=${task.status}), skipping');
+      return null;
+    }
+    if (task.agentId == null) {
+      log('task ${task.id}: missing agentId, skipping');
+      return null;
+    }
+    if (!isResume) return RunKind.queued(task);
+
+    if (task.claudeSessionId == null) {
+      log('task ${task.id}: awaitingReview but no claudeSessionId, skipping');
+      return null;
+    }
+    final feedback = await fetchLatestFeedback(task.id!);
+    final finishedAt = task.finishedAt;
+    final isFresh =
+        feedback != null &&
+        feedback.phase == TaskFeedbackPhase.review &&
+        (finishedAt == null || feedback.createdAt.isAfter(finishedAt));
+    if (!isFresh) {
+      // Either no feedback was ever submitted (the task is just sitting in
+      // awaitingReview for human review), or this is a stale replay of
+      // already-consumed feedback (e.g. daemon restart while the task sits
+      // in awaitingReview again after a resumed run finished) — comparing
+      // against `finishedAt` (bumped every time a run completes) is what
+      // tells the two apart without adding a schema field.
+      log('task ${task.id}: no new review feedback pending, skipping');
+      return null;
+    }
+    return FeedbackResume(feedback.message);
   }
 }
 
