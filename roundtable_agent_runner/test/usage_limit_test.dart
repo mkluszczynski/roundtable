@@ -62,6 +62,27 @@ void main() {
       expect(gate.limitedUntil, isNull);
     });
 
+    test('reports a wait once even if the timer fires early', () async {
+      final start = DateTime.now();
+      final until = start.add(const Duration(milliseconds: 20));
+      // The clock after each sleep: a hair before the reset, then past it.
+      final readings = [
+        start,
+        start,
+        until.subtract(const Duration(microseconds: 1)),
+        until.add(const Duration(milliseconds: 1)),
+      ];
+      var i = 0;
+      final gate = UsageLimitGate(
+        now: () => readings[i < readings.length - 1 ? i++ : i],
+      )..hit(until);
+      final reported = <DateTime>[];
+
+      await gate.wait(onWaiting: reported.add);
+
+      expect(reported, [until]);
+    });
+
     test('waits for the reset', () async {
       final gate = UsageLimitGate();
       expect(await gate.wait(), isFalse);

@@ -27,6 +27,7 @@ export 'src/metrics_collector.dart';
 export 'src/permission_prompt_tool.dart';
 export 'src/review_dispatcher.dart';
 export 'src/runner_update.dart';
+export 'src/server_retry.dart';
 export 'src/stream_json_formatter.dart';
 export 'src/environment_prompt.dart';
 export 'src/log_entries.dart';

@@ -464,6 +464,53 @@ exit 0
       expect(prRequests.single['branchName'], 'task-1');
     });
 
+    test('a failure report the server drops once is retried, and the agent '
+        'is freed', () async {
+      final claudeScript = writeFakeClaude('''
+echo "changed" > changed.txt
+echo '{"type":"result","subtype":"success","session_id":"sess-1"}'
+exit 0
+''');
+      final taskUpdates = <Task>[];
+      final agentUpdates = <Agent>[];
+      var serverDown = false;
+
+      final dispatcher = TaskDispatcher(
+        worktreeManager: WorktreeManager(
+          workspaceRoot: '${tempDir.path}/workspace',
+        ),
+        executorFactory: () => ClaudeCodeExecutor(executable: claudeScript),
+        oauthToken: null,
+        getCloneUrl: (projectId) async => fixtureRepo.path,
+        fetchAgent: (agentId) async => buildAgent(),
+        updateTask: (task) async {
+          // The server goes away right as the run fails.
+          if (task.status == TaskStatus.failed && !serverDown) {
+            serverDown = true;
+            throw const SocketException('server unreachable');
+          }
+          taskUpdates.add(task);
+        },
+        updateAgent: (agent) async => agentUpdates.add(agent),
+        appendLog: (entry) async {},
+        fetchLatestFeedback: (_) async => null,
+        openPullRequest:
+            ({required cloneUrl, required branchName, required title, body}) =>
+                throw Exception('GitHub is down'),
+        watchTask: (_) => const Stream<Task>.empty(),
+        log: (_) {},
+        serverUrl: 'https://server.example',
+        permissionPromptToolCommand: const ['echo'],
+        retryDelays: const [Duration.zero],
+      );
+
+      await dispatcher.handle(buildTask());
+
+      expect(taskUpdates.last.status, TaskStatus.failed);
+      expect(taskUpdates.last.failureReason, contains('GitHub is down'));
+      expect(agentUpdates.last.status, AgentStatus.idle);
+    });
+
     test('a task that produces no changes is done without a PR, keeping '
         "the agent's reply as its result", () async {
       final claudeScript = writeFakeClaude('''

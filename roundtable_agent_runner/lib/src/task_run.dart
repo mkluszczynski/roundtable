@@ -404,21 +404,34 @@ class _TaskRun {
     _log('finished with status ${outcome.status.name}');
   }
 
+  /// Reports the run failed and frees the agent. Each report is retried on
+  /// its own, so a server that's briefly unreachable leaves neither the task
+  /// `running` nor the agent `busy`.
   Future<void> _fail(Object e) async {
     _log('execution failed: $e');
     if (!_cancelRequested) {
-      await _d.updateTask(
-        task.copyWith(
-          status: TaskStatus.failed,
-          finishedAt: DateTime.now().toUtc(),
-          failureReason: e is ProcessException
-              ? describeClaudeLaunchFailure(e)
-              : '$e',
+      await retrying(
+        'task $taskId: reporting the failure',
+        () => _d.updateTask(
+          task.copyWith(
+            status: TaskStatus.failed,
+            finishedAt: DateTime.now().toUtc(),
+            failureReason: e is ProcessException
+                ? describeClaudeLaunchFailure(e)
+                : '$e',
+          ),
         ),
+        log: _d.log,
+        delays: _d.retryDelays,
       );
     }
     if (_agent case final agent?) {
-      await _d.updateAgent(agent.copyWith(status: AgentStatus.idle));
+      await retrying(
+        'task $taskId: freeing the agent',
+        () => _d.updateAgent(agent.copyWith(status: AgentStatus.idle)),
+        log: _d.log,
+        delays: _d.retryDelays,
+      );
     }
   }
 

@@ -101,8 +101,11 @@ class UsageLimitGate {
   /// [onWaiting] is told when, once per wait. Returns whether it waited.
   Future<bool> wait({void Function(DateTime until)? onWaiting}) async {
     var waited = false;
+    DateTime? reported;
     for (var until = limitedUntil; until != null; until = limitedUntil) {
-      onWaiting?.call(until);
+      // A timer may fire a hair early: the same reset isn't news again.
+      if (until != reported) onWaiting?.call(until);
+      reported = until;
       waited = true;
       await Future<void>.delayed(until.difference(_now()));
     }

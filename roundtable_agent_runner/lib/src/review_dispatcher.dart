@@ -7,6 +7,7 @@ import 'agent_work_queue.dart';
 import 'claude_code_executor.dart';
 import 'container_sandbox.dart';
 import 'role_prompts.dart';
+import 'server_retry.dart';
 import 'log_entries.dart';
 import 'stream_json_formatter.dart';
 import 'task_images.dart';
@@ -40,6 +41,7 @@ class ReviewDispatcher {
     this.toolchainInstaller,
     AgentWorkQueue? workQueue,
     UsageLimitGate? usageLimit,
+    this.retryDelays = defaultRetryDelays,
     this.requeueReview,
     this.pauseQueuedReview,
   }) : workQueue = workQueue ?? AgentWorkQueue(),
@@ -48,6 +50,10 @@ class ReviewDispatcher {
   /// The machine's Claude usage limit, shared with `TaskDispatcher`: a
   /// review waits (still `queued`) while it's active.
   final UsageLimitGate usageLimit;
+
+  /// Waits between retries of a run's final status reports
+  /// ([retrying]); shortened in tests.
+  final List<Duration> retryDelays;
 
   /// Bound to `client.codeReview.requeueReview`: puts a review cut short
   /// by the usage limit back to `queued`, paused [until] the reset (the
@@ -170,6 +176,16 @@ class ReviewDispatcher {
     ).catchError((Object e) => log('review $reviewId: appendLog failed: $e'));
   }
 
+  /// Reports the review failed with [reason], retrying while the server is
+  /// unreachable — otherwise it would stay `running` with nothing to pick
+  /// it up again.
+  Future<void> _fail(int reviewId, String reason) => retrying(
+    'review $reviewId: reporting the failure',
+    () => failReview(reviewId, reason),
+    log: log,
+    delays: retryDelays,
+  );
+
   /// Runs the review; returns true when the usage limit cut it short and it
   /// went back to `queued`.
   Future<bool> _handle(CodeReview review, int reviewId, int agentId) async {
@@ -183,7 +199,7 @@ class ReviewDispatcher {
     }
     final branch = task.branchName;
     if (branch == null) {
-      await failReview(reviewId, 'Task ${task.id} has no pushed branch.');
+      await _fail(reviewId, 'Task ${task.id} has no pushed branch.');
       return false;
     }
 
@@ -327,7 +343,7 @@ class ReviewDispatcher {
         return true;
       }
       if (!result.success) {
-        await failReview(
+        await _fail(
           reviewId,
           (sandbox != null
                   ? describeContainerFailure(result.errorSummary)
@@ -338,7 +354,7 @@ class ReviewDispatcher {
       }
       final findings = parseReviewOutput(result.resultText ?? '');
       if (findings == null) {
-        await failReview(
+        await _fail(
           reviewId,
           'The reviewer did not end with the expected JSON block.',
         );
@@ -351,7 +367,7 @@ class ReviewDispatcher {
       );
     } catch (e) {
       log('review $reviewId: failed: $e');
-      await failReview(
+      await _fail(
         reviewId,
         e is ProcessException ? describeClaudeLaunchFailure(e) : '$e',
       );

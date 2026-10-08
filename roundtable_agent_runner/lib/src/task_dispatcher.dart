@@ -9,6 +9,7 @@ import 'claude_code_executor.dart';
 import 'container_sandbox.dart';
 import 'environment_prompt.dart';
 import 'role_prompts.dart';
+import 'server_retry.dart';
 import 'log_entries.dart';
 import 'usage_limit.dart';
 import 'stream_json_formatter.dart';
@@ -50,12 +51,17 @@ class TaskDispatcher {
     this.sandboxFor,
     AgentWorkQueue? workQueue,
     UsageLimitGate? usageLimit,
+    this.retryDelays = defaultRetryDelays,
   }) : workQueue = workQueue ?? AgentWorkQueue(),
        usageLimit = usageLimit ?? UsageLimitGate();
 
   /// The machine's Claude usage limit, shared with `ReviewDispatcher`: a
   /// run hitting it closes the gate, and work that hasn't started waits.
   final UsageLimitGate usageLimit;
+
+  /// Waits between retries of a run's final status reports
+  /// ([retrying]); shortened in tests.
+  final List<Duration> retryDelays;
 
   /// One piece of work at a time per agent, shared with `ReviewDispatcher`:
   /// a task for a busy agent waits here.
