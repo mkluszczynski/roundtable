@@ -10,6 +10,7 @@ import '../repositories/task_repository.dart';
 import '../utils/pr_checks.dart';
 
 part 'task_detail_event.dart';
+part 'task_detail_rules.dart';
 part 'task_detail_state.dart';
 
 /// Reacts to a task's live status (docs/FLOWS.md §4), its log tail while it's
