@@ -249,13 +249,7 @@ class _ShellNavRailState extends State<_ShellNavRail> {
     final taskState = context.watch<DashboardCubit>().state;
     final machineState = context.watch<MachineListCubit>().state;
     final waiting = taskState is DashboardLoaded
-        ? taskState.tasks.values
-              .where(
-                (t) =>
-                    needsAttentionStatuses.contains(t.status) &&
-                    t.status != TaskStatus.failed,
-              )
-              .length
+        ? taskState.tasks.values.where((t) => waitsOnDev(t.status)).length
         : 0;
     final agentState = context.watch<AgentListCubit>().state;
     final agentNames = {

@@ -34,6 +34,52 @@ const needsAttentionStatuses = {
   TaskStatus.failed,
 };
 
+/// Blocked on the dev right now: needs attention, minus failures (those
+/// are only highlighted).
+bool waitsOnDev(TaskStatus status) =>
+    needsAttentionStatuses.contains(status) && status != TaskStatus.failed;
+
+/// Statuses where the agent is working on the task.
+const workingStatuses = {
+  TaskStatus.cloning,
+  TaskStatus.planning,
+  TaskStatus.running,
+};
+
+/// The dashboard's stat tiles, computed from what the cubits hold.
+class DashboardStats {
+  const DashboardStats({
+    required this.running,
+    required this.waiting,
+    required this.busyAgents,
+    required this.agents,
+    required this.onlineMachines,
+    required this.machines,
+  });
+
+  factory DashboardStats.from({
+    required Iterable<Task> tasks,
+    required List<Agent> agents,
+    required List<Machine> machines,
+  }) => DashboardStats(
+    running: tasks.where((t) => workingStatuses.contains(t.status)).length,
+    waiting: tasks.where((t) => waitsOnDev(t.status)).length,
+    busyAgents: agents.where((a) => a.status != AgentStatus.idle).length,
+    agents: agents.length,
+    onlineMachines: machines
+        .where((m) => m.status == MachineStatus.online)
+        .length,
+    machines: machines.length,
+  );
+
+  final int running;
+  final int waiting;
+  final int busyAgents;
+  final int agents;
+  final int onlineMachines;
+  final int machines;
+}
+
 /// Statuses where a task occupies its agent (queued for it up to running).
 const agentOccupyingStatuses = {
   TaskStatus.queued,

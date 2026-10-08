@@ -111,25 +111,11 @@ class _DashboardHeader extends StatelessWidget {
             .toList(),
       _ => const <Task>[],
     };
-    final running = tasks
-        .where(
-          (t) =>
-              t.status == TaskStatus.planning ||
-              t.status == TaskStatus.running ||
-              t.status == TaskStatus.cloning,
-        )
-        .length;
-    final waiting = tasks
-        .where(
-          (t) =>
-              needsAttentionStatuses.contains(t.status) &&
-              t.status != TaskStatus.failed,
-        )
-        .length;
-    final busyAgents = agents.where((a) => a.status != AgentStatus.idle).length;
-    final online = machines
-        .where((m) => m.status == MachineStatus.online)
-        .length;
+    final stats = DashboardStats.from(
+      tasks: tasks,
+      agents: agents,
+      machines: machines,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -178,24 +164,28 @@ class _DashboardHeader extends StatelessWidget {
             children: [
               _StatTile(
                 label: 'Running',
-                value: '$running',
+                value: '${stats.running}',
                 color: AppColors.live,
-                pulsing: running > 0,
+                pulsing: stats.running > 0,
               ),
               _StatTile(
                 label: 'Waiting on you',
-                value: '$waiting',
-                color: waiting > 0 ? AppColors.accentSoft : AppColors.text2,
+                value: '${stats.waiting}',
+                color: stats.waiting > 0
+                    ? AppColors.accentSoft
+                    : AppColors.text2,
               ),
               _StatTile(
                 label: 'Agents busy',
-                value: '$busyAgents / ${agents.length}',
+                value: '${stats.busyAgents} / ${stats.agents}',
                 color: AppColors.text1,
               ),
               _StatTile(
                 label: 'Machines online',
-                value: '$online / ${machines.length}',
-                color: online > 0 ? AppColors.live : AppColors.text2,
+                value: '${stats.onlineMachines} / ${stats.machines}',
+                color: stats.onlineMachines > 0
+                    ? AppColors.live
+                    : AppColors.text2,
               ),
             ],
           ),
