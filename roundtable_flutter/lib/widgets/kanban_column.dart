@@ -27,6 +27,19 @@ Color kanbanColumnAccent(KanbanColumn column) => switch (column) {
   KanbanColumn.done => AppColors.text1,
 };
 
+/// The column a phone's board opens on: what needs the dev, then what's
+/// moving, then the backlog.
+KanbanColumn defaultKanbanColumn(Map<KanbanColumn, List<Task>> columns) {
+  for (final column in const [
+    KanbanColumn.review,
+    KanbanColumn.inProgress,
+    KanbanColumn.backlog,
+  ]) {
+    if (columns[column]?.isNotEmpty ?? false) return column;
+  }
+  return KanbanColumn.done;
+}
+
 /// One kanban column: title + count badge + task cards, resolving each
 /// task's agent/machine name from the ancestor `AgentListCubit`/
 /// `MachineListCubit` (present on both the Dashboard and a project's detail
@@ -40,6 +53,7 @@ class KanbanColumnView extends StatelessWidget {
     required this.tasks,
     this.accent = AppColors.text2,
     this.showProject = false,
+    this.showHeader = true,
   });
 
   final String title;
@@ -51,6 +65,10 @@ class KanbanColumnView extends StatelessWidget {
   /// Labels each card with its project, from the ancestor
   /// `ProjectListCubit` — for boards mixing projects.
   final bool showProject;
+
+  /// Off where something else already names the column (the phone's
+  /// column picker).
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -96,34 +114,36 @@ class KanbanColumnView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
-              child: Row(
-                children: [
-                  StatusDot(color: accent),
-                  const SizedBox(width: Spacing.sm),
-                  Text(title.toUpperCase(), style: AppTypography.label),
-                  const SizedBox(width: Spacing.sm),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.bg3,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.sm,
-                        vertical: 1,
+            if (showHeader) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
+                child: Row(
+                  children: [
+                    StatusDot(color: accent),
+                    const SizedBox(width: Spacing.sm),
+                    Text(title.toUpperCase(), style: AppTypography.label),
+                    const SizedBox(width: Spacing.sm),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.bg3,
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(
-                        '${tasks.length}',
-                        style: AppTypography.caption,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.sm,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          '${tasks.length}',
+                          style: AppTypography.caption,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: Spacing.md),
+              const SizedBox(height: Spacing.md),
+            ],
             Expanded(
               child: tasks.isEmpty
                   ? const _EmptyColumn()

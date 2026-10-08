@@ -16,6 +16,7 @@ class PillSelector<T> extends StatelessWidget {
     required this.onChanged,
     this.disabledOptions = const {},
     this.disabledHint,
+    this.wrap = true,
   });
 
   final List<T> options;
@@ -25,20 +26,34 @@ class PillSelector<T> extends StatelessWidget {
   final Set<T> disabledOptions;
   final String? disabledHint;
 
+  /// False lays the pills out in one row, e.g. inside a horizontal scroll.
+  final bool wrap;
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: Spacing.sm,
-      runSpacing: Spacing.sm,
+    final pills = [
+      for (final option in options)
+        _Pill(
+          label: labelBuilder(option),
+          selected: option == selected,
+          disabled: disabledOptions.contains(option),
+          disabledHint: disabledHint,
+          onTap: () => onChanged(option),
+        ),
+    ];
+    if (wrap) {
+      return Wrap(
+        spacing: Spacing.sm,
+        runSpacing: Spacing.sm,
+        children: pills,
+      );
+    }
+    return Row(
       children: [
-        for (final option in options)
-          _Pill(
-            label: labelBuilder(option),
-            selected: option == selected,
-            disabled: disabledOptions.contains(option),
-            disabledHint: disabledHint,
-            onTap: () => onChanged(option),
-          ),
+        for (final (i, pill) in pills.indexed) ...[
+          if (i > 0) const SizedBox(width: Spacing.sm),
+          pill,
+        ],
       ],
     );
   }

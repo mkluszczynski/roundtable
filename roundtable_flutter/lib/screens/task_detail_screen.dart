@@ -21,6 +21,7 @@ import '../utils/question_context.dart';
 import '../utils/open_task.dart';
 import '../utils/task_status_label.dart';
 import '../utils/task_timeline.dart';
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -186,41 +187,92 @@ class _TaskDetailViewState extends State<_TaskDetailView> {
     );
   }
 
+  /// The one-column layout's "Info" tab is open instead of a section.
+  bool _showInfo = false;
+
+  /// Below this width the rail and the content stack into one column: the
+  /// content would be too narrow beside a 320 px rail.
+  static const _twoPaneMin = 900.0;
+
   Widget _buildLoaded(TaskDetailLoaded state) {
     final picked = _section;
     final section = picked != null && state.availableSections.contains(picked)
         ? picked
         : state.task.defaultSection;
-    return Column(
-      children: [
-        _Header(state: state),
-        Expanded(
-          child: Row(
+    final content = _SectionContent(
+      state: state,
+      section: section,
+      onSectionSelected: _select,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoPane = constraints.maxWidth >= _twoPaneMin;
+        final compact = LayoutSize.forWidth(constraints.maxWidth).isCompact;
+        if (!twoPane) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: 320,
-                child: _InfoRail(
-                  state: state,
-                  section: section,
-                  onSectionSelected: _select,
-                ),
+              _Header(state: state, compact: compact),
+              _SectionTabs(
+                state: state,
+                section: section,
+                showingInfo: _showInfo,
+                onSelected: (s) {
+                  setState(() => _showInfo = false);
+                  _select(s);
+                },
+                onInfo: () => setState(() => _showInfo = true),
               ),
-              VerticalDivider(width: 1, color: AppColors.border),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(Spacing.xl),
-                  child: _SectionContent(
-                    state: state,
-                    section: section,
-                    onSectionSelected: _select,
-                  ),
-                ),
+                child: _showInfo
+                    ? _InfoRail(
+                        state: state,
+                        section: section,
+                        onSectionSelected: (s) {
+                          setState(() => _showInfo = false);
+                          _select(s);
+                        },
+                        inline: true,
+                      )
+                    : Padding(
+                        padding: EdgeInsets.all(
+                          compact ? Spacing.md : Spacing.xl,
+                        ),
+                        child: content,
+                      ),
               ),
+              _RailActions(state: state, bar: true),
             ],
-          ),
-        ),
-      ],
+          );
+        }
+        return Column(
+          children: [
+            _Header(state: state),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: _InfoRail(
+                      state: state,
+                      section: section,
+                      onSectionSelected: _select,
+                    ),
+                  ),
+                  VerticalDivider(width: 1, color: AppColors.border),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(Spacing.xl),
+                      child: content,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

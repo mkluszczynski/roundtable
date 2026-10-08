@@ -17,25 +17,42 @@ class SettingRow extends StatelessWidget {
   final String description;
   final Widget control;
 
+  /// Below this width a control wider than a switch goes under the text,
+  /// so the description keeps a readable line length.
+  static const _stackBelow = 480.0;
+
   @override
   Widget build(BuildContext context) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppTypography.bodyStrong),
+        const SizedBox(height: 2),
+        Text(description, style: AppTypography.caption),
+      ],
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Spacing.md),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (control is! Switch && constraints.maxWidth < _stackBelow) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTypography.bodyStrong),
-                const SizedBox(height: 2),
-                Text(description, style: AppTypography.caption),
+                text,
+                const SizedBox(height: Spacing.md),
+                control,
               ],
-            ),
-          ),
-          const SizedBox(width: Spacing.lg),
-          control,
-        ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: text),
+              const SizedBox(width: Spacing.lg),
+              control,
+            ],
+          );
+        },
       ),
     );
   }

@@ -3,9 +3,12 @@ part of '../task_detail_screen.dart';
 /// Everything that changes the task's lifecycle, pinned under the rail: the
 /// status's primary action first, destructive ones last.
 class _RailActions extends StatelessWidget {
-  const _RailActions({required this.state});
+  const _RailActions({required this.state, this.bar = false});
 
   final TaskDetailLoaded state;
+
+  /// Under the one-column layout: the actions side by side, as a bar.
+  final bool bar;
 
   @override
   Widget build(BuildContext context) {
@@ -122,16 +125,28 @@ class _RailActions extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      padding: const EdgeInsets.all(Spacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final (i, action) in actions.indexed) ...[
-            if (i > 0) const SizedBox(height: Spacing.sm),
-            action,
-          ],
-        ],
-      ),
+      padding: EdgeInsets.all(bar ? Spacing.md : Spacing.xl),
+      child: bar
+          ? SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  for (final (i, action) in actions.indexed) ...[
+                    if (i > 0) const SizedBox(width: Spacing.sm),
+                    Expanded(child: action),
+                  ],
+                ],
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, action) in actions.indexed) ...[
+                  if (i > 0) const SizedBox(height: Spacing.sm),
+                  action,
+                ],
+              ],
+            ),
     );
   }
 }

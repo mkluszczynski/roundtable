@@ -31,13 +31,25 @@ Widget? _filesPlaceholder(BuildContext context, TaskDetailLoaded state) {
 }
 
 /// The PR's diff: file list + the selected file with review comments inline.
-class _ChangesView extends StatelessWidget {
+class _ChangesView extends StatefulWidget {
   const _ChangesView({required this.state});
 
   final TaskDetailLoaded state;
 
   @override
+  State<_ChangesView> createState() => _ChangesViewState();
+}
+
+class _ChangesViewState extends State<_ChangesView> {
+  /// Narrow: the selected file's diff is open in place of the list.
+  bool _showingDiff = false;
+
+  /// Below this width the list and the diff take turns.
+  static const _sideBySideMin = 720.0;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final placeholder = _filesPlaceholder(context, state);
     if (placeholder != null) return placeholder;
     final files = state.files!;
@@ -50,78 +62,163 @@ class _ChangesView extends StatelessWidget {
         .where((c) => c.path == path && c.state == ReviewCommentState.open)
         .length;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ChangeStats(files: files),
-        if (state.inReview && state.hasConflicts) ...[
-          const SizedBox(height: Spacing.sm),
-          Text(
-            'This branch has conflicts with ${state.mergeStatus!.baseBranch}.',
-            style: AppTypography.body.copyWith(color: AppColors.red),
-          ),
-        ],
-        const SizedBox(height: Spacing.md),
-        Expanded(
-          child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sideBySide = constraints.maxWidth >= _sideBySideMin;
+        final list = ListView.builder(
+          itemCount: files.length,
+          itemBuilder: (context, index) {
+            final file = files[index];
+            return _FileRow(
+              file: file,
+              selected:
+                  sideBySide && file.filename == state.selectedFile?.filename,
+              openComments: openCommentsOn(file.filename),
+              onTap: () {
+                context.read<TaskDetailBloc>().add(FileSelected(file));
+                if (!sideBySide) setState(() => _showingDiff = true);
+              },
+            );
+          },
+        );
+        final Widget body;
+        if (sideBySide) {
+          body = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 320,
-                child: ListView.builder(
-                  itemCount: files.length,
-                  itemBuilder: (context, index) {
-                    final file = files[index];
-                    final selected =
-                        file.filename == state.selectedFile?.filename;
-                    return ListTile(
-                      selected: selected,
-                      selectedTileColor: AppColors.bg2,
-                      leading: const Icon(
-                        Icons.description_outlined,
-                        color: AppColors.text1,
-                      ),
-                      title: Text(
-                        file.filename,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyStrong,
-                      ),
-                      subtitle: Text(file.status, style: AppTypography.caption),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '+${file.additions} -${file.deletions}',
-                            style: AppTypography.code,
-                          ),
-                          if (openCommentsOn(file.filename) case final n
-                              when n > 0)
-                            Text(
-                              '$n comment${n == 1 ? '' : 's'}',
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.warning,
-                              ),
-                            ),
-                        ],
-                      ),
-                      onTap: () => context.read<TaskDetailBloc>().add(
-                        FileSelected(file),
-                      ),
-                    );
-                  },
-                ),
-              ),
+              SizedBox(width: 320, child: list),
               VerticalDivider(width: 1, color: AppColors.border),
               Expanded(child: _SelectedFileDiff(state: state)),
             ],
+          );
+        } else if (_showingDiff && state.selectedFile != null) {
+          body = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _showingDiff = false),
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: Text('All ${files.length} files'),
+              ),
+              Expanded(child: _SelectedFileDiff(state: state)),
+            ],
+          );
+        } else {
+          body = list;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ChangeStats(files: files),
+            if (state.inReview && state.hasConflicts) ...[
+              const SizedBox(height: Spacing.sm),
+              Text(
+                'This branch has conflicts with '
+                '${state.mergeStatus!.baseBranch}.',
+                style: AppTypography.body.copyWith(color: AppColors.red),
+              ),
+            ],
+            const SizedBox(height: Spacing.md),
+            Expanded(child: body),
+            if (state.inReview) ...[
+              const SizedBox(height: Spacing.md),
+              _IterationFeedbackRow(state: state),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One changed file: its name first (what the dev looks for), the folder
+/// under it — a long path cut from the end would hide the name.
+class _FileRow extends StatelessWidget {
+  const _FileRow({
+    required this.file,
+    required this.selected,
+    required this.openComments,
+    required this.onTap,
+  });
+
+  final DiffFile file;
+  final bool selected;
+  final int openComments;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final slash = file.filename.lastIndexOf('/');
+    final name = file.filename.substring(slash + 1);
+    final folder = slash < 0 ? null : file.filename.substring(0, slash);
+    return Material(
+      color: selected ? AppColors.bg2 : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.control),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.md,
+            vertical: Spacing.smd,
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.description_outlined,
+                size: 20,
+                color: AppColors.text1,
+              ),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: AppTypography.bodyStrong,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      [?folder, file.status].join(' · '),
+                      style: AppTypography.caption,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      style: AppTypography.code,
+                      children: [
+                        TextSpan(
+                          text: '+${file.additions} ',
+                          style: const TextStyle(color: AppColors.live),
+                        ),
+                        TextSpan(
+                          text: '-${file.deletions}',
+                          style: const TextStyle(color: AppColors.red),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (openComments > 0)
+                    Text(
+                      '$openComments comment${openComments == 1 ? '' : 's'}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.warning,
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
-        if (state.inReview) ...[
-          const SizedBox(height: Spacing.md),
-          _IterationFeedbackRow(state: state),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -228,16 +325,34 @@ class _SelectedFileDiffState extends State<_SelectedFileDiff> {
           ],
         ),
     };
+    final slash = file.filename.lastIndexOf('/');
     return Padding(
       padding: const EdgeInsets.all(Spacing.xl),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            // Name, then folder; the view switch wraps under them when the
+            // pane is narrow.
+            Wrap(
+              spacing: Spacing.lg,
+              runSpacing: Spacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(file.filename, style: AppTypography.cardTitle),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.filename.substring(slash + 1),
+                      style: AppTypography.cardTitle,
+                    ),
+                    if (slash > 0)
+                      Text(
+                        file.filename.substring(0, slash),
+                        style: AppTypography.caption,
+                      ),
+                  ],
                 ),
                 PillSelector<_FileViewMode>(
                   options: _FileViewMode.values,

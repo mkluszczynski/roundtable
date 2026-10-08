@@ -152,3 +152,28 @@ are in `test/widgets/`.
 
 Accessibility: every icon-only button has a `tooltip`. Text colors keep at
 least 4.5:1 contrast on `bg0`–`bg2`.
+
+## 4. Responsive layout
+
+Three layout classes (`lib/theme/breakpoints.dart`, `LayoutSize`), decided
+from a width — the window's for the app shell, the space a screen gets
+(`LayoutBuilder`) for the layout inside it:
+
+| Class | Width | Shell | Screens |
+|---|---|---|---|
+| compact | < 600 | bottom navigation bar; 48 px tap targets | one column; a kanban shows one column at a time behind a column picker |
+| medium | 600–1024 | icon-only rail (72 px) | kanban columns keep 280 px and scroll sideways with a visible scrollbar |
+| expanded | ≥ 1024 | full rail (232 px) with active tasks | full layout |
+
+Screen-specific thresholds, from the space the screen actually gets:
+- Task and project detail: two panes from 900 px, below that one column
+  with tabs (task: Info + its sections, actions pinned at the bottom;
+  project: Board / Project).
+- Dashboard: the machines panel from 1200 px; narrower, the stat tiles
+  and the Machines tab cover it.
+- Changes: file list and diff side by side from 720 px, else they take
+  turns. Files show their name first and the folder under it.
+- `SettingRow`: a control wider than a switch goes under its text below
+  480 px.
+- Kanban cards drop, in order, the time, the machine and the project name
+  as they narrow; the task number always shows.

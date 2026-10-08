@@ -61,118 +61,128 @@ class _KanbanCardState extends State<KanbanCard> {
     final reviewPaused = task.isReviewPaused;
     final pausedUntil = task.pausedUntilNow;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.sm),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: _hovered ? AppColors.bg2 : AppColors.bg1,
-              border: Border.all(
-                color: _hovered ? AppColors.borderStrong : AppColors.border,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (attention)
-                    Container(
-                      width: 3,
-                      color: ciFailed ? AppColors.red : appearance.color,
-                    ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(Spacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _MetaRow(
-                            task: task,
-                            projectName: widget.projectName,
-                            appearance: appearance,
-                          ),
-                          const SizedBox(height: Spacing.sm),
-                          Text(
-                            task.title ?? task.prompt,
-                            maxLines: task.title == null ? 3 : 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodyStrong,
-                          ),
-                          if (failure != null) ...[
-                            const SizedBox(height: Spacing.xs),
-                            Text(
-                              failure,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.red,
+    // Measured outside the IntrinsicHeight below, which a LayoutBuilder
+    // can't live in: the card's width minus its padding.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = constraints.maxWidth - 2 * Spacing.lg - 3;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: Spacing.sm),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: _hovered ? AppColors.bg2 : AppColors.bg1,
+                  border: Border.all(
+                    color: _hovered ? AppColors.borderStrong : AppColors.border,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (attention)
+                        Container(
+                          width: 3,
+                          color: ciFailed ? AppColors.red : appearance.color,
+                        ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(Spacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _MetaRow(
+                                task: task,
+                                projectName: widget.projectName,
+                                appearance: appearance,
+                                showTime: contentWidth >= 280,
+                                showProject: contentWidth >= 200,
                               ),
-                            ),
-                          ],
-                          if (pausedUntil != null) ...[
-                            const SizedBox(height: Spacing.xs),
-                            Text(
-                              '${reviewPaused ? 'Review paused' : 'Usage limit'}'
-                              ' — resumes at ${resumeTimeLabel(pausedUntil)}',
-                              style: AppTypography.caption.copyWith(
-                                color: AppColors.warning,
+                              const SizedBox(height: Spacing.sm),
+                              Text(
+                                task.title ?? task.prompt,
+                                maxLines: task.title == null ? 3 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.bodyStrong,
                               ),
-                            ),
-                          ],
-                          if (task.branchName != null) ...[
-                            const SizedBox(height: Spacing.sm),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.call_split,
-                                  size: 12,
-                                  color: AppColors.text2,
-                                ),
-                                const SizedBox(width: Spacing.xs),
-                                Flexible(
-                                  child: Text(
-                                    task.branchName!,
-                                    style: AppTypography.code.copyWith(
-                                      color: AppColors.text1,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                              if (failure != null) ...[
+                                const SizedBox(height: Spacing.xs),
+                                Text(
+                                  failure,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.red,
                                   ),
                                 ),
-                                if (showChecks) ...[
-                                  const SizedBox(width: Spacing.md),
-                                  _ChecksBadge(state: task.checkState),
-                                ],
                               ],
-                            ),
-                          ],
-                          if (task.prAdditions != null ||
-                              task.openReviewComments > 0) ...[
-                            const SizedBox(height: Spacing.sm),
-                            _ChangesRow(task: task),
-                          ],
-                          const SizedBox(height: Spacing.md),
-                          _AssigneeRow(
-                            agentName: widget.agentName,
-                            machineName: widget.machineName,
+                              if (pausedUntil != null) ...[
+                                const SizedBox(height: Spacing.xs),
+                                Text(
+                                  '${reviewPaused ? 'Review paused' : 'Usage limit'}'
+                                  ' — resumes at ${resumeTimeLabel(pausedUntil)}',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.warning,
+                                  ),
+                                ),
+                              ],
+                              if (task.branchName != null) ...[
+                                const SizedBox(height: Spacing.sm),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.call_split,
+                                      size: 12,
+                                      color: AppColors.text2,
+                                    ),
+                                    const SizedBox(width: Spacing.xs),
+                                    Flexible(
+                                      child: Text(
+                                        task.branchName!,
+                                        style: AppTypography.code.copyWith(
+                                          color: AppColors.text1,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (showChecks) ...[
+                                      const SizedBox(width: Spacing.md),
+                                      _ChecksBadge(state: task.checkState),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                              if (task.prAdditions != null ||
+                                  task.openReviewComments > 0) ...[
+                                const SizedBox(height: Spacing.sm),
+                                _ChangesRow(task: task),
+                              ],
+                              const SizedBox(height: Spacing.md),
+                              _AssigneeRow(
+                                agentName: widget.agentName,
+                                machineName: widget.machineName,
+                                showMachine: contentWidth >= 160,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -182,7 +192,16 @@ class _MetaRow extends StatelessWidget {
     required this.task,
     required this.projectName,
     required this.appearance,
+    this.showTime = true,
+    this.showProject = true,
   });
+
+  /// Off when the column is too narrow for the name to say anything.
+  final bool showProject;
+
+  /// Off in a narrow column: the time gives way first, then the project's
+  /// name; the task number always shows.
+  final bool showTime;
 
   final Task task;
   final String? projectName;
@@ -190,50 +209,37 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Left part takes the free space so the status stays flush right; a
-    // Flexible next to a Spacer would split it between them.
     return Row(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              if (projectName != null) ...[
-                const Icon(
-                  Icons.folder_outlined,
-                  size: 12,
-                  color: AppColors.text2,
-                ),
-                const SizedBox(width: Spacing.xs),
-                Flexible(
-                  child: Text(
-                    projectName!,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.text1,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text('  ·  ', style: AppTypography.caption),
-              ],
-              // One text, so a narrow column cuts the time, not the layout.
-              Flexible(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: '#${task.id}', style: AppTypography.code),
-                      TextSpan(
-                        text: '  ·  ${relativeTime(task.createdAt)}',
-                        style: AppTypography.caption,
-                      ),
-                    ],
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
+        Text('#${task.id}', style: AppTypography.code),
+        if (projectName != null && showProject) ...[
+          Text('  ·  ', style: AppTypography.caption),
+          const Icon(
+            Icons.folder_outlined,
+            size: 12,
+            color: AppColors.text2,
           ),
-        ),
+          const SizedBox(width: Spacing.xs),
+          Flexible(
+            child: Text(
+              projectName!,
+              style: AppTypography.caption.copyWith(color: AppColors.text1),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+        if (showTime)
+          Flexible(
+            child: Text(
+              '  ·  ${relativeTime(task.createdAt)}',
+              style: AppTypography.caption,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        const Spacer(),
+        const SizedBox(width: Spacing.sm),
         StatusDot.fromAppearance(appearance),
         const SizedBox(width: Spacing.xs),
         Text(
@@ -335,7 +341,14 @@ class _ChangesRow extends StatelessWidget {
 }
 
 class _AssigneeRow extends StatelessWidget {
-  const _AssigneeRow({required this.agentName, required this.machineName});
+  const _AssigneeRow({
+    required this.agentName,
+    required this.machineName,
+    this.showMachine = true,
+  });
+
+  /// Off in a narrow column, so the agent's name keeps its room.
+  final bool showMachine;
 
   final String? agentName;
   final String? machineName;
@@ -367,7 +380,8 @@ class _AssigneeRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (machineName != null) ...[
+        // The machine gives way to the agent's name in a narrow column.
+        if (machineName != null && showMachine) ...[
           Text('  ·  ', style: AppTypography.caption),
           const Icon(Icons.dns_outlined, size: 12, color: AppColors.text2),
           const SizedBox(width: Spacing.xs),

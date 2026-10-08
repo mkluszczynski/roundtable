@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -59,15 +60,23 @@ class AppModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = LayoutSize.of(context).isCompact;
     return Dialog(
       backgroundColor: AppColors.bg1,
+      // Phones: close to the edges, so the form gets the width.
+      insetPadding: compact
+          ? const EdgeInsets.symmetric(
+              horizontal: Spacing.lg,
+              vertical: Spacing.xxxl,
+            )
+          : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: AppColors.borderStrong),
       ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, minWidth: 480),
+        constraints: BoxConstraints(maxWidth: 560, minWidth: compact ? 0 : 480),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

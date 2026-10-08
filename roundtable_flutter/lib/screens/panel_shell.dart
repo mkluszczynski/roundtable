@@ -14,6 +14,7 @@ import '../repositories/agent_repository.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/task_repository.dart';
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -155,38 +156,75 @@ class _PanelShellState extends State<PanelShell> {
         listener: _refreshListsFor,
         child: Scaffold(
           backgroundColor: AppColors.bg0,
-          body: Row(
-            children: [
-              _ShellNavRail(
-                items: _items,
-                selectedIndex: _selectedIndex,
-                onSelected: (index) => setState(() => _selectedIndex = index),
-                onOpenTask: _openTask,
-                onShowKanban: _showKanban,
-              ),
-              Container(width: 1, color: AppColors.border),
-              Expanded(
-                child: IndexedStack(
-                  index: _selectedIndex,
-                  // Each tab gets its own Navigator so detail screens it pushes
-                  // (project/machine/task detail) stack within that tab's area
-                  // instead of covering the nav rail via the app-root Navigator.
-                  children: [
-                    for (final (i, screen) in _rootScreens.indexed)
-                      Navigator(
-                        key: i == 0 ? _dashboardNavigator : null,
-                        onGenerateRoute: (settings) => MaterialPageRoute(
-                          builder: (_) => screen,
-                          settings: settings,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+          body: _ShellLayout(
+            layout: LayoutSize.of(context),
+            nav: _ShellNavRail(
+              items: _items,
+              selectedIndex: _selectedIndex,
+              onSelected: (index) => setState(() => _selectedIndex = index),
+              onOpenTask: _openTask,
+              onShowKanban: _showKanban,
+              layout: LayoutSize.of(context),
+            ),
+            content: IndexedStack(
+              index: _selectedIndex,
+              // Each tab gets its own Navigator so detail screens it pushes
+              // (project/machine/task detail) stack within that tab's area
+              // instead of covering the nav rail via the app-root Navigator.
+              children: [
+                for (final (i, screen) in _rootScreens.indexed)
+                  Navigator(
+                    key: i == 0 ? _dashboardNavigator : null,
+                    onGenerateRoute: (settings) => MaterialPageRoute(
+                      builder: (_) => screen,
+                      settings: settings,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The navigation beside the content (a rail) or under it (a bottom bar on
+/// phones).
+class _ShellLayout extends StatelessWidget {
+  const _ShellLayout({
+    required this.layout,
+    required this.nav,
+    required this.content,
+  });
+
+  final LayoutSize layout;
+  final Widget nav;
+  final Widget content;
+
+  @override
+  Widget build(BuildContext context) {
+    if (layout.isCompact) {
+      // Touch: every icon button gets a 48 px target, however small its
+      // icon (copy, edit, menus).
+      return Theme(
+        data: Theme.of(
+          context,
+        ).copyWith(materialTapTargetSize: MaterialTapTargetSize.padded),
+        child: Column(
+          children: [
+            Expanded(child: SafeArea(bottom: false, child: content)),
+            nav,
+          ],
+        ),
+      );
+    }
+    return Row(
+      children: [
+        nav,
+        Container(width: 1, color: AppColors.border),
+        Expanded(child: content),
+      ],
     );
   }
 }
@@ -204,8 +242,10 @@ class _ShellNavRail extends StatefulWidget {
     required this.onSelected,
     required this.onOpenTask,
     required this.onShowKanban,
+    required this.layout,
   });
 
+  final LayoutSize layout;
   final List<NavRailItem> items;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -274,22 +314,52 @@ class _ShellNavRailState extends State<_ShellNavRail> {
                   RunnerUpdateStatus.available,
         );
 
+    final (connectionColor, connectionLabel) = switch (taskState) {
+      DashboardLoaded(reconnecting: true) => (
+        AppColors.warning,
+        'Reconnecting…',
+      ),
+      DashboardLoaded() => (AppColors.live, 'Live updates on'),
+      DashboardError() => (AppColors.red, 'Disconnected — reload'),
+      DashboardLoading() => (AppColors.text2, 'Connecting…'),
+    };
+    final badges = {
+      if (waiting > 0)
+        _dashboardIndex: Tooltip(
+          message: '$waiting waiting on you',
+          child: CountBadge(waiting, color: AppColors.accentSoft),
+        ),
+      if (machineNeedsAttention)
+        _machinesIndex: const Tooltip(
+          message: 'A machine needs an update or has a broken claude CLI',
+          child: StatusDot(color: AppColors.warning),
+        ),
+    };
+
+    if (widget.layout.isCompact) {
+      return _BottomNav(
+        items: widget.items,
+        selectedIndex: widget.selectedIndex,
+        onSelected: _select,
+        badges: badges,
+        // Only worth the room when something's wrong.
+        connection: connectionColor == AppColors.live
+            ? null
+            : (connectionColor, connectionLabel),
+      );
+    }
+
     return AppNavRail(
       items: widget.items,
       selectedIndex: widget.selectedIndex,
       onSelected: _select,
-      badges: {
-        if (waiting > 0)
-          _dashboardIndex: Tooltip(
-            message: '$waiting waiting on you',
-            child: CountBadge(waiting, color: AppColors.accentSoft),
-          ),
-        if (machineNeedsAttention)
-          _machinesIndex: const Tooltip(
-            message: 'A machine needs an update or has a broken claude CLI',
-            child: StatusDot(color: AppColors.warning),
-          ),
-      },
+      collapsed: !widget.layout.isExpanded,
+      collapsedFooter: Tooltip(
+        message:
+            '$connectionLabel · $online / ${machines.length} machines online',
+        child: StatusDot(color: connectionColor),
+      ),
+      badges: badges,
       section: ValueListenableBuilder(
         valueListenable: openTaskId,
         builder: (context, openId, _) => ActiveTasksNav(
@@ -307,24 +377,9 @@ class _ShellNavRailState extends State<_ShellNavRail> {
         children: [
           Row(
             children: [
-              StatusDot(
-                color: switch (taskState) {
-                  DashboardLoaded(reconnecting: true) => AppColors.warning,
-                  DashboardLoaded() => AppColors.live,
-                  DashboardError() => AppColors.red,
-                  DashboardLoading() => AppColors.text2,
-                },
-              ),
+              StatusDot(color: connectionColor),
               const SizedBox(width: Spacing.sm),
-              Text(
-                switch (taskState) {
-                  DashboardLoaded(reconnecting: true) => 'Reconnecting…',
-                  DashboardLoaded() => 'Live updates on',
-                  DashboardError() => 'Disconnected — reload',
-                  DashboardLoading() => 'Connecting…',
-                },
-                style: AppTypography.caption,
-              ),
+              Text(connectionLabel, style: AppTypography.caption),
             ],
           ),
           const SizedBox(height: Spacing.xs),
@@ -339,6 +394,113 @@ class _ShellNavRailState extends State<_ShellNavRail> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The phone's navigation: one tab per screen along the bottom, and the
+/// connection state above it when it isn't live.
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.badges,
+    this.connection,
+  });
+
+  final List<NavRailItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final Map<int, Widget> badges;
+  final (Color, String)? connection;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg1,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (connection case (final color, final label))
+              Padding(
+                padding: const EdgeInsets.only(top: Spacing.sm),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    StatusDot(color: color),
+                    const SizedBox(width: Spacing.sm),
+                    Text(label, style: AppTypography.caption),
+                  ],
+                ),
+              ),
+            Row(
+              children: [
+                for (final (i, item) in items.indexed)
+                  Expanded(
+                    child: _BottomNavItem(
+                      item: item,
+                      selected: i == selectedIndex,
+                      badge: badges[i],
+                      onTap: () => onSelected(i),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final NavRailItem item;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.accent : AppColors.text2;
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 60,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(selected ? item.selectedIcon : item.icon, color: color),
+                if (badge != null)
+                  Positioned(top: -4, right: -14, child: badge!),
+              ],
+            ),
+            const SizedBox(height: Spacing.xs),
+            Text(
+              item.label,
+              style: AppTypography.caption.copyWith(
+                color: selected ? AppColors.text0 : AppColors.text2,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

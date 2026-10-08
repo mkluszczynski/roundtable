@@ -6,6 +6,7 @@ import 'package:roundtable_client/roundtable_client.dart';
 import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -363,7 +364,9 @@ class _MachineCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (updateStatus == RunnerUpdateStatus.upToDate)
+                // On a phone the OS keeps the room; an update still shows.
+                if (updateStatus == RunnerUpdateStatus.upToDate &&
+                    !LayoutSize.of(context).isCompact)
                   const TagChip('runner up to date'),
                 PopupMenuButton<void Function(BuildContext)>(
                   tooltip: 'Machine actions',

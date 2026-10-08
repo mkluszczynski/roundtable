@@ -12,6 +12,7 @@ import '../repositories/attachment_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/settings_repository.dart';
 import '../repositories/task_repository.dart';
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -287,20 +288,26 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                         ProjectListLoaded(:final projects) => projects,
                         _ => <Project>[],
                       };
-                      return Wrap(
-                        spacing: Spacing.sm,
-                        runSpacing: Spacing.sm,
-                        children: [
-                          for (final project in projects)
-                            SizedBox(
-                              width: 244,
-                              child: SelectableCard(
-                                selected: _projectId == project.id,
-                                onTap: () => _selectProject(project.id!),
-                                child: _ProjectOption(project: project),
+                      return LayoutBuilder(
+                        builder: (context, constraints) => Wrap(
+                          spacing: Spacing.sm,
+                          runSpacing: Spacing.sm,
+                          children: [
+                            for (final project in projects)
+                              SizedBox(
+                                // Two per row when they fit, else full width.
+                                width:
+                                    constraints.maxWidth >= 2 * 244 + Spacing.sm
+                                    ? (constraints.maxWidth - Spacing.sm) / 2
+                                    : constraints.maxWidth,
+                                child: SelectableCard(
+                                  selected: _projectId == project.id,
+                                  onTap: () => _selectProject(project.id!),
+                                  child: _ProjectOption(project: project),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -345,7 +352,10 @@ class _CreateTaskDialogContentState extends State<_CreateTaskDialogContent> {
                         ),
                         label: const Text('Attach image'),
                       ),
-                    if (kIsWeb && _images.isEmpty)
+                    // A keyboard shortcut means nothing on a phone.
+                    if (kIsWeb &&
+                        _images.isEmpty &&
+                        !LayoutSize.of(context).isCompact)
                       Text(
                         'or paste a screenshot (Ctrl+V)',
                         style: AppTypography.caption,

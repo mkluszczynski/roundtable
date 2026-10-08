@@ -11,6 +11,8 @@ import '../repositories/project_repository.dart';
 import '../utils/error_message.dart';
 import '../widgets/load_failed_view.dart';
 import '../theme/colors.dart';
+import '../widgets/pill_selector.dart';
+import '../theme/breakpoints.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../utils/relative_time.dart';
@@ -84,6 +86,9 @@ class _ProjectDetailBody extends StatelessWidget {
   /// Below this the columns keep a fixed width and the board scrolls.
   static const _minColumnWidth = 280.0;
 
+  /// Below this the project panel and the board take turns as tabs.
+  static const _twoPaneMin = 900.0;
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardCubit, DashboardState>(
@@ -99,43 +104,98 @@ class _ProjectDetailBody extends StatelessWidget {
         for (final task in tasks) {
           columns[kanbanColumnFor(task.status)]!.add(task);
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Header(project: project),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 300,
-                    child: _ProjectRail(
-                      project: project,
-                      columns: columns,
-                      onChanged: onChanged,
-                    ),
-                  ),
-                  VerticalDivider(width: 1, color: AppColors.border),
-                  Expanded(child: _Board(columns: columns)),
-                ],
-              ),
-            ),
-          ],
+        // Newest first, like the dashboard.
+        for (final column in columns.values) {
+          column.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        }
+        final rail = _ProjectRail(
+          project: project,
+          columns: columns,
+          onChanged: onChanged,
+        );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = LayoutSize.forWidth(
+              constraints.maxWidth,
+            ).isCompact;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Header(project: project, compact: compact),
+                Expanded(
+                  child: constraints.maxWidth >= _twoPaneMin
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(width: 300, child: rail),
+                            VerticalDivider(width: 1, color: AppColors.border),
+                            Expanded(child: _Board(columns: columns)),
+                          ],
+                        )
+                      : _NarrowBody(
+                          board: _Board(columns: columns),
+                          rail: rail,
+                        ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 }
 
-class _Board extends StatelessWidget {
+class _Board extends StatefulWidget {
   const _Board({required this.columns});
 
   final Map<KanbanColumn, List<Task>> columns;
 
   @override
+  State<_Board> createState() => _BoardState();
+}
+
+class _BoardState extends State<_Board> {
+  /// The column a phone shows; null until the dev picks one.
+  KanbanColumn? _column;
+
+  Map<KanbanColumn, List<Task>> get columns => widget.columns;
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (LayoutSize.forWidth(constraints.maxWidth).isCompact) {
+          final column = _column ?? defaultKanbanColumn(columns);
+          return Padding(
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: PillSelector<KanbanColumn>(
+                    options: KanbanColumn.values,
+                    labelBuilder: (c) =>
+                        '${kanbanColumnTitle(c)} · ${columns[c]!.length}',
+                    selected: column,
+                    onChanged: (c) => setState(() => _column = c),
+                    wrap: false,
+                  ),
+                ),
+                const SizedBox(height: Spacing.md),
+                Expanded(
+                  child: KanbanColumnView(
+                    title: kanbanColumnTitle(column),
+                    accent: kanbanColumnAccent(column),
+                    tasks: columns[column]!,
+                    showHeader: false,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         const gap = Spacing.lg;
         const padding = Spacing.xl;
         final count = KanbanColumn.values.length;
@@ -165,12 +225,16 @@ class _Board extends StatelessWidget {
         if (fits) {
           return Padding(padding: const EdgeInsets.all(padding), child: row);
         }
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.all(padding),
-          child: SizedBox(
-            height: constraints.maxHeight - 2 * padding,
-            child: row,
+        // A visible scrollbar says the board goes on past the edge.
+        return Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(padding),
+            child: SizedBox(
+              height: constraints.maxHeight - 2 * padding,
+              child: row,
+            ),
           ),
         );
       },
@@ -180,9 +244,17 @@ class _Board extends StatelessWidget {
 
 /// Project identity only; the one frequent action, New task, stays here.
 class _Header extends StatelessWidget {
-  const _Header({required this.project});
+  const _Header({required this.project, this.compact = false});
 
   final Project project;
+
+  /// Phones: New task as an icon, so the name keeps its room.
+  final bool compact;
+
+  void _newTask(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (_) => CreateTaskDialog(initialProjectId: project.id),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -232,16 +304,59 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          FilledButton.icon(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => CreateTaskDialog(initialProjectId: project.id),
+          if (compact)
+            IconButton.filled(
+              tooltip: 'New task',
+              onPressed: () => _newTask(context),
+              icon: const Icon(Icons.add),
+            )
+          else
+            FilledButton.icon(
+              onPressed: () => _newTask(context),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('New task'),
             ),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('New task'),
-          ),
         ],
       ),
+    );
+  }
+}
+
+/// The project panel and its board as two tabs, for narrow screens.
+class _NarrowBody extends StatefulWidget {
+  const _NarrowBody({required this.board, required this.rail});
+
+  final Widget board;
+  final Widget rail;
+
+  @override
+  State<_NarrowBody> createState() => _NarrowBodyState();
+}
+
+class _NarrowBodyState extends State<_NarrowBody> {
+  var _showBoard = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            Spacing.xl,
+            Spacing.lg,
+            Spacing.xl,
+            0,
+          ),
+          child: PillSelector<bool>(
+            options: const [true, false],
+            labelBuilder: (board) => board ? 'Board' : 'Project',
+            selected: _showBoard,
+            onChanged: (board) => setState(() => _showBoard = board),
+          ),
+        ),
+        Expanded(child: _showBoard ? widget.board : widget.rail),
+      ],
     );
   }
 }

@@ -5,11 +5,16 @@ class _InfoRail extends StatelessWidget {
     required this.state,
     required this.section,
     required this.onSectionSelected,
+    this.inline = false,
   });
 
   final TaskDetailLoaded state;
   final TaskSection section;
   final ValueChanged<TaskSection> onSectionSelected;
+
+  /// As the one-column layout's "Info" tab: the tabs replace the section
+  /// list and the actions are pinned under every tab instead.
+  final bool inline;
 
   @override
   Widget build(BuildContext context) {
@@ -24,11 +29,12 @@ class _InfoRail extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _AgentSection(state: state),
-                _RailNav(
-                  state: state,
-                  section: section,
-                  onSelected: onSectionSelected,
-                ),
+                if (!inline)
+                  _RailNav(
+                    state: state,
+                    section: section,
+                    onSelected: onSectionSelected,
+                  ),
                 if (task.branchName != null || task.prUrl != null)
                   RailSection(
                     label: 'Branch',
@@ -113,7 +119,7 @@ class _InfoRail extends StatelessWidget {
             ),
           ),
         ),
-        _RailActions(state: state),
+        if (!inline) _RailActions(state: state),
       ],
     );
   }
@@ -263,6 +269,75 @@ class _AgentSection extends StatelessWidget {
 }
 
 /// Switches the main area between the task's views.
+IconData _sectionIcon(TaskSection s) => switch (s) {
+  TaskSection.overview => Icons.dashboard_outlined,
+  TaskSection.plan => Icons.checklist_outlined,
+  TaskSection.changes => Icons.difference_outlined,
+  TaskSection.review => Icons.rate_review_outlined,
+  TaskSection.checks => Icons.fact_check_outlined,
+  TaskSection.logs => Icons.terminal,
+};
+
+String _sectionLabel(TaskDetailLoaded state, TaskSection s) => switch (s) {
+  TaskSection.overview => switch (state.task.status) {
+    TaskStatus.waitingForAnswer => 'Question',
+    TaskStatus.planReady => 'Plan',
+    TaskStatus.done || TaskStatus.awaitingReview => 'Result',
+    _ => 'Details',
+  },
+  TaskSection.plan => 'Plan',
+  TaskSection.changes => 'Changes',
+  TaskSection.review => 'AI review',
+  TaskSection.checks => 'CI checks',
+  TaskSection.logs => 'Logs',
+};
+
+/// What a section's entry shows on its right: diff totals, open comments,
+/// CI state, a live dot.
+Widget? _sectionTrailing(TaskDetailLoaded state, TaskSection s) {
+  final files = state.files;
+  final openComments = state.openCommentCount;
+  final sentToFixComments = state.sentToFixCommentCount;
+  return switch (s) {
+    TaskSection.changes when files != null => Text.rich(
+      TextSpan(
+        style: AppTypography.code,
+        children: [
+          TextSpan(
+            text: '+${files.fold<int>(0, (n, f) => n + f.additions)} ',
+            style: const TextStyle(color: AppColors.live),
+          ),
+          TextSpan(
+            text: '-${files.fold<int>(0, (n, f) => n + f.deletions)}',
+            style: const TextStyle(color: AppColors.red),
+          ),
+        ],
+      ),
+    ),
+    TaskSection.review when state.reviewActive => const StatusDot(
+      color: AppColors.live,
+      pulsing: true,
+    ),
+    TaskSection.review when openComments > 0 => CountBadge(openComments),
+    TaskSection.review when sentToFixComments > 0 => CountBadge(
+      sentToFixComments,
+      color: AppColors.text2,
+    ),
+    TaskSection.checks when state.task.checkState == PrCheckState.failure =>
+      CountBadge(state.failedCheckCount, color: AppColors.red),
+    TaskSection.checks when state.task.checkState != PrCheckState.none =>
+      StatusDot(
+        color: checkStateAppearance(state.task.checkState).color,
+        pulsing: checkStateAppearance(state.task.checkState).pulsing,
+      ),
+    TaskSection.logs when state.task.isLive => const StatusDot(
+      color: AppColors.live,
+      pulsing: true,
+    ),
+    _ => null,
+  };
+}
+
 class _RailNav extends StatelessWidget {
   const _RailNav({
     required this.state,
@@ -277,9 +352,6 @@ class _RailNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final available = state.availableSections;
-    final files = state.files;
-    final openComments = state.openCommentCount;
-    final sentToFixComments = state.sentToFixCommentCount;
     return RailSection(
       label: 'View',
       child: Column(
@@ -287,77 +359,135 @@ class _RailNav extends StatelessWidget {
           for (final s in TaskSection.values)
             if (available.contains(s))
               RailNavItem(
-                icon: switch (s) {
-                  TaskSection.overview => Icons.dashboard_outlined,
-                  TaskSection.plan => Icons.checklist_outlined,
-                  TaskSection.changes => Icons.difference_outlined,
-                  TaskSection.review => Icons.rate_review_outlined,
-                  TaskSection.checks => Icons.fact_check_outlined,
-                  TaskSection.logs => Icons.terminal,
-                },
-                label: switch (s) {
-                  TaskSection.overview => switch (state.task.status) {
-                    TaskStatus.waitingForAnswer => 'Question',
-                    TaskStatus.planReady => 'Plan',
-                    TaskStatus.done || TaskStatus.awaitingReview => 'Result',
-                    _ => 'Details',
-                  },
-                  TaskSection.plan => 'Plan',
-                  TaskSection.changes => 'Changes',
-                  TaskSection.review => 'AI review',
-                  TaskSection.checks => 'CI checks',
-                  TaskSection.logs => 'Logs',
-                },
+                icon: _sectionIcon(s),
+                label: _sectionLabel(state, s),
                 selected: section == s,
                 onTap: () => onSelected(s),
-                trailing: switch (s) {
-                  TaskSection.changes when files != null => Text.rich(
-                    TextSpan(
-                      style: AppTypography.code,
-                      children: [
-                        TextSpan(
-                          text:
-                              '+${files.fold<int>(0, (n, f) => n + f.additions)} ',
-                          style: const TextStyle(color: AppColors.live),
-                        ),
-                        TextSpan(
-                          text:
-                              '-${files.fold<int>(0, (n, f) => n + f.deletions)}',
-                          style: const TextStyle(color: AppColors.red),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TaskSection.review when state.reviewActive => const StatusDot(
-                    color: AppColors.live,
-                    pulsing: true,
-                  ),
-                  TaskSection.review when openComments > 0 => CountBadge(
-                    openComments,
-                  ),
-                  TaskSection.review when sentToFixComments > 0 => CountBadge(
-                    sentToFixComments,
-                    color: AppColors.text2,
-                  ),
-                  TaskSection.checks
-                      when state.task.checkState == PrCheckState.failure =>
-                    CountBadge(state.failedCheckCount, color: AppColors.red),
-                  TaskSection.checks
-                      when state.task.checkState != PrCheckState.none =>
-                    StatusDot(
-                      color: checkStateAppearance(state.task.checkState).color,
-                      pulsing: checkStateAppearance(
-                        state.task.checkState,
-                      ).pulsing,
-                    ),
-                  TaskSection.logs when state.task.isLive => const StatusDot(
-                    color: AppColors.live,
-                    pulsing: true,
-                  ),
-                  _ => null,
-                },
+                trailing: _sectionTrailing(state, s),
               ),
         ],
+      ),
+    );
+  }
+}
+
+/// The sections as a row of tabs, for the one-column layout: the task's
+/// details (what the rail shows beside the content on wider screens)
+/// first, then each section.
+class _SectionTabs extends StatelessWidget {
+  const _SectionTabs({
+    required this.state,
+    required this.section,
+    required this.showingInfo,
+    required this.onSelected,
+    required this.onInfo,
+  });
+
+  final TaskDetailLoaded state;
+  final TaskSection section;
+  final bool showingInfo;
+  final ValueChanged<TaskSection> onSelected;
+  final VoidCallback onInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    final available = state.availableSections;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.md,
+          vertical: Spacing.sm,
+        ),
+        child: Row(
+          children: [
+            _SectionTab(
+              icon: Icons.info_outline,
+              label: 'Info',
+              selected: showingInfo,
+              onTap: onInfo,
+            ),
+            for (final s in TaskSection.values)
+              if (available.contains(s))
+                _SectionTab(
+                  icon: _sectionIcon(s),
+                  label: _sectionLabel(state, s),
+                  selected: !showingInfo && section == s,
+                  trailing: _sectionTrailing(state, s),
+                  onTap: () => onSelected(s),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTab extends StatelessWidget {
+  const _SectionTab({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: Spacing.xs),
+      child: Material(
+        color: selected ? AppColors.bg2 : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.control),
+              border: Border(
+                bottom: BorderSide(
+                  width: 2,
+                  color: selected ? AppColors.accent : Colors.transparent,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? AppColors.accent : AppColors.text2,
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text(
+                  label,
+                  style:
+                      (selected ? AppTypography.bodyStrong : AppTypography.body)
+                          .copyWith(
+                            color: selected ? AppColors.text0 : AppColors.text1,
+                          ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: Spacing.sm),
+                  trailing!,
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

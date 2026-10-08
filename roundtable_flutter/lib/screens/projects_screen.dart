@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:roundtable_client/roundtable_client.dart';
 
+import '../utils/repo_slug.dart';
+import '../theme/breakpoints.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/project_list_cubit.dart';
 import '../theme/colors.dart';
@@ -224,7 +226,7 @@ class _ProjectRow extends StatelessWidget {
                 children: [
                   Text(project.name, style: AppTypography.bodyStrong),
                   Text(
-                    project.repoUrl,
+                    repoSlug(project.repoUrl),
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.code,
                   ),
@@ -238,34 +240,36 @@ class _ProjectRow extends StatelessWidget {
                 style: AppTypography.body.copyWith(color: AppColors.text1),
               ),
             ),
-            SizedBox(
-              width: 90,
-              child: hasActivity
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (var i = 0; i < week.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 3),
-                            child: Container(
-                              width: 5,
-                              height: (3 + (week[i] / maxCount) * 21)
-                                  .clamp(3, 24)
-                                  .toDouble(),
-                              decoration: BoxDecoration(
-                                color: i == week.length - 1
-                                    ? AppColors.live
-                                    : AppColors.text2,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(2),
+            // The week's activity is a glance a phone row has no room for.
+            if (!LayoutSize.of(context).isCompact)
+              SizedBox(
+                width: 90,
+                child: hasActivity
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (var i = 0; i < week.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 3),
+                              child: Container(
+                                width: 5,
+                                height: (3 + (week[i] / maxCount) * 21)
+                                    .clamp(3, 24)
+                                    .toDouble(),
+                                decoration: BoxDecoration(
+                                  color: i == week.length - 1
+                                      ? AppColors.live
+                                      : AppColors.text2,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(2),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    )
-                  : Text('no tasks yet', style: AppTypography.caption),
-            ),
+                        ],
+                      )
+                    : Text('no tasks yet', style: AppTypography.caption),
+              ),
             const Icon(
               Icons.chevron_right,
               size: 16,

@@ -8,7 +8,9 @@ import '../cubits/agent_list_cubit.dart';
 import '../cubits/dashboard_cubit.dart';
 import '../cubits/machine_list_cubit.dart';
 import '../cubits/project_list_cubit.dart';
+import '../theme/breakpoints.dart';
 import '../theme/colors.dart';
+import '../widgets/pill_selector.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/add_machine_dialog.dart';
@@ -34,6 +36,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  /// The machines panel takes 300 px; below this the board needs them more.
+  static const _machinesPanelMin = 1200.0;
+
   /// The project the board is filtered to; null shows every project.
   int? _projectId;
 
@@ -51,29 +56,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             (machineState.machines.isEmpty ||
                 agentState.agents.isEmpty ||
                 projectState.projects.isEmpty);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DashboardHeader(
-              projectId: _projectId,
-              onProjectChanged: (id) => setState(() => _projectId = id),
-            ),
-            _NeedsYouStrip(projectId: _projectId),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: setupIncomplete
-                        ? const _Onboarding()
-                        : _KanbanBoard(projectId: _projectId),
-                  ),
-                  VerticalDivider(width: 1, color: AppColors.border),
-                  const SizedBox(width: 300, child: _MachinesPanel()),
-                ],
-              ),
-            ),
-          ],
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final layout = LayoutSize.forWidth(constraints.maxWidth);
+            final board = setupIncomplete
+                ? const _Onboarding()
+                : _KanbanBoard(projectId: _projectId, layout: layout);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DashboardHeader(
+                  projectId: _projectId,
+                  onProjectChanged: (id) => setState(() => _projectId = id),
+                ),
+                _NeedsYouStrip(projectId: _projectId),
+                Expanded(
+                  // Narrower, the machines live in their own tab; the stat
+                  // tiles still say how many are online.
+                  child: constraints.maxWidth >= _machinesPanelMin
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: board),
+                            VerticalDivider(width: 1, color: AppColors.border),
+                            const SizedBox(width: 300, child: _MachinesPanel()),
+                          ],
+                        )
+                      : board,
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -90,6 +103,12 @@ class _DashboardHeader extends StatelessWidget {
 
   final int? projectId;
   final ValueChanged<int?> onProjectChanged;
+
+  /// Four tiles in a row when each gets at least 150 px, else a 2×2 grid.
+  static double _tileWidth(double width) {
+    final perRow = width >= 4 * 150 + 3 * Spacing.md ? 4 : 2;
+    return (width - (perRow - 1) * Spacing.md) / perRow;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -160,36 +179,44 @@ class _DashboardHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          Wrap(
-            spacing: Spacing.md,
-            runSpacing: Spacing.md,
-            children: [
-              _StatTile(
-                label: 'Running',
-                value: '${stats.running}',
-                color: AppColors.live,
-                pulsing: stats.running > 0,
-              ),
-              _StatTile(
-                label: 'Waiting on you',
-                value: '${stats.waiting}',
-                color: stats.waiting > 0
-                    ? AppColors.accentSoft
-                    : AppColors.text2,
-              ),
-              _StatTile(
-                label: 'Agents busy',
-                value: '${stats.busyAgents} / ${stats.agents}',
-                color: AppColors.text1,
-              ),
-              _StatTile(
-                label: 'Machines online',
-                value: '${stats.onlineMachines} / ${stats.machines}',
-                color: stats.onlineMachines > 0
-                    ? AppColors.live
-                    : AppColors.text2,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: Spacing.md,
+              runSpacing: Spacing.md,
+              children: [
+                for (final tile in [
+                  _StatTile(
+                    label: 'Running',
+                    value: '${stats.running}',
+                    color: AppColors.live,
+                    pulsing: stats.running > 0,
+                  ),
+                  _StatTile(
+                    label: 'Waiting on you',
+                    value: '${stats.waiting}',
+                    color: stats.waiting > 0
+                        ? AppColors.accentSoft
+                        : AppColors.text2,
+                  ),
+                  _StatTile(
+                    label: 'Agents busy',
+                    value: '${stats.busyAgents} / ${stats.agents}',
+                    color: AppColors.text1,
+                  ),
+                  _StatTile(
+                    label: 'Machines online',
+                    value: '${stats.onlineMachines} / ${stats.machines}',
+                    color: stats.onlineMachines > 0
+                        ? AppColors.live
+                        : AppColors.text2,
+                  ),
+                ])
+                  SizedBox(
+                    width: _tileWidth(constraints.maxWidth),
+                    child: tile,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -213,7 +240,6 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 160),
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.lg,
         vertical: Spacing.md,
@@ -721,11 +747,23 @@ class _ProjectFilterOption extends StatelessWidget {
   }
 }
 
-class _KanbanBoard extends StatelessWidget {
-  const _KanbanBoard({required this.projectId});
+class _KanbanBoard extends StatefulWidget {
+  const _KanbanBoard({required this.projectId, required this.layout});
 
   /// Null shows every project's tasks.
   final int? projectId;
+  final LayoutSize layout;
+
+  @override
+  State<_KanbanBoard> createState() => _KanbanBoardState();
+}
+
+class _KanbanBoardState extends State<_KanbanBoard> {
+  /// The column a phone shows; null until the dev picks one.
+  KanbanColumn? _column;
+
+  /// The width of a column when the board scrolls sideways.
+  static const _columnWidth = 280.0;
 
   @override
   Widget build(BuildContext context) {
@@ -741,32 +779,93 @@ class _KanbanBoard extends StatelessWidget {
               style: AppTypography.body.copyWith(color: AppColors.red),
             ),
           ),
-          DashboardLoaded() => Padding(
-            padding: const EdgeInsets.all(Spacing.xl),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final column in KanbanColumn.values)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.sm,
-                      ),
-                      child: KanbanColumnView(
-                        title: kanbanColumnTitle(column),
-                        accent: kanbanColumnAccent(column),
-                        tasks: state.columnsFor(projectId: projectId)[column]!,
-                        // A single project's board doesn't need the label.
-                        showProject: projectId == null,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          DashboardLoaded() => _board(
+            state.columnsFor(projectId: widget.projectId),
           ),
         };
       },
     );
+  }
+
+  Widget _board(Map<KanbanColumn, List<Task>> columns) {
+    Widget column(KanbanColumn c, {bool showHeader = true}) => KanbanColumnView(
+      title: kanbanColumnTitle(c),
+      accent: kanbanColumnAccent(c),
+      tasks: columns[c]!,
+      // A single project's board doesn't need the label.
+      showProject: widget.projectId == null,
+      showHeader: showHeader,
+    );
+
+    switch (widget.layout) {
+      case LayoutSize.compact:
+        final selected = _column ?? defaultKanbanColumn(columns);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            Spacing.xl,
+            Spacing.lg,
+            Spacing.xl,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: PillSelector<KanbanColumn>(
+                  options: KanbanColumn.values,
+                  labelBuilder: (c) =>
+                      '${kanbanColumnTitle(c)} · ${columns[c]!.length}',
+                  selected: selected,
+                  onChanged: (c) => setState(() => _column = c),
+                  wrap: false,
+                ),
+              ),
+              const SizedBox(height: Spacing.md),
+              Expanded(child: column(selected, showHeader: false)),
+            ],
+          ),
+        );
+      case LayoutSize.medium:
+        // Columns keep a readable width and the board scrolls sideways.
+        return Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final c in KanbanColumn.values)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.sm,
+                    ),
+                    child: SizedBox(width: _columnWidth, child: column(c)),
+                  ),
+              ],
+            ),
+          ),
+        );
+      case LayoutSize.expanded:
+        return Padding(
+          padding: const EdgeInsets.all(Spacing.xl),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final c in KanbanColumn.values)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.sm,
+                    ),
+                    child: column(c),
+                  ),
+                ),
+            ],
+          ),
+        );
+    }
   }
 }
 
