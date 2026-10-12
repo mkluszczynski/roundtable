@@ -97,56 +97,48 @@ void main() {
       expect(decision.updatedInput!['answers'], {'Which approach?': 'A'});
     });
 
-    test(
-      'ExitPlanMode stores the plan, blocks on the decision, and allows when approved',
-      () async {
-        String? storedPlan;
-        final tool = PermissionPromptTool(
-          taskId: 1,
-          createQuestion: (taskId, question, options) async => _question(),
-          watchAnswer: (questionId) => const Stream.empty(),
-          setPlanReady: (taskId, plan) async {
-            storedPlan = plan;
-            return _task(TaskStatus.planReady);
-          },
-          watchPlanDecision: (taskId) =>
-              Stream.value(_task(TaskStatus.running)),
-          latestFeedback: (taskId) async => null,
-        );
+    test('ExitPlanMode stores the plan, blocks on the decision, and allows when approved', () async {
+      String? storedPlan;
+      final tool = PermissionPromptTool(
+        taskId: 1,
+        createQuestion: (taskId, question, options) async => _question(),
+        watchAnswer: (questionId) => const Stream.empty(),
+        setPlanReady: (taskId, plan) async {
+          storedPlan = plan;
+          return _task(TaskStatus.planReady);
+        },
+        watchPlanDecision: (taskId) => Stream.value(_task(TaskStatus.running)),
+        latestFeedback: (taskId) async => null,
+      );
 
-        final decision = await tool.decide('ExitPlanMode', {
-          'plan': 'Step 1, step 2',
-        });
+      final decision = await tool.decide('ExitPlanMode', {
+        'plan': 'Step 1, step 2',
+      });
 
-        expect(storedPlan, 'Step 1, step 2');
-        expect(decision.allow, isTrue);
-        expect(decision.updatedInput, {'plan': 'Step 1, step 2'});
-      },
-    );
+      expect(storedPlan, 'Step 1, step 2');
+      expect(decision.allow, isTrue);
+      expect(decision.updatedInput, {'plan': 'Step 1, step 2'});
+    });
 
-    test(
-      'ExitPlanMode denies with the latest feedback message when the dev asks for changes',
-      () async {
-        final tool = PermissionPromptTool(
-          taskId: 1,
-          createQuestion: (taskId, question, options) async => _question(),
-          watchAnswer: (questionId) => const Stream.empty(),
-          setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
-          watchPlanDecision: (taskId) =>
-              Stream.value(_task(TaskStatus.planning)),
-          latestFeedback: (taskId) async => TaskFeedback(
-            taskId: taskId,
-            message: 'Please reconsider the approach',
-            phase: TaskFeedbackPhase.plan,
-          ),
-        );
+    test('ExitPlanMode denies with the latest feedback message when the dev asks for changes', () async {
+      final tool = PermissionPromptTool(
+        taskId: 1,
+        createQuestion: (taskId, question, options) async => _question(),
+        watchAnswer: (questionId) => const Stream.empty(),
+        setPlanReady: (taskId, plan) async => _task(TaskStatus.planReady),
+        watchPlanDecision: (taskId) => Stream.value(_task(TaskStatus.planning)),
+        latestFeedback: (taskId) async => TaskFeedback(
+          taskId: taskId,
+          message: 'Please reconsider the approach',
+          phase: TaskFeedbackPhase.plan,
+        ),
+      );
 
-        final decision = await tool.decide('ExitPlanMode', {'plan': 'Plan'});
+      final decision = await tool.decide('ExitPlanMode', {'plan': 'Plan'});
 
-        expect(decision.allow, isFalse);
-        expect(decision.message, 'Please reconsider the approach');
-      },
-    );
+      expect(decision.allow, isFalse);
+      expect(decision.message, 'Please reconsider the approach');
+    });
 
     test('any other tool is auto-allowed with its input echoed back', () async {
       final tool = PermissionPromptTool(
@@ -310,63 +302,56 @@ void main() {
       expect(decision['updatedInput'], {'plan': 'Plan text'});
     });
 
-    test(
-      'a decide() failure denies instead of crashing the server, and later requests still get handled',
-      () async {
-        final throwingTool = PermissionPromptTool(
-          taskId: 1,
-          createQuestion: (taskId, question, options) async => _question(),
-          watchAnswer: (questionId) => const Stream.empty(),
-          setPlanReady: (taskId, plan) async =>
-              throw StateError('server unreachable'),
-          watchPlanDecision: (taskId) => const Stream.empty(),
-          latestFeedback: (taskId) async => null,
-        );
+    test('a decide() failure denies instead of crashing the server, and later requests still get handled', () async {
+      final throwingTool = PermissionPromptTool(
+        taskId: 1,
+        createQuestion: (taskId, question, options) async => _question(),
+        watchAnswer: (questionId) => const Stream.empty(),
+        setPlanReady: (taskId, plan) async =>
+            throw StateError('server unreachable'),
+        watchPlanDecision: (taskId) => const Stream.empty(),
+        latestFeedback: (taskId) async => null,
+      );
 
-        final responses = await run([
-          {
-            'jsonrpc': '2.0',
-            'id': 3,
-            'method': 'tools/call',
-            'params': {
-              'name': 'approval_prompt',
-              'arguments': {
-                'tool_name': 'ExitPlanMode',
-                'input': {'plan': 'Plan text'},
-              },
+      final responses = await run([
+        {
+          'jsonrpc': '2.0',
+          'id': 3,
+          'method': 'tools/call',
+          'params': {
+            'name': 'approval_prompt',
+            'arguments': {
+              'tool_name': 'ExitPlanMode',
+              'input': {'plan': 'Plan text'},
             },
           },
-          {
-            'jsonrpc': '2.0',
-            'id': 4,
-            'method': 'tools/call',
-            'params': {
-              'name': 'approval_prompt',
-              'arguments': {
-                'tool_name': 'Edit',
-                'input': {'file_path': 'README.md'},
-              },
+        },
+        {
+          'jsonrpc': '2.0',
+          'id': 4,
+          'method': 'tools/call',
+          'params': {
+            'name': 'approval_prompt',
+            'arguments': {
+              'tool_name': 'Edit',
+              'input': {'file_path': 'README.md'},
             },
           },
-        ], throwingTool);
+        },
+      ], throwingTool);
 
-        expect(responses, hasLength(2));
+      expect(responses, hasLength(2));
 
-        final failedDecision =
-            jsonDecode(
-                  responses[0]['result']['content'].single['text'] as String,
-                )
-                as Map;
-        expect(failedDecision['behavior'], 'deny');
-        expect(failedDecision['message'], contains('server unreachable'));
+      final failedDecision = jsonDecode(
+        responses[0]['result']['content'].single['text'] as String,
+      ) as Map;
+      expect(failedDecision['behavior'], 'deny');
+      expect(failedDecision['message'], contains('server unreachable'));
 
-        final laterDecision =
-            jsonDecode(
-                  responses[1]['result']['content'].single['text'] as String,
-                )
-                as Map;
-        expect(laterDecision['behavior'], 'allow');
-      },
-    );
+      final laterDecision = jsonDecode(
+        responses[1]['result']['content'].single['text'] as String,
+      ) as Map;
+      expect(laterDecision['behavior'], 'allow');
+    });
   });
 }

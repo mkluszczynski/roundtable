@@ -89,9 +89,9 @@ typedef ReviewFindings = ({
 /// Parses the reviewer's final reply: the last fenced ```json block (or the
 /// whole text, if it's bare JSON). Returns `null` if no valid block is found.
 ReviewFindings? parseReviewOutput(String text) {
-  final blocks = RegExp(
-    r'```json\s*\n([\s\S]*?)\n\s*```',
-  ).allMatches(text).toList();
+  final blocks = RegExp(r'```json\s*\n([\s\S]*?)\n\s*```')
+      .allMatches(text)
+      .toList();
   final raw = blocks.isEmpty ? text.trim() : blocks.last.group(1)!;
 
   Object? decoded;

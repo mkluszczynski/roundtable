@@ -195,9 +195,8 @@ class WorktreeManager {
       final worktreeDir = _worktreeDir(projectId, taskId);
       if (Directory(worktreeDir).existsSync()) return worktreeDir;
 
-      await Directory(
-        '${_projectDir(projectId)}/worktrees',
-      ).create(recursive: true);
+      await Directory('${_projectDir(projectId)}/worktrees')
+          .create(recursive: true);
       await _git(
         // Branch from the freshly fetched default branch (see
         // [ensureProjectCloned]), not the bare clone's stale HEAD.
@@ -269,9 +268,9 @@ class WorktreeManager {
   }
 
   /// Commits any pending changes in the task's worktree and pushes the
-  /// resulting branch to [pushUrl] (docs/FLOWS.md §4). Returns `false`
-  /// without committing or pushing if the worktree has no changes — nothing
-  /// for the agent to have done. [pushUrl]'s credentials go through
+  /// resulting branch to [pushUrl] (docs/FLOWS.md §4), along with commits
+  /// the agent made itself. Returns `false` without pushing if there's
+  /// neither — nothing for the agent to have done. [pushUrl]'s credentials go through
   /// [GitRemote], never into git config or a command line.
   Future<bool> commitAndPush({
     required String projectId,
@@ -303,7 +302,20 @@ class WorktreeManager {
         what: 'git status $label',
         cwd: worktreeDir,
       );
-      if (status.isEmpty) return false;
+      if (status.isEmpty) {
+        // Nothing to commit, but the agent may have committed itself (e.g.
+        // a merge of the default branch) — push those commits too.
+        if (!await _hasUnpushedCommits(worktree, worktreeDir, remote, taskId)) {
+          return false;
+        }
+        await _git(
+          [...worktree, 'push', remote.url, 'HEAD:refs/heads/task-$taskId'],
+          what: 'git push $label',
+          cwd: worktreeDir,
+          remote: remote,
+        );
+        return true;
+      }
 
       await _git(
         [
@@ -327,6 +339,39 @@ class WorktreeManager {
       );
       return true;
     });
+  }
+
+  /// Whether the worktree's HEAD holds commits the remote's `task-<id>`
+  /// branch doesn't have: false when the branch is already at HEAD or, with
+  /// no branch yet, when HEAD is still on the fetched default branch.
+  Future<bool> _hasUnpushedCommits(
+    List<String> worktree,
+    String worktreeDir,
+    GitRemote remote,
+    String taskId,
+  ) async {
+    final head = await _git(
+      [...worktree, 'rev-parse', 'HEAD'],
+      what: 'git rev-parse HEAD for task $taskId',
+      cwd: worktreeDir,
+    );
+    final remoteRef = await _git(
+      [...worktree, 'ls-remote', remote.url, 'refs/heads/task-$taskId'],
+      what: 'git ls-remote for task $taskId',
+      cwd: worktreeDir,
+      remote: remote,
+    );
+    if (remoteRef.isNotEmpty) {
+      return remoteRef.split(RegExp(r'\s')).first != head;
+    }
+    final onBase = await Process.run('git', [
+      ...worktree,
+      'merge-base',
+      '--is-ancestor',
+      head,
+      baseRef,
+    ], workingDirectory: worktreeDir);
+    return onBase.exitCode != 0;
   }
 
   String _reviewDir(String projectId, String reviewId) =>
@@ -366,9 +411,8 @@ class WorktreeManager {
           cwd: repo,
         );
       }
-      await Directory(
-        '${_projectDir(projectId)}/reviews',
-      ).create(recursive: true);
+      await Directory('${_projectDir(projectId)}/reviews')
+          .create(recursive: true);
       await _git(
         ['worktree', 'add', '--detach', dir, headRef],
         what: 'git worktree add $label',

@@ -266,9 +266,8 @@ class AgentRunnerService {
       for (final a in attachments)
         (
           fileName: a.fileName,
-          bytes: (await _client.taskAttachment.download(
-            a.id!,
-          )).buffer.asUint8List(),
+          bytes: (await _client.taskAttachment.download(a.id!)).buffer
+              .asUint8List(),
         ),
     ];
   }

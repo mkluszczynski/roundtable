@@ -224,28 +224,69 @@ void main() {
       },
     );
 
+    test('commitAndPush returns false without committing when the worktree is clean', () async {
+      await manager.ensureProjectCloned(
+        projectId: 'p1',
+        cloneUrl: fixtureRepo.path,
+      );
+      await manager.createWorktree(projectId: 'p1', taskId: 't1');
+
+      final committed = await manager.commitAndPush(
+        projectId: 'p1',
+        taskId: 't1',
+        commitMessage: 'nothing to commit',
+        pushUrl: fixtureRepo.path,
+      );
+
+      expect(committed, isFalse);
+      final branches = await _gitOutput(fixtureRepo.path, ['branch', '--list']);
+      expect(branches, isNot(contains('task-t1')));
+    });
+
     test(
-      'commitAndPush returns false without committing when the worktree is clean',
+      'commitAndPush pushes commits the agent made itself, then reports none',
       () async {
         await manager.ensureProjectCloned(
           projectId: 'p1',
           cloneUrl: fixtureRepo.path,
         );
-        await manager.createWorktree(projectId: 'p1', taskId: 't1');
-
-        final committed = await manager.commitAndPush(
+        final path = await manager.createWorktree(
           projectId: 'p1',
           taskId: 't1',
-          commitMessage: 'nothing to commit',
+        );
+        File('$path/merged.txt').writeAsStringSync('from a merge');
+        await _git(path, ['add', '-A']);
+        await _git(path, [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          'commit',
+          '-m',
+          'agent merge',
+        ]);
+
+        final pushed = await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'unused',
+          pushUrl: fixtureRepo.path,
+        );
+        final again = await manager.commitAndPush(
+          projectId: 'p1',
+          taskId: 't1',
+          commitMessage: 'unused',
           pushUrl: fixtureRepo.path,
         );
 
-        expect(committed, isFalse);
-        final branches = await _gitOutput(fixtureRepo.path, [
-          'branch',
-          '--list',
+        expect(pushed, isTrue);
+        expect(again, isFalse);
+        final log = await _gitOutput(fixtureRepo.path, [
+          'log',
+          '--oneline',
+          'task-t1',
         ]);
-        expect(branches, isNot(contains('task-t1')));
+        expect(log, contains('agent merge'));
       },
     );
 

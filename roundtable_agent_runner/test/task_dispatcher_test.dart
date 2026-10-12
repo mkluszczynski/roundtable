@@ -81,13 +81,12 @@ void main() {
       updateAgent: (agent) async {},
       appendLog: (entry) async => logEntries?.add(entry),
       fetchLatestFeedback: (_) async => null,
-      openPullRequest:
-          ({
-            required cloneUrl,
-            required branchName,
-            required title,
-            body,
-          }) async => 'https://github.com/example/repo/pull/1',
+      openPullRequest: ({
+        required cloneUrl,
+        required branchName,
+        required title,
+        body,
+      }) async => 'https://github.com/example/repo/pull/1',
       watchTask: (_) => const Stream<Task>.empty(),
       log: messages?.add ?? (_) {},
       serverUrl: 'https://server.example',
@@ -494,9 +493,12 @@ exit 0
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (entry) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({required cloneUrl, required branchName, required title, body}) =>
-                throw Exception('GitHub is down'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) => throw Exception('GitHub is down'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
         serverUrl: 'https://server.example',
@@ -532,13 +534,12 @@ exit 0
         updateAgent: (agent) async {},
         appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: messages.add,
         serverUrl: 'https://server.example',
@@ -581,13 +582,12 @@ exit 0
           updateAgent: (agent) async => agentUpdates.add(agent),
           appendLog: (_) async {},
           fetchLatestFeedback: (_) async => null,
-          openPullRequest:
-              ({
-                required cloneUrl,
-                required branchName,
-                required title,
-                body,
-              }) async => throw StateError('GitHub API unreachable'),
+          openPullRequest: ({
+            required cloneUrl,
+            required branchName,
+            required title,
+            body,
+          }) async => throw StateError('GitHub API unreachable'),
           watchTask: (_) => const Stream<Task>.empty(),
           log: (_) {},
           serverUrl: 'https://server.example',
@@ -622,13 +622,12 @@ exit 0
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
         serverUrl: 'https://server.example',
@@ -660,13 +659,12 @@ exit 0
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
         serverUrl: 'https://server.example',
@@ -699,13 +697,12 @@ exit 0
       updateAgent: (agent) async => agentUpdates.add(agent),
       appendLog: (_) async {},
       fetchLatestFeedback: (_) async => null,
-      openPullRequest:
-          ({
-            required cloneUrl,
-            required branchName,
-            required title,
-            body,
-          }) async => throw StateError('should not be called'),
+      openPullRequest: ({
+        required cloneUrl,
+        required branchName,
+        required title,
+        body,
+      }) async => throw StateError('should not be called'),
       watchTask: watchTask,
       fetchTask: fetchTask,
       log: (_) {},
@@ -874,13 +871,12 @@ while true; do sleep 0.05; done
             updateAgent: (agent) async => agentUpdates.add(agent),
             appendLog: (_) async {},
             fetchLatestFeedback: (_) async => null,
-            openPullRequest:
-                ({
-                  required cloneUrl,
-                  required branchName,
-                  required title,
-                  body,
-                }) async => throw StateError('should not be called'),
+            openPullRequest: ({
+              required cloneUrl,
+              required branchName,
+              required title,
+              body,
+            }) async => throw StateError('should not be called'),
             watchTask: (_) => watchTaskController.stream,
             log: (_) {},
             serverUrl: 'https://server.example',
@@ -909,9 +905,8 @@ while true; do sleep 0.05; done
             reason: 'SIGTERM should have reached the subprocess',
           );
           expect(
-            File(
-              '${tempDir.path}/workspace/1/worktrees/1/changed.txt',
-            ).existsSync(),
+            File('${tempDir.path}/workspace/1/worktrees/1/changed.txt')
+                .existsSync(),
             isFalse,
             reason: 'the worktree should have been reset',
           );
@@ -950,13 +945,12 @@ exit 0
           updateAgent: (agent) async => agentUpdates.add(agent),
           appendLog: (_) async {},
           fetchLatestFeedback: (_) async => null,
-          openPullRequest:
-              ({
-                required cloneUrl,
-                required branchName,
-                required title,
-                body,
-              }) async => 'https://github.com/acme/widgets/pull/1',
+          openPullRequest: ({
+            required cloneUrl,
+            required branchName,
+            required title,
+            body,
+          }) async => 'https://github.com/acme/widgets/pull/1',
           watchTask: (_) => const Stream<Task>.empty(),
           log: (_) {},
           serverUrl: 'https://server.example',
@@ -1011,13 +1005,12 @@ exit 0
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) async => throw StateError('should not be called'),
         watchTask: (_) => watchTaskController.stream,
         log: (_) {},
         serverUrl: 'https://server.example',
@@ -1035,9 +1028,8 @@ exit 0
       }
 
       watchTaskController.add(
-        buildTask(
-          skipPlanning: false,
-        ).copyWith(status: TaskStatus.waitingForAnswer),
+        buildTask(skipPlanning: false)
+            .copyWith(status: TaskStatus.waitingForAnswer),
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
       watchTaskController.add(
@@ -1075,13 +1067,12 @@ exit 0
         updateAgent: (agent) async => agentUpdates.add(agent),
         appendLog: (_) async {},
         fetchLatestFeedback: (_) async => null,
-        openPullRequest:
-            ({
-              required cloneUrl,
-              required branchName,
-              required title,
-              body,
-            }) async => throw StateError('should not be called'),
+        openPullRequest: ({
+          required cloneUrl,
+          required branchName,
+          required title,
+          body,
+        }) async => throw StateError('should not be called'),
         watchTask: (_) => const Stream<Task>.empty(),
         log: (_) {},
         serverUrl: 'https://server.example',
@@ -1170,9 +1161,8 @@ exit 0
 
         await dispatcher.handle(resumingTask);
 
-        final claudeArgs = File(
-          '${tempDir.path}/claude_args',
-        ).readAsStringSync();
+        final claudeArgs = File('${tempDir.path}/claude_args')
+            .readAsStringSync();
         expect(claudeArgs, contains('Please also update the README'));
         expect(claudeArgs, contains('--resume'));
         expect(claudeArgs, contains('sess-1'));
@@ -1218,13 +1208,12 @@ exit 0
             phase: TaskFeedbackPhase.review,
             createdAt: DateTime.utc(2026, 1, 1),
           ),
-          openPullRequest:
-              ({
-                required cloneUrl,
-                required branchName,
-                required title,
-                body,
-              }) async => throw StateError('should not be called'),
+          openPullRequest: ({
+            required cloneUrl,
+            required branchName,
+            required title,
+            body,
+          }) async => throw StateError('should not be called'),
           watchTask: (_) => const Stream<Task>.empty(),
           log: messages.add,
           serverUrl: 'https://server.example',
