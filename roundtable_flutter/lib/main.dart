@@ -17,6 +17,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Roundtable',
+      debugShowCheckedModeBanner: false,
       darkTheme: buildAppTheme(),
       themeMode: ThemeMode.dark,
       home: const PanelShell(),
