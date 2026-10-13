@@ -19,6 +19,16 @@ import 'tag_chip.dart';
 /// Why an agent can't be picked, or null when it can.
 typedef AgentAvailability = String? Function(Agent agent, Machine? machine);
 
+/// Why no agent on [machine] can be picked whatever the caller allows: its
+/// daemon has no Claude credentials and no token set in the panel is on its
+/// way (the server refuses such work too). Runners too old to report their
+/// credentials (null) aren't blocked.
+String? machineClaudeUnavailable(Machine? machine) =>
+    machine?.claudeAuthSource == ClaudeAuthSource.none &&
+        machine?.claudeTokenRequestedAt == null
+    ? 'No Claude token on this machine'
+    : null;
+
 /// Picks an agent from cards grouped by the machine hosting them, showing
 /// each agent's role, model, effort and live status. Loads agents and
 /// machines itself.
@@ -199,10 +209,9 @@ class AgentPickerList extends StatelessWidget {
                   machine: machinesById[machineId],
                   selected: selected == agent.id,
                   current: currentAgentId == agent.id,
-                  unavailable: unavailableReason?.call(
-                    agent,
-                    machinesById[machineId],
-                  ),
+                  unavailable:
+                      machineClaudeUnavailable(machinesById[machineId]) ??
+                      unavailableReason?.call(agent, machinesById[machineId]),
                   onTap: () => onChanged(agent.id),
                 ),
               ),

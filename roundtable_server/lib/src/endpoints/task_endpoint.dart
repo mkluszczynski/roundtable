@@ -61,9 +61,12 @@ class TaskEndpoint extends Endpoint {
     if (project == null) {
       throw NotFoundException(message: 'Project $projectId not found');
     }
-    if (reviewerAgentId != null &&
-        await Agent.db.findById(session, reviewerAgentId) == null) {
-      throw NotFoundException(message: 'Agent $reviewerAgentId not found');
+    if (reviewerAgentId != null) {
+      final reviewer = await Agent.db.findById(session, reviewerAgentId);
+      if (reviewer == null) {
+        throw NotFoundException(message: 'Agent $reviewerAgentId not found');
+      }
+      await requireClaudeCredentials(session, reviewer);
     }
     Agent? agent;
     if (agentId != null) {
@@ -71,6 +74,7 @@ class TaskEndpoint extends Endpoint {
       if (agent == null) {
         throw NotFoundException(message: 'Agent $agentId not found');
       }
+      await requireClaudeCredentials(session, agent);
     }
 
     var draft = Task(
@@ -596,6 +600,7 @@ class TaskEndpoint extends Endpoint {
     if (agent == null) {
       throw NotFoundException(message: 'Agent $agentId not found');
     }
+    await requireClaudeCredentials(session, agent);
 
     task = await Task.db.updateRow(
       session,
@@ -640,6 +645,7 @@ class TaskEndpoint extends Endpoint {
     if (agent == null) {
       throw NotFoundException(message: 'Agent $agentId not found');
     }
+    await requireClaudeCredentials(session, agent);
 
     // Assigning an agent to a draft is what starts it.
     task = await Task.db.updateRow(
@@ -763,9 +769,16 @@ class TaskEndpoint extends Endpoint {
             'change, send the agent feedback instead',
       );
     }
-    if (reviewerAgentId != null &&
-        await Agent.db.findById(session, reviewerAgentId) == null) {
-      throw NotFoundException(message: 'Agent $reviewerAgentId not found');
+    if (reviewerAgentId != null) {
+      final reviewer = await Agent.db.findById(session, reviewerAgentId);
+      if (reviewer == null) {
+        throw NotFoundException(message: 'Agent $reviewerAgentId not found');
+      }
+      // Only a newly picked reviewer: other edits mustn't fail because the
+      // current one's machine lost its token since.
+      if (reviewerAgentId != task.reviewerAgentId) {
+        await requireClaudeCredentials(session, reviewer);
+      }
     }
 
     final edited = task.copyWith(

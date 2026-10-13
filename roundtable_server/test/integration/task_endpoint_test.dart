@@ -2187,5 +2187,160 @@ void main() {
         expect(entries, isEmpty);
       },
     );
+
+    group('a machine without Claude credentials', () {
+      Future<({Project project, Agent agent, Machine machine})> seed({
+        ClaudeAuthSource? source = ClaudeAuthSource.none,
+        String? pendingToken,
+      }) async {
+        final machine = await Machine.db.insertRow(
+          sessionBuilder.build(),
+          Machine(
+            name: 'Laptop',
+            claudeAuthSource: source,
+            pendingClaudeToken: pendingToken,
+          ),
+        );
+        return (
+          project: await createProject(),
+          agent: await createAgent(machine),
+          machine: machine,
+        );
+      }
+
+      Future<Task> insertTask(
+        Project project,
+        Agent agent,
+        TaskStatus status, {
+        String? prUrl,
+      }) => Task.db.insertRow(
+        sessionBuilder.build(),
+        Task(
+          projectId: project.id!,
+          agentId: agent.id,
+          prompt: 'Do something',
+          skipPlanning: false,
+          status: status,
+          prUrl: prUrl,
+        ),
+      );
+
+      final refused = throwsA(
+        isA<InvalidStateException>().having(
+          (e) => e.message,
+          'message',
+          contains('has no Claude token'),
+        ),
+      );
+
+      test('when creating a task for its agent then it is refused', () async {
+        final s = await seed();
+        await expectLater(
+          endpoints.task.createTask(
+            sessionBuilder,
+            s.project.id!,
+            s.agent.id!,
+            'Do something',
+            skipPlanning: false,
+          ),
+          refused,
+        );
+      });
+
+      test('when picking its agent as reviewer then it is refused', () async {
+        final s = await seed();
+        final ok = await seed(source: ClaudeAuthSource.panel);
+        await expectLater(
+          endpoints.task.createTask(
+            sessionBuilder,
+            ok.project.id!,
+            ok.agent.id!,
+            'Do something',
+            skipPlanning: false,
+            reviewerAgentId: s.agent.id!,
+          ),
+          refused,
+        );
+      });
+
+      test('when assigning its agent then it is refused', () async {
+        final s = await seed();
+        final task = await insertTask(s.project, s.agent, TaskStatus.draft);
+        await expectLater(
+          endpoints.task.reassignAgent(sessionBuilder, task.id!, s.agent.id!),
+          refused,
+        );
+      });
+
+      test('when retrying a task then it is refused', () async {
+        final s = await seed();
+        final task = await insertTask(s.project, s.agent, TaskStatus.failed);
+        await expectLater(
+          endpoints.task.retryTask(sessionBuilder, task.id!),
+          refused,
+        );
+        expect(
+          (await Task.db.findById(sessionBuilder.build(), task.id!))!.status,
+          TaskStatus.failed,
+        );
+      });
+
+      test(
+        'when requesting a review from its agent then it is refused',
+        () async {
+          final s = await seed();
+          final task = await insertTask(
+            s.project,
+            s.agent,
+            TaskStatus.awaitingReview,
+            prUrl: 'https://github.com/example/roundtable/pull/1',
+          );
+          await expectLater(
+            endpoints.codeReview.requestReview(
+              sessionBuilder,
+              task.id!,
+              s.agent.id!,
+            ),
+            refused,
+          );
+        },
+      );
+
+      test('when picking its agent as reviewer in the task settings then '
+          'it is refused', () async {
+        final s = await seed();
+        final ok = await seed(source: ClaudeAuthSource.panel);
+        final task = await insertTask(ok.project, ok.agent, TaskStatus.draft);
+        await expectLater(
+          endpoints.task.updateTaskSettings(
+            sessionBuilder,
+            task.id!,
+            'Do something',
+            reviewerAgentId: s.agent.id!,
+          ),
+          refused,
+        );
+      });
+
+      test(
+        'when a token was just set or the runner predates the check then the '
+        'task is accepted',
+        () async {
+          for (final s in [
+            await seed(pendingToken: 'sk-ant-oat01-new'),
+            await seed(source: null),
+          ]) {
+            final task = await endpoints.task.createTask(
+              sessionBuilder,
+              s.project.id!,
+              s.agent.id!,
+              'Do something',
+              skipPlanning: false,
+            );
+            expect(task.status, TaskStatus.queued);
+          }
+        },
+      );
+    });
   }, rollbackDatabase: RollbackDatabase.disabled);
 }

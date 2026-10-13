@@ -29,6 +29,7 @@ class CodeReviewEndpoint extends Endpoint {
     if (agent == null) {
       throw NotFoundException(message: 'Agent $agentId not found');
     }
+    await requireClaudeCredentials(session, agent);
     return queueCodeReview(session, task, agent);
   }
 

@@ -287,6 +287,39 @@ void main() {
           contains(contains('Auto review skipped')),
         );
       });
+
+      test('when the reviewer\'s machine has no Claude token then the '
+          'skip is logged instead of a doomed review', () async {
+        final seeded = await seed();
+        final session = sessionBuilder.build();
+        final machine = await Machine.db.findById(
+          session,
+          seeded.reviewer.machineId,
+        );
+        await Machine.db.updateRow(
+          session,
+          machine!.copyWith(claudeAuthSource: ClaudeAuthSource.none),
+        );
+        final task = await Task.db.updateRow(
+          session,
+          seeded.task.copyWith(
+            autoReview: true,
+            reviewerAgentId: seeded.reviewer.id,
+          ),
+        );
+
+        await finishRun(task);
+
+        expect(await reviewsOf(task), isEmpty);
+        final events = await TaskLogEntry.db.find(
+          session,
+          where: (e) => e.taskId.equals(task.id!),
+        );
+        expect(
+          events.map((e) => e.content),
+          contains(contains('has no Claude token')),
+        );
+      });
     });
 
     test(

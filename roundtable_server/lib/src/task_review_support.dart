@@ -14,6 +14,26 @@ String taskChannelForMachine(int machineId) => 'machine-$machineId-tasks';
 /// Channel the panel's `TaskEndpoint.watchLogs` listens on.
 String channelForTaskLogs(int taskId) => 'task-$taskId-logs';
 
+/// Whether [machine]'s daemon reported it has no Claude credentials and no
+/// token from the panel is on its way to it. Runners too old to report
+/// their credentials (null) get the benefit of the doubt.
+bool machineLacksClaude(Machine machine) =>
+    machine.claudeAuthSource == ClaudeAuthSource.none &&
+    machine.pendingClaudeToken == null;
+
+/// Refuses work for [agent] when its machine has no Claude credentials:
+/// every run there would fail.
+Future<void> requireClaudeCredentials(Session session, Agent agent) async {
+  final machine = await Machine.db.findById(session, agent.machineId);
+  if (machine != null && machineLacksClaude(machine)) {
+    throw InvalidStateException(
+      message:
+          'Machine "${machine.name}" has no Claude token — set it on the '
+          'Machines screen, then try again',
+    );
+  }
+}
+
 /// Records review-phase feedback on [task] (docs/FLOWS.md §4)
 /// and wakes its agent's daemon via the same channel `createTask` uses —
 /// the daemon picks it up through its `watchAssignedTasks` subscription and
@@ -380,6 +400,15 @@ Future<void> autoReviewIfEnabled(Session session, Task task) async {
           r.taskId.equals(task.id!) & r.status.inSet(activeCodeReviewStatuses),
     );
     if (active > 0) return;
+    final machine = await Machine.db.findById(session, reviewer.machineId);
+    if (machine != null && machineLacksClaude(machine)) {
+      await logTaskEvent(
+        session,
+        task.id!,
+        'Auto review skipped — machine "${machine.name}" has no Claude token',
+      );
+      return;
+    }
     await queueCodeReview(session, task, reviewer);
     await logTaskEvent(
       session,
