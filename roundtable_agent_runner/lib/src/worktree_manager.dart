@@ -195,8 +195,9 @@ class WorktreeManager {
       final worktreeDir = _worktreeDir(projectId, taskId);
       if (Directory(worktreeDir).existsSync()) return worktreeDir;
 
-      await Directory('${_projectDir(projectId)}/worktrees')
-          .create(recursive: true);
+      await Directory(
+        '${_projectDir(projectId)}/worktrees',
+      ).create(recursive: true);
       await _git(
         // Branch from the freshly fetched default branch (see
         // [ensureProjectCloned]), not the bare clone's stale HEAD.
@@ -411,8 +412,9 @@ class WorktreeManager {
           cwd: repo,
         );
       }
-      await Directory('${_projectDir(projectId)}/reviews')
-          .create(recursive: true);
+      await Directory(
+        '${_projectDir(projectId)}/reviews',
+      ).create(recursive: true);
       await _git(
         ['worktree', 'add', '--detach', dir, headRef],
         what: 'git worktree add $label',
