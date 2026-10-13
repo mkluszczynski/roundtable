@@ -266,8 +266,9 @@ class AgentRunnerService {
       for (final a in attachments)
         (
           fileName: a.fileName,
-          bytes: (await _client.taskAttachment.download(a.id!)).buffer
-              .asUint8List(),
+          bytes: (await _client.taskAttachment.download(
+            a.id!,
+          )).buffer.asUint8List(),
         ),
     ];
   }
@@ -400,9 +401,13 @@ class AgentRunnerService {
         log: _log,
         onData: (task) {
           _log('assigned task ${task.id} (status=${task.status})');
+          // Only statuses a run can start from need the latest token.
+          final mayStartRun =
+              task.status == TaskStatus.queued ||
+              task.status == TaskStatus.awaitingReview;
           unawaited(
-            _dispatcher
-                .handle(task)
+            (mayStartRun ? _pickUpClaudeToken() : Future<void>.value())
+                .then((_) => _dispatcher.handle(task))
                 .catchError(
                   (Object e) => _log('task ${task.id} dispatch failed: $e'),
                 ),
@@ -416,8 +421,10 @@ class AgentRunnerService {
         onData: (review) {
           _log('assigned review ${review.id} of task ${review.taskId}');
           unawaited(
-            _reviewDispatcher
-                .handle(review)
+            (review.status == CodeReviewStatus.queued
+                    ? _pickUpClaudeToken()
+                    : Future<void>.value())
+                .then((_) => _reviewDispatcher.handle(review))
                 .catchError(
                   (Object e) => _log('review ${review.id} dispatch failed: $e'),
                 ),
@@ -452,11 +459,19 @@ class AgentRunnerService {
     await _checkClaudeExecutable();
   }
 
+  /// The [_pickUpClaudeToken] in flight, shared by concurrent callers so
+  /// they don't save the same token twice at once.
+  Future<void>? _tokenPickUp;
+
   /// Saves a Claude token set in the panel since the last check-in, then
-  /// tells the server it can drop it. A failure leaves it on the server for
-  /// the next check-in. Runs already in progress keep the token they
-  /// started with.
-  Future<void> _pickUpClaudeToken() async {
+  /// tells the server it can drop it. Also runs before each task or review
+  /// is dispatched, so a retry right after setting the token uses it. A
+  /// failure leaves it on the server for the next check-in. Runs already in
+  /// progress keep the token they started with.
+  Future<void> _pickUpClaudeToken() => _tokenPickUp ??= _takeClaudeToken()
+      .whenComplete(() => _tokenPickUp = null);
+
+  Future<void> _takeClaudeToken() async {
     try {
       final token = await _client.machine.takeClaudeToken(
         _config.registrationToken,
