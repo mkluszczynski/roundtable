@@ -5,8 +5,6 @@ against your GitHub repos, running on your own machines, and follow every
 one of them from a single Flutter panel — on your desktop or your phone —
 instead of SSH-ing into a box and babysitting a terminal.
 
-> 🎬 Demo video: _link_
-
 ## The problem
 
 Coding agents are good enough to do real work now — but you still have to
