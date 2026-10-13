@@ -361,6 +361,49 @@ class GitHubRepoClient {
     ];
   }
 
+  /// Whether commit [ref] of [owner]/[repo] has any GitHub Actions workflow
+  /// file (`.github/workflows/*.yml` or `*.yaml`) — without one, no run will
+  /// ever start for it. Throws a [GitHubException] when [token] can't read
+  /// the commit's contents: GitHub answers that with a 404 too.
+  Future<bool> hasWorkflowFiles({
+    required String owner,
+    required String repo,
+    required String ref,
+    required String token,
+  }) async {
+    final response = await _http.get(
+      gitHubHost.apiUri('/repos/$owner/$repo/contents/.github/workflows', {
+        'ref': ref,
+      }),
+      headers: _headers(token),
+    );
+    if (response.statusCode == 404) {
+      // A 404 is also how GitHub hides a private repo's contents from a
+      // token without "Contents: Read": only trust it when the commit
+      // itself is readable.
+      final commit = await _http.get(
+        gitHubHost.apiUri('/repos/$owner/$repo/commits/$ref'),
+        headers: _headers(token),
+      );
+      _expectStatus(
+        commit.statusCode,
+        'Cannot read the contents of $owner/$repo@$ref',
+      );
+      return false;
+    }
+    _expectStatus(
+      response.statusCode,
+      'Failed to list the workflows of $owner/$repo@$ref',
+    );
+    final entries = jsonDecode(response.body);
+    if (entries is! List) return false;
+    return entries.any((entry) {
+      final name = (entry as Map<String, dynamic>)['name'] as String? ?? '';
+      return entry['type'] == 'file' &&
+          (name.endsWith('.yml') || name.endsWith('.yaml'));
+    });
+  }
+
   /// Lists the jobs of the latest attempt of workflow run [runId] — all of
   /// them, a big matrix can span several pages.
   Future<List<WorkflowJobInfo>> listRunJobs({

@@ -248,7 +248,8 @@ terminal, the runner can't change it through `update` anymore.
 9. **Accept** (`acceptTask`). It first re-reads the CI checks from GitHub
    and refuses while they're `pending` or `failure`, or while a fix run is
    queued for the agent (a new commit without any workflow run counts as
-   pending for 2 min, then as "no CI"). "Merge anyway" (`force: true`, behind
+   pending for 2 min, then as "no CI" — or as "no CI" right away when the
+   commit has no `.github/workflows/*.yml`). "Merge anyway" (`force: true`, behind
    a confirm dialog) skips that gate for a flaky or non-required job;
    GitHub's branch protection still applies. The merge is pinned to exactly
    `prHeadSha` (GitHub's `sha` guard), so a commit pushed after the checks

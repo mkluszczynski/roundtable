@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 /// Fake GitHub Actions responses for tests that go through `syncChecks`
 /// (e.g. `acceptTask`): the PR's head commit [headSha] with one workflow run
 /// whose single job ended with [conclusion] (null = still running), or none
-/// at all with [noWorkflows]; [prClosed] serves the PR as merged/closed.
+/// at all with [noWorkflows]; [noWorkflowFiles] serves a commit without
+/// `.github/workflows`, and [contentsHidden] a token that can't read the
+/// repo's contents (404 for the commit too); [prClosed] serves the PR as merged/closed.
 /// The job's log is served through a redirect, like GitHub does. Returns
 /// null for any other request.
 http.Response? fakeCiResponse(
@@ -13,6 +15,8 @@ http.Response? fakeCiResponse(
   String headSha = 'abc1234def',
   String? conclusion = 'success',
   bool noWorkflows = false,
+  bool noWorkflowFiles = false,
+  bool contentsHidden = false,
   bool prClosed = false,
 }) {
   final path = request.url.path;
@@ -29,6 +33,21 @@ http.Response? fakeCiResponse(
       }),
       200,
     );
+  }
+  if (RegExp(r'/commits/[0-9a-f]+$').hasMatch(path)) {
+    return contentsHidden
+        ? http.Response(jsonEncode({'message': 'Not Found'}), 404)
+        : http.Response(jsonEncode({'sha': headSha}), 200);
+  }
+  if (path.endsWith('/contents/.github/workflows')) {
+    return noWorkflowFiles || contentsHidden
+        ? http.Response(jsonEncode({'message': 'Not Found'}), 404)
+        : http.Response(
+            jsonEncode([
+              {'name': 'ci.yml', 'type': 'file'},
+            ]),
+            200,
+          );
   }
   if (path.endsWith('/actions/runs')) {
     return http.Response(

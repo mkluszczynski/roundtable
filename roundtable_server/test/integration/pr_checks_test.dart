@@ -22,6 +22,8 @@ void main() {
     late String headSha;
     late String? conclusion;
     late bool noWorkflows;
+    late bool noWorkflowFiles;
+    late bool contentsHidden;
     late bool prClosed;
     late bool actionsForbidden;
     late bool mergeRefused;
@@ -31,6 +33,8 @@ void main() {
       headSha = 'abc1234def';
       conclusion = 'success';
       noWorkflows = false;
+      noWorkflowFiles = false;
+      contentsHidden = false;
       prClosed = false;
       actionsForbidden = false;
       mergeRefused = false;
@@ -58,6 +62,8 @@ void main() {
                 headSha: headSha,
                 conclusion: conclusion,
                 noWorkflows: noWorkflows,
+                noWorkflowFiles: noWorkflowFiles,
+                contentsHidden: contentsHidden,
                 prClosed: prClosed,
               ) ??
               http.Response('{}', 404);
@@ -457,6 +463,61 @@ void main() {
           force: false,
         );
         expect(accepted.status, TaskStatus.done);
+      },
+    );
+
+    test(
+      'when a new commit has no workflow files then accepting merges right '
+      'away',
+      () async {
+        final task = await seed();
+        noWorkflows = true;
+        noWorkflowFiles = true;
+
+        final accepted = await endpoints.task.acceptTask(
+          sessionBuilder,
+          task.id!,
+          force: false,
+        );
+
+        expect(accepted.status, TaskStatus.done);
+        expect(accepted.checkState, PrCheckState.none);
+      },
+    );
+
+    test(
+      'when the token cannot read the contents then a commit without '
+      'workflow runs still waits for the grace period',
+      () async {
+        final task = await seed();
+        noWorkflows = true;
+        contentsHidden = true;
+
+        await expectLater(
+          endpoints.task.acceptTask(sessionBuilder, task.id!, force: false),
+          throwsA(isA<InvalidStateException>()),
+        );
+        expect((await reload(task)).checkState, PrCheckState.pending);
+      },
+    );
+
+    test(
+      'when a commit has no workflow files then GitHub is asked once',
+      () async {
+        final task = await seed();
+        noWorkflows = true;
+        noWorkflowFiles = true;
+        final session = sessionBuilder.build();
+
+        await syncChecks(session, await reload(task));
+        await syncChecks(session, await reload(task));
+
+        expect(
+          githubRequests.where(
+            (r) => r.url.path.endsWith('/contents/.github/workflows'),
+          ),
+          hasLength(1),
+        );
       },
     );
 

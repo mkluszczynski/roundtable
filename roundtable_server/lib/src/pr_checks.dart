@@ -17,6 +17,8 @@ String channelForTaskChecks(int taskId) => 'task-$taskId-checks';
 
 /// How long a new head commit without any workflow run counts as "CI hasn't
 /// started yet" (pending) rather than "this repo has no CI" (mergeable).
+/// Only applies to a commit with workflow files — without any, it's `none`
+/// right away.
 const noCiGracePeriod = Duration(minutes: 2);
 
 /// How often settled checks (success/failure/none) are polled — only a
@@ -28,9 +30,16 @@ const settledPollInterval = Duration(minutes: 5);
 /// on a restart only means one early poll.
 final _lastSyncedAt = <int, DateTime>{};
 
+/// Whether each head commit seen without workflow runs has workflow files,
+/// so a commit's grace period asks GitHub once rather than every poll.
+final _hasWorkflowsBySha = <String, bool>{};
+
 /// Forgets when tasks were last synced, so the next poll syncs them all.
 /// For tests.
-void resetChecksPollSchedule() => _lastSyncedAt.clear();
+void resetChecksPollSchedule() {
+  _lastSyncedAt.clear();
+  _hasWorkflowsBySha.clear();
+}
 
 /// Whether `PrChecksFutureCall` should sync [task] now.
 bool shouldPollChecks(Task task, {DateTime? now}) {
@@ -54,10 +63,12 @@ bool isPendingCheck(PrCheckRun run) => run.status != actionsCompleted;
 /// The aggregated state of [runs] (the jobs of one head commit).
 /// [hasUnstartedRuns] is true when a workflow run has no jobs yet; with no
 /// runs at all, a commit first seen at [headSeenAt] is `pending` for
-/// [noCiGracePeriod] before it counts as `none`.
+/// [noCiGracePeriod] before it counts as `none` — unless it has no workflow
+/// files ([hasWorkflows] false), then it's `none` right away.
 PrCheckState aggregateCheckState(
   List<PrCheckRun> runs, {
   bool hasUnstartedRuns = false,
+  bool hasWorkflows = true,
   DateTime? headSeenAt,
   DateTime? now,
 }) {
@@ -66,6 +77,7 @@ PrCheckState aggregateCheckState(
     return PrCheckState.pending;
   }
   if (runs.isNotEmpty) return PrCheckState.success;
+  if (!hasWorkflows) return PrCheckState.none;
   final current = now ?? DateTime.now().toUtc();
   if (headSeenAt != null && current.difference(headSeenAt) < noCiGracePeriod) {
     return PrCheckState.pending;
@@ -195,6 +207,22 @@ Future<Task> syncChecks(
     cachedForSha: cachedForSha,
   );
 
+  final hasWorkflows =
+      checkError == null &&
+          fresh.isEmpty &&
+          !hasUnstartedRuns &&
+          headSeenAt != null &&
+          now.difference(headSeenAt) < noCiGracePeriod
+      ? await _hasWorkflows(
+          session,
+          github,
+          owner: owner,
+          repo: repo,
+          headSha: head.sha,
+          token: context.token,
+        )
+      : true;
+
   final fixRunQueued = await hasQueuedFixRun(session, task);
   final state = checkError != null
       ? PrCheckState.none
@@ -206,6 +234,7 @@ Future<Task> syncChecks(
       : aggregateCheckState(
           fresh,
           hasUnstartedRuns: hasUnstartedRuns,
+          hasWorkflows: hasWorkflows,
           headSeenAt: headSeenAt,
           now: now,
         );
@@ -338,6 +367,35 @@ _readJobs(
       hasUnstartedRuns: false,
       checkError: e.message,
     );
+  }
+}
+
+/// Whether commit [headSha] has workflow files, cached per commit. When
+/// GitHub won't say (e.g. a token without "Contents: Read"), assumes it
+/// has, so the commit gets the usual grace period.
+Future<bool> _hasWorkflows(
+  Session session,
+  GitHubRepoClient github, {
+  required String owner,
+  required String repo,
+  required String headSha,
+  required String token,
+}) async {
+  final cached = _hasWorkflowsBySha[headSha];
+  if (cached != null) return cached;
+  try {
+    return _hasWorkflowsBySha[headSha] = await github.hasWorkflowFiles(
+      owner: owner,
+      repo: repo,
+      ref: headSha,
+      token: token,
+    );
+  } on GitHubException catch (e) {
+    session.log(
+      'Cannot list the workflow files of $owner/$repo@$headSha: ${e.message}',
+      level: LogLevel.warning,
+    );
+    return true;
   }
 }
 

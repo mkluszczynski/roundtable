@@ -93,6 +93,18 @@ void main() {
         PrCheckState.none,
       );
     });
+
+    test('no runs and no workflow files is none right away', () {
+      expect(
+        aggregateCheckState(
+          [],
+          hasWorkflows: false,
+          headSeenAt: now,
+          now: now,
+        ),
+        PrCheckState.none,
+      );
+    });
   });
 
   test('mergeBlockedReason only lets success and none through', () {
